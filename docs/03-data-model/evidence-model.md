@@ -159,6 +159,7 @@ MVP 实现里 `extraction_method` 从 `extractor_id` 前缀派生：`rule.*` →
 
 4. 看候选自身特征：
    存在 cite_text >= 30 chars → ok
+   新 evidence 必须记录 cite_text 的 chunk offset 和 sha256 fingerprint
    原文措辞强 (utilize, purchase, ship to) → 保持
    原文措辞弱 (may, plan to, intends to, considering) → 至少 -1
    未来时态 / 推测语气 → 直接降到 2

@@ -17,6 +17,7 @@
     "@supplystrata/relation-extractor-rule": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
+    "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/sources-apple-suppliers": "workspace:*",
     "@supplystrata/sources-asml-ir": "workspace:*",
     "@supplystrata/sources-companies-house": "workspace:*",

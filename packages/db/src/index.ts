@@ -538,6 +538,14 @@ export interface EvidenceDetailRow extends pg.QueryResultRow {
   edge_id: string | null;
   cite_text: string;
   cite_locator: string | null;
+  cite_start_char: number | null;
+  cite_end_char: number | null;
+  cite_text_sha256: string | null;
+  normalized_cite_text_sha256: string | null;
+  source_snapshot_sha256: string | null;
+  parser_version: string | null;
+  extractor_version: string | null;
+  relation_candidate_hash: string | null;
   evidence_level: EvidenceLevel;
   confidence: number;
   is_inferred: boolean;

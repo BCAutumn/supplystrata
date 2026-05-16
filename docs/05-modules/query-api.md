@@ -29,6 +29,8 @@ GET /v1/component/:name
 GET /v1/entity/:id
 GET /v1/edge/:id
 GET /v1/evidence/:id
+GET /v1/chain/:scope/:ref
+GET /v1/observations?scope=...&category=...
 GET /v1/changes?since=...&scope=...
 GET /v1/search?q=...
 ```
@@ -41,6 +43,7 @@ GET /v1/search?q=...
 - 不做 GraphQL
 - 不做 WebSocket / SSE 推送
 - 不做数据下载 dump（直接读文件即可）
+- 不把 `observations` 当成 `edges` 返回；深链视图必须保留 `semantic_layer`
 
 ## 安全
 

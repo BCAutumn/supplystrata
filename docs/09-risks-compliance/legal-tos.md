@@ -40,6 +40,9 @@
 | NOAA AIS          | approved        | 公共领域                                                  |
 | World Bank Pink   | approved        | 公共领域                                                  |
 | USGS              | approved        | 公共领域                                                  |
+| IEA Critical Minerals | approved    | 官方公开数据 / 下载；按 IEA 条款归因                            |
+| RMI facility lists | per-source review | 官方列表；接入前确认下载、归因、再分发限制                         |
+| EU CRMA           | approved        | 欧盟官方公开政策资料                                           |
 | SAM.gov / USAspending | approved    | 官方 API                                                |
 | EU TED            | approved        | 官方 API                                                |
 | GDELT             | approved        | 公开数据集                                                  |

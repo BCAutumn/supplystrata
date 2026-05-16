@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "policies": [
+    {
+      "source_adapter_id": "sec-edgar",
+      "enabled": true,
+      "check_cadence_minutes": 720,
+      "jitter_minutes": 60,
+      "priority": 10,
+      "notes": "SEC 是核心官方披露源；MVP 以后可提升到每日多次。"
+    },
+    {
+      "source_adapter_id": "apple-suppliers",
+      "enabled": true,
+      "check_cadence_minutes": 10080,
+      "jitter_minutes": 240,
+      "priority": 30,
+      "notes": "Apple Supplier List 更新频率低，默认每周检查足够。"
+    },
+    {
+      "source_adapter_id": "import-yeti",
+      "enabled": false,
+      "check_cadence_minutes": 10080,
+      "priority": 900,
+      "notes": "ToS 灰色来源，只允许手工摘录，不进行自动检查。"
+    }
+  ]
+}

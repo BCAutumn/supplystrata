@@ -25,6 +25,7 @@ import {
   supplierListReviewToCandidateRelation
 } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates, getReviewCandidate, listApprovedReviewCandidates, markReviewCandidateApplied, markReviewCandidateBlocked } from "@supplystrata/review-store";
+import { recordDocumentObservation } from "@supplystrata/source-monitor";
 import {
   appleSuppliersAdapter,
   createAppleSuppliersAdapterContext,
@@ -162,6 +163,7 @@ export async function runSecEdgarPipeline(pool: pg.Pool, input: SecEdgarInput): 
 export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input: NormalizedPipelineInput): Promise<PipelineSummary> {
   const normalized = input.normalized;
   const savedDocument = await saveNormalizedDocument(pool, normalized);
+  await recordSavedDocumentObservation(pool, normalized, savedDocument.doc_id);
 
   const resolver = new DbEntityResolver(pool);
   const scorer = new DeterministicEvidenceScorer();
@@ -378,6 +380,7 @@ export async function enqueueAppleSupplierReviewCandidates(pool: pg.Pool, input:
     normalize: (rawDocument, ctx) => appleSuppliersAdapter.normalize(rawDocument, ctx)
   });
   const saved = await saveNormalizedDocument(pool, normalized);
+  await recordSavedDocumentObservation(pool, normalized, saved.doc_id);
   const candidates = extractAppleSupplierCandidates(normalized, input.fiscalYear).map((candidate) =>
     buildSupplierListReviewCandidate({
       candidate,
@@ -541,6 +544,18 @@ async function previewOfficialDisclosure<TInput>(input: OfficialDisclosureInput<
 function normalizeOfficialHtml(raw: RawDocument<Uint8Array>, primaryEntityId: string): NormalizedDocument {
   const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
   return parseHtml({ raw, documentType: "annual_report", primaryEntityId, ...(sourceDate === undefined ? {} : { sourceDate }) });
+}
+
+async function recordSavedDocumentObservation(pool: pg.Pool, normalized: NormalizedDocument, docId: string): Promise<void> {
+  await recordDocumentObservation(pool, {
+    source_adapter_id: normalized.source_adapter_id,
+    source_url: normalized.source_url,
+    doc_id: docId,
+    bytes_sha256: normalized.bytes_sha256,
+    storage_key: normalized.storage_key,
+    observed_at: normalized.fetched_at,
+    caused_by: "pipeline"
+  });
 }
 
 interface FetchedSecDocument {

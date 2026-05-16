@@ -79,7 +79,59 @@
 - 主要矿产生产国 → 节点级 macro signal
 - 不直接生成图谱边
 
-## F.5 公司月度营收（亚洲常见）
+## F.5 IEA Critical Minerals Data Explorer (`iea-critical-minerals`)
+
+### 用途
+
+- 关键矿物需求 / 供应情景
+- 锂、镍、钴、石墨、铜、稀土等材料的长期约束
+- 电池、数据中心、电网、半导体设备链的上游背景
+
+### 接入
+
+- 以官方公开下载 / API 可用形态为准
+- 只存结构化观测，不重发布原始页面全文
+
+### 用法
+
+- ComponentCard 的 `related_macro_signals`
+- UnknownMap 的 `observable_proxy`
+- 不直接生成 `Company -> Mine` 或 `Company -> Country` 边
+
+## F.6 RMI facility lists (`rmi-facilities`)
+
+### 用途
+
+- 冶炼厂 / 精炼厂 / 处理设施候选
+- 金、钽、锡、钨、钴、铜、镍、锌、银、锂等矿产链的 facility 背景
+
+### 接入
+
+- 官方 facility lists / indicators
+- 遵守来源归因和下载条款
+- 先作为 facility candidate / raw material observation，不自动生成供应链边
+
+### 用法
+
+- `mineral -> processing facility` 候选
+- `facility -> country` 背景
+- 与公司 sustainability / responsible sourcing 报告交叉验证后，才考虑升级为图谱关系
+
+## F.7 EU Critical Raw Materials Act (`eu-crma`)
+
+### 用途
+
+- 关键原材料政策背景
+- 战略原材料清单、供应风险、监控和压力测试口径
+- 地缘政治 / 监管 exposure 的背景信号
+
+### 用法
+
+- Policy observation
+- ComponentCard / UnknownMap 背景
+- 不生成公司级供应边
+
+## F.8 公司月度营收（亚洲常见）
 
 - TSMC、UMC、联发科等台湾公司有月度营收公告
 - 部分韩国公司也有
@@ -96,7 +148,7 @@
 - 与 Comtrade 趋势对照
 - 不直接生成图谱边
 
-## F.6 行业新闻稿（如 TrendForce、DigiTimes 公开版本）
+## F.9 行业新闻稿（如 TrendForce、DigiTimes 公开版本）
 
 ### 用途
 

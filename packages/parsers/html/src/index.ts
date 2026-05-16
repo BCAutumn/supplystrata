@@ -3,6 +3,7 @@ import { type DocumentType, type NormalizedDocument, type RawDocument } from "@s
 import { chunkText, normalizeText } from "@supplystrata/parsers-text";
 
 type LoadedCheerio = ReturnType<typeof cheerio.load>;
+const HTML_PARSER_VERSION = "html-parser-v1";
 
 export interface HtmlParseInput {
   raw: RawDocument<Uint8Array>;
@@ -31,7 +32,7 @@ export function parseHtml(input: HtmlParseInput): NormalizedDocument {
     bytes_sha256: input.raw.bytes_sha256,
     text,
     chunks,
-    metadata: input.raw.metadata,
+    metadata: { ...input.raw.metadata, parser_version: HTML_PARSER_VERSION },
     ...(input.primaryEntityId === undefined ? {} : { primary_entity_id: input.primaryEntityId }),
     ...(input.sourceDate === undefined ? {} : { source_date: input.sourceDate })
   };

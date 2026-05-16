@@ -3,7 +3,7 @@
 > Open Supply Chain Evidence Graph
 > 公开供应链证据图谱系统
 
-**当前阶段**：Phase 1 已完成，Phase 2 正在推进。NVIDIA SEC 10-K 纵向切片、Apple Supplier List review/apply 纵向链路、Postgres 真相存储、Neo4j 物化图、`graph check/rebuild`、CLI 输出与测试门禁已经跑通。
+**当前阶段**：Phase 1 已完成，Phase 2 正在推进。NVIDIA SEC 10-K 纵向切片、Apple Supplier List review/apply 纵向链路、Postgres 真相存储、Neo4j 物化图、`graph check/rebuild`、CLI 输出、测试门禁和新 evidence trace/fingerprint 写入已经跑通或落地。
 
 这是 alpha/MVP 仓库，不是完整供应链数据库。
 
@@ -74,6 +74,7 @@
 | Apple Supplier List review/apply | implemented (semi-auto, requires review) |
 | Entity source lookup/import | preview/review path implemented |
 | Neo4j 物化视图健康检查 | implemented |
+| Evidence trace/fingerprint | implemented for newly applied evidence |
 
 ## 当前可运行切片
 
@@ -106,6 +107,20 @@ pnpm --silent cli preview report nvidia --format markdown --lang zh
 
 ```bash
 pnpm --silent cli graph check --format json
+```
+
+查看免费/公开数据源的监控健康状态：
+
+```bash
+pnpm --silent cli sources health --format markdown
+pnpm --silent cli sources due --format markdown
+pnpm --silent cli sources policy sync --file config/source-policies.example.json
+```
+
+历史 evidence 可分批补齐精确定位和指纹：
+
+```bash
+pnpm --silent cli db backfill-evidence-trace --limit 1000
 ```
 
 Apple Supplier List 是半自动链路：

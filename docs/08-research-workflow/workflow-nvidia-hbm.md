@@ -98,6 +98,35 @@ Phase 3 之后：
 - NOAA AccessAIS：洛杉矶 / 长滩 / 日本港口 vessel count 与 dwell
 - 不能下到"这艘船上有 H100"
 
+物流信号必须作为 `port_observations` / `route_observations`，除非同时满足多条独立 BOL、非货代识别、产品描述一致、时间连续性和人工 review，否则不能升级成 inferred edge。详细升级门槛见 [multi-tier-chain-logistics-plan.md](../06-development/multi-tier-chain-logistics-plan.md)。
+
+## 5b. Step 5b — 原材料 / 冶炼 / 精炼（ComponentCard 背景）
+
+Phase 3 之后，HBM / AI server 相关的原材料链路要先进入 ComponentCard，而不是直接连到 NVIDIA：
+
+- USGS MCS：锂、镍、钴、铜、稀土等矿产产量、储量、主要生产国。
+- IEA Critical Minerals Data Explorer：关键矿物需求和供应情景。
+- RMI facility lists：冶炼/精炼/处理设施候选。
+- EU Critical Raw Materials Act：政策、集中度、供应风险背景。
+
+允许：
+
+```text
+ComponentCard(HBM) -> related raw material observations
+ComponentCard(server power/cooling) -> copper / aluminium / energy observations
+UnknownMap -> exact mine/refiner allocation unknown
+```
+
+不允许：
+
+```text
+NVIDIA -> mine/refiner
+NVIDIA -> country mineral source
+supplier -> mine
+```
+
+除非有公司官方披露、监管文件或同等级证据直接支持。
+
 ## 6. Step 6 — 形成研究图谱片段
 
 ### 输出（CompanyCard("NVIDIA", depth=2)）

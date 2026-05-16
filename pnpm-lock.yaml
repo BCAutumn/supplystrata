@@ -78,6 +78,9 @@ importers:
       '@supplystrata/entity-source':
         specifier: workspace:*
         version: link:../../packages/entity-source
+      '@supplystrata/evidence-maintenance':
+        specifier: workspace:*
+        version: link:../../packages/evidence-maintenance
       '@supplystrata/graph-builder':
         specifier: workspace:*
         version: link:../../packages/graph-builder
@@ -93,6 +96,9 @@ importers:
       '@supplystrata/review-store':
         specifier: workspace:*
         version: link:../../packages/review-store
+      '@supplystrata/source-monitor':
+        specifier: workspace:*
+        version: link:../../packages/source-monitor
       '@supplystrata/source-registry':
         specifier: workspace:*
         version: link:../../packages/source-registry
@@ -160,6 +166,21 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/evidence-maintenance:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      '@supplystrata/evidence-trace':
+        specifier: workspace:*
+        version: link:../evidence-trace
+      pg:
+        specifier: ~8.13.1
+        version: 8.13.3
+
   packages/evidence-scorer:
     dependencies:
       '@supplystrata/core':
@@ -168,6 +189,12 @@ importers:
       '@supplystrata/source-registry':
         specifier: workspace:*
         version: link:../source-registry
+
+  packages/evidence-trace:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/graph:
     dependencies:
@@ -189,6 +216,9 @@ importers:
       '@supplystrata/entity-resolver':
         specifier: workspace:*
         version: link:../entity-resolver
+      '@supplystrata/evidence-trace':
+        specifier: workspace:*
+        version: link:../evidence-trace
       '@supplystrata/graph':
         specifier: workspace:*
         version: link:../graph
@@ -264,6 +294,9 @@ importers:
       '@supplystrata/review-store':
         specifier: workspace:*
         version: link:../review-store
+      '@supplystrata/source-monitor':
+        specifier: workspace:*
+        version: link:../source-monitor
       '@supplystrata/sources-apple-suppliers':
         specifier: workspace:*
         version: link:../sources/apple-suppliers
@@ -339,6 +372,18 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/source-monitor:
+    dependencies:
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      '@supplystrata/source-registry':
+        specifier: workspace:*
+        version: link:../source-registry
+      pg:
+        specifier: ~8.13.1
+        version: 8.13.3
 
   packages/source-registry:
     dependencies:

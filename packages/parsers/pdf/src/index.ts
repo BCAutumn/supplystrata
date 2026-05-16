@@ -7,6 +7,7 @@ import { type DocumentType, type NormalizedDocument, type RawDocument } from "@s
 import { chunkText } from "@supplystrata/parsers-text";
 
 const execFileAsync = promisify(execFile);
+const PDF_PARSER_VERSION = "pdf-pdftotext-v1";
 
 export interface PdfParseInput {
   raw: RawDocument<Uint8Array>;
@@ -46,7 +47,7 @@ export async function parsePdf(input: PdfParseInput): Promise<NormalizedDocument
     bytes_sha256: input.raw.bytes_sha256,
     text,
     chunks: chunkText(text, input.raw.doc_id, 7000),
-    metadata: input.raw.metadata,
+    metadata: { ...input.raw.metadata, parser_version: PDF_PARSER_VERSION },
     ...(input.primaryEntityId === undefined ? {} : { primary_entity_id: input.primaryEntityId }),
     ...(input.sourceDate === undefined ? {} : { source_date: input.sourceDate })
   };

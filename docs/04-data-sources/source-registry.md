@@ -30,6 +30,9 @@
 | `fred`            | P1   | FRED (St. Louis Fed)             | 宏观经济时间序列                             | 2-3 (背景信号)         | API                                   | 公开              | scoped      |
 | `worldbank-pink`  | P1   | World Bank Pink Sheet            | 商品价格月度数据                             | 2-3 (背景信号)         | XLSX 下载                             | 公开              | scoped      |
 | `usgs-mcs`        | P1   | USGS Mineral Commodity Summaries | 矿产基本面                                   | 2-3 (背景信号)         | PDF + CSV                             | 公开              | scoped      |
+| `iea-critical-minerals` | P1 | IEA Critical Minerals Data Explorer | 关键矿物需求 / 供应情景                  | 2-3 (背景信号)         | CSV/API/下载（以官方可用方式为准）    | 公开              | scoped      |
+| `rmi-facilities`  | P1   | Responsible Minerals Initiative facility lists | 冶炼 / 精炼 / 处理设施候选        | 2-3 (设施/原材料候选)  | CSV/XLSX/网页下载（需遵守来源条款）   | 公开 + 归因       | scoped      |
+| `eu-crma`         | P1   | EU Critical Raw Materials Act     | 关键原材料政策 / 风险 / 战略项目背景         | 2-3 (政策背景信号)     | 官方网页 / PDF                         | 公开              | scoped      |
 | `osh`             | P1   | Open Supply Hub                  | 全球生产设施                                 | 3-4                    | API                                   | 公开              | scoped      |
 | `noaa-ais`        | P2   | NOAA AccessAIS / bulk            | 美国水域 AIS 船舶                            | 2 (背景信号)           | 下载 / 区域选择                       | 公开              | scoped      |
 | `sam-gov`         | P2   | SAM.gov Contract Opportunities   | 美国联邦采购机会                             | 2-3                    | API                                   | 公开              | scoped      |
@@ -58,7 +61,7 @@
 - [tier-C-facility-data.md](./tier-C-facility-data.md) — osh / apple-suppliers (作为 facility 视角)
 - [tier-D-trade-customs.md](./tier-D-trade-customs.md) — un-comtrade / census-trade / usitc-dataweb / import-yeti（手工）
 - [tier-E-shipping-logistics.md](./tier-E-shipping-logistics.md) — noaa-ais / port dashboards
-- [tier-F-energy-commodities.md](./tier-F-energy-commodities.md) — eia / fred / worldbank-pink / usgs-mcs
+- [tier-F-energy-commodities.md](./tier-F-energy-commodities.md) — eia / fred / worldbank-pink / usgs-mcs / iea-critical-minerals / rmi-facilities / eu-crma
 - [tier-G-procurement-news.md](./tier-G-procurement-news.md) — sam-gov / usaspending / eu-ted / gdelt
 
 ## Source Authority Matrix

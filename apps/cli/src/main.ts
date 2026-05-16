@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { Command } from "commander";
 import { runDataQualityChecks } from "@supplystrata/data-quality";
 import { getPendingEntity, migrate, seedFromCsv } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
+import { backfillEvidenceTrace } from "@supplystrata/evidence-maintenance";
 import { GraphBuilder } from "@supplystrata/graph-builder";
+import { listDueSourceChecks, listSourceHealthRows, parseSourcePolicyConfig, syncSourcePolicyConfig } from "@supplystrata/source-monitor";
 import {
   applyApprovedReviewCandidate,
   applyApprovedReviewCandidates,
@@ -26,7 +29,7 @@ import { renderDataQuality } from "./dq-render.js";
 import { renderGraphCheck } from "./graph-render.js";
 import { renderAppleSuppliersPreview, renderPreview, renderResearchReport } from "./preview-render.js";
 import { renderReviewApplyBatch, renderReviewItemOrEmpty } from "./review-render.js";
-import { renderSourcesList } from "./source-render.js";
+import { renderDueSources, renderSourceHealth, renderSourcesList } from "./source-render.js";
 
 const program = new Command();
 
@@ -37,6 +40,12 @@ db.command("migrate").description("run SQL migrations").action(async () => {
   await withPool(async (pool) => {
     await migrate(pool);
     writeJson({ ok: true, migrated: true });
+  });
+});
+db.command("backfill-evidence-trace").option("--limit <count>", "max evidence rows to backfill", "1000").description("backfill evidence citation offsets and fingerprints").action(async (options: { limit: string }) => {
+  await withPool(async (pool) => {
+    const summary = await backfillEvidenceTrace(pool, { limit: parseLimit(options.limit) });
+    writeJson({ ok: true, ...summary });
   });
 });
 
@@ -121,6 +130,26 @@ sources.command("status").option("--format <format>", "markdown or json", "markd
     `Manual-only: ${summary.manualOnly}`,
     `Requires key: ${summary.requiresKey}`
   ].join("\n"));
+});
+sources.command("health").option("--format <format>", "markdown or json", "markdown").description("show source monitoring health from Postgres").action(async (options: { format: string }) => {
+  await withPool(async (pool) => {
+    const health = await listSourceHealthRows(pool);
+    write(renderSourceHealth(health, parseFormat(options.format)));
+  });
+});
+sources.command("due").option("--limit <count>", "max due sources", "50").option("--format <format>", "markdown or json", "markdown").description("list sources whose configured check time is due").action(async (options: { limit: string; format: string }) => {
+  await withPool(async (pool) => {
+    const due = await listDueSourceChecks(pool, { limit: parseLimit(options.limit) });
+    write(renderDueSources(due, parseFormat(options.format)));
+  });
+});
+const sourcePolicy = sources.command("policy").description("source monitoring policy commands");
+sourcePolicy.command("sync").requiredOption("--file <path>", "JSON source policy config").description("sync external source monitoring policy config").action(async (options: { file: string }) => {
+  await withPool(async (pool) => {
+    const config = parseSourcePolicyConfig(await readFile(options.file, "utf8"));
+    const result = await syncSourcePolicyConfig(pool, { config, configSource: options.file });
+    writeJson({ ok: true, ...result });
+  });
 });
 
 const entity = program.command("entity").description("entity resolution helper commands");

@@ -118,6 +118,8 @@ type SourceAuthority = {
 
 ### PR 5 — Exact citation offsets + evidence fingerprint
 
+状态：代码已开始落地。新写入的 evidence 会记录 offset、fingerprint、source snapshot hash、parser/extractor version 与 relation candidate hash；历史 evidence 可用 `db backfill-evidence-trace` 分批补齐；下一步是观察 data-quality 重复告警并升级去重约束。
+
 当前风险：`cite_locator` 是弱定位。解析器版本变化后，很难证明某条 evidence 仍能精确复现。
 
 目标字段：
@@ -136,7 +138,7 @@ relation_candidate_hash
 验收：
 
 - 任意 `EV-xxx` 能跳到 `doc_id`、`storage_key`、`chunk_id`、char offsets、原文片段、source URL、fetch date。
-- 同一段原文重复抽取不会产生重复 evidence。
+- 同一段原文重复抽取不会产生重复 evidence；现阶段先通过 `relation_candidate_hash` 和 data-quality 暴露，历史 backfill 后再加唯一约束。
 - parser / extractor 版本升级后，旧 evidence 可审计。
 
 ## P1：把 NVIDIA 样板变成官方披露规则包
@@ -182,6 +184,8 @@ rule.supplier-list.facility
 ## P2：建立 monitoring layer
 
 系统要从“一次性抓取”升级成“知道何时变化、何处失败、哪些边受影响”的监控系统。
+
+状态：第一层已落地。`source_health` / `source_policies` / `source_items` / `document_versions` / `source_change_events` / `fetch_runs` 已进入 schema；`@supplystrata/source-monitor` 负责同步 registry、同步外部 cadence 配置、输出 source health/due list、计算 `DOCUMENT_NEW` / `DOCUMENT_UNCHANGED` / `DOCUMENT_CHANGED`。`recordDocumentObservation()` 已接入真实 pipeline 的 `saveNormalizedDocument` 后置路径。
 
 目标数据模型：
 
@@ -257,8 +261,10 @@ SOURCE_RECOVERED
 验收 CLI：
 
 ```bash
-supplystrata source list
-supplystrata source health
+supplystrata sources list
+supplystrata sources health
+supplystrata sources due
+supplystrata sources policy sync --file config/source-policies.example.json
 supplystrata source plan sec-edgar --entity NVIDIA
 supplystrata source fetch --source sec-edgar --entity NVIDIA
 supplystrata source diff --doc DOC-xxx
@@ -412,6 +418,7 @@ unknowns
 7. Generic SEC rule pack。
 8. CompanyCard / ComponentCard 升级。
 9. Phase 3 observations 数据源接入。
+10. ChainView / multi-tier segment contract（详见 [multi-tier-chain-logistics-plan.md](./multi-tier-chain-logistics-plan.md)）。
 
 如果中途发现高置信边错误，暂停扩源，先修可信度。
 
@@ -431,6 +438,7 @@ unknowns
 - 不为了演示效果先做漂亮 UI。
 - 不在 Phase 2 接 Comtrade / EIA / NOAA / GDELT。
 - 不让宏观数据直接生成公司级供应链边。
+- 不为了把链画长，把原材料、港口、AIS、BOL 直接混成 Level 4/5 事实边；深链追踪必须按 `edge / observation / lead / unknown` 分层。
 - 不把新闻 / 招聘 / 采购线索默认写入 graph。
 - 不在本仓库输出投资建议。
 - 不把 LLM 输出直接入图。

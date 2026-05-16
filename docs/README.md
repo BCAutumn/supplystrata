@@ -12,6 +12,7 @@ docs/
 ├── 01-product/                   产品/输出层面定义
 │   ├── mvp-scope.md              ★ MVP 边界与验收标准
 │   ├── output-spec.md            ★ 公司卡片 / 组件卡片 / 证据卡片 / 未知地图
+│   ├── research-ui-preview.md       研究前端原型：链路图优先的信息架构
 │   ├── target-companies.md          第一批研究对象
 │   └── user-stories.md              典型使用场景
 │
@@ -53,6 +54,7 @@ docs/
 ├── 06-development/               开发流程
 │   ├── roadmap.md                ★ 阶段化路线图（Phase 0-5，不承诺自然周）
 │   ├── phase-2-upgrade-plan.md   ★ 公开 alpha 后的可信度优先升级计划
+│   ├── multi-tier-chain-logistics-plan.md ★ 多级链路 / 原材料 / 物流追踪计划
 │   ├── quickstart.md                从空环境跑到研究输出
 │   ├── coding-standards.md          代码规范（TS strict、命名、目录约定）
 │   ├── testing-strategy.md          测试策略（单元/契约/数据快照）

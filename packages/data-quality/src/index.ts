@@ -37,6 +37,19 @@ interface CiteChunkRow extends pg.QueryResultRow {
   doc_id: string;
 }
 
+interface EvidenceTraceRow extends pg.QueryResultRow {
+  evidence_id: string;
+  chunk_id: string | null;
+  doc_id: string;
+}
+
+interface DuplicateEvidenceTraceRow extends pg.QueryResultRow {
+  relation_candidate_hash: string;
+  normalized_cite_text_sha256: string;
+  evidence_ids: string[];
+  count: number;
+}
+
 interface PrimaryEvidenceMismatchRow extends pg.QueryResultRow {
   edge_id: string;
   primary_evidence_id: string | null;
@@ -58,6 +71,8 @@ export async function runDataQualityChecks(client: DbClient): Promise<DataQualit
   issues.push(...await checkActiveEvidenceHasUsableCiteText(client));
   issues.push(...await checkActiveEvidenceReferencesExistingEdges(client));
   issues.push(...await checkActiveEvidenceCiteTextMatchesChunk(client));
+  issues.push(...await checkActiveEvidenceTraceabilityMetadata(client));
+  issues.push(...await checkActiveEvidenceCandidateDuplicates(client));
   issues.push(...await checkActiveEvidenceHasNoHtmlBoundaryGlue(client));
   issues.push(...await checkLlmEvidenceConstraints(client));
   issues.push(...await checkPrimaryEvidenceMatchesBestEvidence(client));
@@ -160,6 +175,87 @@ async function checkActiveEvidenceCiteTextMatchesChunk(client: DbClient): Promis
       detail: { chunk_id: row.chunk_id, doc_id: row.doc_id }
     }))
   ];
+}
+
+async function checkActiveEvidenceTraceabilityMetadata(client: DbClient): Promise<DataQualityIssue[]> {
+  const missingFingerprint = await client.query<EvidenceTraceRow>(
+    `SELECT evidence_id, chunk_id, doc_id
+     FROM evidence
+     WHERE superseded_by IS NULL
+       AND (
+         cite_text_sha256 IS NULL
+         OR normalized_cite_text_sha256 IS NULL
+         OR source_snapshot_sha256 IS NULL
+         OR parser_version IS NULL
+         OR extractor_version IS NULL
+         OR relation_candidate_hash IS NULL
+       )
+     ORDER BY evidence_id`
+  );
+  const offsetMismatch = await client.query<EvidenceTraceRow>(
+    `SELECT ev.evidence_id, ev.chunk_id, ev.doc_id
+     FROM evidence ev
+     JOIN document_chunks c ON c.chunk_id = ev.chunk_id
+     WHERE ev.superseded_by IS NULL
+       AND ev.cite_start_char IS NOT NULL
+       AND ev.cite_end_char IS NOT NULL
+       AND (
+         ev.cite_start_char < 0
+         OR ev.cite_end_char < ev.cite_start_char
+         OR ev.cite_end_char > length(c.text)
+         OR substring(c.text from ev.cite_start_char + 1 for ev.cite_end_char - ev.cite_start_char) <> ev.cite_text
+       )
+     ORDER BY ev.evidence_id`
+  );
+
+  return [
+    ...missingFingerprint.rows.map((row) => issue({
+      ruleId: "evidence.traceability_metadata_missing",
+      severity: "warn",
+      scopeKind: "evidence",
+      scopeId: row.evidence_id,
+      message: "Active evidence is missing fingerprint/version metadata; existing historical rows should be backfilled.",
+      detail: { chunk_id: row.chunk_id, doc_id: row.doc_id }
+    })),
+    ...offsetMismatch.rows.map((row) => issue({
+      ruleId: "evidence.cite_offset_mismatch",
+      severity: "error",
+      scopeKind: "evidence",
+      scopeId: row.evidence_id,
+      message: "Active evidence cite_start_char/cite_end_char does not reproduce cite_text from the chunk.",
+      detail: { chunk_id: row.chunk_id, doc_id: row.doc_id }
+    }))
+  ];
+}
+
+async function checkActiveEvidenceCandidateDuplicates(client: DbClient): Promise<DataQualityIssue[]> {
+  const duplicates = await client.query<DuplicateEvidenceTraceRow>(
+    `SELECT relation_candidate_hash,
+            normalized_cite_text_sha256,
+            array_agg(evidence_id ORDER BY evidence_id) AS evidence_ids,
+            count(*)::int AS count
+     FROM evidence
+     WHERE superseded_by IS NULL
+       AND relation_candidate_hash IS NOT NULL
+       AND normalized_cite_text_sha256 IS NOT NULL
+     GROUP BY relation_candidate_hash, normalized_cite_text_sha256
+     HAVING count(*) > 1
+     ORDER BY relation_candidate_hash`
+  );
+
+  return duplicates.rows.map((row) => issue({
+    ruleId: "evidence.duplicate_relation_candidate",
+    severity: "warn",
+    scopeKind: "evidence",
+    scopeId: row.evidence_ids[0] ?? row.relation_candidate_hash,
+    message: "Multiple active evidence rows share the same relation candidate fingerprint.",
+    detail: {
+      relation_candidate_hash: row.relation_candidate_hash,
+      normalized_cite_text_sha256: row.normalized_cite_text_sha256,
+      evidence_ids: row.evidence_ids,
+      count: row.count
+    }
+  }));
 }
 
 async function checkActiveEvidenceHasNoHtmlBoundaryGlue(client: DbClient): Promise<DataQualityIssue[]> {

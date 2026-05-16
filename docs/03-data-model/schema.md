@@ -129,6 +129,14 @@ CREATE TABLE evidence (
   chunk_id           TEXT REFERENCES document_chunks(chunk_id),
   cite_text          TEXT NOT NULL,
   cite_locator       TEXT,
+  cite_start_char    INT,                           -- chunk 内 0-based inclusive
+  cite_end_char      INT,                           -- chunk 内 0-based exclusive
+  cite_text_sha256   TEXT,                          -- 原始 cite_text 哈希
+  normalized_cite_text_sha256 TEXT,                 -- NFKC + 空白归一后的 cite_text 哈希
+  source_snapshot_sha256 TEXT,                      -- documents.bytes_sha256 快照
+  parser_version     TEXT,                          -- 产生 chunk/text 的 parser 版本
+  extractor_version  TEXT,                          -- 产生 candidate 的 extractor/prompt 版本
+  relation_candidate_hash TEXT,                     -- 关系候选稳定指纹
   evidence_level     SMALLINT NOT NULL CHECK (evidence_level BETWEEN 1 AND 5),
   confidence         REAL NOT NULL,
   is_inferred        BOOLEAN NOT NULL,
@@ -145,6 +153,7 @@ CREATE TABLE evidence (
 
 CREATE INDEX idx_evidence_edge ON evidence(edge_id);
 CREATE INDEX idx_evidence_doc ON evidence(doc_id);
+CREATE INDEX idx_evidence_relation_candidate_hash ON evidence(relation_candidate_hash);
 ```
 
 ### 7. edges
@@ -215,7 +224,95 @@ CREATE INDEX idx_change_records_scope ON change_records(scope_kind, scope_id);
 CREATE INDEX idx_change_records_detected_at ON change_records(detected_at DESC);
 ```
 
-### 9. unknown_items
+### 9. source monitoring
+
+```sql
+CREATE TABLE source_health (
+  source_adapter_id  TEXT PRIMARY KEY,
+  tier               TEXT NOT NULL,
+  category           TEXT NOT NULL,
+  registry_status    TEXT NOT NULL,
+  automation         TEXT NOT NULL,
+  tos_url            TEXT NOT NULL,
+  official_url       TEXT NOT NULL,
+  requires_key       BOOLEAN NOT NULL,
+  last_checked_at    TIMESTAMPTZ,
+  last_success_at    TIMESTAMPTZ,
+  last_failure_at    TIMESTAMPTZ,
+  failure_count      INT NOT NULL DEFAULT 0,
+  last_change_at     TIMESTAMPTZ,
+  last_error_message TEXT,
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE source_policies (
+  source_adapter_id     TEXT PRIMARY KEY,
+  enabled               BOOLEAN NOT NULL DEFAULT true,
+  check_cadence_minutes INT NOT NULL,
+  jitter_minutes        INT NOT NULL DEFAULT 0,
+  priority              INT NOT NULL DEFAULT 100,
+  config_source         TEXT NOT NULL DEFAULT 'default',
+  next_check_at         TIMESTAMPTZ,
+  notes                 TEXT,
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE source_items (
+  source_item_id       TEXT PRIMARY KEY,
+  source_adapter_id    TEXT NOT NULL,
+  item_key             TEXT NOT NULL,
+  url                  TEXT NOT NULL,
+  latest_doc_id        TEXT REFERENCES documents(doc_id),
+  latest_bytes_sha256  TEXT,
+  latest_storage_key   TEXT,
+  first_seen_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_changed_at      TIMESTAMPTZ,
+  status               TEXT NOT NULL DEFAULT 'active',
+  UNIQUE(source_adapter_id, item_key)
+);
+
+CREATE TABLE document_versions (
+  version_id     TEXT PRIMARY KEY,
+  source_item_id TEXT NOT NULL REFERENCES source_items(source_item_id),
+  doc_id         TEXT NOT NULL REFERENCES documents(doc_id),
+  bytes_sha256   TEXT NOT NULL,
+  storage_key    TEXT NOT NULL,
+  observed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(source_item_id, bytes_sha256)
+);
+
+CREATE TABLE source_change_events (
+  event_id          TEXT PRIMARY KEY,
+  event_type        TEXT NOT NULL, -- DOCUMENT_NEW|DOCUMENT_UNCHANGED|DOCUMENT_CHANGED
+  source_adapter_id TEXT NOT NULL,
+  source_item_id    TEXT REFERENCES source_items(source_item_id),
+  doc_id            TEXT REFERENCES documents(doc_id),
+  before            JSONB,
+  after             JSONB,
+  detected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  caused_by         TEXT NOT NULL
+);
+
+CREATE TABLE fetch_runs (
+  fetch_run_id      TEXT PRIMARY KEY,
+  source_adapter_id TEXT NOT NULL,
+  task_id           TEXT,
+  url               TEXT NOT NULL,
+  started_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at       TIMESTAMPTZ,
+  status            TEXT NOT NULL,
+  response_sha256   TEXT,
+  storage_key       TEXT,
+  error_message     TEXT,
+  change_type       TEXT,
+  attrs             JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+```
+
+这组表是 source monitoring / change detection 的底座。`source_health` 同步静态 registry；`source_policies` 保存外部可配置检查 cadence；`source_items` 表示一个可重复观察的 URL/API item；`document_versions` 保存每次内容版本；`source_change_events` 记录新文档、未变化和内容变化事件；`fetch_runs` 记录抓取尝试本身。
+
+### 10. unknown_items
 
 ```sql
 CREATE TABLE unknown_items (
@@ -237,7 +334,7 @@ CREATE INDEX idx_unknown_items_scope ON unknown_items(scope_kind, scope_id);
 CREATE INDEX idx_unknown_items_status ON unknown_items(status);
 ```
 
-### 10. extraction_review_queue
+### 11. extraction_review_queue
 
 ```sql
 CREATE TABLE extraction_review_queue (
@@ -256,7 +353,7 @@ CREATE TABLE extraction_review_queue (
 CREATE INDEX idx_review_queue_status ON extraction_review_queue(status);
 ```
 
-### 11. extraction_rejections
+### 12. extraction_rejections
 
 硬校验失败的候选进入这里，不进入人工 review 队列。人工看过以后拒绝的候选仍留在 `extraction_review_queue(status='rejected')`。
 
@@ -276,7 +373,7 @@ CREATE INDEX idx_extraction_rejections_doc ON extraction_rejections(doc_id);
 CREATE INDEX idx_extraction_rejections_reason ON extraction_rejections(reason_code);
 ```
 
-### 12. pending_entities
+### 13. pending_entities
 
 ```sql
 CREATE TABLE pending_entities (
@@ -292,7 +389,7 @@ CREATE TABLE pending_entities (
 );
 ```
 
-### 13. pgboss schema（Phase 3 目标）
+### 14. pgboss schema（Phase 3 目标）
 
 `v0.1.0-alpha.1` 尚未引入后台队列。Phase 3 如果启动持续监控，再由 `pg-boss` 自带 schema（默认 `pgboss`）管理任务队列：
 

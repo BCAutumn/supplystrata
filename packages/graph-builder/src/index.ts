@@ -13,6 +13,7 @@ import {
 } from "@supplystrata/core";
 import { listCurrentEdges } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
+import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import { Neo4jGraphStore, type GraphStore } from "@supplystrata/graph";
 
 export interface GraphProjectionStats {
@@ -75,6 +76,21 @@ export class GraphBuilder {
       const isNewEdge = existing.rows[0] === undefined;
       const edgeLevel = maxLevel(existing.rows[0]?.evidence_level, approved.scoring.evidence_level);
       const edgeConfidence = Math.min(0.97, Math.max(existing.rows[0]?.confidence ?? 0, approved.scoring.confidence));
+      const traceInput = await loadEvidenceTraceInput(client, approved);
+      const trace = buildEvidenceTrace({
+        cite_text: approved.candidate.cite_text,
+        extractor_id: approved.candidate.extractor_id,
+        ...(approved.candidate.llm_meta === undefined ? {} : { llm_meta: approved.candidate.llm_meta }),
+        source_snapshot_sha256: traceInput.source_snapshot_sha256,
+        document_metadata: traceInput.document_metadata,
+        identity: {
+          subject_id: subject.entity_id,
+          object_id: object.entity_id,
+          relation: approved.candidate.relation,
+          component
+        },
+        ...(traceInput.chunk_text === undefined ? {} : { chunk_text: traceInput.chunk_text })
+      });
 
       if (isNewEdge) {
         await client.query(
@@ -110,10 +126,13 @@ export class GraphBuilder {
       }
 
       await client.query(
-        `INSERT INTO evidence (evidence_id, edge_id, doc_id, chunk_id, cite_text, cite_locator, evidence_level, confidence,
+        `INSERT INTO evidence (evidence_id, edge_id, doc_id, chunk_id, cite_text, cite_locator,
+                               cite_start_char, cite_end_char, cite_text_sha256, normalized_cite_text_sha256,
+                               source_snapshot_sha256, parser_version, extractor_version, relation_candidate_hash,
+                               evidence_level, confidence,
                                is_inferred, extraction_method, extractor_id, llm_meta, reviewer, reviewed_at,
                                confidence_breakdown, rationale)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
         [
           evidenceId,
           edgeId,
@@ -121,6 +140,14 @@ export class GraphBuilder {
           approved.chunk_id ?? null,
           approved.candidate.cite_text,
           approved.candidate.cite_locator,
+          trace.cite_start_char,
+          trace.cite_end_char,
+          trace.cite_text_sha256,
+          trace.normalized_cite_text_sha256,
+          trace.source_snapshot_sha256,
+          trace.parser_version,
+          trace.extractor_version,
+          trace.relation_candidate_hash,
           approved.scoring.evidence_level,
           approved.scoring.confidence,
           approved.scoring.is_inferred,
@@ -324,6 +351,21 @@ interface ComponentLookupRow extends pg.QueryResultRow {
   name: string;
 }
 
+interface EvidenceDocumentRow extends pg.QueryResultRow {
+  bytes_sha256: string;
+  metadata: Record<string, unknown>;
+}
+
+interface EvidenceChunkRow extends pg.QueryResultRow {
+  text: string;
+}
+
+interface LoadedEvidenceTraceInput {
+  source_snapshot_sha256: string;
+  document_metadata: Record<string, unknown>;
+  chunk_text?: string;
+}
+
 async function resolveComponentReference(client: pg.PoolClient, candidate: CandidateRelation): Promise<ComponentReference> {
   if (candidate.component === undefined && candidate.component_id === undefined) {
     return { component: null, component_id: null, component_specificity: null };
@@ -356,6 +398,20 @@ async function resolveComponentReference(client: pg.PoolClient, candidate: Candi
     component: componentText,
     component_id: row?.component_id ?? null,
     component_specificity: row === undefined ? null : (candidate.component_specificity ?? "unspecified")
+  };
+}
+
+async function loadEvidenceTraceInput(client: pg.PoolClient, approved: ApprovedCandidate): Promise<LoadedEvidenceTraceInput> {
+  const document = await client.query<EvidenceDocumentRow>("SELECT bytes_sha256, metadata FROM documents WHERE doc_id = $1", [approved.doc_id]);
+  const doc = document.rows[0];
+  if (doc === undefined) throw new Error(`Document not found for evidence trace: ${approved.doc_id}`);
+  if (approved.chunk_id === undefined) return { source_snapshot_sha256: doc.bytes_sha256, document_metadata: doc.metadata };
+  const chunk = await client.query<EvidenceChunkRow>("SELECT text FROM document_chunks WHERE chunk_id = $1", [approved.chunk_id]);
+  const chunkText = chunk.rows[0]?.text;
+  return {
+    source_snapshot_sha256: doc.bytes_sha256,
+    document_metadata: doc.metadata,
+    ...(chunkText === undefined ? {} : { chunk_text: chunkText })
   };
 }
 

@@ -11,11 +11,13 @@
     "@supplystrata/db": "workspace:*",
     "@supplystrata/entity-source": "workspace:*",
     "@supplystrata/entity-resolver": "workspace:*",
+    "@supplystrata/evidence-maintenance": "workspace:*",
     "@supplystrata/graph-builder": "workspace:*",
     "@supplystrata/pipeline": "workspace:*",
     "@supplystrata/render": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
+    "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/source-registry": "workspace:*",
     "commander": "~12.1.0"
   }

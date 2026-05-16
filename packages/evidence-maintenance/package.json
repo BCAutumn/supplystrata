@@ -1,5 +1,5 @@
 {
-  "name": "@supplystrata/graph-builder",
+  "name": "@supplystrata/evidence-maintenance",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -8,9 +8,7 @@
   "dependencies": {
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
-    "@supplystrata/entity-resolver": "workspace:*",
     "@supplystrata/evidence-trace": "workspace:*",
-    "@supplystrata/graph": "workspace:*",
     "pg": "~8.13.1"
   }
 }

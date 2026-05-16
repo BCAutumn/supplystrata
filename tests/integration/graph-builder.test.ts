@@ -73,6 +73,17 @@ interface ProjectionStatsRow extends pg.QueryResultRow {
   edges: number;
 }
 
+interface EvidenceTraceTestRow extends pg.QueryResultRow {
+  cite_start_char: number | null;
+  cite_end_char: number | null;
+  cite_text_sha256: string | null;
+  normalized_cite_text_sha256: string | null;
+  source_snapshot_sha256: string | null;
+  parser_version: string | null;
+  extractor_version: string | null;
+  relation_candidate_hash: string | null;
+}
+
 describe("GraphBuilder integration", () => {
   const pool = createPool();
 
@@ -155,6 +166,32 @@ describe("GraphBuilder integration", () => {
     await builder.close();
   });
 
+  it("records exact citation offsets and fingerprints for applied evidence", async () => {
+    const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
+    const result = await builder.apply(approvedCandidate({ component: "traceability-test" }));
+
+    const evidence = await pool.query<EvidenceTraceTestRow>(
+      `SELECT cite_start_char, cite_end_char, cite_text_sha256, normalized_cite_text_sha256,
+              source_snapshot_sha256, parser_version, extractor_version, relation_candidate_hash
+       FROM evidence
+       WHERE evidence_id = $1`,
+      [result.evidence_id]
+    );
+    const row = evidence.rows[0];
+    if (row === undefined) throw new Error("expected evidence trace row");
+
+    expect(row.cite_start_char).toBeGreaterThanOrEqual(0);
+    expect(row.cite_end_char).toBe((row.cite_start_char ?? 0) + "Integration Test Buyer purchases critical components from Integration Test Supplier.".length);
+    expect(row.cite_text_sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(row.normalized_cite_text_sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(row.source_snapshot_sha256).toBe("itest");
+    expect(row.parser_version).toBe("integration-fixture");
+    expect(row.extractor_version).toBe("unknown");
+    expect(row.relation_candidate_hash).toMatch(/^[a-f0-9]{64}$/);
+
+    await builder.close();
+  });
+
   it("rejects approved candidates with unknown extractor_id prefixes before committing evidence", async () => {
     const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
     await expect(builder.apply(approvedCandidate({ extractorId: "rules.10k.typo", component: "unknown-extractor-test" }))).rejects.toThrow(
@@ -184,8 +221,25 @@ async function seedIntegrationEntities(client: pg.Pool): Promise<void> {
   );
   await client.query(
     `INSERT INTO documents (doc_id, source_adapter_id, document_type, source_url, fetched_at, bytes_sha256, storage_key, language, parse_status, metadata)
-     VALUES ('DOC-ITEST-GRAPH-SYNC','manual','manual','manual://itest-graph-sync',now(),'itest','itest','en','parsed','{}')
+     VALUES ('DOC-ITEST-GRAPH-SYNC','manual','manual','manual://itest-graph-sync',now(),'itest','itest','en','parsed','{"parser_version":"integration-fixture"}')
      ON CONFLICT (source_adapter_id, source_url, bytes_sha256) DO UPDATE SET fetched_at = EXCLUDED.fetched_at`
+  );
+  await client.query(
+    `INSERT INTO document_chunks (chunk_id, doc_id, chunk_index, text, locator, language, token_count)
+     VALUES (
+       'CHK-ITEST-GRAPH-SYNC-1',
+       'DOC-ITEST-GRAPH-SYNC',
+       0,
+       'Integration Test Buyer purchases critical components from Integration Test Supplier. Older integration evidence. Newer integration evidence. Integration Test Buyer purchases memory from Integration Test Supplier.',
+       'integration fixture chunk',
+       'en',
+       24
+     )
+     ON CONFLICT (doc_id, chunk_index) DO UPDATE SET
+       text = EXCLUDED.text,
+       locator = EXCLUDED.locator,
+       language = EXCLUDED.language,
+       token_count = EXCLUDED.token_count`
   );
 }
 
@@ -206,6 +260,7 @@ async function cleanupIntegrationRows(client: pg.Pool): Promise<void> {
   );
   await client.query("DELETE FROM edges WHERE subject_id = 'ENT-ITEST-BUYER' OR object_id = 'ENT-ITEST-SUPPLIER'");
   await client.query("DELETE FROM evidence WHERE doc_id = 'DOC-ITEST-GRAPH-SYNC'");
+  await client.query("DELETE FROM document_chunks WHERE doc_id = 'DOC-ITEST-GRAPH-SYNC'");
   await client.query("DELETE FROM documents WHERE doc_id = 'DOC-ITEST-GRAPH-SYNC'");
   await client.query("DELETE FROM entity_alias WHERE entity_id IN ('ENT-ITEST-BUYER','ENT-ITEST-SUPPLIER')");
   await client.query("DELETE FROM entity_master WHERE entity_id IN ('ENT-ITEST-BUYER','ENT-ITEST-SUPPLIER')");
@@ -246,6 +301,7 @@ function approvedCandidate(input: { component?: string; confidence?: number; cit
       confidence_breakdown: { base: 0.85, factors: [], cap: 0.9, final: confidence }
     },
     approved_by: { reviewer: "integration", reviewed_at: "2026-05-16T00:00:00.000Z" },
-    doc_id: "DOC-ITEST-GRAPH-SYNC"
+    doc_id: "DOC-ITEST-GRAPH-SYNC",
+    chunk_id: "CHK-ITEST-GRAPH-SYNC-1"
   };
 }

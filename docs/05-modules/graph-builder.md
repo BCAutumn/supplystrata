@@ -72,6 +72,26 @@ if relation == "SUPPLIES_TO":
 
 evidence 内仍保留原始关系语句（在 cite_text 中）。
 
+## Evidence Trace
+
+`apply()` 写入 evidence 时必须同时写入可复现定位信息。计算规则由 `@supplystrata/evidence-trace` 提供，graph-builder、backfill 和未来 API 必须复用同一套规则，避免不同入口算出不同 fingerprint：
+
+- `cite_start_char` / `cite_end_char`：`chunk_id` 对应 chunk 内的 0-based 字符偏移，end 为 exclusive。
+- `cite_text_sha256`：原始 `cite_text` 的 sha256。
+- `normalized_cite_text_sha256`：NFKC + 空白归一后的 `cite_text` sha256。
+- `source_snapshot_sha256`：对应 `documents.bytes_sha256`，用于确认引用来自哪个源快照。
+- `parser_version`：产生当前 `document_chunks` 的 parser 版本；未知时写 `unknown`，不能靠空值假装没问题。
+- `extractor_version`：产生 candidate 的规则/模型/prompt 版本；LLM prompt 先记录为 `prompt:<prompt_hash>`。
+- `relation_candidate_hash`：subject/object/relation/component/extractor/cite hash 的稳定指纹，用于后续重复 evidence 检测与 backfill。
+
+如果 `chunk_id` 缺失或 `cite_text` 在 chunk 中找不到，graph-builder 不猜测偏移，保持 offset 为空并交给 data-quality 报告。自动 pipeline 在进入 review/apply 前仍必须做 `cite_text` 子串校验。
+
+历史 evidence 通过维护命令补齐：
+
+```bash
+pnpm --silent cli db backfill-evidence-trace --limit 1000
+```
+
 ## Deprecate
 
 ```ts

@@ -121,7 +121,7 @@ function normalizeCompaniesHouseDocument(raw: RawDocument<Uint8Array>): Normaliz
     bytes_sha256: raw.bytes_sha256,
     text: candidates.map((candidate) => `${candidate.name} | ${candidate.external_id}`).join("\n"),
     chunks: [],
-    metadata: { ...raw.metadata, candidate_count: candidates.length }
+    metadata: { ...raw.metadata, parser_version: "companies-house-json-v1", candidate_count: candidates.length }
   };
 }
 

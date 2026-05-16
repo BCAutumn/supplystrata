@@ -99,6 +99,7 @@ Phase 1 出场。
 - [x] `apps/cli`：`dq run` 最小只读数据质量检查
 - [x] `scripts/release-check.mjs`：开源发布前本地体检（secret scan + tests + smoke + dq + graph check）
 - [x] [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md)：公开 alpha 后可信度优先升级计划
+- [x] [multi-tier-chain-logistics-plan.md](./multi-tier-chain-logistics-plan.md)：多级链路 / 原材料 / 物流追踪计划
 
 ### 出场条件（即 MVP 验收）
 
@@ -130,6 +131,7 @@ Phase 1 出场。
 6. SourceRegistry + FetchRun + SourceHealth。
 7. Generic SEC rule pack。
 8. CompanyCard / ComponentCard 升级。
+9. ChainView / multi-tier segment contract（先定义 `edge / observation / lead / unknown` 分层，不先接宏观源）。
 
 ### 风险与缓解
 
@@ -161,6 +163,7 @@ Phase 2 出场。
 - [ ] `census-trade` adapter
 - [ ] `usitc-dataweb` adapter
 - [ ] `eia` / `fred` / `worldbank-pink` adapter
+- [ ] `usgs-mcs` / `iea-critical-minerals` / `rmi-facilities` / `eu-crma` observation 流
 - [ ] `import-yeti` 手工流程的 CLI 子命令完善
 - [ ] `osh` adapter（与 Apple Supplier List 交叉建 facility）
 - [ ] Python sidecar (XBRL) 接入
