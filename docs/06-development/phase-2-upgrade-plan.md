@@ -78,6 +78,8 @@ type SourceAuthority = {
 
 ### PR 3 — EntityResolver hardening
 
+状态：已开始落地。`DbEntityResolver` 与 `SeedEntityResolver` 已共享 exact/fuzzy/special family 规则；fuzzy 命中不再自动 resolved，Samsung / Foxconn / TSMC family 规则已补单测和 DB 集成测试。
+
 当前风险：模糊匹配一旦自动合并，会把错误扩散到所有边。供应链实体里短别名、集团名、子公司、事业部非常多。
 
 目标：

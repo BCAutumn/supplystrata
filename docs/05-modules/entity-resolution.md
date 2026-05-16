@@ -15,9 +15,9 @@ interface ResolveInput {
   context?: {
     nearby_text?: string;
     document_type?: string;
-    co_mentioned_entities?: string[];     // 同 chunk 中已解析的其他实体
-    inferred_country?: string;            // 文档来自哪个国家/语言
-    industry_hint?: string;               // 推断的行业
+    co_mentioned_entities?: string[]; // 同 chunk 中已解析的其他实体
+    inferred_country?: string; // 文档来自哪个国家/语言
+    industry_hint?: string; // 推断的行业
   };
   identifiers?: {
     cik?: string;
@@ -36,7 +36,7 @@ type ResolveStatus = "resolved" | "ambiguous" | "unknown";
 interface ResolveResult {
   status: ResolveStatus;
   entity_id?: string;
-  confidence: number;                       // 0..1
+  confidence: number; // 0..1
   candidates?: { entity_id: string; confidence: number; reason: string }[];
   needs_human_review: boolean;
 }
@@ -66,14 +66,24 @@ alias_norm = NFKC(lower(strip(surface)))
 在 `entity_alias.alias_norm` 上精确匹配。
 
 - 0 命中 → 走 Step 3
-- 1 命中 → resolved, confidence 0.95
+- 1 命中 → 只有 strong alias 才能自动 resolved
 - 多命中 → 多候选，进 Step 4 上下文消歧
+
+strong alias 定义：
+
+- `alias_kind = official / translation`
+- 或 `source_type = canonical_name / display_name`
+- 或 `alias_kind = abbreviation` 且能匹配 entity 的 ticker
+- 弱别名、informal alias、短别名如果没有 identifier / country context，不允许静默 resolved
 
 ### Step 3: Fuzzy alias match
 
-- 编辑距离 ≤ 2 的别名候选（且原 surface 长度 ≥ 6）
-- 输出候选集（最多 5 个），confidence 上限 0.75
+- substring / 编辑距离候选（且原 surface 长度 ≥ 6）
+- 输出候选集（最多 5 个），confidence 上限 0.65
 - 候选 = 0 → `unknown`，落 `pending_entities`
+- 候选 = 1 → 仍然 `ambiguous`，必须 review；**不允许 fuzzy 自动 resolved**
+
+这条是硬约束：false unknown 可以接受，false merge 不可接受。
 
 ### Step 4: Context disambiguation
 
@@ -145,7 +155,9 @@ prompt: |
 
 - 默认 → ENT-FOXCONN（即 Hon Hai Precision Industry，母公司）
 - 如果 nearby 含 "industrial internet" / "FII" / "工业互联网" → ENT-FOXCONN-FII
-- 如果含 "Wisconsin" / "Ohio" / "Mt. Pleasant" → ENT-FOXCONN-US（美国厂，独立法人）
+- 如果 nearby 含 "FIH" / "mobile" / "handset" → ENT-FIH-MOBILE
+- 如果 nearby 含 "Hongfujin" / "Shenzhen" / "深圳" → ENT-HONGFUJIN-SHENZHEN
+- 如果含 "Wisconsin" / "Ohio" / "Mt. Pleasant" → ambiguous（ENT-FOXCONN-OHIO / ENT-FOXCONN-ASSEMBLY），需要人工 review
 
 ### "Apple"
 
@@ -159,6 +171,21 @@ prompt: |
 - 如果 nearby 含 "Arizona" → ENT-TSMC-ARIZONA
 - 如果含 "JASM" / "Kumamoto" → ENT-JASM
 - 子公司用 OWNS_SUBSIDIARY 与母公司连接
+
+## 当前实现状态
+
+已落地：
+
+- `DbEntityResolver` 和 `SeedEntityResolver` 共享同一套 exact/fuzzy/special family 规则。
+- identifier match 支持 CIK 和 ticker；ticker 可匹配 `NVDA` 或 `NVDA:US` 这类带交易所后缀的 seed。
+- fuzzy 命中只返回 `ambiguous` 候选，不自动写入 graph。
+- Samsung / Foxconn / TSMC 三组 hard-code 规则已进入单测和 DB 集成测试。
+
+仍待落地：
+
+- golden set ≥ 200。
+- alias type 更细的来源审计，例如外部 registry 导入的 alias 要保留 provenance。
+- group / subsidiary / facility 的 `OWNS_*` 关系自动 seed 化。
 
 ## API
 
@@ -239,10 +266,10 @@ entity lookup <surface>
 
 ## 反模式
 
-| 反模式                         | 危害                     |
-| --------------------------- | ---------------------- |
-| 在 resolver 中调 LLM 但忘了要求 cite | 容易引入幻觉                 |
-| 用 "包含 substring" 匹配         | 严重 false-merge          |
-| Fuzzy 匹配阈值过宽               | 不同公司被合并                 |
-| ambiguous 时静默选第一个候选         | 系统失去自知之明                |
-| 不区分 Samsung 母公司/部门          | 半导体相关边全部错挂              |
+| 反模式                               | 危害                 |
+| ------------------------------------ | -------------------- |
+| 在 resolver 中调 LLM 但忘了要求 cite | 容易引入幻觉         |
+| 用 "包含 substring" 匹配             | 严重 false-merge     |
+| Fuzzy 匹配阈值过宽                   | 不同公司被合并       |
+| ambiguous 时静默选第一个候选         | 系统失去自知之明     |
+| 不区分 Samsung 母公司/部门           | 半导体相关边全部错挂 |
