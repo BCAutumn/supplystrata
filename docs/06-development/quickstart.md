@@ -46,6 +46,14 @@ pnpm smoke:local
 
 这个模式不访问外网，只检查本机数据库、seed 和图谱同步链路。
 
+如果要跑真实 schema 上的 integration suite：
+
+```bash
+pnpm test:integration
+```
+
+它需要上一步的 Postgres 正在运行；否则会报 `ECONNREFUSED localhost:5432`。这类失败表示 Docker/Postgres 环境没起来，不是 parser、extractor 或 graph 逻辑失败。
+
 ## 4. 联网研究 smoke
 
 ```bash

@@ -124,6 +124,22 @@ pnpm test:e2e
 
 它使用 `tests/fixtures/sec-edgar/nvidia-10k-supply-chain-mini.html`，不访问外网，验证 HTML parser → rule extractor → evidence scorer → GraphBuilder apply → Neo4j rebuild/check → CompanyCard/UnknownMap render 全链路。
 
+当前 integration suite 依赖本地 Postgres：
+
+```bash
+docker compose up -d postgres
+pnpm test:integration
+```
+
+它覆盖真实 SQL schema 上的 resolver / graph-builder / seed backfill，以及 Apple Supplier List review apply。Apple supplier integration fixture 会验证一条 approved supplier-list row 同时生成：
+
+```text
+Integration Apple -BUYS_FROM-> Integration Supplier
+Integration Supplier -MANUFACTURES_AT-> Integration Supplier facility: Penang, Malaysia
+```
+
+如果 Docker daemon 没启动，`pnpm test:integration` 会因为 `localhost:5432` 连接失败而失败；这是环境未就绪，不代表代码逻辑失败。
+
 `tests/e2e/full-pipeline.test.ts`：
 
 ```

@@ -2,10 +2,19 @@ import { createHash } from "node:crypto";
 import type pg from "pg";
 import { createId, normalizeAlias } from "@supplystrata/core";
 import type { DbClient } from "@supplystrata/db";
-import type { EntitySourceReviewCandidate } from "@supplystrata/review-candidates";
+import {
+  supplierListFacilityDisplayName,
+  supplierListFacilityEntityId,
+  type EntitySourceReviewCandidate,
+  type SupplierListReviewCandidate
+} from "@supplystrata/review-candidates";
 
 export type EntityImportResult =
   | { status: "applied"; entity_id: string; aliases_inserted: number; aliases_skipped: number; pending_entities_resolved: number; change_id: string }
+  | { status: "blocked"; reason: string };
+
+export type FacilityImportResult =
+  | { status: "applied"; entity_id: string; display_name: string; aliases_inserted: number; aliases_skipped: number; change_id: string }
   | { status: "blocked"; reason: string };
 
 interface EntityIdRow extends pg.QueryResultRow {
@@ -118,6 +127,83 @@ export async function applyEntitySourceReviewCandidate(client: DbClient, candida
     pending_entities_resolved: pendingResult.rowCount ?? 0,
     change_id: changeId
   };
+}
+
+export async function ensureSupplierListFacilityEntity(client: DbClient, candidate: SupplierListReviewCandidate, reviewer: string): Promise<FacilityImportResult> {
+  const entityId = supplierListFacilityEntityId(candidate);
+  const displayName = supplierListFacilityDisplayName(candidate);
+  const aliasConflict = await findAliasConflict(client, [displayName], entityId);
+  if (aliasConflict !== undefined) return { status: "blocked", reason: `facility alias already belongs to ${aliasConflict.entity_id}: ${aliasConflict.alias}` };
+
+  const attrs = {
+    entity_source: candidate.evidence.source_adapter_id,
+    source_url: candidate.evidence.source_url,
+    source_locator: candidate.evidence.source_locator,
+    buyer_entity_id: candidate.payload.buyer_entity_id,
+    buyer_name: candidate.payload.buyer_name,
+    supplier_name: candidate.payload.supplier_name,
+    location_text: candidate.payload.location_text,
+    country_or_region: candidate.payload.country_or_region,
+    normalized_record_text: candidate.evidence.normalized_record_text
+  };
+  const hqLocation = {
+    raw_location: candidate.payload.location_text,
+    country_or_region: candidate.payload.country_or_region
+  };
+
+  await client.query(
+    `INSERT INTO entity_master (
+       entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers,
+       primary_country, hq_location, industry, status, evidence_for_existence, attrs
+     )
+     VALUES ($1,'facility',$2,$3,'en',$4,NULL,$5,$6,'active',$7,$8)
+     ON CONFLICT (entity_id) DO UPDATE SET
+       canonical_name = EXCLUDED.canonical_name,
+       display_name = EXCLUDED.display_name,
+       identifiers = entity_master.identifiers || EXCLUDED.identifiers,
+       hq_location = COALESCE(entity_master.hq_location, EXCLUDED.hq_location),
+       evidence_for_existence = COALESCE(entity_master.evidence_for_existence, EXCLUDED.evidence_for_existence),
+       attrs = entity_master.attrs || EXCLUDED.attrs,
+       updated_at = now()`,
+    [
+      entityId,
+      displayName,
+      displayName,
+      { supplystrata_facility_id: entityId },
+      hqLocation,
+      ["supplier facility"],
+      candidate.evidence.source_url,
+      attrs
+    ]
+  );
+
+  const aliasResult = await client.query(
+    `INSERT INTO entity_alias (alias_id, entity_id, alias, alias_norm, language, alias_kind, source_type, added_by, status)
+     VALUES ($1,$2,$3,$4,'en','official',$5,$6,'active')
+     ON CONFLICT (entity_id, alias_norm, language) DO NOTHING`,
+    [aliasId(entityId, displayName), entityId, displayName, normalizeAlias(displayName), candidate.evidence.source_adapter_id, reviewer]
+  );
+  const aliasesInserted = aliasResult.rowCount === 1 ? 1 : 0;
+  const aliasesSkipped = aliasResult.rowCount === 1 ? 0 : 1;
+  const changeId = createId("CHG");
+  await client.query(
+    `INSERT INTO change_records (change_id, scope_kind, scope_id, change_type, before, after, evidence_ids, caused_by)
+     VALUES ($1,'entity',$2,'facility_source_import',NULL,$3,'{}',$4)`,
+    [
+      changeId,
+      entityId,
+      {
+        review_id: candidate.review_id,
+        source_adapter_id: candidate.evidence.source_adapter_id,
+        source_url: candidate.evidence.source_url,
+        source_locator: candidate.evidence.source_locator,
+        aliases_inserted: aliasesInserted
+      },
+      reviewer
+    ]
+  );
+
+  return { status: "applied", entity_id: entityId, display_name: displayName, aliases_inserted: aliasesInserted, aliases_skipped: aliasesSkipped, change_id: changeId };
 }
 
 async function findIdentifierConflict(client: DbClient, candidate: EntitySourceReviewCandidate): Promise<string | undefined> {

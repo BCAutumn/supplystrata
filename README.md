@@ -5,7 +5,7 @@
 
 **当前阶段**：Phase 1 已完成，Phase 2 正在推进。NVIDIA SEC 10-K 纵向切片、Apple Supplier List review/apply 纵向链路、Postgres 真相存储、Neo4j 物化图、`graph check/rebuild`、CLI 输出、测试门禁和新 evidence trace/fingerprint 写入已经跑通或落地。
 
-这是 alpha/MVP 仓库，不是完整供应链数据库。
+这是 alpha/MVP 仓库，不是完整供应链数据库。当前 HTML 链路图只是静态研究预览，不是产品化前端；v0.2 计划把它迁移为 `apps/research-preview`，采用 TypeScript + Canvas 的本地研究工作台。
 
 ---
 
@@ -35,13 +35,17 @@
 
 1. [vision.md](./docs/00-overview/vision.md) — 系统要解决什么问题
 2. [non-goals.md](./docs/00-overview/non-goals.md) — 系统**不做**什么（很重要）
-3. [mvp-scope.md](./docs/01-product/mvp-scope.md) — 第一版边界
-4. [system-architecture.md](./docs/02-architecture/system-architecture.md) — 总体架构
-5. [module-design.md](./docs/02-architecture/module-design.md) — 模块拆分与接口契约
-6. [evidence-model.md](./docs/03-data-model/evidence-model.md) — 证据等级模型（系统的灵魂）
-7. [roadmap.md](./docs/06-development/roadmap.md) — 阶段化开发计划
-8. [open-source-readiness.md](./docs/06-development/open-source-readiness.md) — 开源发布前体检
-9. [quickstart.md](./docs/06-development/quickstart.md) — 从空环境跑到研究输出
+3. [audience-and-personas.md](./docs/01-product/audience-and-personas.md) — v0.2 用户边界
+4. [mvp-scope.md](./docs/01-product/mvp-scope.md) — 第一版边界
+5. [system-architecture.md](./docs/02-architecture/system-architecture.md) — 总体架构
+6. [module-design.md](./docs/02-architecture/module-design.md) — 模块拆分与接口契约
+7. [evidence-model.md](./docs/03-data-model/evidence-model.md) — 证据等级模型（系统的灵魂）
+8. [roadmap.md](./docs/06-development/roadmap.md) — 阶段化开发计划
+9. [v0.2-alpha-plan.md](./docs/06-development/v0.2-alpha-plan.md) — 下一版 alpha 的产品范围
+10. [release-criteria.md](./docs/06-development/release-criteria.md) — 发布验收标准
+11. [source-roi-matrix.md](./docs/04-data-sources/source-roi-matrix.md) — 数据源投入产出排序
+12. [open-source-readiness.md](./docs/06-development/open-source-readiness.md) — 开源发布前体检
+13. [quickstart.md](./docs/06-development/quickstart.md) — 从空环境跑到研究输出
 
 ---
 
@@ -97,11 +101,15 @@ pnpm smoke:local
 ```bash
 pnpm --silent cli preview nvidia --format markdown
 pnpm --silent cli preview report nvidia --format markdown --lang zh
+pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-Q --format markdown
+pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 8-K --format markdown
 ```
 
 当前切片只使用规则抽取，没有调用 LLM API。LLM 策略、`needs_review` 默认值与 cite_text 校验规则仍按 [ADR-003](./docs/10-decisions/ADR-003-llm-strategy.md) 保留，但不属于这次已经跑通的路径。
 
 `preview` 命令是无数据库路径，只做 SEC 抓取、HTML 解析、规则抽取、seed 实体消歧和证据评分；适合未来嵌入 TS 桌面端或 agent 产品。Postgres/Neo4j 路径用于累积证据、审计、review 和图谱重建。
+
+`sec-edgar` adapter 支持 `10-K / 10-Q / 20-F / 8-K`。当前 NVIDIA shortcut 仍默认跑 10-K；10-Q / 8-K 先作为显式命令和后续 source monitor 调度入口。
 
 检查 Neo4j 物化视图是否和 Postgres 真相存储一致：
 

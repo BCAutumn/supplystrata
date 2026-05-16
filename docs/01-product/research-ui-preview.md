@@ -65,7 +65,7 @@ SourceHealthPanel
 ChangeEventTimeline
 ```
 
-React 层保持薄，只负责布局、状态和事件分发；图谱布局、证据格式化、unknown 分类、source health 计算都应放在独立 TypeScript 模块中。
+v0.2 的正式预览工作台不引入 React，采用全量 TypeScript + Canvas。DOM 只承载 shell 和右侧面板，图谱布局、hit-testing、缩放、证据格式化、unknown 分类、source health 计算都应放在独立 TypeScript 模块中。
 
 ## 下一步
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildEntitySourceReviewCandidate, buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
+import {
+  buildEntitySourceReviewCandidate,
+  buildSupplierListReviewCandidate,
+  supplierListFacilityDisplayName,
+  supplierListFacilityEntityId,
+  supplierListReviewToFacilityRelation,
+  supplierListReviewToSupplierRelation
+} from "@supplystrata/review-candidates";
 import { createEntitySourceCandidate } from "@supplystrata/entity-source";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
 
@@ -48,6 +55,53 @@ describe("review candidates", () => {
       }
     });
     expect(candidate.review_id).toContain("REV-SUPPLIER");
+    expect(supplierListReviewToSupplierRelation(candidate)).toMatchObject({
+      relation: "BUYS_FROM",
+      subject_resolve: { surface: "Buyer" },
+      object_resolve: { surface: "Supplier Co." },
+      extractor_id: "review.supplier-list-row"
+    });
+  });
+
+  it("creates stable facility ids and facility relations from supplier-list reviews", () => {
+    const source: SupplierListCandidate = {
+      buyer_entity_id: "ENT-APPLE",
+      buyer_name: "Apple",
+      supplier_name: "Supplier Co.",
+      location_text: "Penang",
+      country_or_region: "Malaysia",
+      source_row_text: "Supplier Co.                         Penang                                     Malaysia",
+      normalized_record_text: "Apple | Supplier Co. | Penang | Malaysia",
+      source_adapter_id: "apple-suppliers",
+      source_fiscal_year: 2022,
+      source_locator: "Apple Supplier List FY2022 line 99",
+      confidence: 0.82,
+      needs_review: true,
+      review_reason: "表格候选需要人工复核。",
+      relation_hint: "BUYS_FROM",
+      facility_relation_hint: "MANUFACTURES_AT"
+    };
+    const candidate = buildSupplierListReviewCandidate({
+      candidate: source,
+      docId: "DOC-apple",
+      sourceUrl: "https://www.apple.com/supplier-responsibility/pdf/Apple-Supplier-List.pdf"
+    });
+
+    const displayName = supplierListFacilityDisplayName(candidate);
+    const relation = supplierListReviewToFacilityRelation(candidate, displayName);
+
+    expect(displayName).toBe("Supplier Co. facility: Penang, Malaysia");
+    expect(supplierListFacilityEntityId(candidate)).toMatch(/^ENT-FAC-[A-F0-9]{16}$/);
+    expect(supplierListFacilityEntityId(candidate)).toBe(supplierListFacilityEntityId(candidate));
+    expect(relation).toMatchObject({
+      relation: "MANUFACTURES_AT",
+      subject_resolve: { surface: "Supplier Co." },
+      object_resolve: { surface: "Supplier Co. facility: Penang, Malaysia" },
+      cite_text: "Supplier Co.                         Penang                                     Malaysia",
+      cite_locator: "Apple Supplier List FY2022 line 99",
+      extractor_id: "review.supplier-list-facility-row",
+      raw_evidence_level_hint: 4
+    });
   });
 
   it("keeps review ids stable without colliding on nearby rows", () => {

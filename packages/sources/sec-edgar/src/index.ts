@@ -3,10 +3,13 @@ import { createId, loadEnv, type FetchTask, type RawDocument } from "@supplystra
 import { FsObjectStore } from "@supplystrata/object-store";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 
+export type SecEdgarFormType = "10-K" | "10-Q" | "20-F" | "8-K";
+
 export interface SecEdgarInput {
   cik: string;
   entityId: string;
-  formTypes: readonly ("10-K" | "10-Q" | "20-F" | "8-K")[];
+  formTypes: readonly SecEdgarFormType[];
+  limit?: number;
 }
 
 interface SecRecentFilings {
@@ -33,19 +36,25 @@ export const secEdgarAdapter: SourceAdapter<SecEdgarInput, Uint8Array> = {
     if (!response.ok) throw new Error(`SEC submissions failed: ${response.status} ${response.statusText}`);
     const payload = parseSubmissionPayload(await response.json());
     const recent = payload.filings.recent;
-    const foundIndex = recent.form.findIndex((form) => input.formTypes.includes(form as "10-K" | "10-Q" | "20-F" | "8-K"));
-    if (foundIndex < 0) throw new Error(`No requested SEC filing found for CIK ${input.cik}`);
-    const accession = requireString(recent.accessionNumber[foundIndex], "accessionNumber");
-    const primaryDocument = requireString(recent.primaryDocument[foundIndex], "primaryDocument");
-    const filingDate = requireString(recent.filingDate[foundIndex], "filingDate");
-    const accessionNoDashes = accession.replace(/-/g, "");
-    const cikNoLeadingZeros = String(Number(cik10));
-    yield {
-      task_id: `sec-edgar-${cik10}-${accession}`,
-      url: `https://www.sec.gov/Archives/edgar/data/${cikNoLeadingZeros}/${accessionNoDashes}/${primaryDocument}`,
-      expected_format: "html",
-      hint: { entity_id: input.entityId, document_type: recent.form[foundIndex] as "10-K" | "10-Q" | "20-F" | "8-K", period: filingDate }
-    };
+    const maxTasks = Math.max(1, input.limit ?? 1);
+    let yielded = 0;
+    for (const [index, form] of recent.form.entries()) {
+      if (!isSecEdgarFormType(form) || !input.formTypes.includes(form)) continue;
+      const accession = requireString(recent.accessionNumber[index], "accessionNumber");
+      const primaryDocument = requireString(recent.primaryDocument[index], "primaryDocument");
+      const filingDate = requireString(recent.filingDate[index], "filingDate");
+      const accessionNoDashes = accession.replace(/-/g, "");
+      const cikNoLeadingZeros = String(Number(cik10));
+      yield {
+        task_id: `sec-edgar-${cik10}-${accession}`,
+        url: `https://www.sec.gov/Archives/edgar/data/${cikNoLeadingZeros}/${accessionNoDashes}/${primaryDocument}`,
+        expected_format: "html",
+        hint: { entity_id: input.entityId, document_type: form, period: filingDate }
+      };
+      yielded += 1;
+      if (yielded >= maxTasks) return;
+    }
+    if (yielded === 0) throw new Error(`No requested SEC filing found for CIK ${input.cik}`);
   },
   async fetch(task, ctx) {
     const response = await fetch(task.url, { headers: { "User-Agent": ctx.userAgent } });
@@ -75,10 +84,11 @@ export const secEdgarAdapter: SourceAdapter<SecEdgarInput, Uint8Array> = {
   async normalize(raw) {
     const primaryEntityId = stringMetadata(raw, "primary_entity_id");
     const sourceDate = stringMetadata(raw, "source_date");
+    const documentType = secDocumentTypeFromMetadata(raw.metadata["document_type"]);
     return {
       doc_id: raw.doc_id,
       source_adapter_id: raw.source_adapter_id,
-      document_type: "10-K",
+      document_type: documentType,
       language: "en",
       fetched_at: raw.fetched_at,
       source_url: raw.url,
@@ -101,6 +111,10 @@ export function normalizeCik(cik: string): string {
 
 export function createAdapterContext(): AdapterContext {
   return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
+}
+
+export function isSecEdgarFormType(value: string): value is SecEdgarFormType {
+  return value === "10-K" || value === "10-Q" || value === "20-F" || value === "8-K";
 }
 
 function parseSubmissionPayload(value: unknown): SecSubmissionPayload {
@@ -137,4 +151,8 @@ function requireString(value: string | undefined, name: string): string {
 function stringMetadata(raw: RawDocument<Uint8Array>, key: string): string | undefined {
   const value = raw.metadata[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function secDocumentTypeFromMetadata(value: unknown): SecEdgarFormType {
+  return typeof value === "string" && isSecEdgarFormType(value) ? value : "10-K";
 }

@@ -141,7 +141,7 @@ export function isEntitySourceReviewCandidate(candidate: ReviewCandidate): candi
   return candidate.kind === "entity_source_candidate";
 }
 
-export function supplierListReviewToCandidateRelation(candidate: SupplierListReviewCandidate): CandidateRelation {
+export function supplierListReviewToSupplierRelation(candidate: SupplierListReviewCandidate): CandidateRelation {
   return {
     subject_resolve: {
       surface: candidate.payload.buyer_name,
@@ -163,6 +163,58 @@ export function supplierListReviewToCandidateRelation(candidate: SupplierListRev
     cite_text: candidate.evidence.source_row_text,
     cite_locator: candidate.evidence.source_locator,
     extractor_id: "review.supplier-list-row",
+    raw_evidence_level_hint: 4,
+    raw_confidence_hint: candidate.confidence
+  };
+}
+
+export function supplierListReviewToCandidateRelation(candidate: SupplierListReviewCandidate): CandidateRelation {
+  return supplierListReviewToSupplierRelation(candidate);
+}
+
+export function supplierListFacilityDisplayName(candidate: SupplierListReviewCandidate): string {
+  return `${candidate.payload.supplier_name} facility: ${candidate.payload.location_text}, ${candidate.payload.country_or_region}`;
+}
+
+export function supplierListFacilityEntityId(candidate: SupplierListReviewCandidate): string {
+  const digest = createHash("sha256")
+    .update(
+      [
+        candidate.evidence.source_adapter_id,
+        candidate.evidence.source_url,
+        candidate.payload.supplier_name,
+        candidate.payload.location_text,
+        candidate.payload.country_or_region
+      ].join("|")
+    )
+    .digest("hex")
+    .slice(0, 16)
+    .toUpperCase();
+  return `ENT-FAC-${digest}`;
+}
+
+export function supplierListReviewToFacilityRelation(candidate: SupplierListReviewCandidate, facilityDisplayName: string): CandidateRelation {
+  return {
+    subject_resolve: {
+      surface: candidate.payload.supplier_name,
+      context: {
+        nearby_text: candidate.evidence.normalized_record_text,
+        document_type: "supplier_list",
+        inferred_country: candidate.payload.country_or_region
+      }
+    },
+    object_resolve: {
+      surface: facilityDisplayName,
+      context: {
+        nearby_text: candidate.evidence.normalized_record_text,
+        document_type: "supplier_list",
+        inferred_country: candidate.payload.country_or_region
+      }
+    },
+    relation: candidate.payload.facility_relation_hint,
+    cite_text: candidate.evidence.source_row_text,
+    cite_locator: candidate.evidence.source_locator,
+    extractor_id: "review.supplier-list-facility-row",
     raw_evidence_level_hint: 4,
     raw_confidence_hint: candidate.confidence
   };

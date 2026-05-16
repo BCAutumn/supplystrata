@@ -100,6 +100,8 @@ Phase 1 出场。
 - [x] `scripts/release-check.mjs`：开源发布前本地体检（secret scan + tests + smoke + dq + graph check）
 - [x] [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md)：公开 alpha 后可信度优先升级计划
 - [x] [multi-tier-chain-logistics-plan.md](./multi-tier-chain-logistics-plan.md)：多级链路 / 原材料 / 物流追踪计划
+- [x] [v0.2-alpha-plan.md](./v0.2-alpha-plan.md)：v0.2-alpha 产品范围、P0/P1/P2 与不做事项
+- [x] [release-criteria.md](./release-criteria.md)：区分 v0.2 发布标准与 Phase 2 完整验收
 
 ### 出场条件（即 MVP 验收）
 
@@ -130,8 +132,12 @@ Phase 1 出场。
 5. Exact citation offsets + evidence fingerprint。
 6. SourceRegistry + FetchRun + SourceHealth。
 7. Generic SEC rule pack。
-8. CompanyCard / ComponentCard 升级。
-9. ChainView / multi-tier segment contract（先定义 `edge / observation / lead / unknown` 分层，不先接宏观源）。
+8. Apple Supplier List facility edges 提前到 v0.2 P0。
+9. SEC 10-Q / 8-K 接入，为 source monitor 提供动态文件。
+10. `cli changes` + ChangeRecord 完整化。
+11. CompanyCard / ComponentCard 升级。
+12. `apps/research-preview`：全量 TypeScript + Canvas，替代一次性 HTML 脚本。
+13. ChainView / multi-tier segment contract（先定义 `edge / observation / lead / unknown` 分层，不先接宏观源）。
 
 ### 风险与缓解
 
@@ -146,6 +152,8 @@ Phase 1 出场。
 | source cap 过粗导致宏观/线索源误入高等级边         | 引入 source authority matrix；宏观数据默认进 observations，不直接进 company edge      |
 | fuzzy resolver 误合并短别名或集团/子公司           | fuzzy 已改为只返回候选；短别名和弱别名必须有 strong alias、identifier 或 context 支撑 |
 | `pg-boss` 文档早于实现                             | Phase 2 保持单进程 CLI；队列化放到 Phase 3 monitoring layer，一起补 source health     |
+| 静态 HTML 脚本继续膨胀                              | v0.2 迁移到 `apps/research-preview`，使用 TypeScript + Canvas，脚本只保留临时预览用途 |
+| LLM 策略已写但真实路径未启用                        | v0.2 主动搁置 LLM 真实抽取，等规则覆盖、review、golden set 稳定后再决策              |
 
 ---
 

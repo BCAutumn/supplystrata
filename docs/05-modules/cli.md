@@ -9,7 +9,7 @@
 - `preview-render.ts`：NVIDIA / Apple supplier preview 和研究报告渲染。
 - `entity-render.ts` / `review-render.ts` / `source-render.ts`：各自领域的展示层。
 
-约束：React/桌面端未来要复用 packages 能力，不能把业务判断写进 CLI render 层。
+约束：未来的 TypeScript + Canvas 研究工作台、桌面端或 agent 产品要复用 packages 能力，不能把业务判断写进 CLI render 层。
 
 ## 设计原则
 
@@ -78,6 +78,20 @@ supplystrata
 ```
 
 ## 主要命令规格
+
+### supplystrata preview
+
+无数据库预览路径，用来检查抓取、解析、抽取和评分，不写 Postgres / Neo4j：
+
+```bash
+supplystrata preview nvidia --format markdown
+supplystrata preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K --format markdown
+supplystrata preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-Q --format markdown
+supplystrata preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 8-K --format markdown
+supplystrata preview apple-suppliers --format csv
+```
+
+`--types` 支持逗号分隔的 `10-K,10-Q,20-F,8-K`。SEC adapter 内部也支持 `limit` 计划多份最近 8-K task，供后续 source monitor 调度层复用；当前 CLI preview 仍只消费第一个 task。
 
 ### supplystrata company `<ref>`
 
@@ -152,14 +166,14 @@ supplystrata review apply-approved --reviewer <name> [--limit N] [--format markd
 
 `approve` 只代表研究员同意候选进入下一步，不等于已经写图。`apply` 会按 candidate kind 分流：
 
-- `supplier_list_row`：生成 `CandidateRelation`，再做实体解析和证据评分；如果 supplier 还没进入实体库，候选会变成 `blocked`，同时写入 `pending_entities`，不会生成脏边。只有 buyer / supplier 都能解析时，才交给 `GraphBuilder.apply()`。
+- `supplier_list_row`：生成两条受控关系：buyer `BUYS_FROM` supplier，以及 supplier `MANUFACTURES_AT` facility。apply 前会先做实体解析和证据评分；如果 supplier 还没进入实体库，候选会变成 `blocked`，同时写入 `pending_entities`，不会生成脏边。只有 buyer / supplier 都能解析，并且 facility 实体能由已审核行稳定创建时，才交给 `GraphBuilder.apply()`。
 - `entity_source_candidate`：把外部登记源候选写入 `entity_master` / `entity_alias`，并把同 surface 的 `pending_entities` 标记为 resolved。写入前会检查 identifier / alias 是否已经属于其它实体，冲突时 blocked。
 
 如果实体是高频且低歧义的 curated seed，比如 `3M`，也可以先补 `seeds/entities.csv` / `seeds/aliases.csv`，再执行 `supplystrata admin seed` 和原 review 的 `apply`。supplier list apply 成功后会关闭同 surface 的 pending entity。
 
-`review apply` 的返回值里会带 `apply_result.graph_sync`。`synced` 表示 Neo4j 当前态已经同步；`failed` 表示 Postgres 真相存储已经写入成功，但 Neo4j 物化视图没有同步成功，应执行 `supplystrata graph rebuild`。
+`review apply` 的返回值里会带 `apply_results[].graph_sync`。`synced` 表示 Neo4j 当前态已经同步；`failed` 表示 Postgres 真相存储已经写入成功，但 Neo4j 物化视图没有同步成功，应执行 `supplystrata graph rebuild`。为了兼容旧调用，返回值仍保留第一条 supplier edge 的 `apply_result`。
 
-`review apply-approved` 是批处理工具，只扫描 `status='approved'` 的候选，不会自动 approve `pending` 候选。每条候选仍然走同一个 `applyApprovedReviewCandidate()` 严格路径：无法解析实体会变成 `blocked`，写图异常会进入 `error`，Neo4j 同步失败会体现在单条结果的 `graph_sync`。
+`review apply-approved` 是批处理工具，只扫描 `status='approved'` 的候选，不会自动 approve `pending` 候选。每条候选仍然走同一个 `applyApprovedReviewCandidate()` 严格路径：无法解析实体会变成 `blocked`，写图异常会进入 `error`，Neo4j 同步失败会体现在单条结果的 `apply_results[].graph_sync`。
 
 ### supplystrata graph check
 

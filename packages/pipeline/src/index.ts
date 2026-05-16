@@ -2,7 +2,6 @@ import type pg from "pg";
 import {
   loadEnv,
   logger,
-  type ApplyResult,
   type ApprovedCandidate,
   type CandidateRelation,
   type DocumentType,
@@ -11,20 +10,14 @@ import {
   type RawDocument,
   type ResolveResult
 } from "@supplystrata/core";
-import { insertReviewQueue, loadDocument, recordPendingEntity, saveNormalizedDocument } from "@supplystrata/db";
-import { applyEntitySourceReviewCandidate, resolvePendingEntitySurface, type EntityImportResult } from "@supplystrata/entity-import";
+import { insertReviewQueue, saveNormalizedDocument } from "@supplystrata/db";
 import { DbEntityResolver, SeedEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import { parseHtml } from "@supplystrata/parsers-html";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
-import {
-  buildSupplierListReviewCandidate,
-  isEntitySourceReviewCandidate,
-  isSupplierListReviewCandidate,
-  supplierListReviewToCandidateRelation
-} from "@supplystrata/review-candidates";
-import { enqueueReviewCandidates, getReviewCandidate, listApprovedReviewCandidates, markReviewCandidateApplied, markReviewCandidateBlocked } from "@supplystrata/review-store";
+import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
+import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import { recordDocumentObservation } from "@supplystrata/source-monitor";
 import {
   appleSuppliersAdapter,
@@ -42,6 +35,8 @@ import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter
 
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
 export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
+export { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "./review-apply.js";
+export type { AppliedReviewEdgeResult, ReviewApplyBatchItem, ReviewApplyBatchSummary, ReviewApplyResult } from "./review-apply.js";
 
 export interface PipelineSummary {
   doc_id: string;
@@ -134,25 +129,6 @@ export interface ReviewEnqueueSummary {
   candidates: number;
   inserted: number;
   skipped: number;
-}
-
-export type ReviewApplyResult =
-  | { status: "applied"; review_id: string; apply_result: ApplyResult; pending_entities_resolved: number }
-  | { status: "entity_applied"; review_id: string; import_result: Extract<EntityImportResult, { status: "applied" }> }
-  | { status: "blocked"; review_id: string; reason: string; pending_id?: string };
-
-export type ReviewApplyBatchItem =
-  | ReviewApplyResult
-  | { status: "error"; review_id: string; reason: string };
-
-export interface ReviewApplyBatchSummary {
-  requested_limit: number;
-  scanned: number;
-  applied: number;
-  entity_applied: number;
-  blocked: number;
-  errors: number;
-  results: ReviewApplyBatchItem[];
 }
 
 export async function runSecEdgarPipeline(pool: pg.Pool, input: SecEdgarInput): Promise<PipelineSummary> {
@@ -397,92 +373,6 @@ export async function enqueueAppleSupplierReviewCandidates(pool: pg.Pool, input:
     inserted: result.inserted,
     skipped: result.skipped
   };
-}
-
-export async function applyApprovedReviewCandidate(pool: pg.Pool, reviewId: string, reviewer: string): Promise<ReviewApplyResult> {
-  const item = await getReviewCandidate(pool, reviewId);
-  if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
-  if (item.status !== "approved" && item.status !== "blocked") return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };
-  if (isEntitySourceReviewCandidate(item.candidate)) {
-    const importResult = await applyEntitySourceReviewCandidate(pool, item.candidate, reviewer);
-    if (importResult.status === "blocked") {
-      await markReviewCandidateBlocked(pool, { reviewId, reason: importResult.reason });
-      return { status: "blocked", review_id: reviewId, reason: importResult.reason };
-    }
-    await markReviewCandidateApplied(pool, { reviewId, reason: `imported entity ${importResult.entity_id}` });
-    return { status: "entity_applied", review_id: reviewId, import_result: importResult };
-  }
-  if (!isSupplierListReviewCandidate(item.candidate)) return { status: "blocked", review_id: reviewId, reason: `unsupported review candidate kind: ${item.kind}` };
-
-  const candidate = supplierListReviewToCandidateRelation(item.candidate);
-  const resolver = new DbEntityResolver(pool);
-  const subject = await resolver.resolve(candidate.subject_resolve);
-  if (subject.status !== "resolved" || subject.entity_id === undefined) {
-    await markReviewCandidateBlocked(pool, { reviewId, reason: `cannot resolve buyer: ${candidate.subject_resolve.surface}` });
-    return { status: "blocked", review_id: reviewId, reason: `cannot resolve buyer: ${candidate.subject_resolve.surface}` };
-  }
-
-  const object = await resolver.resolve(candidate.object_resolve);
-  if (object.status !== "resolved" || object.entity_id === undefined) {
-    const pending = await recordPendingEntity(pool, {
-      surface: candidate.object_resolve.surface,
-      context: {
-        review_id: reviewId,
-        source_adapter_id: item.candidate.evidence.source_adapter_id,
-        normalized_record_text: item.candidate.evidence.normalized_record_text,
-        country_or_region: item.candidate.payload.country_or_region
-      }
-    });
-    await markReviewCandidateBlocked(pool, { reviewId, reason: `cannot resolve supplier: ${candidate.object_resolve.surface}` });
-    return { status: "blocked", review_id: reviewId, reason: `cannot resolve supplier: ${candidate.object_resolve.surface}`, pending_id: pending.pending_id };
-  }
-
-  const docId = item.candidate.evidence.doc_id;
-  if (docId === undefined) return { status: "blocked", review_id: reviewId, reason: "supplier-list review candidate is missing doc_id" };
-  const doc = await loadDocument(pool, docId);
-  const scoring = await new DeterministicEvidenceScorer().score(candidate, doc);
-  const approved: ApprovedCandidate = {
-    candidate,
-    scoring: { ...scoring, needs_review: false },
-    approved_by: { reviewer, reviewed_at: new Date().toISOString() },
-    doc_id: docId
-  };
-  const builder = new GraphBuilder(pool, resolver);
-  try {
-    const applyResult = await builder.apply(approved);
-    const pendingResolved = await resolvePendingEntitySurface(pool, { surface: candidate.object_resolve.surface, entityId: object.entity_id, reviewer });
-    await markReviewCandidateApplied(pool, { reviewId, reason: `applied edge ${applyResult.edge_id}` });
-    return { status: "applied", review_id: reviewId, apply_result: applyResult, pending_entities_resolved: pendingResolved };
-  } finally {
-    await builder.close();
-  }
-}
-
-export async function applyApprovedReviewCandidates(pool: pg.Pool, input: { reviewer: string; limit: number }): Promise<ReviewApplyBatchSummary> {
-  const items = await listApprovedReviewCandidates(pool, { limit: input.limit });
-  const results: ReviewApplyBatchItem[] = [];
-  for (const item of items) {
-    try {
-      results.push(await applyApprovedReviewCandidate(pool, item.review_id, input.reviewer));
-    } catch (error) {
-      results.push({ status: "error", review_id: item.review_id, reason: messageFromUnknown(error) });
-    }
-  }
-  return {
-    requested_limit: input.limit,
-    scanned: items.length,
-    applied: results.filter((item) => item.status === "applied").length,
-    entity_applied: results.filter((item) => item.status === "entity_applied").length,
-    blocked: results.filter((item) => item.status === "blocked").length,
-    errors: results.filter((item) => item.status === "error").length,
-    results
-  };
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
 }
 
 interface FetchAndNormalizeInput<TInput> {
