@@ -99,6 +99,8 @@ type SourceAuthority = {
 
 ### PR 4 — Unknown extractor prefix fail-fast
 
+状态：已落地。`inferExtractionMethod()` 现在只接受 `rule.` / `llm.` / `manual.` / `review.`，未知前缀直接抛错；scorer 与 graph-builder 都会阻断写入。
+
 当前风险：未知 `extractor_id` 前缀如果静默当成 LLM，会隐藏配置错误。系统应该让 pipeline misconfiguration 尽早暴露。
 
 目标：
@@ -112,6 +114,7 @@ type SourceAuthority = {
 
 - 测试覆盖未知 extractor prefix。
 - 不再存在“拼错 extractor id 但 pipeline 继续跑”的情况。
+- graph-builder 在遇到未知前缀时回滚事务，不留下 edge / evidence 半成品。
 
 ### PR 5 — Exact citation offsets + evidence fingerprint
 

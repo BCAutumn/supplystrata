@@ -72,6 +72,7 @@ interface ScoringResult {
 - 时间相关计算（source_age）由调用方传入，不在内部读 `Date.now()`
 - 单测覆盖：所有边界条件
 - 同一 ScorerInput → 必须同样输出
+- `extractor_id` 只能使用 `rule.` / `llm.` / `manual.` / `review.` 前缀；未知前缀必须 fail-fast，不允许静默当成 LLM
 
 ## 反向 sanity check
 
@@ -80,6 +81,7 @@ scorer 在 dev mode 下额外做：
 - evidence_level == 5 但 candidate 是 LLM 抽取 → 降到 4 + 警告
 - evidence_level == 5 但 modal_verb_strength == "future" → 降到 2 + 警告
 - evidence_level == 5 但 resolver_results 任一 ambiguous → 降到 max(level - 2, 2) + 警告
+- extractor_id 前缀未知 → 直接抛错，阻断 evidence 写入
 
 警告写日志，但不阻塞流程（生产中 hard cap 已经把这些都堵住了）。
 

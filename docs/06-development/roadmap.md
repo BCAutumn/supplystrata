@@ -125,7 +125,7 @@ Phase 1 出场。
 1. Component taxonomy + memory/HBM 修正（规则抽取、`COMP-MEMORY` seed、`edges.component_id` / `component_specificity` 已落地；后续继续扩 taxonomy）。
 2. Source authority matrix（`sourceAuthorityFor()` 与 scorer 的 `source_cap` / `relation_cap` 已落地；后续随新数据源扩展矩阵）。
 3. EntityResolver hardening（fuzzy 不再自动 resolved，Samsung/Foxconn/TSMC family 规则和 identifier match 已开始落地；golden set 仍待补）。
-4. Unknown extractor prefix fail-fast。
+4. Unknown extractor prefix fail-fast（`inferExtractionMethod()` 已改为未知前缀直接抛错；scorer / graph-builder 均覆盖测试）。
 5. Exact citation offsets + evidence fingerprint。
 6. SourceRegistry + FetchRun + SourceHealth。
 7. Generic SEC rule pack。

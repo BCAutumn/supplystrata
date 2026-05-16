@@ -67,6 +67,11 @@ describe("evidence scorer", () => {
     expect(score.rationale).toContain("method_cap=4");
   });
 
+  it("fails fast when extractor_id has an unknown prefix", async () => {
+    const candidate = { ...candidateWithText("We purchase memory from SK hynix, Micron Technology and Samsung."), extractor_id: "rules.10k.typo" };
+    await expect(new DeterministicEvidenceScorer().score(candidate, doc)).rejects.toThrow(/Unknown extractor_id prefix/);
+  });
+
   it("prevents registry facts from proving direct supplier relationships", async () => {
     const candidate = candidateWithText("SK hynix is listed in the company registry.");
     const score = await new DeterministicEvidenceScorer().score(candidate, { ...doc, document_type: "company_registry", source_adapter_id: "companies-house" });

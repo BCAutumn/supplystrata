@@ -154,6 +154,24 @@ describe("GraphBuilder integration", () => {
 
     await builder.close();
   });
+
+  it("rejects approved candidates with unknown extractor_id prefixes before committing evidence", async () => {
+    const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
+    await expect(builder.apply(approvedCandidate({ extractorId: "rules.10k.typo", component: "unknown-extractor-test" }))).rejects.toThrow(
+      /Unknown extractor_id prefix/
+    );
+
+    const evidence = await pool.query<CountRow>(
+      "SELECT count(*)::text AS count FROM evidence WHERE doc_id = 'DOC-ITEST-GRAPH-SYNC' AND extractor_id = 'rules.10k.typo'"
+    );
+    const edge = await pool.query<CountRow>(
+      "SELECT count(*)::text AS count FROM edges WHERE subject_id = 'ENT-ITEST-BUYER' AND object_id = 'ENT-ITEST-SUPPLIER' AND component = 'unknown-extractor-test'"
+    );
+    expect(evidence.rows[0]?.count).toBe("0");
+    expect(edge.rows[0]?.count).toBe("0");
+
+    await builder.close();
+  });
 });
 
 async function seedIntegrationEntities(client: pg.Pool): Promise<void> {
@@ -205,7 +223,7 @@ async function currentPostgresProjection(client: pg.Pool): Promise<{ nodes: numb
   return { nodes: row.nodes, edges: row.edges };
 }
 
-function approvedCandidate(input: { component?: string; confidence?: number; citeText?: string } = {}): ApprovedCandidate {
+function approvedCandidate(input: { component?: string; confidence?: number; citeText?: string; extractorId?: string } = {}): ApprovedCandidate {
   const confidence = input.confidence ?? 0.8;
   return {
     candidate: {
@@ -215,7 +233,7 @@ function approvedCandidate(input: { component?: string; confidence?: number; cit
       ...(input.component === undefined ? {} : { component: input.component }),
       cite_text: input.citeText ?? "Integration Test Buyer purchases critical components from Integration Test Supplier.",
       cite_locator: "integration fixture",
-      extractor_id: "review.integration",
+      extractor_id: input.extractorId ?? "review.integration",
       raw_evidence_level_hint: 4,
       raw_confidence_hint: confidence
     },

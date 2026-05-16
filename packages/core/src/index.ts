@@ -44,12 +44,14 @@ export type EvidenceLevel = 1 | 2 | 3 | 4 | 5;
 export type ExtractionMethod = "rule" | "llm" | "manual" | "hybrid";
 export type ComponentSpecificity = "explicit" | "inferred" | "unspecified";
 
+export const EXTRACTOR_ID_PREFIXES = ["rule.", "llm.", "manual.", "review."] as const;
+
 export function inferExtractionMethod(extractorId: string): ExtractionMethod {
   if (extractorId.startsWith("rule.")) return "rule";
   if (extractorId.startsWith("llm.")) return "llm";
   if (extractorId.startsWith("manual.")) return "manual";
   if (extractorId.startsWith("review.")) return "hybrid";
-  return "llm";
+  throw new Error(`Unknown extractor_id prefix for "${extractorId}". Expected one of: ${EXTRACTOR_ID_PREFIXES.join(", ")}`);
 }
 
 export interface EntityRecord {

@@ -155,6 +155,8 @@ scorer 实现的判定流程：
 
 MVP 实现里 `extraction_method` 从 `extractor_id` 前缀派生：`rule.*` → rule，`llm.*` → llm，`manual.*` → manual，`review.*` → hybrid。供应商名单 review apply 使用 `review.supplier-list-row`，因此是 hybrid，不应被误记为 llm。
 
+未知前缀必须 fail-fast。系统不再把 `rules.*`、`10k.*` 这类拼错或未注册前缀静默降级成 LLM；这类错误表示 pipeline 配置有问题，应在 scorer/apply 阶段直接抛出并阻止写入 evidence。
+
 4. 看候选自身特征：
    存在 cite_text >= 30 chars → ok
    原文措辞强 (utilize, purchase, ship to) → 保持
