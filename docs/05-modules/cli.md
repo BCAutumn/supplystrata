@@ -140,13 +140,24 @@ id   : 对应 ID
 ### supplystrata changes
 
 ```
---since YYYY-MM-DD       默认 7 天前
---scope <id>             可选
---type <change_type>     可选
+--since YYYY-MM-DD       默认 7 天前，也可传 ISO datetime
+--scope <scope>           可选，company:<id> / entity:<id> / edge:<id> / source:<id>
+--type <change_type>      可选，支持 change_records.change_type 或 source_change_events.event_type
+--source <adapter-id>     可选，按 source_adapter_id 过滤
+--attention-only          只看需要研究员关注的变化
+--limit N                 默认 50
 --format markdown | json
 ```
 
-返回 ChangeRecord 列表。
+返回 ChangeRecord + source_change_events 合并后的 timeline。Markdown 默认分成 `Requires attention` 与普通 `Timeline`；JSON 保留结构化字段，供未来 TypeScript + Canvas 工作台消费。
+
+示例：
+
+```bash
+supplystrata changes --since 2026-05-01 --format markdown
+supplystrata changes --scope company:ENT-NVIDIA --format json
+supplystrata changes --source sec-edgar --attention-only
+```
 
 ### supplystrata review
 

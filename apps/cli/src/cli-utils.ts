@@ -1,4 +1,5 @@
 import { createPool, type PendingEntityStatusFilter } from "@supplystrata/db";
+import type { ChangeTimelineScope } from "@supplystrata/db";
 import type { EntityLookupSource } from "@supplystrata/pipeline";
 import type { OutputFormat } from "@supplystrata/render";
 
@@ -42,6 +43,27 @@ export function parseLimit(value: string): number {
 export function parseLanguage(value: string): "en" | "zh" {
   if (value === "en" || value === "zh") return value;
   throw new Error(`Unsupported language: ${value}`);
+}
+
+export function parseSince(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`Unsupported since date: ${value}`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00.000Z` : date.toISOString();
+}
+
+export function defaultSince(daysBack: number): string {
+  const date = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
+  return date.toISOString();
+}
+
+export function parseChangeScope(value: string | undefined): ChangeTimelineScope | undefined {
+  if (value === undefined) return undefined;
+  const separator = value.indexOf(":");
+  if (separator < 1 || separator === value.length - 1) throw new Error(`Unsupported change scope: ${value}`);
+  const kind = value.slice(0, separator);
+  const id = value.slice(separator + 1);
+  if (kind === "company" || kind === "entity" || kind === "edge" || kind === "source") return { kind, id };
+  throw new Error(`Unsupported change scope: ${value}`);
 }
 
 export function write(text: string): void {

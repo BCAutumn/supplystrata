@@ -27,7 +27,7 @@
 
 - edge-level change events。
 - evidence supersession timeline。
-- `cli changes`。
+- `cli changes` 第一版已落地，能合并输出 `change_records` 和 `source_change_events`。
 - research workbench changes timeline。
 
 ## ChangeRecord 事件类型
@@ -103,12 +103,12 @@ supplystrata changes --format json
 
 必须写 ChangeRecord 的路径：
 
-- `graph-builder.apply()` 创建新 edge。
-- `graph-builder.apply()` 给现有 edge 增加 evidence。
+- `graph-builder.apply()` 创建新 edge。（已落地）
+- `graph-builder.apply()` 给现有 edge 增加 evidence。（已落地）
 - `graph-builder.deprecate()`。
 - `review approve / reject / apply`。
-- Apple Supplier List import / apply。
-- source monitor 记录文档变化。
+- Apple Supplier List import / apply。（facility import 和 apply 已落地）
+- source monitor 记录文档变化。（已落地到 `source_change_events`）
 - unknown add / resolve。
 
 不允许：
@@ -128,4 +128,3 @@ Research Workbench 底部 timeline 展示：
 - attention items。
 
 timeline 是研究工具，不是 marketing feed。默认按 `requires_attention` 和时间排序。
-

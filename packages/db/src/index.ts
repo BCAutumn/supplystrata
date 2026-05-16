@@ -19,6 +19,8 @@ import { migrationSql } from "./schema.js";
 
 const { Pool } = pg;
 
+export * from "./changes.js";
+
 export interface DbClient {
   query<T extends pg.QueryResultRow>(sql: string, params?: readonly unknown[]): Promise<pg.QueryResult<T>>;
 }

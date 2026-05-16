@@ -42,7 +42,7 @@ v0.2-alpha 必须满足：
 [ ] NVIDIA 研究路径仍一条命令可复现
 [ ] Apple Supplier List 产生 >= 50 条 reviewed facility edge
 [ ] `cli component memory` 可输出 ComponentCard
-[ ] `cli changes` 可输出最近变化
+[x] `cli changes` 可输出最近变化
 [ ] EntityResolver golden set >= 200 并进 CI
 [ ] research workbench 可打开本地 JSON，展示 chain/evidence/source health/changes
 [ ] README 明确当前不是完整供应链数据库
@@ -76,4 +76,3 @@ v0.2 不是降低长期标准，而是允许中间版本诚实发布。
 [ ] ImportYeti / BOL 自动抓取代码进入仓库
 [ ] README 暗示项目已经是完整供应链数据库
 ```
-

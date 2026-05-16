@@ -125,6 +125,14 @@ pnpm --silent cli sources due --format markdown
 pnpm --silent cli sources policy sync --file config/source-policies.example.json
 ```
 
+查看图谱和来源变化时间线：
+
+```bash
+pnpm --silent cli changes --since 2026-05-01 --format markdown
+pnpm --silent cli changes --source sec-edgar --attention-only
+pnpm --silent cli changes --scope company:ENT-NVIDIA --format json
+```
+
 历史 evidence 可分批补齐精确定位和指纹：
 
 ```bash

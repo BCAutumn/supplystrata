@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS change_records (
   caused_by TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_change_records_scope ON change_records(scope_kind, scope_id);
+CREATE INDEX IF NOT EXISTS idx_change_records_detected_at ON change_records(detected_at DESC);
 
 CREATE TABLE IF NOT EXISTS source_health (
   source_adapter_id TEXT PRIMARY KEY,

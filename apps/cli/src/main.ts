@@ -20,10 +20,24 @@ import {
   runDefaultNvidiaSlice,
   runSecEdgarPipeline
 } from "@supplystrata/pipeline";
-import { renderCompany, renderEvidence, renderPendingEntities, renderPendingEntity, renderUnknownMap, type OutputFormat } from "@supplystrata/render";
+import { renderChanges, renderCompany, renderEvidence, renderPendingEntities, renderPendingEntity, renderUnknownMap, type OutputFormat } from "@supplystrata/render";
 import { decideReviewCandidate, getReviewCandidate, nextReviewCandidate, reviewStats } from "@supplystrata/review-store";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
-import { isSupportedFormType, parseEntityLookupSource, parseFormat, parseLanguage, parseLimit, parsePendingEntityStatus, parsePreviewFormat, withPool, write, writeJson } from "./cli-utils.js";
+import {
+  defaultSince,
+  isSupportedFormType,
+  parseChangeScope,
+  parseEntityLookupSource,
+  parseFormat,
+  parseLanguage,
+  parseLimit,
+  parsePendingEntityStatus,
+  parsePreviewFormat,
+  parseSince,
+  withPool,
+  write,
+  writeJson
+} from "./cli-utils.js";
 import { renderEntityLookup } from "./entity-render.js";
 import { renderDataQuality } from "./dq-render.js";
 import { renderGraphCheck } from "./graph-render.js";
@@ -143,6 +157,32 @@ sources.command("due").option("--limit <count>", "max due sources", "50").option
     write(renderDueSources(due, parseFormat(options.format)));
   });
 });
+
+program
+  .command("changes")
+  .option("--since <date>", "ISO date/time lower bound", defaultSince(7))
+  .option("--scope <scope>", "company:<id>, entity:<id>, edge:<id>, or source:<id>")
+  .option("--type <changeType>", "change/event type filter")
+  .option("--source <sourceAdapterId>", "source adapter filter")
+  .option("--attention-only", "only show changes requiring attention", false)
+  .option("--limit <count>", "max changes", "50")
+  .option("--format <format>", "markdown or json", "markdown")
+  .description("show graph and source-monitor changes")
+  .action(async (options: { since: string; scope?: string; type?: string; source?: string; attentionOnly: boolean; limit: string; format: string }) => {
+    await withPool(async (pool) => {
+      const scope = parseChangeScope(options.scope);
+      const input = {
+        since: parseSince(options.since),
+        limit: parseLimit(options.limit),
+        format: parseFormat(options.format),
+        ...(scope === undefined ? {} : { scope }),
+        ...(options.type === undefined ? {} : { changeType: options.type }),
+        ...(options.source === undefined ? {} : { sourceAdapterId: options.source }),
+        attentionOnly: options.attentionOnly
+      };
+      write(await renderChanges(pool, input));
+    });
+  });
 const sourcePolicy = sources.command("policy").description("source monitoring policy commands");
 sourcePolicy.command("sync").requiredOption("--file <path>", "JSON source policy config").description("sync external source monitoring policy config").action(async (options: { file: string }) => {
   await withPool(async (pool) => {
