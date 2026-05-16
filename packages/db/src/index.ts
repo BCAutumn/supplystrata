@@ -28,7 +28,8 @@ export function createPool(): pg.Pool {
 }
 
 export async function migrate(client: DbClient): Promise<void> {
-  await client.query(migrationSql);
+  // 多个 integration test worker 可能同时启动迁移；事务级 advisory lock 避免并发 CREATE TABLE 竞态。
+  await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('supplystrata:migrate', 0));\n${migrationSql}`);
 }
 
 interface EntityCsvRow {
