@@ -1,0 +1,12 @@
+{
+  "name": "@supplystrata/graph",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "neo4j-driver": "~5.28.1"
+  }
+}

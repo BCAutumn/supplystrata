@@ -1,0 +1,60 @@
+entity_id,kind,canonical_name,display_name,language_of_canonical,primary_country,tickers,cik,industry,status,attrs_json
+ENT-MICROSOFT,company,Microsoft Corporation,Microsoft,en,US,MSFT:US,0000789019,cloud;ai-infrastructure,active,{}
+ENT-AMAZON,company,Amazon.com Inc.,Amazon,en,US,AMZN:US,0001018724,cloud;ai-infrastructure,active,{}
+ENT-ALPHABET,company,Alphabet Inc.,Alphabet,en,US,GOOGL:US,0001652044,cloud;ai-infrastructure,active,{}
+ENT-META,company,Meta Platforms Inc.,Meta,en,US,META:US,0001326801,cloud;ai-infrastructure,active,{}
+ENT-ORACLE,company,Oracle Corporation,Oracle,en,US,ORCL:US,0001341439,cloud;ai-infrastructure,active,{}
+ENT-NVIDIA,company,NVIDIA Corporation,NVIDIA,en,US,NVDA:US,0001045810,chip-design;ai-accelerator,active,{}
+ENT-APPLE,company,Apple Inc.,Apple,en,US,AAPL:US,0000320193,consumer-electronics;buyer,active,{}
+ENT-AMD,company,Advanced Micro Devices Inc.,AMD,en,US,AMD:US,0000002488,chip-design;ai-accelerator,active,{}
+ENT-BROADCOM,company,Broadcom Inc.,Broadcom,en,US,AVGO:US,0001730168,chip-design;networking,active,{}
+ENT-TSMC,company,Taiwan Semiconductor Manufacturing Company Limited,TSMC,en,TW,TSM:US;2330:TW,,foundry;semiconductor,active,{}
+ENT-SAMSUNG-FOUNDRY,business_unit,Samsung Foundry,Samsung Foundry,en,KR,005930:KR,,foundry;semiconductor,active,"{""parent_entity_id"":""ENT-SAMSUNG-ELECTRONICS""}"
+ENT-INTEL,company,Intel Corporation,Intel,en,US,INTC:US,0000050863,foundry;semiconductor,active,{}
+ENT-SKHYNIX,company,SK hynix Inc.,SK Hynix,en,KR,000660:KR,,memory;hbm,active,{}
+ENT-MICRON,company,Micron Technology Inc.,Micron,en,US,MU:US,0000723125,memory;hbm,active,{}
+ENT-SAMSUNG-MEMORY,business_unit,Samsung Memory,Samsung Memory,en,KR,005930:KR,,memory;hbm,active,"{""parent_entity_id"":""ENT-SAMSUNG-ELECTRONICS""}"
+ENT-ASML,company,ASML Holding N.V.,ASML,en,NL,ASML:US;ASML:NA,0000937966,semiconductor-equipment,active,{}
+ENT-APPLIED-MATERIALS,company,Applied Materials Inc.,Applied Materials,en,US,AMAT:US,0000006951,semiconductor-equipment,active,{}
+ENT-LAM-RESEARCH,company,Lam Research Corporation,Lam Research,en,US,LRCX:US,0000707549,semiconductor-equipment,active,{}
+ENT-KLA,company,KLA Corporation,KLA,en,US,KLAC:US,0000319201,semiconductor-equipment,active,{}
+ENT-FOXCONN,company,Hon Hai Precision Industry Co. Ltd.,Foxconn,en,TW,2317:TW,,odm;electronics-manufacturing,active,{}
+ENT-QUANTA,company,Quanta Computer Inc.,Quanta,en,TW,2382:TW,,odm;server,active,{}
+ENT-WISTRON,company,Wistron Corporation,Wistron,en,TW,3231:TW,,odm;server,active,{}
+ENT-INVENTEC,company,Inventec Corporation,Inventec,en,TW,2356:TW,,odm;server,active,{}
+ENT-SUPERMICRO,company,Super Micro Computer Inc.,Supermicro,en,US,SMCI:US,0001375365,server;oem,active,{}
+ENT-DELL,company,Dell Technologies Inc.,Dell Technologies,en,US,DELL:US,0001571996,server;oem,active,{}
+ENT-HPE,company,Hewlett Packard Enterprise Company,HPE,en,US,HPE:US,0001645590,server;oem,active,{}
+ENT-SAMSUNG-ELECTRONICS,company,Samsung Electronics Co. Ltd.,Samsung Electronics,en,KR,005930:KR,,electronics;semiconductor,active,{}
+ENT-FABRINET,company,Fabrinet,Fabrinet,en,TH,FN:US,0001408710,optical;manufacturing,active,{}
+ENT-3M,company,3M Co.,3M,en,US,MMM:US,0000066740,materials;electronics-supplier,active,{}
+ENT-FOXCONN-FII,company,Foxconn Industrial Internet Co. Ltd.,Foxconn Industrial Internet,en,CN,601138:CN,,odm;server,active,{}
+ENT-FIH-MOBILE,company,FIH Mobile Limited,FIH Mobile,en,HK,2038:HK,,electronics-manufacturing,active,{}
+ENT-HONGFUJIN-SHENZHEN,company,Hongfujin Precision Industry (Shenzhen) Co. Ltd.,Hongfujin Shenzhen,en,CN,,,electronics-manufacturing,active,{}
+ENT-FOXCONN-ASSEMBLY,company,Foxconn Assembly LLC,Foxconn Assembly,en,US,,,electronics-manufacturing,active,{}
+ENT-FOXCONN-OHIO,company,Foxconn Ohio LLC,Foxconn Ohio,en,US,,,electronics-manufacturing,active,{}
+ENT-SAMSUNG-AUSTIN,company,Samsung Austin Semiconductor LLC,Samsung Austin Semiconductor,en,US,,,semiconductor-fab,active,{}
+ENT-SAMSUNG-SEMICONDUCTOR-US,company,Samsung Semiconductor Inc.,Samsung Semiconductor US,en,US,,,semiconductor,active,{}
+ENT-SAMSUNG-DISPLAY,business_unit,Samsung Display,Samsung Display,en,KR,005930:KR,,display;electronics,active,"{""parent_entity_id"":""ENT-SAMSUNG-ELECTRONICS""}"
+ENT-TSMC-NORTH-AMERICA,company,TSMC North America,TSMC North America,en,US,,,foundry;sales,active,{}
+ENT-TSMC-ARIZONA,company,TSMC Arizona Corporation,TSMC Arizona,en,US,,,foundry;fab,active,{}
+ENT-JASM,company,Japan Advanced Semiconductor Manufacturing Inc.,JASM,en,JP,,,foundry;fab,active,{}
+ENT-TSMC-EUROPE,company,TSMC Europe B.V.,TSMC Europe,en,NL,,,foundry;sales,active,{}
+ENT-VANGUARD,company,Vanguard International Semiconductor Corporation,Vanguard,en,TW,5347:TW,,foundry,active,{}
+ENT-MICRON-TAIWAN,company,Micron Technology Taiwan Inc.,Micron Taiwan,en,TW,,,memory;fab,active,{}
+ENT-MICRON-JAPAN,company,Micron Memory Japan K.K.,Micron Japan,en,JP,,,memory;fab,active,{}
+ENT-SKHYNIX-AMERICA,company,SK hynix America Inc.,SK hynix America,en,US,,,memory;sales,active,{}
+ENT-SKHYNIX-SEMICONDUCTOR-CHINA,company,SK hynix Semiconductor (China) Ltd.,SK hynix China,en,CN,,,memory;fab,active,{}
+ENT-ASML-US,company,ASML US LLC,ASML US,en,US,,,semiconductor-equipment,active,{}
+ENT-ASML-NETHERLANDS,company,ASML Netherlands B.V.,ASML Netherlands,en,NL,,,semiconductor-equipment,active,{}
+ENT-NVIDIA-INTERNATIONAL,company,NVIDIA International Inc.,NVIDIA International,en,US,,,chip-design,active,{}
+ENT-NVIDIA-SINGAPORE,company,NVIDIA Singapore Pte. Ltd.,NVIDIA Singapore,en,SG,,,chip-design,active,{}
+ENT-AMD-ADVANCED-MICRO-DEVICES,company,Advanced Micro Devices (Singapore) Pte. Ltd.,AMD Singapore,en,SG,,,chip-design,active,{}
+ENT-BROADCOM-SINGAPORE,company,Broadcom Singapore Pte. Ltd.,Broadcom Singapore,en,SG,,,chip-design,active,{}
+ENT-DELL-EMC,company,EMC Corporation,EMC,en,US,,,server;storage,active,{}
+ENT-HPE-SERVER,company,HPE Server Business,HPE Server,en,US,,,server;oem,active,{}
+ENT-QUANTA-CLOUD,company,Quanta Cloud Technology Inc.,Quanta Cloud Technology,en,TW,,,server;odm,active,{}
+ENT-WISTRON-NEWEB,company,Wistron NeWeb Corporation,Wistron NeWeb,en,TW,6285:TW,,networking;electronics,active,{}
+ENT-INVENTEC-APPLIANCES,company,Inventec Appliances Corp.,Inventec Appliances,en,TW,,,electronics-manufacturing,active,{}
+ENT-OPENAI,company,OpenAI LLC,OpenAI,en,US,,,ai-lab;cloud-demand,active,{}
+ENT-COREWEAVE,company,CoreWeave Inc.,CoreWeave,en,US,,,cloud;gpu-cloud,active,{}

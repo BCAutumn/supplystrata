@@ -1,0 +1,22 @@
+{
+  "name": "@supplystrata/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "supplystrata": "./src/main.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/data-quality": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "@supplystrata/entity-source": "workspace:*",
+    "@supplystrata/entity-resolver": "workspace:*",
+    "@supplystrata/graph-builder": "workspace:*",
+    "@supplystrata/pipeline": "workspace:*",
+    "@supplystrata/render": "workspace:*",
+    "@supplystrata/review-candidates": "workspace:*",
+    "@supplystrata/review-store": "workspace:*",
+    "@supplystrata/source-registry": "workspace:*",
+    "commander": "~12.1.0"
+  }
+}

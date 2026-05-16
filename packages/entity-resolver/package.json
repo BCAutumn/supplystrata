@@ -1,0 +1,13 @@
+{
+  "name": "@supplystrata/entity-resolver",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "csv-parse": "~5.6.0"
+  }
+}

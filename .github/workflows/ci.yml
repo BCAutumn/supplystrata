@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  quality:
+    name: Typecheck, tests, lint, dependency boundaries
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: supplystrata
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: supplystrata
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U supplystrata -d supplystrata"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      neo4j:
+        image: neo4j:5
+        env:
+          NEO4J_AUTH: neo4j/devpassword
+        ports:
+          - 7687:7687
+          - 7474:7474
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p devpassword 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 30
+    env:
+      POSTGRES_URL: postgres://supplystrata:dev@localhost:5432/supplystrata
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: devpassword
+      OBJECT_STORE_FS_BASE: ./data/raw
+      SEC_USER_AGENT: SupplyStrata CI contact@example.com
+      LLM_PROVIDER: none
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm type-check
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+      - name: E2E fixture tests
+        run: pnpm test:e2e
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Dependency boundaries
+        run: pnpm dep-check

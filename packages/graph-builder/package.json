@@ -1,0 +1,15 @@
+{
+  "name": "@supplystrata/graph-builder",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "@supplystrata/entity-resolver": "workspace:*",
+    "@supplystrata/graph": "workspace:*",
+    "pg": "~8.13.1"
+  }
+}

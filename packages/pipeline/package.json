@@ -1,0 +1,29 @@
+{
+  "name": "@supplystrata/pipeline",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "@supplystrata/entity-import": "workspace:*",
+    "@supplystrata/entity-source": "workspace:*",
+    "@supplystrata/entity-resolver": "workspace:*",
+    "@supplystrata/evidence-scorer": "workspace:*",
+    "@supplystrata/graph-builder": "workspace:*",
+    "@supplystrata/parsers-html": "workspace:*",
+    "@supplystrata/relation-extractor-rule": "workspace:*",
+    "@supplystrata/review-candidates": "workspace:*",
+    "@supplystrata/review-store": "workspace:*",
+    "@supplystrata/sources-apple-suppliers": "workspace:*",
+    "@supplystrata/sources-asml-ir": "workspace:*",
+    "@supplystrata/sources-companies-house": "workspace:*",
+    "@supplystrata/sources-opencorporates": "workspace:*",
+    "@supplystrata/sources-samsung-ir": "workspace:*",
+    "@supplystrata/sources-sec-edgar": "workspace:*",
+    "@supplystrata/sources-skhynix-ir": "workspace:*",
+    "@supplystrata/sources-tsmc-ir": "workspace:*"
+  }
+}

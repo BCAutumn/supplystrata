@@ -1,0 +1,13 @@
+{
+  "name": "@supplystrata/entity-import",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "@supplystrata/review-candidates": "workspace:*"
+  }
+}

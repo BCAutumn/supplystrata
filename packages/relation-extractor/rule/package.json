@@ -1,0 +1,12 @@
+{
+  "name": "@supplystrata/relation-extractor-rule",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/parsers-text": "workspace:*"
+  }
+}

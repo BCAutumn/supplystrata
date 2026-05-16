@@ -1,0 +1,13 @@
+{
+  "name": "@supplystrata/sources-skhynix-ir",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/object-store": "workspace:*",
+    "@supplystrata/source-adapter-spec": "workspace:*"
+  }
+}

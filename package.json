@@ -1,0 +1,43 @@
+{
+  "name": "supplystrata",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "cli": "tsx apps/cli/src/main.ts",
+    "db:migrate": "tsx apps/cli/src/main.ts db migrate",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
+    "smoke:local": "node scripts/smoke-local.mjs",
+    "smoke:network": "node scripts/smoke-local.mjs --with-network",
+    "release:check": "node scripts/release-check.mjs",
+    "type-check": "tsc -p tsconfig.typecheck.json --noEmit",
+    "lint": "eslint .",
+    "dep-check": "dependency-cruiser --config .dependency-cruiser.cjs packages apps"
+  },
+  "dependencies": {
+    "cheerio": "~1.0.0",
+    "commander": "~12.1.0",
+    "csv-parse": "~5.6.0",
+    "neo4j-driver": "~5.28.1",
+    "pg": "~8.13.1",
+    "pino": "~9.5.0",
+    "zod": "~3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "~22.10.2",
+    "@types/pg": "~8.11.10",
+    "@typescript-eslint/eslint-plugin": "~8.19.0",
+    "@typescript-eslint/parser": "~8.19.0",
+    "dependency-cruiser": "~17.4.0",
+    "eslint": "~9.17.0",
+    "prettier": "~3.4.2",
+    "tsx": "~4.19.2",
+    "typescript": "~5.7.2",
+    "vitest": "~2.1.8"
+  },
+  "packageManager": "pnpm@10.20.0"
+}

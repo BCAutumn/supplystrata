@@ -1,0 +1,13 @@
+{
+  "name": "@supplystrata/review-candidates",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/entity-source": "workspace:*",
+    "@supplystrata/supplier-list": "workspace:*"
+  }
+}

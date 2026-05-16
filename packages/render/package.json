@@ -1,0 +1,12 @@
+{
+  "name": "@supplystrata/render",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/db": "workspace:*"
+  }
+}

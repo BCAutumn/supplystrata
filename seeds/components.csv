@@ -1,0 +1,7 @@
+component_id,name,taxonomy_path,aliases
+COMP-HBM,HBM,semiconductor>memory>dram>hbm,high bandwidth memory;HBM3;HBM3e
+COMP-DRAM,DRAM,semiconductor>memory>dram,dynamic random access memory
+COMP-GPU,GPU,semiconductor>logic>accelerator,graphics processing unit;AI accelerator
+COMP-WAFER,Wafer,semiconductor>foundry>wafer,silicon wafer
+COMP-ADVANCED-PACKAGING,Advanced packaging,semiconductor>packaging>advanced,CoWoS;2.5D packaging;chip-on-wafer-on-substrate
+COMP-SERVER,AI server,hardware>server>ai-server,GPU server;accelerated server

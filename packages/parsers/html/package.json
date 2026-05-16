@@ -1,0 +1,13 @@
+{
+  "name": "@supplystrata/parsers-html",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/parsers-text": "workspace:*",
+    "cheerio": "~1.0.0"
+  }
+}

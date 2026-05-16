@@ -1,0 +1,6 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/parsers/*"
+  - "packages/relation-extractor/*"
+  - "packages/sources/*"

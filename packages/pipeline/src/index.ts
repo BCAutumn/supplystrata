@@ -1,0 +1,655 @@
+import type pg from "pg";
+import {
+  loadEnv,
+  logger,
+  type ApplyResult,
+  type ApprovedCandidate,
+  type CandidateRelation,
+  type DocumentType,
+  type FetchTask,
+  type NormalizedDocument,
+  type RawDocument,
+  type ResolveResult
+} from "@supplystrata/core";
+import { insertReviewQueue, loadDocument, recordPendingEntity, saveNormalizedDocument } from "@supplystrata/db";
+import { applyEntitySourceReviewCandidate, resolvePendingEntitySurface, type EntityImportResult } from "@supplystrata/entity-import";
+import { DbEntityResolver, SeedEntityResolver } from "@supplystrata/entity-resolver";
+import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
+import { GraphBuilder } from "@supplystrata/graph-builder";
+import { parseHtml } from "@supplystrata/parsers-html";
+import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
+import {
+  buildSupplierListReviewCandidate,
+  isEntitySourceReviewCandidate,
+  isSupplierListReviewCandidate,
+  supplierListReviewToCandidateRelation
+} from "@supplystrata/review-candidates";
+import { enqueueReviewCandidates, getReviewCandidate, listApprovedReviewCandidates, markReviewCandidateApplied, markReviewCandidateBlocked } from "@supplystrata/review-store";
+import {
+  appleSuppliersAdapter,
+  createAppleSuppliersAdapterContext,
+  extractAppleSupplierCandidates,
+  type AppleSupplierCandidate,
+  type AppleSuppliersInput
+} from "@supplystrata/sources-apple-suppliers";
+import { asmlIrAdapter, createAsmlIrAdapterContext, type AsmlIrInput } from "@supplystrata/sources-asml-ir";
+import { createSamsungIrAdapterContext, samsungIrAdapter, type SamsungIrInput } from "@supplystrata/sources-samsung-ir";
+import { createAdapterContext, secEdgarAdapter, type SecEdgarInput } from "@supplystrata/sources-sec-edgar";
+import { createSkHynixIrAdapterContext, skHynixIrAdapter, type SkHynixIrInput } from "@supplystrata/sources-skhynix-ir";
+import { createTsmcIrAdapterContext, tsmcIrAdapter, type TsmcIrInput } from "@supplystrata/sources-tsmc-ir";
+import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+
+export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
+export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
+
+export interface PipelineSummary {
+  doc_id: string;
+  fetched_url: string;
+  chunks: number;
+  candidates: number;
+  applied_edges: number;
+  evidence_ids: string[];
+}
+
+export interface NormalizedPipelineInput {
+  normalized: NormalizedDocument;
+  fetchedUrl?: string;
+}
+
+export interface SupplyChainPreviewCandidate {
+  relation: CandidateRelation["relation"];
+  subject_surface: string;
+  subject_resolution: ResolveResult["status"];
+  subject_entity_id?: string;
+  subject_name?: string;
+  object_surface: string;
+  object_resolution: ResolveResult["status"];
+  object_entity_id?: string;
+  object_name?: string;
+  component?: string;
+  evidence_level: number;
+  confidence: number;
+  is_inferred: boolean;
+  needs_review: boolean;
+  extractor_id: string;
+  cite_text: string;
+  cite_locator: string;
+}
+
+export interface SupplyChainPreview {
+  doc_id: string;
+  fetched_url: string;
+  document_type: DocumentType;
+  source_date?: string;
+  chunks: number;
+  candidates: SupplyChainPreviewCandidate[];
+}
+
+export interface TsmcIrSignal {
+  title: string;
+  cite_text: string;
+  evidence_level: 4 | 5;
+  confidence: number;
+}
+
+export interface OfficialDisclosurePreview {
+  doc_id: string;
+  source_adapter_id: string;
+  fetched_url: string;
+  source_date?: string;
+  chunks: number;
+  signals: TsmcIrSignal[];
+  error_message?: string;
+}
+
+export interface TsmcIrPreview {
+  doc_id: string;
+  fetched_url: string;
+  source_date?: string;
+  chunks: number;
+  mentions_nvidia: boolean;
+  signals: TsmcIrSignal[];
+}
+
+export interface NvidiaResearchReportPreview {
+  nvidia: SupplyChainPreview;
+  tsmc: TsmcIrPreview;
+  samsung: OfficialDisclosurePreview;
+  skhynix: OfficialDisclosurePreview;
+  asml: OfficialDisclosurePreview;
+}
+
+export interface AppleSuppliersPreview {
+  doc_id: string;
+  fetched_url: string;
+  source_date?: string;
+  chunks: number;
+  candidates: AppleSupplierCandidate[];
+}
+
+export interface ReviewEnqueueSummary {
+  doc_id: string;
+  source_url: string;
+  candidates: number;
+  inserted: number;
+  skipped: number;
+}
+
+export type ReviewApplyResult =
+  | { status: "applied"; review_id: string; apply_result: ApplyResult; pending_entities_resolved: number }
+  | { status: "entity_applied"; review_id: string; import_result: Extract<EntityImportResult, { status: "applied" }> }
+  | { status: "blocked"; review_id: string; reason: string; pending_id?: string };
+
+export type ReviewApplyBatchItem =
+  | ReviewApplyResult
+  | { status: "error"; review_id: string; reason: string };
+
+export interface ReviewApplyBatchSummary {
+  requested_limit: number;
+  scanned: number;
+  applied: number;
+  entity_applied: number;
+  blocked: number;
+  errors: number;
+  results: ReviewApplyBatchItem[];
+}
+
+export async function runSecEdgarPipeline(pool: pg.Pool, input: SecEdgarInput): Promise<PipelineSummary> {
+  const { raw, normalized } = await fetchAndParseSecEdgar(input);
+  return runSupplyChainPipelineFromNormalized(pool, { normalized, fetchedUrl: raw.url });
+}
+
+export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input: NormalizedPipelineInput): Promise<PipelineSummary> {
+  const normalized = input.normalized;
+  const savedDocument = await saveNormalizedDocument(pool, normalized);
+
+  const resolver = new DbEntityResolver(pool);
+  const scorer = new DeterministicEvidenceScorer();
+  const graphBuilder = new GraphBuilder(pool, resolver);
+  const evidenceIds: string[] = [];
+  let candidates = 0;
+  let applied = 0;
+
+  try {
+    for (const extractor of ruleExtractors) {
+      for await (const candidate of extractor.extract(normalized)) {
+        candidates += 1;
+        if (!isValidCandidate(candidate, normalized.text)) {
+          logger.warn({ stage: "extract", extractor: candidate.extractor_id }, "candidate rejected by local validation");
+          continue;
+        }
+        const scoring = await scorer.score(candidate, normalized);
+        if (scoring.needs_review) {
+          logger.warn({ stage: "score", candidate: candidate.extractor_id }, "candidate needs review and was not auto-applied");
+          continue;
+        }
+        const chunkId = savedDocument.chunks.find((chunk) => chunk.text.includes(candidate.cite_text))?.chunk_id;
+        const approved: ApprovedCandidate = {
+          candidate,
+          scoring,
+          approved_by: "auto",
+          doc_id: savedDocument.doc_id,
+          ...(chunkId === undefined ? {} : { chunk_id: chunkId })
+        };
+        const result = await graphBuilder.apply(approved);
+        await insertReviewQueue(pool, approved);
+        evidenceIds.push(result.evidence_id);
+        applied += 1;
+      }
+    }
+  } finally {
+    await graphBuilder.close();
+  }
+
+  return { doc_id: savedDocument.doc_id, fetched_url: input.fetchedUrl ?? normalized.source_url, chunks: savedDocument.chunks.length, candidates, applied_edges: applied, evidence_ids: evidenceIds };
+}
+
+export async function previewSecEdgarSupplyChain(input: SecEdgarInput): Promise<SupplyChainPreview> {
+  const { raw, normalized, documentType, sourceDate } = await fetchAndParseSecEdgar(input);
+  const scorer = new DeterministicEvidenceScorer();
+  const resolver = await SeedEntityResolver.fromCsv();
+  const candidates: SupplyChainPreviewCandidate[] = [];
+
+  for (const extractor of ruleExtractors) {
+    for await (const candidate of extractor.extract(normalized)) {
+      if (!isValidCandidate(candidate, normalized.text)) continue;
+      const scoring = await scorer.score(candidate, normalized);
+      const subject = await resolver.resolve(candidate.subject_resolve);
+      const object = await resolver.resolve(candidate.object_resolve);
+      const base = {
+        relation: candidate.relation,
+        subject_surface: candidate.subject_resolve.surface,
+        subject_resolution: subject.status,
+        ...resolvedPreviewFields("subject", subject, resolver),
+        object_surface: candidate.object_resolve.surface,
+        object_resolution: object.status,
+        ...resolvedPreviewFields("object", object, resolver),
+        evidence_level: scoring.evidence_level,
+        confidence: scoring.confidence,
+        is_inferred: scoring.is_inferred,
+        needs_review: scoring.needs_review,
+        extractor_id: candidate.extractor_id,
+        cite_text: candidate.cite_text,
+        cite_locator: candidate.cite_locator
+      };
+      candidates.push(candidate.component === undefined ? base : { ...base, component: candidate.component });
+    }
+  }
+
+  return {
+    doc_id: normalized.doc_id,
+    fetched_url: raw.url,
+    document_type: documentType,
+    ...(sourceDate === undefined ? {} : { source_date: sourceDate }),
+    chunks: normalized.chunks.length,
+    candidates
+  };
+}
+
+function resolvedPreviewFields(prefix: "subject" | "object", result: ResolveResult, resolver: SeedEntityResolver): Partial<SupplyChainPreviewCandidate> {
+  if (result.status !== "resolved" || result.entity_id === undefined) return {};
+  const name = resolver.displayName(result.entity_id);
+  if (prefix === "subject") {
+    return {
+      subject_entity_id: result.entity_id,
+      ...(name === undefined ? {} : { subject_name: name })
+    };
+  }
+  return {
+    object_entity_id: result.entity_id,
+    ...(name === undefined ? {} : { object_name: name })
+  };
+}
+
+export async function runDefaultNvidiaSlice(pool: pg.Pool): Promise<PipelineSummary> {
+  const env = loadEnv();
+  logger.info({ stage: "pipeline", llm_provider: env.LLM_PROVIDER }, "running default NVIDIA SEC slice");
+  return runSecEdgarPipeline(pool, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] });
+}
+
+export async function previewDefaultNvidiaSlice(): Promise<SupplyChainPreview> {
+  const env = loadEnv();
+  logger.info({ stage: "preview", llm_provider: env.LLM_PROVIDER }, "previewing default NVIDIA SEC slice without database");
+  return previewSecEdgarSupplyChain({ cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] });
+}
+
+export async function previewTsmcIr(input: TsmcIrInput = { year: 2025, entityId: "ENT-TSMC" }): Promise<TsmcIrPreview> {
+  const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
+    adapter: tsmcIrAdapter,
+    input,
+    context: createTsmcIrAdapterContext(),
+    logLabel: "TSMC IR annual report",
+    normalize: (rawDocument) => normalizeOfficialHtml(rawDocument, input.entityId)
+  });
+  return {
+    doc_id: normalized.doc_id,
+    fetched_url: raw.url,
+    ...(sourceDate === undefined ? {} : { source_date: sourceDate }),
+    chunks: normalized.chunks.length,
+    mentions_nvidia: /\bnvidia\b/i.test(normalized.text),
+    signals: extractTsmcIrSignalsFromText(normalized.text)
+  };
+}
+
+export async function previewNvidiaResearchReport(): Promise<NvidiaResearchReportPreview> {
+  const [nvidia, tsmc, samsung, skhynix, asml] = await Promise.all([
+    previewDefaultNvidiaSlice(),
+    previewTsmcIr(),
+    previewOptionalDisclosure("samsung-ir", previewSamsungIr),
+    previewOptionalDisclosure("skhynix-ir", previewSkHynixIr),
+    previewOptionalDisclosure("asml-ir", previewAsmlIr)
+  ]);
+  return { nvidia, tsmc, samsung, skhynix, asml };
+}
+
+async function previewOptionalDisclosure(sourceAdapterId: string, fn: () => Promise<OfficialDisclosurePreview>): Promise<OfficialDisclosurePreview> {
+  try {
+    return await fn();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    logger.warn({ stage: "preview", adapter: sourceAdapterId, error: message }, "optional disclosure source unavailable");
+    return {
+      doc_id: "",
+      source_adapter_id: sourceAdapterId,
+      fetched_url: "",
+      chunks: 0,
+      signals: [],
+      error_message: message
+    };
+  }
+}
+
+export async function previewSamsungIr(input: SamsungIrInput = { year: 2025, entityId: "ENT-SAMSUNG-ELECTRONICS" }): Promise<OfficialDisclosurePreview> {
+  return previewOfficialDisclosure({
+    adapter: samsungIrAdapter,
+    input,
+    context: createSamsungIrAdapterContext(),
+    primaryEntityId: input.entityId,
+    logLabel: "Samsung official disclosure",
+    extractSignals: extractSamsungSignalsFromText
+  });
+}
+
+export async function previewSkHynixIr(input: SkHynixIrInput = { year: 2025, entityId: "ENT-SKHYNIX" }): Promise<OfficialDisclosurePreview> {
+  return previewOfficialDisclosure({
+    adapter: skHynixIrAdapter,
+    input,
+    context: createSkHynixIrAdapterContext(),
+    primaryEntityId: input.entityId,
+    logLabel: "SK hynix official disclosure",
+    extractSignals: extractSkHynixSignalsFromText
+  });
+}
+
+export async function previewAsmlIr(input: AsmlIrInput = { year: 2025, entityId: "ENT-ASML" }): Promise<OfficialDisclosurePreview> {
+  return previewOfficialDisclosure({
+    adapter: asmlIrAdapter,
+    input,
+    context: createAsmlIrAdapterContext(),
+    primaryEntityId: input.entityId,
+    logLabel: "ASML annual report",
+    extractSignals: extractAsmlSignalsFromText
+  });
+}
+
+export async function previewAppleSuppliers(input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }): Promise<AppleSuppliersPreview> {
+  const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
+    adapter: appleSuppliersAdapter,
+    input,
+    context: createAppleSuppliersAdapterContext(),
+    logLabel: "Apple Supplier List",
+    normalize: (rawDocument, ctx) => appleSuppliersAdapter.normalize(rawDocument, ctx)
+  });
+  return {
+    doc_id: normalized.doc_id,
+    fetched_url: raw.url,
+    ...(sourceDate === undefined ? {} : { source_date: sourceDate }),
+    chunks: normalized.chunks.length,
+    candidates: extractAppleSupplierCandidates(normalized, input.fiscalYear)
+  };
+}
+
+export async function enqueueAppleSupplierReviewCandidates(pool: pg.Pool, input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }): Promise<ReviewEnqueueSummary> {
+  const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
+    adapter: appleSuppliersAdapter,
+    input,
+    context: createAppleSuppliersAdapterContext(),
+    logLabel: "Apple Supplier List",
+    normalize: (rawDocument, ctx) => appleSuppliersAdapter.normalize(rawDocument, ctx)
+  });
+  const saved = await saveNormalizedDocument(pool, normalized);
+  const candidates = extractAppleSupplierCandidates(normalized, input.fiscalYear).map((candidate) =>
+    buildSupplierListReviewCandidate({
+      candidate,
+      docId: saved.doc_id,
+      sourceUrl: raw.url,
+      ...(sourceDate === undefined ? {} : { sourceDate })
+    })
+  );
+  const result = await enqueueReviewCandidates(pool, candidates);
+  return {
+    doc_id: saved.doc_id,
+    source_url: raw.url,
+    candidates: candidates.length,
+    inserted: result.inserted,
+    skipped: result.skipped
+  };
+}
+
+export async function applyApprovedReviewCandidate(pool: pg.Pool, reviewId: string, reviewer: string): Promise<ReviewApplyResult> {
+  const item = await getReviewCandidate(pool, reviewId);
+  if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
+  if (item.status !== "approved" && item.status !== "blocked") return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };
+  if (isEntitySourceReviewCandidate(item.candidate)) {
+    const importResult = await applyEntitySourceReviewCandidate(pool, item.candidate, reviewer);
+    if (importResult.status === "blocked") {
+      await markReviewCandidateBlocked(pool, { reviewId, reason: importResult.reason });
+      return { status: "blocked", review_id: reviewId, reason: importResult.reason };
+    }
+    await markReviewCandidateApplied(pool, { reviewId, reason: `imported entity ${importResult.entity_id}` });
+    return { status: "entity_applied", review_id: reviewId, import_result: importResult };
+  }
+  if (!isSupplierListReviewCandidate(item.candidate)) return { status: "blocked", review_id: reviewId, reason: `unsupported review candidate kind: ${item.kind}` };
+
+  const candidate = supplierListReviewToCandidateRelation(item.candidate);
+  const resolver = new DbEntityResolver(pool);
+  const subject = await resolver.resolve(candidate.subject_resolve);
+  if (subject.status !== "resolved" || subject.entity_id === undefined) {
+    await markReviewCandidateBlocked(pool, { reviewId, reason: `cannot resolve buyer: ${candidate.subject_resolve.surface}` });
+    return { status: "blocked", review_id: reviewId, reason: `cannot resolve buyer: ${candidate.subject_resolve.surface}` };
+  }
+
+  const object = await resolver.resolve(candidate.object_resolve);
+  if (object.status !== "resolved" || object.entity_id === undefined) {
+    const pending = await recordPendingEntity(pool, {
+      surface: candidate.object_resolve.surface,
+      context: {
+        review_id: reviewId,
+        source_adapter_id: item.candidate.evidence.source_adapter_id,
+        normalized_record_text: item.candidate.evidence.normalized_record_text,
+        country_or_region: item.candidate.payload.country_or_region
+      }
+    });
+    await markReviewCandidateBlocked(pool, { reviewId, reason: `cannot resolve supplier: ${candidate.object_resolve.surface}` });
+    return { status: "blocked", review_id: reviewId, reason: `cannot resolve supplier: ${candidate.object_resolve.surface}`, pending_id: pending.pending_id };
+  }
+
+  const docId = item.candidate.evidence.doc_id;
+  if (docId === undefined) return { status: "blocked", review_id: reviewId, reason: "supplier-list review candidate is missing doc_id" };
+  const doc = await loadDocument(pool, docId);
+  const scoring = await new DeterministicEvidenceScorer().score(candidate, doc);
+  const approved: ApprovedCandidate = {
+    candidate,
+    scoring: { ...scoring, needs_review: false },
+    approved_by: { reviewer, reviewed_at: new Date().toISOString() },
+    doc_id: docId
+  };
+  const builder = new GraphBuilder(pool, resolver);
+  try {
+    const applyResult = await builder.apply(approved);
+    const pendingResolved = await resolvePendingEntitySurface(pool, { surface: candidate.object_resolve.surface, entityId: object.entity_id, reviewer });
+    await markReviewCandidateApplied(pool, { reviewId, reason: `applied edge ${applyResult.edge_id}` });
+    return { status: "applied", review_id: reviewId, apply_result: applyResult, pending_entities_resolved: pendingResolved };
+  } finally {
+    await builder.close();
+  }
+}
+
+export async function applyApprovedReviewCandidates(pool: pg.Pool, input: { reviewer: string; limit: number }): Promise<ReviewApplyBatchSummary> {
+  const items = await listApprovedReviewCandidates(pool, { limit: input.limit });
+  const results: ReviewApplyBatchItem[] = [];
+  for (const item of items) {
+    try {
+      results.push(await applyApprovedReviewCandidate(pool, item.review_id, input.reviewer));
+    } catch (error) {
+      results.push({ status: "error", review_id: item.review_id, reason: messageFromUnknown(error) });
+    }
+  }
+  return {
+    requested_limit: input.limit,
+    scanned: items.length,
+    applied: results.filter((item) => item.status === "applied").length,
+    entity_applied: results.filter((item) => item.status === "entity_applied").length,
+    blocked: results.filter((item) => item.status === "blocked").length,
+    errors: results.filter((item) => item.status === "error").length,
+    results
+  };
+}
+
+function messageFromUnknown(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "unknown error";
+}
+
+interface FetchAndNormalizeInput<TInput> {
+  adapter: SourceAdapter<TInput, Uint8Array>;
+  input: TInput;
+  context: AdapterContext;
+  logLabel: string;
+  normalize(raw: RawDocument<Uint8Array>, ctx: AdapterContext): NormalizedDocument | Promise<NormalizedDocument>;
+}
+
+interface FetchedNormalizedDocument {
+  raw: RawDocument<Uint8Array>;
+  normalized: NormalizedDocument;
+  sourceDate?: string;
+}
+
+async function fetchAndNormalizeFirstTask<TInput>(input: FetchAndNormalizeInput<TInput>): Promise<FetchedNormalizedDocument> {
+  const tasks: FetchTask[] = [];
+  for await (const task of input.adapter.plan(input.input, input.context)) {
+    tasks.push(task);
+    break;
+  }
+  const task = tasks[0];
+  if (task === undefined) throw new Error(`${input.adapter.id} adapter produced no fetch task`);
+  logger.info({ stage: "ingest", adapter: input.adapter.id, task_id: task.task_id }, `fetching ${input.logLabel}`);
+  const raw = await input.adapter.fetch(task, input.context);
+  const normalized = await input.normalize(raw, input.context);
+  const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
+  return { raw, normalized, ...(sourceDate === undefined ? {} : { sourceDate }) };
+}
+
+interface OfficialDisclosureInput<TInput> {
+  adapter: SourceAdapter<TInput, Uint8Array>;
+  input: TInput;
+  context: AdapterContext;
+  primaryEntityId: string;
+  logLabel: string;
+  extractSignals(text: string): TsmcIrSignal[];
+}
+
+async function previewOfficialDisclosure<TInput>(input: OfficialDisclosureInput<TInput>): Promise<OfficialDisclosurePreview> {
+  const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
+    adapter: input.adapter,
+    input: input.input,
+    context: input.context,
+    logLabel: input.logLabel,
+    normalize: (rawDocument) => normalizeOfficialHtml(rawDocument, input.primaryEntityId)
+  });
+  return {
+    doc_id: normalized.doc_id,
+    source_adapter_id: raw.source_adapter_id,
+    fetched_url: raw.url,
+    ...(sourceDate === undefined ? {} : { source_date: sourceDate }),
+    chunks: normalized.chunks.length,
+    signals: input.extractSignals(normalized.text)
+  };
+}
+
+function normalizeOfficialHtml(raw: RawDocument<Uint8Array>, primaryEntityId: string): NormalizedDocument {
+  const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
+  return parseHtml({ raw, documentType: "annual_report", primaryEntityId, ...(sourceDate === undefined ? {} : { sourceDate }) });
+}
+
+interface FetchedSecDocument {
+  raw: Awaited<ReturnType<typeof secEdgarAdapter.fetch>>;
+  normalized: ReturnType<typeof parseHtml>;
+  documentType: DocumentType;
+  sourceDate?: string;
+}
+
+async function fetchAndParseSecEdgar(input: SecEdgarInput): Promise<FetchedSecDocument> {
+  const ctx = createAdapterContext();
+  const tasks: FetchTask[] = [];
+  for await (const task of secEdgarAdapter.plan(input, ctx)) {
+    tasks.push(task);
+    break;
+  }
+  const task = tasks[0];
+  if (task === undefined) throw new Error("SEC adapter produced no fetch task");
+
+  logger.info({ stage: "ingest", adapter: "sec-edgar", task_id: task.task_id }, "fetching SEC filing");
+  const raw = await secEdgarAdapter.fetch(task, ctx);
+  const documentType = readDocumentType(raw.metadata["document_type"]);
+  const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
+  const primaryEntityId = typeof raw.metadata["primary_entity_id"] === "string" ? raw.metadata["primary_entity_id"] : input.entityId;
+  const normalized = parseHtml({ raw, documentType, primaryEntityId, ...(sourceDate === undefined ? {} : { sourceDate }) });
+  return { raw, normalized, documentType, ...(sourceDate === undefined ? {} : { sourceDate }) };
+}
+
+export function extractTsmcIrSignalsFromText(text: string): TsmcIrSignal[] {
+  const signals: TsmcIrSignal[] = [];
+  addSignal(signals, "TSMC describes itself as a dedicated foundry", text, [/pure-play foundry/i, /foundry/i]);
+  addSignal(signals, "TSMC reports broad customer and product coverage", text, [/customers/i, /products/i]);
+  addSignal(signals, "TSMC links demand to AI and HPC", text, [/\bAI\b/i, /\bHPC\b|high performance computing/i]);
+  addSignal(signals, "TSMC highlights advanced packaging capacity", text, [/advanced packaging/i, /packaging/i]);
+  return signals;
+}
+
+export function extractSkHynixSignalsFromText(text: string): TsmcIrSignal[] {
+  const signals: TsmcIrSignal[] = [];
+  addSignal(signals, "SK hynix links results to HBM demand", text, [/\bHBM\b/i, /demand|sales|revenue/i]);
+  addSignal(signals, "SK hynix describes AI memory momentum", text, [/\bAI\b/i, /memory|HBM|DRAM/i]);
+  addSignal(signals, "SK hynix mentions advanced memory products", text, [/HBM|DDR5|DRAM/i, /product|products|portfolio/i]);
+  return signals;
+}
+
+export function extractSamsungSignalsFromText(text: string): TsmcIrSignal[] {
+  const signals: TsmcIrSignal[] = [];
+  addSignal(signals, "Samsung describes HBM demand", text, [/\bHBM\b/i, /demand|sales|revenue|memory/i]);
+  addSignal(signals, "Samsung links memory business to AI servers", text, [/\bAI\b/i, /server|servers|memory|HBM/i]);
+  addSignal(signals, "Samsung mentions foundry performance", text, [/foundry/i, /sales|revenue|demand|customer/i]);
+  return signals;
+}
+
+export function extractAsmlSignalsFromText(text: string): TsmcIrSignal[] {
+  const signals: TsmcIrSignal[] = [];
+  addExactSignal(
+    signals,
+    "ASML links business to semiconductor capacity",
+    text,
+    "We deliver value throughout the semiconductor value chain. Our comprehensive lithography portfolio enables cost-effective microchip scaling for our customers."
+  );
+  addExactSignal(
+    signals,
+    "ASML reports EUV lithography demand",
+    text,
+    "TWINSCAN NXE:3800E – full-specification system improves throughput by 37%"
+  );
+  return signals;
+}
+
+function addSignal(signals: TsmcIrSignal[], title: string, text: string, patterns: RegExp[]): void {
+  const cite = findSentence(text, patterns);
+  if (cite === undefined) return;
+  signals.push({ title, cite_text: cite, evidence_level: 4, confidence: 0.84 });
+}
+
+function addExactSignal(signals: TsmcIrSignal[], title: string, text: string, exactText: string): void {
+  if (!text.includes(exactText)) return;
+  signals.push({ title, cite_text: exactText, evidence_level: 4, confidence: 0.84 });
+}
+
+function findSentence(text: string, patterns: RegExp[]): string | undefined {
+  const sentences = text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= 40 && sentence.length <= 900);
+  const sentence = sentences.find((item) => patterns.every((pattern) => pattern.test(item)));
+  return sentence ?? findNearbySnippet(text, patterns);
+}
+
+function findNearbySnippet(text: string, patterns: RegExp[]): string | undefined {
+  const normalized = text.replace(/\s+/g, " ");
+  for (const pattern of patterns) {
+    const match = pattern.exec(normalized);
+    if (match === null) continue;
+    const start = Math.max(0, match.index - 260);
+    const end = Math.min(normalized.length, match.index + 520);
+    const snippet = normalized.slice(start, end).trim();
+    if (snippet.length >= 40 && patterns.every((item) => item.test(snippet))) return snippet;
+  }
+  return undefined;
+}
+
+function isValidCandidate(candidate: CandidateRelation, documentText: string): boolean {
+  return candidate.cite_text.length >= 30 && documentText.includes(candidate.cite_text);
+}
+
+function readDocumentType(value: unknown): DocumentType {
+  if (value === "10-K" || value === "10-Q" || value === "20-F" || value === "8-K") return value;
+  return "10-K";
+}

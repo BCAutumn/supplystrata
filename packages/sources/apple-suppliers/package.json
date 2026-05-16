@@ -1,0 +1,15 @@
+{
+  "name": "@supplystrata/sources-apple-suppliers",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/object-store": "workspace:*",
+    "@supplystrata/parsers-pdf": "workspace:*",
+    "@supplystrata/source-adapter-spec": "workspace:*",
+    "@supplystrata/supplier-list": "workspace:*"
+  }
+}

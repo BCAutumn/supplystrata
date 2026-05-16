@@ -1,0 +1,72 @@
+alias_id,entity_id,alias,language,alias_kind,source_type,status
+ALIAS-NVIDIA-001,ENT-NVIDIA,NVIDIA,en,official,seed,active
+ALIAS-NVIDIA-002,ENT-NVIDIA,NVIDIA Corporation,en,official,seed,active
+ALIAS-NVIDIA-003,ENT-NVIDIA,NVDA,en,abbreviation,seed,active
+ALIAS-NVIDIA-004,ENT-NVIDIA,英伟达,zh-Hans,translation,seed,active
+ALIAS-NVIDIA-005,ENT-NVIDIA,輝達,zh-Hant,translation,seed,active
+ALIAS-APPLE-001,ENT-APPLE,Apple,en,official,seed,active
+ALIAS-APPLE-002,ENT-APPLE,Apple Inc.,en,official,seed,active
+ALIAS-APPLE-003,ENT-APPLE,AAPL,en,abbreviation,seed,active
+ALIAS-TSMC-001,ENT-TSMC,TSMC,en,abbreviation,seed,active
+ALIAS-TSMC-002,ENT-TSMC,Taiwan Semiconductor Manufacturing,en,official,seed,active
+ALIAS-TSMC-003,ENT-TSMC,Taiwan Semiconductor Manufacturing Company Limited,en,official,seed,active
+ALIAS-TSMC-004,ENT-TSMC,台積電,zh-Hant,translation,seed,active
+ALIAS-TSMC-005,ENT-TSMC,台积电,zh-Hans,translation,seed,active
+ALIAS-SKH-001,ENT-SKHYNIX,SK hynix,en,official,seed,active
+ALIAS-SKH-002,ENT-SKHYNIX,SK Hynix,en,official,seed,active
+ALIAS-SKH-003,ENT-SKHYNIX,SK하이닉스,ko,official,seed,active
+ALIAS-MICRON-001,ENT-MICRON,Micron,en,official,seed,active
+ALIAS-MICRON-002,ENT-MICRON,Micron Technology,en,official,seed,active
+ALIAS-MICRON-003,ENT-MICRON,Micron Technology Inc.,en,official,seed,active
+ALIAS-SAMSUNG-ELEC-001,ENT-SAMSUNG-ELECTRONICS,Samsung Electronics,en,official,seed,active
+ALIAS-SAMSUNG-ELEC-002,ENT-SAMSUNG-ELECTRONICS,Samsung Electronics Co. Ltd.,en,official,seed,active
+ALIAS-SAMSUNG-ELEC-003,ENT-SAMSUNG-ELECTRONICS,三星电子,zh-Hans,translation,seed,active
+ALIAS-SAMSUNG-FOUNDRY-001,ENT-SAMSUNG-FOUNDRY,Samsung Foundry,en,official,seed,active
+ALIAS-SAMSUNG-FOUNDRY-002,ENT-SAMSUNG-FOUNDRY,Samsung's foundry,en,informal,seed,active
+ALIAS-SAMSUNG-FOUNDRY-003,ENT-SAMSUNG-FOUNDRY,Samsung foundry business,en,informal,seed,active
+ALIAS-SAMSUNG-MEMORY-001,ENT-SAMSUNG-MEMORY,Samsung Memory,en,official,seed,active
+ALIAS-SAMSUNG-MEMORY-002,ENT-SAMSUNG-MEMORY,Samsung memory business,en,informal,seed,active
+ALIAS-SAMSUNG-MEMORY-003,ENT-SAMSUNG-MEMORY,Samsung Semiconductor Memory,en,informal,seed,active
+ALIAS-FOXCONN-001,ENT-FOXCONN,Foxconn,en,informal,seed,active
+ALIAS-FOXCONN-002,ENT-FOXCONN,Hon Hai,en,official,seed,active
+ALIAS-FOXCONN-003,ENT-FOXCONN,Hon Hai Precision Industry,en,official,seed,active
+ALIAS-FOXCONN-004,ENT-FOXCONN,鴻海,zh-Hant,translation,seed,active
+ALIAS-FOXCONN-005,ENT-FOXCONN,鸿海,zh-Hans,translation,seed,active
+ALIAS-FOXCONN-006,ENT-FOXCONN,富士康,zh-Hans,translation,seed,active
+ALIAS-ASML-001,ENT-ASML,ASML,en,official,seed,active
+ALIAS-ASML-002,ENT-ASML,ASML Holding,en,official,seed,active
+ALIAS-ASML-003,ENT-ASML,ASML Holding N.V.,en,official,seed,active
+ALIAS-AMD-001,ENT-AMD,AMD,en,abbreviation,seed,active
+ALIAS-AMD-002,ENT-AMD,Advanced Micro Devices,en,official,seed,active
+ALIAS-AMD-003,ENT-AMD,Advanced Micro Devices Inc.,en,official,seed,active
+ALIAS-BROADCOM-001,ENT-BROADCOM,Broadcom,en,official,seed,active
+ALIAS-BROADCOM-002,ENT-BROADCOM,Broadcom Inc.,en,official,seed,active
+ALIAS-BROADCOM-003,ENT-BROADCOM,AVGO,en,abbreviation,seed,active
+ALIAS-SMCI-001,ENT-SUPERMICRO,Supermicro,en,official,seed,active
+ALIAS-SMCI-002,ENT-SUPERMICRO,Super Micro Computer,en,official,seed,active
+ALIAS-SMCI-003,ENT-SUPERMICRO,Super Micro Computer Inc.,en,official,seed,active
+ALIAS-DELL-001,ENT-DELL,Dell,en,official,seed,active
+ALIAS-DELL-002,ENT-DELL,Dell Technologies,en,official,seed,active
+ALIAS-DELL-003,ENT-DELL,Dell Technologies Inc.,en,official,seed,active
+ALIAS-HPE-001,ENT-HPE,HPE,en,abbreviation,seed,active
+ALIAS-HPE-002,ENT-HPE,Hewlett Packard Enterprise,en,official,seed,active
+ALIAS-HPE-003,ENT-HPE,Hewlett Packard Enterprise Company,en,official,seed,active
+ALIAS-MSFT-001,ENT-MICROSOFT,Microsoft,en,official,seed,active
+ALIAS-MSFT-002,ENT-MICROSOFT,Microsoft Corporation,en,official,seed,active
+ALIAS-MSFT-003,ENT-MICROSOFT,MSFT,en,abbreviation,seed,active
+ALIAS-AMZN-001,ENT-AMAZON,Amazon,en,official,seed,active
+ALIAS-AMZN-002,ENT-AMAZON,Amazon.com,en,official,seed,active
+ALIAS-AMZN-003,ENT-AMAZON,Amazon.com Inc.,en,official,seed,active
+ALIAS-GOOGL-001,ENT-ALPHABET,Alphabet,en,official,seed,active
+ALIAS-GOOGL-002,ENT-ALPHABET,Alphabet Inc.,en,official,seed,active
+ALIAS-GOOGL-003,ENT-ALPHABET,Google,en,informal,seed,active
+ALIAS-META-001,ENT-META,Meta,en,official,seed,active
+ALIAS-META-002,ENT-META,Meta Platforms,en,official,seed,active
+ALIAS-META-003,ENT-META,Meta Platforms Inc.,en,official,seed,active
+ALIAS-ORCL-001,ENT-ORACLE,Oracle,en,official,seed,active
+ALIAS-ORCL-002,ENT-ORACLE,Oracle Corporation,en,official,seed,active
+ALIAS-ORCL-003,ENT-ORACLE,OCI,en,informal,seed,active
+ALIAS-3M-001,ENT-3M,3M,en,official,seed,active
+ALIAS-3M-002,ENT-3M,3M Co.,en,official,seed,active
+ALIAS-3M-003,ENT-3M,3M Company,en,official,seed,active
+ALIAS-3M-004,ENT-3M,MMM,en,abbreviation,seed,active

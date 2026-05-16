@@ -1,0 +1,211 @@
+# Roadmap — 阶段化开发计划
+
+> **不承诺自然周**。原始的 Week 1-6 设计在实际工程中**几乎肯定会延期**，尤其是关系抽取和实体消歧。本文用 Phase 表示阶段，不写日期。每个 Phase 都有明确的入场 / 出场标准。
+
+## Phase 0 — Pre-flight（动工前）
+
+### 入场条件
+
+仓库目前的状态。
+
+### 任务
+
+- [ ] 文档审稿：所有 ★ 标记文档定稿
+- [x] ADR 决议：[ADR-001](../10-decisions/ADR-001-language-choice.md), [ADR-002](../10-decisions/ADR-002-graph-db.md), [ADR-003](../10-decisions/ADR-003-llm-strategy.md), [ADR-004](../10-decisions/ADR-004-monorepo-structure.md) 全部状态 = `accepted`
+- [x] `seeds/entities.csv` 锁定 25 个核心研究节点 + 至少 30 个关联/桥接实体
+- [x] `seeds/aliases.csv` 锁定第一批别名（高频实体每个 ≥ 3 个别名；主表名由 seed 导入自动补 alias）
+- [x] `seeds/components.csv` 锁定第一批组件
+- [ ] 法律 / ToS 评估完成（[legal-tos.md](../09-risks-compliance/legal-tos.md) 所有 P0 数据源 status=`approved`）
+- [ ] 个人 / 团队成员对"non-goals"达成共识
+
+### 出场条件
+
+文档定稿 + 数据 seed 入仓 + ADR 审议通过。**任何一项未完成，不进 Phase 1**。
+
+### 不做
+
+代码、不开始任何 ingestion。
+
+---
+
+## Phase 1 — Skeleton（代码骨架 + 数据库）
+
+### 入场条件
+
+Phase 0 全部出场条件满足。
+
+### 任务
+
+- [x] pnpm workspace + `tsconfig.base.json` + ESLint + prettier + dependency-cruiser 全套
+- [x] `docker-compose.yml`：postgres + neo4j (+ minio 可选)
+- [x] `packages/core` 中的 IDs / zod schema / RelationType / EntityKind / 等基础类型
+- [x] `packages/db` schema 与 migrations（[schema.md](../03-data-model/schema.md) MVP 核心表）
+- [x] `packages/graph` Neo4j 客户端 + 索引 / 约束
+- [x] `packages/object-store` 本地 FS 实现
+- [x] `apps/cli` 骨架（commander + admin 子命令）
+- [x] `supplystrata admin seed` 把 seeds 加载到 Postgres
+- [x] `supplystrata graph rebuild` 能从 Postgres 当前态重建 Neo4j
+
+### 出场条件
+
+- [x] `pnpm install && docker compose up -d && pnpm db:migrate && pnpm cli admin seed && pnpm cli graph rebuild` 在本地跑通
+- [x] CI 等价命令（lint + type-check + unit test + dependency-cruiser）全绿
+- [x] `seeds` 数据全部进入 Postgres
+- [x] Neo4j 节点数 == entity_master.active 数量
+
+### 风险与缓解
+
+| 风险                       | 缓解                                                          |
+| ------------------------ | ----------------------------------------------------------- |
+| schema 设计漏洞              | 在 PR 时跑 forward + backward + forward 迁移；至少 2 人 review |
+| dependency-cruiser 限制踩坑  | 写一份 README 列出已知合法依赖，CI 报错时按图索骥                          |
+| pnpm workspace 包间引用问题    | 在 ADR-004 中固定方案；不轻易改                                        |
+
+---
+
+## Phase 2 — MVP Core（SEC + 4 家亚洲 IR + Apple Suppliers + Entity Resolver）
+
+### 入场条件
+
+Phase 1 出场。
+
+### 任务
+
+- [x] `packages/source-adapter-spec`：接口契约
+- [x] `packages/sources/sec-edgar`：plan + fetch + normalize（HTML）
+- [x] `packages/parsers/html` + `packages/parsers/text`
+- [ ] `packages/sources/opencorporates` + `packages/sources/companies-house`：只拉 seeds 覆盖范围内的实体解析数据
+- [x] `packages/entity-resolver`：strict alias + fuzzy + Samsung 上下文消歧（identifier match 仍待补全）
+- [ ] Golden set ≥ 200 条 + CI 跑通 + 准确率 ≥ 99%
+- [x] `packages/relation-extractor/rule`：10K foundry / memory / contract-manufacturer 规则
+- [x] `packages/evidence-scorer`：MVP 规则
+- [x] `packages/graph-builder`：apply / rebuild
+- [x] `packages/graph-builder`：graph check（Postgres truth vs Neo4j 物化视图计数）
+- [x] `packages/sources/apple-suppliers`：半自动候选 CSV 预览流程（review/apply 入图仍待接）
+- [x] `packages/sources/company-ir/tsmc-ir`（已接入无库预览链路；完整 review/apply 待主链路统一接入）
+- [x] `packages/sources/company-ir/{samsung-ir,skhynix-ir,asml-ir}`（已接入无库预览链路；Samsung 官网当前网络可用性不稳定，已做可解释降级）
+- [x] `packages/render`：CompanyCard / EvidenceCard / UnknownMap markdown + json
+- [ ] `packages/render`：ComponentCard markdown + json
+- [ ] `packages/graph-builder`：deprecate
+- [x] `apps/cli`：`company / evidence / unknown-map`
+- [ ] `apps/cli`：`component / changes / search`
+- [x] `apps/cli`：`ingest sec-edgar / pipeline nvidia / graph rebuild`
+- [x] `apps/cli`：`graph check`
+- [ ] `apps/cli`：独立 `parse / extract / score / apply`
+- [x] `apps/cli`：通用 `review enqueue / stats / next / show / approve / reject / apply` 骨架（apply 遇到未解析实体会 blocked）
+- [x] `apps/cli`：`review apply-approved --limit`（只处理已 approved 候选，不自动批准 pending）
+- [x] `scripts/smoke-local.mjs`：`smoke:local` / `smoke:network` 一条命令链自检（联网模式能输出 NVIDIA company card + unknown map）
+- [x] `tests/e2e/nvidia-fixture.test.ts`：不联网 fixture e2e，覆盖 parser/extractor/scorer/apply/render/unknown map
+- [x] `apps/cli`：`dq run` 最小只读数据质量检查
+- [x] `scripts/release-check.mjs`：开源发布前本地体检（secret scan + tests + smoke + dq + graph check）
+
+### 出场条件（即 MVP 验收）
+
+详见 [mvp-scope.md](../01-product/mvp-scope.md) §"验收标准"。
+
+简版：
+
+- [ ] 25 个核心研究节点全部入 entity_master
+- [ ] 至少 100 条 evidence_level >= 4 的边
+- [ ] 任一 EV-xxx 都能 1 跳到原始证据
+- [ ] Foxconn / Samsung / TSMC 实体消歧检测全过
+- [ ] CLI 输出无任何无证据的陈述
+- [ ] CLI 输出始终有 unknown_map（≥ 5 项）
+- [x] 干净环境一条命令链跑通基础 pipeline（`pnpm smoke:local` / `pnpm smoke:network`；第一条正式 fixture e2e 已补）
+
+### 估时态度
+
+不给估时。逐 task 跟踪即可，但**不要在 Phase 2 之内开始接 Comtrade / EIA 等数据源**。
+
+### 风险与缓解
+
+| 风险                                    | 缓解                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| LLM 抽取出现幻觉                            | 强制 cite_text 子串校验 + needs_review = true                              |
+| Apple Supplier List PDF 表格解析不稳定        | 半自动流程；不强求全自动                                                        |
+| Entity Resolver 上下文消歧规则覆盖不到 corner case | 增量加 hard-code 规则 + golden set 持续扩充                                    |
+| 韩文 IR 文件                              | MVP 跳过；Samsung / SK Hynix 用英文版                                       |
+| Neo4j 与 Postgres 不一致                  | rebuild() 命令 + housekeeping 校验                                       |
+
+---
+
+## Phase 3 — 扩源 + 持续运行
+
+### 入场条件
+
+Phase 2 出场。
+
+### 任务
+
+- [ ] `dart-kr` adapter（Samsung / SK Hynix 韩文披露的英文版）
+- [ ] 扩展亚洲/欧洲 IR 的历史覆盖与非 MVP 公司（MVP 的 4 家 IR 已在 Phase 2 接入）
+- [ ] `un-comtrade` adapter → macro_signals 表
+- [ ] `census-trade` adapter
+- [ ] `usitc-dataweb` adapter
+- [ ] `eia` / `fred` / `worldbank-pink` adapter
+- [ ] `import-yeti` 手工流程的 CLI 子命令完善
+- [ ] `osh` adapter（与 Apple Supplier List 交叉建 facility）
+- [ ] Python sidecar (XBRL) 接入
+- [ ] `apps/api` 上线（只读 REST）
+- [ ] OpenSearch（可选）or Postgres FTS 升级
+
+### 出场条件
+
+- [ ] Macro signals 在 ComponentCard 中已被引用
+- [ ] BOL 推断边总数 < 总边数 20%（避免被推断淹没）
+- [ ] API 集成测试通过
+- [ ] 生产部署文档（即使是单机部署）写完
+
+---
+
+## Phase 4 — 横向扩展
+
+### 入场条件
+
+Phase 3 出场。
+
+### 任务
+
+- [ ] 第二个研究领域：新能源 / 锂电池链
+- [ ] 第三个研究领域：服务器 / 数据中心电力
+- [ ] 政府采购 / 新闻线索接入（sam-gov / usaspending / eu-ted / gdelt）
+- [ ] 简单 Web UI（如果需要）：Next.js + Cytoscape.js 图谱可视化
+
+### 出场条件
+
+- [ ] 新研究领域有 ≥ 50 条 Level 4-5 边
+- [ ] CLI 仍是首选接口（Web 是辅助）
+
+---
+
+## Phase 5 — 推断 + 投资接口（外部项目）
+
+### 入场条件
+
+Phase 4 出场，且 ADR 通过"开放 Level 1-3 自动入图"。
+
+### 任务
+
+- [ ] 自动 BOL 推断流水线
+- [ ] 关系强度量化与变化检测
+- [ ] 一份完整的 Open API 文档供"投资推断系统"消费
+
+**不**在本仓库做投资策略。投资策略是另一个项目。
+
+---
+
+## 进度跟踪
+
+每周（仅作内部 cadence，不强加）：
+
+- 更新本文件中的 task checkbox
+- 把已识别的新风险补充到对应 Phase
+- 把任何被打脸的乐观估计写入"教训"小节（保留诚实度）
+
+## 教训记录区
+
+> 这里写每个 Phase 真实跑下来的偏差。先留空，发生了再写。
+>
+> - Phase 0: TBD
+> - Phase 1: 已落地。运行时发现并修复 3 个真实问题：workspace 直接依赖漏声明、seed alias 幂等性、Neo4j 关系索引语法。
+> - Phase 2: NVIDIA/SEC 纵向切片已跑通；运行时发现并修复文档去重后的 chunk 外键问题、Samsung 远距离列表误抽取问题、Apple supplier `3M` seed 缺口、review apply 与 Neo4j 双写一致性问题。
