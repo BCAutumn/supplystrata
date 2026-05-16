@@ -80,6 +80,7 @@ describe("GraphBuilder integration", () => {
     await migrate(pool);
     await cleanupIntegrationRows(pool);
     await seedIntegrationEntities(pool);
+    await seedIntegrationComponents(pool);
   });
 
   afterAll(async () => {
@@ -120,12 +121,36 @@ describe("GraphBuilder integration", () => {
     const stale = await builder.apply(approvedCandidate({ component: "primary-evidence-test", confidence: 0.7, citeText: "Older integration evidence." }));
     const fresh = await builder.apply(approvedCandidate({ component: "primary-evidence-test", confidence: 0.9, citeText: "Newer integration evidence." }));
 
-    const result = await pool.query<{ primary_evidence_id: string } & pg.QueryResultRow>("SELECT primary_evidence_id FROM edges WHERE edge_id = $1", [fresh.edge_id]);
-    const staleEvidence = await pool.query<{ superseded_by: string | null } & pg.QueryResultRow>("SELECT superseded_by FROM evidence WHERE evidence_id = $1", [stale.evidence_id]);
+    const result = await pool.query<{ primary_evidence_id: string } & pg.QueryResultRow>("SELECT primary_evidence_id FROM edges WHERE edge_id = $1", [
+      fresh.edge_id
+    ]);
+    const staleEvidence = await pool.query<{ superseded_by: string | null } & pg.QueryResultRow>("SELECT superseded_by FROM evidence WHERE evidence_id = $1", [
+      stale.evidence_id
+    ]);
 
     expect(fresh.edge_id).toBe(stale.edge_id);
     expect(result.rows[0]?.primary_evidence_id).toBe(fresh.evidence_id);
     expect(staleEvidence.rows[0]?.superseded_by).toBe(fresh.evidence_id);
+
+    await builder.close();
+  });
+
+  it("canonicalizes known component text onto component_id and specificity", async () => {
+    const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
+    const result = await builder.apply(
+      approvedCandidate({ component: "memory", confidence: 0.86, citeText: "Integration Test Buyer purchases memory from Integration Test Supplier." })
+    );
+
+    const edge = await pool.query<{ component: string | null; component_id: string | null; component_specificity: string | null } & pg.QueryResultRow>(
+      "SELECT component, component_id, component_specificity FROM edges WHERE edge_id = $1",
+      [result.edge_id]
+    );
+
+    expect(edge.rows[0]).toMatchObject({
+      component: "memory",
+      component_id: "COMP-ITEST-MEMORY",
+      component_specificity: "unspecified"
+    });
 
     await builder.close();
   });
@@ -146,13 +171,27 @@ async function seedIntegrationEntities(client: pg.Pool): Promise<void> {
   );
 }
 
+async function seedIntegrationComponents(client: pg.Pool): Promise<void> {
+  await client.query(
+    `INSERT INTO components (component_id, name, taxonomy_path, aliases)
+     VALUES ('COMP-ITEST-MEMORY','memory',ARRAY['integration','memory'],ARRAY['memory'])
+     ON CONFLICT (component_id) DO UPDATE SET
+       name = EXCLUDED.name,
+       taxonomy_path = EXCLUDED.taxonomy_path,
+       aliases = EXCLUDED.aliases`
+  );
+}
+
 async function cleanupIntegrationRows(client: pg.Pool): Promise<void> {
-  await client.query("DELETE FROM change_records WHERE scope_id IN (SELECT edge_id FROM edges WHERE subject_id = 'ENT-ITEST-BUYER' OR object_id = 'ENT-ITEST-SUPPLIER')");
+  await client.query(
+    "DELETE FROM change_records WHERE scope_id IN (SELECT edge_id FROM edges WHERE subject_id = 'ENT-ITEST-BUYER' OR object_id = 'ENT-ITEST-SUPPLIER')"
+  );
   await client.query("DELETE FROM edges WHERE subject_id = 'ENT-ITEST-BUYER' OR object_id = 'ENT-ITEST-SUPPLIER'");
   await client.query("DELETE FROM evidence WHERE doc_id = 'DOC-ITEST-GRAPH-SYNC'");
   await client.query("DELETE FROM documents WHERE doc_id = 'DOC-ITEST-GRAPH-SYNC'");
   await client.query("DELETE FROM entity_alias WHERE entity_id IN ('ENT-ITEST-BUYER','ENT-ITEST-SUPPLIER')");
   await client.query("DELETE FROM entity_master WHERE entity_id IN ('ENT-ITEST-BUYER','ENT-ITEST-SUPPLIER')");
+  await client.query("DELETE FROM components WHERE component_id = 'COMP-ITEST-MEMORY'");
 }
 
 async function currentPostgresProjection(client: pg.Pool): Promise<{ nodes: number; edges: number }> {

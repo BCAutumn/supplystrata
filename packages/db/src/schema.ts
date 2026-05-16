@@ -104,6 +104,8 @@ CREATE TABLE IF NOT EXISTS edges (
   object_id TEXT NOT NULL REFERENCES entity_master(entity_id),
   relation TEXT NOT NULL,
   component TEXT,
+  component_id TEXT REFERENCES components(component_id),
+  component_specificity TEXT,
   attrs JSONB NOT NULL DEFAULT '{}'::jsonb,
   evidence_level SMALLINT NOT NULL,
   confidence REAL NOT NULL,
@@ -123,8 +125,12 @@ CREATE INDEX IF NOT EXISTS idx_edges_subject ON edges(subject_id);
 CREATE INDEX IF NOT EXISTS idx_edges_object ON edges(object_id);
 CREATE INDEX IF NOT EXISTS idx_edges_relation ON edges(relation);
 CREATE INDEX IF NOT EXISTS idx_edges_validity ON edges(validity);
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_edges_identity ON edges (
-  subject_id, object_id, relation, COALESCE(component, ''),
+ALTER TABLE edges ADD COLUMN IF NOT EXISTS component_id TEXT REFERENCES components(component_id);
+ALTER TABLE edges ADD COLUMN IF NOT EXISTS component_specificity TEXT;
+CREATE INDEX IF NOT EXISTS idx_edges_component_id ON edges(component_id);
+DROP INDEX IF EXISTS uniq_edges_identity;
+CREATE UNIQUE INDEX uniq_edges_identity ON edges (
+  subject_id, object_id, relation, COALESCE(component_id, ''), COALESCE(component, ''),
   COALESCE(effective_from, DATE '1900-01-01'),
   COALESCE(effective_to, DATE '2999-12-31')
 );

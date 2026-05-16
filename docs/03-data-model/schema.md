@@ -155,7 +155,9 @@ CREATE TABLE edges (
   subject_id         TEXT NOT NULL REFERENCES entity_master(entity_id),
   object_id          TEXT NOT NULL REFERENCES entity_master(entity_id),
   relation           TEXT NOT NULL,
-  component          TEXT,                          -- nullable
+  component          TEXT,                          -- 人类可读兼容字段，nullable
+  component_id       TEXT REFERENCES components(component_id),
+  component_specificity TEXT,                       -- explicit|inferred|unspecified
   attrs              JSONB NOT NULL DEFAULT '{}'::jsonb,
   evidence_level     SMALLINT NOT NULL,
   confidence         REAL NOT NULL,
@@ -176,15 +178,23 @@ CREATE INDEX idx_edges_subject ON edges(subject_id);
 CREATE INDEX idx_edges_object ON edges(object_id);
 CREATE INDEX idx_edges_relation ON edges(relation);
 CREATE INDEX idx_edges_validity ON edges(validity);
+CREATE INDEX idx_edges_component_id ON edges(component_id);
 CREATE UNIQUE INDEX uniq_edges_identity ON edges (
   subject_id,
   object_id,
   relation,
+  COALESCE(component_id, ''),
   COALESCE(component, ''),
   COALESCE(effective_from, DATE '1900-01-01'),
   COALESCE(effective_to, DATE '2999-12-31')
 );
 ```
+
+`component` 暂时保留，目的是兼容旧 evidence 和 CLI 输出；新写入链应优先填 `component_id`。`component_specificity` 表示这条边的组件粒度来自什么证据：
+
+- `explicit`：原文明确说出该具体组件，如 HBM、DRAM、wafer。
+- `unspecified`：原文只支持父组件，如 memory。
+- `inferred`：未来经人工或规则允许的组件细化推断；默认不用于 Level 4/5 官方边。
 
 ### 8. change_records
 

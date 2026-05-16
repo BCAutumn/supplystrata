@@ -7,6 +7,8 @@ export interface GraphEdgeInput {
   object_id: string;
   relation: RelationType;
   component?: string;
+  component_id?: string;
+  component_specificity?: string;
   evidence_level: number;
   confidence: number;
   is_inferred: boolean;
@@ -79,6 +81,8 @@ export class Neo4jGraphStore implements GraphStore {
        MATCH (o:Entity { entity_id: $object_id })
        MERGE (s)-[r:${edge.relation} { edge_id: $edge_id }]->(o)
        SET r.component = $component,
+           r.component_id = $component_id,
+           r.component_specificity = $component_specificity,
            r.evidence_level = $evidence_level,
            r.confidence = $confidence,
            r.is_inferred = $is_inferred,
@@ -89,6 +93,8 @@ export class Neo4jGraphStore implements GraphStore {
         subject_id: edge.subject_id,
         object_id: edge.object_id,
         component: edge.component ?? null,
+        component_id: edge.component_id ?? null,
+        component_specificity: edge.component_specificity ?? null,
         evidence_level: edge.evidence_level,
         confidence: edge.confidence,
         is_inferred: edge.is_inferred,

@@ -8,6 +8,8 @@ interface CompanyEdgeRow extends pg.QueryResultRow {
   edge_id: string;
   relation: RelationType;
   component: string | null;
+  component_id: string | null;
+  component_specificity: string | null;
   counterparty_id: string;
   counterparty_name: string;
   evidence_level: EvidenceLevel;
@@ -128,7 +130,7 @@ export async function renderPendingEntity(pool: pg.Pool, pendingId: string, form
 
 async function loadCompanyEdges(pool: pg.Pool, entityId: string): Promise<CompanyEdgeRow[]> {
   const result = await pool.query<CompanyEdgeRow>(
-    `SELECT e.edge_id, e.relation, e.component,
+    `SELECT e.edge_id, e.relation, e.component, e.component_id, e.component_specificity,
             e.object_id AS counterparty_id,
             o.display_name AS counterparty_name,
             e.evidence_level, e.confidence, e.is_inferred, e.primary_evidence_id,

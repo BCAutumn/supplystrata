@@ -5,6 +5,8 @@ import {
   logger,
   type ApplyResult,
   type ApprovedCandidate,
+  type CandidateRelation,
+  type ComponentSpecificity,
   type EntityRecord,
   type EvidenceLevel,
   type RelationType
@@ -52,15 +54,19 @@ export class GraphBuilder {
     let committed: Omit<ApplyResult, "graph_sync"> | undefined;
     try {
       await client.query("BEGIN");
+      const component = await resolveComponentReference(client, approved.candidate);
       const existing = await client.query<EdgeIdentityRow>(
         `SELECT edge_id, evidence_level, confidence
          FROM edges
          WHERE subject_id = $1 AND object_id = $2 AND relation = $3
-           AND COALESCE(component, '') = COALESCE($4, '')
+           AND (
+             ($4::text IS NOT NULL AND (component_id = $4 OR (component_id IS NULL AND lower(component) = lower($5))))
+             OR ($4::text IS NULL AND component_id IS NULL AND COALESCE(component, '') = COALESCE($5, ''))
+           )
            AND COALESCE(effective_from, DATE '1900-01-01') = DATE '1900-01-01'
            AND COALESCE(effective_to, DATE '2999-12-31') = DATE '2999-12-31'
          LIMIT 1`,
-        [subject.entity_id, object.entity_id, approved.candidate.relation, approved.candidate.component ?? null]
+        [subject.entity_id, object.entity_id, approved.candidate.relation, component.component_id, component.component]
       );
 
       const edgeId = existing.rows[0]?.edge_id ?? createId("EDGE");
@@ -72,14 +78,16 @@ export class GraphBuilder {
 
       if (isNewEdge) {
         await client.query(
-          `INSERT INTO edges (edge_id, subject_id, object_id, relation, component, evidence_level, confidence, is_inferred, validity)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'current')`,
+          `INSERT INTO edges (edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'current')`,
           [
             edgeId,
             subject.entity_id,
             object.entity_id,
             approved.candidate.relation,
-            approved.candidate.component ?? null,
+            component.component,
+            component.component_id,
+            component.component_specificity,
             edgeLevel,
             edgeConfidence,
             approved.scoring.is_inferred
@@ -88,9 +96,16 @@ export class GraphBuilder {
       } else {
         await client.query(
           `UPDATE edges
-           SET evidence_level = $2, confidence = $3, is_inferred = $4, last_verified_at = now(), updated_at = now()
+           SET component = $2,
+               component_id = $3,
+               component_specificity = COALESCE(component_specificity, $4),
+               evidence_level = $5,
+               confidence = $6,
+               is_inferred = $7,
+               last_verified_at = now(),
+               updated_at = now()
            WHERE edge_id = $1`,
-          [edgeId, edgeLevel, edgeConfidence, approved.scoring.is_inferred]
+          [edgeId, component.component, component.component_id, component.component_specificity, edgeLevel, edgeConfidence, approved.scoring.is_inferred]
         );
       }
 
@@ -185,7 +200,9 @@ export class GraphBuilder {
         is_inferred: edge.is_inferred,
         validity: edge.validity,
         last_verified_at: edge.last_verified_at.toISOString(),
-        ...(edge.component === null ? {} : { component: edge.component })
+        ...(edge.component === null ? {} : { component: edge.component }),
+        ...(edge.component_id === null ? {} : { component_id: edge.component_id }),
+        ...(edge.component_specificity === null ? {} : { component_specificity: edge.component_specificity })
       });
     }
     return this.#graph.stats();
@@ -206,7 +223,7 @@ export class GraphBuilder {
 
   async #syncEdge(edgeId: string): Promise<void> {
     const result = await this.#pool.query<GraphEdgeRow>(
-      `SELECT edge_id, subject_id, object_id, relation, component, evidence_level, confidence, is_inferred, validity, last_verified_at
+      `SELECT edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity, last_verified_at
        FROM edges
        WHERE edge_id = $1`,
       [edgeId]
@@ -233,7 +250,9 @@ export class GraphBuilder {
       is_inferred: edge.is_inferred,
       validity: edge.validity,
       last_verified_at: edge.last_verified_at.toISOString(),
-      ...(edge.component === null ? {} : { component: edge.component })
+      ...(edge.component === null ? {} : { component: edge.component }),
+      ...(edge.component_id === null ? {} : { component_id: edge.component_id }),
+      ...(edge.component_specificity === null ? {} : { component_specificity: edge.component_specificity })
     });
   }
 
@@ -285,11 +304,59 @@ interface GraphEdgeRow extends pg.QueryResultRow {
   object_id: string;
   relation: RelationType;
   component: string | null;
+  component_id: string | null;
+  component_specificity: ComponentSpecificity | null;
   evidence_level: EvidenceLevel;
   confidence: number;
   is_inferred: boolean;
   validity: string;
   last_verified_at: Date;
+}
+
+interface ComponentReference {
+  component: string | null;
+  component_id: string | null;
+  component_specificity: ComponentSpecificity | null;
+}
+
+interface ComponentLookupRow extends pg.QueryResultRow {
+  component_id: string;
+  name: string;
+}
+
+async function resolveComponentReference(client: pg.PoolClient, candidate: CandidateRelation): Promise<ComponentReference> {
+  if (candidate.component === undefined && candidate.component_id === undefined) {
+    return { component: null, component_id: null, component_specificity: null };
+  }
+
+  if (candidate.component_id !== undefined) {
+    const byId = await client.query<ComponentLookupRow>("SELECT component_id, name FROM components WHERE component_id = $1", [candidate.component_id]);
+    const row = byId.rows[0];
+    if (row === undefined) throw new Error(`Unknown component_id on candidate: ${candidate.component_id}`);
+    return {
+      component: candidate.component ?? row.name,
+      component_id: row.component_id,
+      component_specificity: candidate.component_specificity ?? null
+    };
+  }
+
+  const componentText = candidate.component;
+  if (componentText === undefined) return { component: null, component_id: null, component_specificity: null };
+  const byNameOrAlias = await client.query<ComponentLookupRow>(
+    `SELECT component_id, name
+     FROM components
+     WHERE lower(name) = lower($1)
+        OR EXISTS (SELECT 1 FROM unnest(aliases) AS alias WHERE lower(alias) = lower($1))
+     ORDER BY length(name), component_id
+     LIMIT 1`,
+    [componentText]
+  );
+  const row = byNameOrAlias.rows[0];
+  return {
+    component: componentText,
+    component_id: row?.component_id ?? null,
+    component_specificity: row === undefined ? null : (candidate.component_specificity ?? "unspecified")
+  };
 }
 
 interface ProjectionStatsRow extends pg.QueryResultRow {

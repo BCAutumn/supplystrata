@@ -6,17 +6,17 @@
 
 只在 MVP 中实际写入图谱的关系类型：
 
-| relation                  | 主体             | 客体               | 语义                                | 关键字段                       |
-| ------------------------- | -------------- | ---------------- | --------------------------------- | -------------------------- |
-| `BUYS_FROM`               | company / BU   | company / BU     | A 从 B 采购组件/产品                     | `component`                |
-| `SUPPLIES_TO`             | company / BU   | company / BU     | A 向 B 供货                          | `component`                |
-| `USES_FOUNDRY`            | company / BU   | company / BU     | A 使用 B 作为晶圆代工                     | `process_node?`            |
-| `USES_COMPONENT`          | company / BU   | component        | A 使用某抽象组件类                        | `note`                     |
-| `MANUFACTURES_AT`         | company        | facility         | A 在某设施制造                          | `product?`                 |
-| `OWNS_SUBSIDIARY`         | company        | company          | A 持有 B（独立法人）                      | `stake_pct?`               |
-| `OWNS_BUSINESS_UNIT`      | company        | business_unit    | A 持有内部业务部门                        |                            |
-| `IS_A`                    | product        | component        | 产品归属于组件大类                         |                            |
-| `OPERATES_FACILITY`       | company        | facility         | A 运营某设施                           |                            |
+| relation             | 主体         | 客体          | 语义                  | 关键字段        |
+| -------------------- | ------------ | ------------- | --------------------- | --------------- |
+| `BUYS_FROM`          | company / BU | company / BU  | A 从 B 采购组件/产品  | `component`     |
+| `SUPPLIES_TO`        | company / BU | company / BU  | A 向 B 供货           | `component`     |
+| `USES_FOUNDRY`       | company / BU | company / BU  | A 使用 B 作为晶圆代工 | `process_node?` |
+| `USES_COMPONENT`     | company / BU | component     | A 使用某抽象组件类    | `note`          |
+| `MANUFACTURES_AT`    | company      | facility      | A 在某设施制造        | `product?`      |
+| `OWNS_SUBSIDIARY`    | company      | company       | A 持有 B（独立法人）  | `stake_pct?`    |
+| `OWNS_BUSINESS_UNIT` | company      | business_unit | A 持有内部业务部门    |                 |
+| `IS_A`               | product      | component     | 产品归属于组件大类    |                 |
+| `OPERATES_FACILITY`  | company      | facility      | A 运营某设施          |                 |
 
 不进图谱的内部关系：
 
@@ -27,19 +27,19 @@
 
 ## 非 MVP 关系（后期可能加入）
 
-| relation                | 何时考虑          | 说明                           |
-| ----------------------- | ------------- | ---------------------------- |
-| `CUSTOMER_OF`           | Phase 3       | SUPPLIES_TO 的语义子集，不一定需要        |
-| `DEPENDS_ON`            | Phase 3+      | 通用依赖；语义弱，慎用                  |
-| `CAPEX_LINKED_TO`       | Phase 3+      | A 的 capex 对 B 有强关联（推断）        |
-| `PRICE_EXPOSED_TO`      | Phase 3+      | A 的成本/收入受某商品价格驱动              |
-| `IMPORTS_FROM`          | Phase 3       | 海关数据驱动；总是带 `is_inferred=true`  |
-| `TRADES_HS_CODE`        | Phase 3       | 国家 - HS 代码贸易流量                |
-| `TRANSPORTS_FOR`        | Phase 3       | 承运商 - 货主                      |
-| `CALLS_PORT`            | Phase 3       | 船舶 - 港口                       |
-| `OWNS_VESSEL`           | Phase 3       | 船东                            |
-| `POWERED_BY_GRID_OF`    | Phase 4       | 设施 - 电网/能源源                   |
-| `EXPOSED_TO_REGULATION` | Phase 4       | 实体 - 政策/法规                    |
+| relation                | 何时考虑 | 说明                                    |
+| ----------------------- | -------- | --------------------------------------- |
+| `CUSTOMER_OF`           | Phase 3  | SUPPLIES_TO 的语义子集，不一定需要      |
+| `DEPENDS_ON`            | Phase 3+ | 通用依赖；语义弱，慎用                  |
+| `CAPEX_LINKED_TO`       | Phase 3+ | A 的 capex 对 B 有强关联（推断）        |
+| `PRICE_EXPOSED_TO`      | Phase 3+ | A 的成本/收入受某商品价格驱动           |
+| `IMPORTS_FROM`          | Phase 3  | 海关数据驱动；总是带 `is_inferred=true` |
+| `TRADES_HS_CODE`        | Phase 3  | 国家 - HS 代码贸易流量                  |
+| `TRANSPORTS_FOR`        | Phase 3  | 承运商 - 货主                           |
+| `CALLS_PORT`            | Phase 3  | 船舶 - 港口                             |
+| `OWNS_VESSEL`           | Phase 3  | 船东                                    |
+| `POWERED_BY_GRID_OF`    | Phase 4  | 设施 - 电网/能源源                      |
+| `EXPOSED_TO_REGULATION` | Phase 4  | 实体 - 政策/法规                        |
 
 任何新关系类型必须：
 
@@ -54,16 +54,18 @@
 
 ```ts
 interface Edge {
-  edge_id: string;                       // EDGE-uuid
-  subject_id: string;                    // entity_master.id
+  edge_id: string; // EDGE-uuid
+  subject_id: string; // entity_master.id
   object_id: string;
   relation: RelationType;
-  component?: string;                    // for BUYS_FROM / USES_COMPONENT
-  attrs: Record<string, unknown>;        // 关系特定属性
-  evidence_ids: string[];                // 至少 1 条
-  primary_evidence_id: string;           // 主证据
-  evidence_level: 1 | 2 | 3 | 4 | 5;     // 取所有证据的 max
-  confidence: number;                    // 综合得分
+  component?: string; // 人类可读兼容字段
+  component_id?: string; // 优先引用 components.component_id
+  component_specificity?: "explicit" | "inferred" | "unspecified";
+  attrs: Record<string, unknown>; // 关系特定属性
+  evidence_ids: string[]; // 至少 1 条
+  primary_evidence_id: string; // 主证据
+  evidence_level: 1 | 2 | 3 | 4 | 5; // 取所有证据的 max
+  confidence: number; // 综合得分
   is_inferred: boolean;
   validity: "current" | "historical" | "deprecated";
   effective_period?: { from?: string; to?: string };
@@ -84,17 +86,17 @@ interface Edge {
 
 ## 主体/客体合法类型矩阵
 
-| relation              | subject 合法 kinds                        | object 合法 kinds                     |
-| --------------------- | --------------------------------------- | ------------------------------------ |
-| `BUYS_FROM`           | company, business_unit                  | company, business_unit               |
-| `SUPPLIES_TO`         | company, business_unit                  | company, business_unit               |
-| `USES_FOUNDRY`        | company, business_unit                  | company, business_unit (foundry 业务) |
-| `USES_COMPONENT`      | company, business_unit                  | component                            |
-| `MANUFACTURES_AT`     | company                                 | facility                             |
-| `OWNS_SUBSIDIARY`     | company                                 | company                              |
-| `OWNS_BUSINESS_UNIT`  | company                                 | business_unit                        |
-| `IS_A`                | product                                 | component                            |
-| `OPERATES_FACILITY`   | company                                 | facility                             |
+| relation             | subject 合法 kinds     | object 合法 kinds                     |
+| -------------------- | ---------------------- | ------------------------------------- |
+| `BUYS_FROM`          | company, business_unit | company, business_unit                |
+| `SUPPLIES_TO`        | company, business_unit | company, business_unit                |
+| `USES_FOUNDRY`       | company, business_unit | company, business_unit (foundry 业务) |
+| `USES_COMPONENT`     | company, business_unit | component                             |
+| `MANUFACTURES_AT`    | company                | facility                              |
+| `OWNS_SUBSIDIARY`    | company                | company                               |
+| `OWNS_BUSINESS_UNIT` | company                | business_unit                         |
+| `IS_A`               | product                | component                             |
+| `OPERATES_FACILITY`  | company                | facility                              |
 
 抽取器输出不符合此矩阵的候选 → pipeline 在送入 scorer 前拒收，并落 `extraction_rejections`。
 
@@ -131,7 +133,7 @@ interface Edge {
 唯一键：
 
 ```
-UNIQUE (subject_id, object_id, relation, COALESCE(component, ''), COALESCE(effective_period, ''))
+UNIQUE (subject_id, object_id, relation, COALESCE(component_id, ''), COALESCE(component, ''), COALESCE(effective_period, ''))
 ```
 
 同一对实体在同一关系上不同的 `component` 应当是不同 edge：
@@ -141,7 +143,7 @@ NVIDIA -BUYS_FROM(memory)→ Samsung Memory
 NVIDIA -BUYS_FROM(HBM)   → Samsung Memory
 ```
 
-这两条不要合并。`memory` 是父概念，`HBM` 是子概念。同一证据可以同时支持两条边的存在。
+这两条不要合并。`memory` 是父概念，`HBM` 是子概念。只有原文明确出现 HBM / High Bandwidth Memory 等具体词时，才允许把 `component_id` 设为 `COMP-HBM`；普通 memory 披露只能落到 `COMP-MEMORY`，`component_specificity = "unspecified"`。
 
 ## Effective Period（关系的时间有效性）
 

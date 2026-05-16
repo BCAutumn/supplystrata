@@ -35,28 +35,34 @@ export function extractFromSentence(sentence: string, locator: string): Candidat
   const memoryContext = memoryComponent !== undefined;
 
   if ((manufacturingContext || foundryListContext) && /(tsmc|taiwan semiconductor manufacturing)/i.test(sentence)) {
-    candidates.push(buildCandidate("USES_FOUNDRY", "TSMC", sentence, locator, "wafer"));
+    candidates.push(buildCandidate("USES_FOUNDRY", "TSMC", sentence, locator, "wafer", "COMP-WAFER", "explicit"));
   }
   if (foundryListContext && /\bsamsung\b/i.test(sentence) && !memoryContext) {
-    candidates.push(buildCandidate("USES_FOUNDRY", "Samsung", sentence, locator, "wafer"));
+    candidates.push(buildCandidate("USES_FOUNDRY", "Samsung", sentence, locator, "wafer", "COMP-WAFER", "explicit"));
   }
   if (memoryComponent !== undefined && /sk\s*hynix/i.test(sentence)) {
-    candidates.push(buildCandidate("BUYS_FROM", "SK hynix", sentence, locator, memoryComponent.component));
+    candidates.push(
+      buildCandidate("BUYS_FROM", "SK hynix", sentence, locator, memoryComponent.component, memoryComponent.componentId, memoryComponent.specificity)
+    );
   }
   if (memoryComponent !== undefined && /\bmicron\b/i.test(sentence)) {
-    candidates.push(buildCandidate("BUYS_FROM", "Micron", sentence, locator, memoryComponent.component));
+    candidates.push(
+      buildCandidate("BUYS_FROM", "Micron", sentence, locator, memoryComponent.component, memoryComponent.componentId, memoryComponent.specificity)
+    );
   }
   if (memoryComponent !== undefined && /\bsamsung\b/i.test(sentence)) {
-    candidates.push(buildCandidate("BUYS_FROM", "Samsung", sentence, locator, memoryComponent.component));
+    candidates.push(
+      buildCandidate("BUYS_FROM", "Samsung", sentence, locator, memoryComponent.component, memoryComponent.componentId, memoryComponent.specificity)
+    );
   }
   if (lower.includes("hon hai") && /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(sentence)) {
-    candidates.push(buildCandidate("BUYS_FROM", "Hon Hai", sentence, locator, "manufacturing services"));
+    candidates.push(buildCandidate("BUYS_FROM", "Hon Hai", sentence, locator, "manufacturing services", "COMP-MANUFACTURING-SERVICES", "explicit"));
   }
   if (lower.includes("wistron") && /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(sentence)) {
-    candidates.push(buildCandidate("BUYS_FROM", "Wistron", sentence, locator, "manufacturing services"));
+    candidates.push(buildCandidate("BUYS_FROM", "Wistron", sentence, locator, "manufacturing services", "COMP-MANUFACTURING-SERVICES", "explicit"));
   }
   if (lower.includes("fabrinet") && /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(sentence)) {
-    candidates.push(buildCandidate("BUYS_FROM", "Fabrinet", sentence, locator, "manufacturing services"));
+    candidates.push(buildCandidate("BUYS_FROM", "Fabrinet", sentence, locator, "manufacturing services", "COMP-MANUFACTURING-SERVICES", "explicit"));
   }
 
   return candidates;
@@ -64,24 +70,33 @@ export function extractFromSentence(sentence: string, locator: string): Candidat
 
 interface MemoryComponentClassification {
   readonly component: "memory" | "DRAM" | "HBM";
+  readonly componentId: "COMP-MEMORY" | "COMP-DRAM" | "COMP-HBM";
   readonly specificity: "unspecified" | "explicit";
 }
 
 function classifyMemoryComponent(sentence: string): MemoryComponentClassification | undefined {
   if (/\b(?:hbm(?:3e?|4)?|high[-\s]?bandwidth\s+memory)\b/i.test(sentence)) {
-    return { component: "HBM", specificity: "explicit" };
+    return { component: "HBM", componentId: "COMP-HBM", specificity: "explicit" };
   }
   if (/\b(?:dram|dynamic\s+random\s+access\s+memory)\b/i.test(sentence)) {
-    return { component: "DRAM", specificity: "explicit" };
+    return { component: "DRAM", componentId: "COMP-DRAM", specificity: "explicit" };
   }
   // 普通 memory 语境只支持父组件，不能替用户推断成 HBM。
   if (/\bmemor(?:y|ies)\b/i.test(sentence)) {
-    return { component: "memory", specificity: "unspecified" };
+    return { component: "memory", componentId: "COMP-MEMORY", specificity: "unspecified" };
   }
   return undefined;
 }
 
-function buildCandidate(relation: RelationType, objectSurface: string, citeText: string, locator: string, component: string): CandidateRelation {
+function buildCandidate(
+  relation: RelationType,
+  objectSurface: string,
+  citeText: string,
+  locator: string,
+  component: string,
+  componentId?: string,
+  componentSpecificity?: CandidateRelation["component_specificity"]
+): CandidateRelation {
   return {
     subject_resolve: {
       surface: "NVIDIA",
@@ -93,6 +108,8 @@ function buildCandidate(relation: RelationType, objectSurface: string, citeText:
     },
     relation,
     component,
+    ...(componentId === undefined ? {} : { component_id: componentId }),
+    ...(componentSpecificity === undefined ? {} : { component_specificity: componentSpecificity }),
     cite_text: citeText,
     cite_locator: locator,
     extractor_id: "rule.10k.nvidia-supply-chain",

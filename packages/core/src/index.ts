@@ -36,22 +36,13 @@ export const RELATION_TYPES = [
 
 export type RelationType = (typeof RELATION_TYPES)[number];
 
-export const DOCUMENT_TYPES = [
-  "10-K",
-  "10-Q",
-  "20-F",
-  "8-K",
-  "company_facts",
-  "company_registry",
-  "annual_report",
-  "supplier_list",
-  "manual"
-] as const;
+export const DOCUMENT_TYPES = ["10-K", "10-Q", "20-F", "8-K", "company_facts", "company_registry", "annual_report", "supplier_list", "manual"] as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export type EvidenceLevel = 1 | 2 | 3 | 4 | 5;
 export type ExtractionMethod = "rule" | "llm" | "manual" | "hybrid";
+export type ComponentSpecificity = "explicit" | "inferred" | "unspecified";
 
 export function inferExtractionMethod(extractorId: string): ExtractionMethod {
   if (extractorId.startsWith("rule.")) return "rule";
@@ -155,6 +146,8 @@ export interface CandidateRelation {
   object_resolve: ResolveInput;
   relation: RelationType;
   component?: string;
+  component_id?: string;
+  component_specificity?: ComponentSpecificity;
   cite_text: string;
   cite_locator: string;
   validity?: { from?: string; to?: string };
@@ -271,7 +264,10 @@ function loadDotEnvIfPresent(path = ".env"): void {
     const separator = trimmed.indexOf("=");
     if (separator <= 0) continue;
     const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim().replace(/^"|"$/g, "");
+    const value = trimmed
+      .slice(separator + 1)
+      .trim()
+      .replace(/^"|"$/g, "");
     if (process.env[key] === undefined) process.env[key] = value;
   }
 }
