@@ -64,6 +64,23 @@ interface ComponentCsvRow {
 }
 
 export async function seedFromCsv(client: DbClient, rootDir = process.cwd()): Promise<{ entities: number; aliases: number; components: number }> {
+  if (client instanceof Pool) {
+    const lockedClient = await client.connect();
+    let lockAcquired = false;
+    try {
+      // seed 会写大量 deterministic id；并行测试 worker 同时 seed 时必须整段串行。
+      await lockedClient.query("SELECT pg_advisory_lock(hashtextextended('supplystrata:seed', 0))");
+      lockAcquired = true;
+      return await seedFromCsvLocked(lockedClient, rootDir);
+    } finally {
+      if (lockAcquired) await lockedClient.query("SELECT pg_advisory_unlock(hashtextextended('supplystrata:seed', 0))");
+      lockedClient.release();
+    }
+  }
+  return await seedFromCsvLocked(client, rootDir);
+}
+
+async function seedFromCsvLocked(client: DbClient, rootDir: string): Promise<{ entities: number; aliases: number; components: number }> {
   const entities = await readCsv<EntityCsvRow>(resolve(rootDir, "seeds/entities.csv"));
   const aliases = await readCsv<AliasCsvRow>(resolve(rootDir, "seeds/aliases.csv"));
   const components = await readCsv<ComponentCsvRow>(resolve(rootDir, "seeds/components.csv"));
