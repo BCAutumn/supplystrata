@@ -123,7 +123,7 @@ Phase 1 出场。
 公开 alpha 后，Phase 2 的下一步不先追更多数据源，而是按 [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md) 先修可信度：
 
 1. Component taxonomy + memory/HBM 修正（规则抽取、`COMP-MEMORY` seed、`edges.component_id` / `component_specificity` 已落地；后续继续扩 taxonomy）。
-2. Source authority matrix。
+2. Source authority matrix（`sourceAuthorityFor()` 与 scorer 的 `source_cap` / `relation_cap` 已落地；后续随新数据源扩展矩阵）。
 3. EntityResolver hardening。
 4. Unknown extractor prefix fail-fast。
 5. Exact citation offsets + evidence fingerprint。

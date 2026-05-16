@@ -51,6 +51,8 @@
 
 ### PR 2 — Source authority matrix
 
+状态：已落地。`packages/source-registry` 现在暴露 `sourceAuthorityFor()`，把来源发布者、关系证明能力和最高证据等级放到一个显式矩阵里；`packages/evidence-scorer` 通过该矩阵计算 `source_cap` 与 `relation_cap`，不再只靠 `document_type` 粗略封顶。
+
 当前风险：`document_type -> max evidence level` 太粗，会把监管披露、公司官网、注册数据、宏观数据、新闻线索混在一起。
 
 目标：
@@ -70,6 +72,7 @@ type SourceAuthority = {
 - 监管自披露最高 Level 5。
 - 官方供应商名单 / 公司官方报告最高 Level 4。
 - 公司注册数据只能强化实体事实，不默认生成供应链边。
+- `registry_fact` 对 `BUYS_FROM` / `SUPPLIES_TO` 只能作为低等级候选，对 `OWNS_SUBSIDIARY` / `OPERATES_FACILITY` 才能保留高等级实体事实。
 - 宏观贸易 / 能源 / AIS 数据进入 observations，不能直接生成 Level 4/5 公司边。
 - LLM 仍然最高 Level 4，默认 `needs_review = true`。
 

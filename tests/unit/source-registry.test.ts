@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
+import { listSources, sourceAuthorityFor, sourceStatusSummary } from "@supplystrata/source-registry";
 
 describe("source registry", () => {
   it("tracks the free P0 sources needed by the MVP", () => {
@@ -23,6 +23,40 @@ describe("source registry", () => {
       planned: 1,
       manualOnly: 1,
       requiresKey: 2
+    });
+  });
+
+  it("maps known sources to explicit authority metadata", () => {
+    expect(sourceAuthorityFor({ source_adapter_id: "sec-edgar", document_type: "10-K" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "self_disclosure",
+      max_evidence_level: 5
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "tsmc-ir", document_type: "annual_report" })).toMatchObject({
+      publisher_type: "company_official",
+      relation_authority: "self_disclosure",
+      max_evidence_level: 4
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "apple-suppliers", document_type: "supplier_list" })).toMatchObject({
+      publisher_type: "official_supplier_list",
+      relation_authority: "facility_claim",
+      max_evidence_level: 4
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "import-yeti", document_type: "manual" })).toMatchObject({
+      relation_authority: "lead_only",
+      max_evidence_level: 3
+    });
+  });
+
+  it("falls back by document type when a new adapter is not registered yet", () => {
+    expect(sourceAuthorityFor({ source_adapter_id: "future-sec-adapter", document_type: "10-K" })).toMatchObject({
+      publisher_type: "regulator",
+      max_evidence_level: 5
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "future-macro-adapter", document_type: "manual" })).toMatchObject({
+      publisher_type: "manual",
+      relation_authority: "lead_only",
+      max_evidence_level: 2
     });
   });
 });

@@ -165,6 +165,9 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+      '@supplystrata/source-registry':
+        specifier: workspace:*
+        version: link:../source-registry
 
   packages/graph:
     dependencies:

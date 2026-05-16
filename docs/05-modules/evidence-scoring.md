@@ -13,7 +13,7 @@ interface ScorerInput {
     subject: ResolveResult;
     object: ResolveResult;
   };
-  cross_source_count: number;            // 已观察到的其它 source 命中数
+  cross_source_count: number; // 已观察到的其它 source 命中数
 }
 ```
 
@@ -38,18 +38,33 @@ interface ScoringResult {
 ## 算法
 
 ```
-1. 取 source_adapter_id → 默认 evidence_level 上限 (见 source-registry.md 默认映射)
-2. 取 candidate.extractor_id 类型（`rule.*` / `llm.*` / `manual.*` / `review.*`）→ 映射为 rule / llm / manual / hybrid，再判断是否降级
-3. 检查 modal verb strength
-4. 检查 resolver status（任一 ambiguous 严重降置信，unknown 直接拒收）
-5. 检查 source_age_days（影响 confidence，不影响 level）
-6. 检查 cross_source_count
-7. 得到最终 evidence_level（取 min）
-8. 得到 confidence（按公式）
-9. is_inferred = (level <= 3)
-10. needs_review = (extractor 是 llm) OR (level <= 3) OR (resolver 任一 ambiguous)
-11. rationale 输出可读文字（用于 review queue 与日志）
+1. 取 source_adapter_id + document_type → source authority matrix（publisher_type、relation_authority、source_cap）
+2. 用 relation_authority + relation_type 计算 relation_cap
+3. 取 candidate.extractor_id 类型（`rule.*` / `llm.*` / `manual.*` / `review.*`）→ 映射为 rule / llm / manual / hybrid，再判断 method_cap
+4. 检查 modal verb strength
+5. 检查 resolver status（任一 ambiguous 严重降置信，unknown 直接拒收）
+6. 检查 source_age_days（影响 confidence，不影响 level）
+7. 检查 cross_source_count
+8. 得到最终 evidence_level（取 min(raw_hint, source_cap, relation_cap, method_cap, modal_cap)）
+9. 得到 confidence（按公式）
+10. is_inferred = (level <= 3)
+11. needs_review = (extractor 是 llm) OR (level <= 3) OR (resolver 任一 ambiguous) OR (source 是 lead/macro)
+12. rationale 输出可读文字（用于 review queue 与日志）
 ```
+
+## Source Authority Matrix
+
+`packages/source-registry` 是来源权威矩阵的唯一入口。scorer 不再用 `document_type -> level` 的简单映射，而是先判断“这个来源能证明哪类事实”。
+
+| publisher_type           | relation_authority | 典型来源                           | 最高等级 | 说明                                                          |
+| ------------------------ | ------------------ | ---------------------------------- | -------- | ------------------------------------------------------------- |
+| `regulator`              | `self_disclosure`  | SEC EDGAR 10-K / 10-Q / 20-F / 8-K | 5        | 监管披露里的公司自述可作为强证据。                            |
+| `company_official`       | `self_disclosure`  | 公司 IR、年报、官方演示            | 4        | 官方但非同等监管文件，默认不升到 Level 5。                    |
+| `official_supplier_list` | `facility_claim`   | Apple Supplier List                | 4        | 可证明供应商/设施声明，但仍走 review/apply。                  |
+| `government_registry`    | `registry_fact`    | Companies House / OpenCorporates   | 4        | 可证明法人、注册、控制或设施事实；不能直接证明采购/供应链边。 |
+| `manual`                 | `lead_only`        | ImportYeti 手工摘录、灰色线索      | 1-3      | 只能作为线索或低等级候选，默认需要 review。                   |
+
+关系维度会再次收紧等级。例如 `registry_fact` 对 `OWNS_SUBSIDIARY` / `OWNS_BUSINESS_UNIT` / `OPERATES_FACILITY` 可到 Level 4，但对 `BUYS_FROM` / `SUPPLIES_TO` 只能到 Level 2。宏观贸易、能源、AIS 等后续来源必须落到 observations 或 lead，不得直接生成高等级公司关系边。
 
 ## 实现要求
 
