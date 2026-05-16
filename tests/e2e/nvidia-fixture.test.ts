@@ -52,7 +52,7 @@ describe("NVIDIA fixture e2e", () => {
     expect(summary).toMatchObject({ candidates: 8, applied_edges: 8 });
     expect(summary.evidence_ids).toHaveLength(8);
     expect(company).toContain("USES_FOUNDRY (wafer) -> TSMC [Level 5");
-    expect(company).toContain("BUYS_FROM (HBM) -> SK Hynix [Level 5");
+    expect(company).toContain("BUYS_FROM (memory) -> SK Hynix [Level 5");
     expect(company).toContain("BUYS_FROM (manufacturing services) -> Foxconn [Level 5");
     expect(company).toContain("Evidence: EV-");
     expect(company).toContain("## Unknown map");

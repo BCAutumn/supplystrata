@@ -189,7 +189,7 @@ function renderResearchReportZh(result: NvidiaResearchReportPreview): string {
   for (const item of defaultNvidiaUnknownMapZh()) {
     lines.push(`- ${item}`);
   }
-  lines.push("", "## 结论边界", "", "当前证据足以支持 NVIDIA 在晶圆代工、HBM/内存、组装测试封装服务上的一级上游图谱。当前证据不支持推断客户分配、合同价格、供应商季度出货量，也不输出任何投资结论。");
+  lines.push("", "## 结论边界", "", "当前证据足以支持 NVIDIA 在晶圆代工、内存、组装测试封装服务上的一级上游图谱。当前证据不支持推断客户分配、合同价格、供应商季度出货量，也不输出任何投资结论。");
   return lines.join("\n");
 }
 
@@ -263,7 +263,9 @@ function translateRelation(relation: RelationType): string {
 
 function translateComponent(component: string): string {
   if (component === "wafer") return "晶圆";
-  if (component === "HBM") return "HBM/内存";
+  if (component === "memory") return "内存";
+  if (component === "DRAM") return "DRAM";
+  if (component === "HBM") return "HBM";
   if (component === "manufacturing services") return "制造服务";
   return component;
 }

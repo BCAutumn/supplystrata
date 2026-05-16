@@ -30,6 +30,8 @@
 
 ### PR 1 — Component taxonomy + memory/HBM 修正
 
+状态：已开始落地。`v0.1.0-alpha.1` 之后的第一批实现先修正规则抽取器，不再把普通 memory 句子自动升级为 HBM；同时补 `COMP-MEMORY` 父组件 seed。后续仍需 schema 级 `component_id` / `component_specificity` 迁移。
+
 当前风险：NVIDIA 10-K 中类似 “purchase memory from SK hynix, Micron and Samsung” 的句子，只能支持 `BUYS_FROM(memory)`，不能自动升级成 `BUYS_FROM(HBM)`。除非原文明确出现 `HBM` / `High Bandwidth Memory` / `HBM3` / `HBM3e` / `HBM4`。
 
 目标：
@@ -406,7 +408,7 @@ unknowns
 
 严格建议顺序：
 
-1. Component taxonomy + memory/HBM 修正。
+1. Component taxonomy + memory/HBM 修正（规则抽取与 `COMP-MEMORY` seed 已落地；schema 迁移待后续 PR）。
 2. Source authority matrix。
 3. EntityResolver hardening。
 4. Unknown extractor prefix fail-fast。
