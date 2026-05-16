@@ -47,16 +47,22 @@
 
 ### Step 1: Trigger
 
-CLI 命令或 cron：
+CLI 命令或未来 cron：
 
 ```
 supplystrata ingest sec-edgar --cik 0001045810 --types 10-K --since 2024-01-01
 ```
 
-pipeline 创建 `pg-boss` job：
+`v0.1.0-alpha.1` 仍由 CLI 单进程直接执行。Phase 3 如果引入持续监控，pipeline 再创建 `pg-boss` job：
 
 ```json
-{ "queue": "ingest", "data": { "adapter": "sec-edgar", "input": { "cik": "0001045810", "types": ["10-K"], "since": "2024-01-01" } } }
+{
+  "queue": "ingest",
+  "data": {
+    "adapter": "sec-edgar",
+    "input": { "cik": "0001045810", "types": ["10-K"], "since": "2024-01-01" }
+  }
+}
 ```
 
 ### Step 2: Source Adapter
@@ -202,14 +208,14 @@ approved 候选写入 review queue 的 approved 状态。批处理命令只能 a
 
 ## 失败模式与重试
 
-| 失败点                       | 处理                                                 |
-| ------------------------- | -------------------------------------------------- |
-| 数据源 HTTP 失败                | pg-boss 自动重试，指数退避；3 次后入 dead-letter，开 CLI 命令查看      |
-| 文档已存在（同 sha256）            | 跳过 fetch；但仍重新跑 parse+extract（用最新规则）                 |
-| 解析器抛错                      | 文档标 `parse_failed`，入失败队列；不阻塞其它文档                    |
-| EntityResolver `ambiguous` | 抽取器跳过该 mention；mention 进 review queue                |
-| LLM 超时 / cost 超限          | 候选 status = "deferred"；下次跑                          |
-| Neo4j 写失败                  | Postgres 已写，Neo4j 重试；可通过 `rebuild()` 全量重建            |
+| 失败点                     | 处理                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| 数据源 HTTP 失败           | alpha 单进程 CLI 直接报错；Phase 3 队列化后由 pg-boss 自动重试并进入 dead-letter |
+| 文档已存在（同 sha256）    | 跳过 fetch；但仍重新跑 parse+extract（用最新规则）                               |
+| 解析器抛错                 | 文档标 `parse_failed`，入失败队列；不阻塞其它文档                                |
+| EntityResolver `ambiguous` | 抽取器跳过该 mention；mention 进 review queue                                    |
+| LLM 超时 / cost 超限       | 候选 status = "deferred"；下次跑                                                 |
+| Neo4j 写失败               | Postgres 已写，Neo4j 重试；可通过 `rebuild()` 全量重建                           |
 
 ## 不允许的反模式
 

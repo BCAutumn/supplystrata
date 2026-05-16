@@ -41,7 +41,7 @@ supplystrata/
 │   ├── evidence-scorer/
 │   ├── graph-builder/
 │   ├── llm-bridge/
-│   ├── pipeline/                           # 编排 + 队列 (pg-boss)
+│   ├── pipeline/                           # 编排；Phase 3 起再接 pg-boss 队列
 │   ├── sources/
 │   │   ├── sec-edgar/
 │   │   ├── company-ir/
@@ -84,10 +84,10 @@ CI 里加 dependency-cruiser 校验。
 
 ```ts
 export interface SourceAdapter<TFetchInput, TRawDoc, TNormalizedDoc> {
-  readonly id: string;                                  // "sec-edgar", "tsmc-ir"
+  readonly id: string; // "sec-edgar", "tsmc-ir"
   readonly tier: "P0" | "P1" | "P2";
   readonly description: string;
-  readonly tos_url: string;                             // 该数据源 ToS 链接
+  readonly tos_url: string; // 该数据源 ToS 链接
   readonly rate_limit: { requests: number; per_seconds: number };
 
   /** 计划本次要抓什么 */
@@ -97,7 +97,10 @@ export interface SourceAdapter<TFetchInput, TRawDoc, TNormalizedDoc> {
   fetch(task: FetchTask, ctx: AdapterContext): Promise<RawDocument<TRawDoc>>;
 
   /** 把原始字节标准化为系统通用文档 */
-  normalize(raw: RawDocument<TRawDoc>, ctx: AdapterContext): Promise<NormalizedDocument>;
+  normalize(
+    raw: RawDocument<TRawDoc>,
+    ctx: AdapterContext,
+  ): Promise<NormalizedDocument>;
 }
 
 export interface FetchTask {
@@ -109,35 +112,35 @@ export interface FetchTask {
 }
 
 export interface RawDocument<TBody = unknown> {
-  doc_id: string;                                       // DOC-uuid
+  doc_id: string; // DOC-uuid
   source_adapter_id: string;
   url: string;
   fetched_at: string;
   bytes_sha256: string;
-  storage_key: string;                                  // 在对象存储中的 key
-  body: TBody;                                          // 解析前的中间表示，可选
+  storage_key: string; // 在对象存储中的 key
+  body: TBody; // 解析前的中间表示，可选
   metadata: Record<string, unknown>;
 }
 
 export interface NormalizedDocument {
   doc_id: string;
   source_adapter_id: string;
-  document_type: string;                                // "10-K", "earnings_call", "supplier_list"
-  primary_entity_id?: string;                           // 已解析的目标实体
-  language: string;                                     // "en", "zh-Hans", "ko"
+  document_type: string; // "10-K", "earnings_call", "supplier_list"
+  primary_entity_id?: string; // 已解析的目标实体
+  language: string; // "en", "zh-Hans", "ko"
   fetched_at: string;
-  source_date?: string;                                 // 文档自身的发布日期
-  text: string;                                          // 清洗后的全文
-  chunks: DocumentChunk[];                              // 已切分
-  tables?: ParsedTable[];                               // 表格抽取
+  source_date?: string; // 文档自身的发布日期
+  text: string; // 清洗后的全文
+  chunks: DocumentChunk[]; // 已切分
+  tables?: ParsedTable[]; // 表格抽取
   attachments?: { storage_key: string; mime: string }[];
 }
 
 export interface DocumentChunk {
   chunk_id: string;
   text: string;
-  locator: string;                                      // 页码/章节/csspath
-  embedding?: number[];                                 // 可选
+  locator: string; // 页码/章节/csspath
+  embedding?: number[]; // 可选
 }
 ```
 
@@ -157,16 +160,21 @@ export interface EntityResolver {
   resolve(input: ResolveInput): Promise<ResolveResult>;
 
   /** 注册新别名（必须带证据） */
-  registerAlias(alias: string, entityId: string, evidence: Provenance): Promise<void>;
+  registerAlias(
+    alias: string,
+    entityId: string,
+    evidence: Provenance,
+  ): Promise<void>;
 
   /** 显式拆分错误合并 */
   split(entityId: string, newCanonicals: NewEntitySpec[]): Promise<SplitResult>;
 }
 
 export interface ResolveInput {
-  surface: string;                                      // 原始字符串
+  surface: string; // 原始字符串
   language?: string;
-  context?: {                                           // 强烈推荐填
+  context?: {
+    // 强烈推荐填
     nearby_text?: string;
     document_type?: string;
     co_mentioned_entities?: string[];
@@ -179,7 +187,7 @@ export interface ResolveInput {
 export interface ResolveResult {
   status: "resolved" | "ambiguous" | "unknown";
   entity_id?: string;
-  confidence: number;                                   // 0..1
+  confidence: number; // 0..1
   candidates?: { entity_id: string; confidence: number; reason: string }[];
   needs_human_review: boolean;
 }
@@ -194,20 +202,23 @@ export interface ResolveResult {
 
 ```ts
 export interface RelationExtractor {
-  readonly id: string;                                  // "rule.10k.foundry-disclosure"
-  readonly priority: number;                            // 大者先跑
+  readonly id: string; // "rule.10k.foundry-disclosure"
+  readonly priority: number; // 大者先跑
   readonly relation_types: RelationType[];
 
-  extract(doc: NormalizedDocument, ctx: ExtractorContext): AsyncIterable<CandidateRelation>;
+  extract(
+    doc: NormalizedDocument,
+    ctx: ExtractorContext,
+  ): AsyncIterable<CandidateRelation>;
 }
 
 export interface CandidateRelation {
-  subject_resolve: ResolveInput;                        // 主体（待解析）
-  object_resolve: ResolveInput;                         // 客体（待解析）
+  subject_resolve: ResolveInput; // 主体（待解析）
+  object_resolve: ResolveInput; // 客体（待解析）
   relation: RelationType;
   component?: string;
-  cite_text: string;                                    // 原文片段 (>= 30 chars)
-  cite_locator: string;                                 // page / section
+  cite_text: string; // 原文片段 (>= 30 chars)
+  cite_locator: string; // page / section
   validity?: { from?: string; to?: string };
   extractor_id: string;
   raw_evidence_level_hint: 1 | 2 | 3 | 4 | 5;
@@ -226,7 +237,10 @@ export interface CandidateRelation {
 
 ```ts
 export interface EvidenceScorer {
-  score(candidate: CandidateRelation, doc: NormalizedDocument): Promise<ScoringResult>;
+  score(
+    candidate: CandidateRelation,
+    doc: NormalizedDocument,
+  ): Promise<ScoringResult>;
 }
 
 export interface ScoringResult {
@@ -234,7 +248,7 @@ export interface ScoringResult {
   confidence: number;
   is_inferred: boolean;
   needs_review: boolean;
-  rationale: string;                                    // 简短说明为什么打这个等级
+  rationale: string; // 简短说明为什么打这个等级
 }
 ```
 
@@ -248,7 +262,11 @@ export interface ScoringResult {
 ```ts
 export interface GraphBuilder {
   apply(approved: ApprovedCandidate): Promise<ApplyResult>;
-  deprecate(edgeId: string, reason: string, evidence: Provenance): Promise<void>;
+  deprecate(
+    edgeId: string,
+    reason: string,
+    evidence: Provenance,
+  ): Promise<void>;
   rebuild(): Promise<{ nodes: number; edges: number }>;
 }
 
@@ -263,7 +281,9 @@ export interface ApplyResult {
   evidence_id: string;
   change_id: string;
   is_new_edge: boolean;
-  graph_sync: { status: "synced" } | { status: "failed"; error_message: string };
+  graph_sync:
+    | { status: "synced" }
+    | { status: "failed"; error_message: string };
 }
 ```
 
@@ -276,7 +296,11 @@ export interface ApplyResult {
 
 ```ts
 export interface ObjectStore {
-  put(key: string, body: Uint8Array | NodeJS.ReadableStream, meta?: Record<string, string>): Promise<void>;
+  put(
+    key: string,
+    body: Uint8Array | NodeJS.ReadableStream,
+    meta?: Record<string, string>,
+  ): Promise<void>;
   get(key: string): Promise<NodeJS.ReadableStream>;
   exists(key: string): Promise<boolean>;
   url(key: string, expiresInSeconds?: number): Promise<string>;
@@ -307,14 +331,14 @@ export interface RenderOptions {
 
 ## 包之间禁用的事
 
-| 禁止                                          | 原因                                           |
-| ------------------------------------------- | -------------------------------------------- |
-| `sources/*` 直接读写 Postgres                  | 所有写都过 pipeline                                |
-| `relation-extractor` 直接调 Neo4j             | 抽取器只产候选                                       |
-| 任何 package 直接 `import` LLM SDK             | 必须通过 `llm-bridge`                             |
-| 任何 package 直接 `process.env.NEO4J_URI` 读环境变量 | 必须通过 `core/config`                            |
-| 任何 package 自己造 `EV-xxx` ID                 | ID 工厂在 `core/ids`                             |
-| 在抽取器里写人工 review 业务                          | review 队列由 pipeline 管                         |
+| 禁止                                                 | 原因                      |
+| ---------------------------------------------------- | ------------------------- |
+| `sources/*` 直接读写 Postgres                        | 所有写都过 pipeline       |
+| `relation-extractor` 直接调 Neo4j                    | 抽取器只产候选            |
+| 任何 package 直接 `import` LLM SDK                   | 必须通过 `llm-bridge`     |
+| 任何 package 直接 `process.env.NEO4J_URI` 读环境变量 | 必须通过 `core/config`    |
+| 任何 package 自己造 `EV-xxx` ID                      | ID 工厂在 `core/ids`      |
+| 在抽取器里写人工 review 业务                         | review 队列由 pipeline 管 |
 
 ## 测试边界
 

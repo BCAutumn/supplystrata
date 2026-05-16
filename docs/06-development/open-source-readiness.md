@@ -1,10 +1,18 @@
-# Open Source Readiness — 开源前体检
+# Open Source Readiness — 开源状态与体检
 
-本文件记录开源发布前的最低准备状态。目标不是宣称 MVP 已完成，而是判断仓库能否以 alpha/MVP 形式公开，让外部用户理解边界、跑通本地切片，并安全贡献。
+本文件记录开源发布前后的最低准备状态。目标不是宣称 MVP 已完成，而是判断仓库能否以 alpha/MVP 形式公开，让外部用户理解边界、跑通本地切片，并安全贡献。
 
 ## 当前判断
 
-**可以准备公开 alpha，但还不应宣称 Phase 2 / MVP 完成。**
+**已经可以公开 alpha，但还不应宣称 Phase 2 / MVP 完成。**
+
+当前公开基线：
+
+- GitHub repo: `BCAutumn/supplystrata`
+- Release tag: `v0.1.0-alpha.1`
+- License: Apache-2.0
+
+下一阶段按 [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md) 推进，先修可信度，再扩数据源。
 
 适合对外表述：
 
@@ -42,14 +50,14 @@
 
 ## 发布前必须检查
 
-- [ ] 删除或确认不提交本地 `.env`。
-- [ ] 删除或确认不提交 `data/`。
-- [ ] 删除或确认不提交 `reports/`。
-- [ ] 确认没有 raw PDF / raw HTML / API response 进入 git。
-- [ ] README 当前状态与 CLI 命令一致。
-- [ ] `docs/06-development/roadmap.md` 反映真实进度。
-- [ ] `docs/09-risks-compliance/legal-tos.md` 与实际 adapter 一致。
-- [ ] GitHub 启用 private vulnerability reporting。
+- [x] 删除或确认不提交本地 `.env`。
+- [x] 删除或确认不提交 `data/`。
+- [x] 删除或确认不提交 `reports/`。
+- [x] 确认没有 raw PDF / raw HTML / API response 进入 git。
+- [x] README 当前状态与 CLI 命令一致。
+- [x] `docs/06-development/roadmap.md` 反映真实进度。
+- [x] `docs/09-risks-compliance/legal-tos.md` 与实际 adapter 一致。
+- [x] GitHub 启用 private vulnerability reporting。
 - [x] CI 至少跑 type-check、unit、integration、fixture e2e、lint、dep-check。
 - [x] 本地发布前跑 `pnpm release:check`。
 
@@ -89,3 +97,5 @@
 - `help wanted`: ComponentCard renderer.
 - `help wanted`: graph deprecate flow.
 - `help wanted`: manual evidence CLI.
+- `help wanted`: source authority matrix fixtures.
+- `help wanted`: evidence offset / fingerprint migration plan.

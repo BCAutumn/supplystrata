@@ -52,6 +52,7 @@ docs/
 │
 ├── 06-development/               开发流程
 │   ├── roadmap.md                ★ 阶段化路线图（Phase 0-5，不承诺自然周）
+│   ├── phase-2-upgrade-plan.md   ★ 公开 alpha 后的可信度优先升级计划
 │   ├── quickstart.md                从空环境跑到研究输出
 │   ├── coding-standards.md          代码规范（TS strict、命名、目录约定）
 │   ├── testing-strategy.md          测试策略（单元/契约/数据快照）
@@ -105,6 +106,16 @@ docs/
 5. [10-decisions/ADR-001-language-choice.md](./10-decisions/ADR-001-language-choice.md)
 6. [10-decisions/ADR-004-monorepo-structure.md](./10-decisions/ADR-004-monorepo-structure.md)
 7. [06-development/roadmap.md](./06-development/roadmap.md)
+8. [06-development/phase-2-upgrade-plan.md](./06-development/phase-2-upgrade-plan.md)
+
+### 公开 alpha 后继续 Phase 2 前必读
+
+1. [06-development/phase-2-upgrade-plan.md](./06-development/phase-2-upgrade-plan.md)
+2. [03-data-model/evidence-model.md](./03-data-model/evidence-model.md)
+3. [03-data-model/relation-model.md](./03-data-model/relation-model.md)
+4. [05-modules/entity-resolution.md](./05-modules/entity-resolution.md)
+5. [05-modules/evidence-scoring.md](./05-modules/evidence-scoring.md)
+6. [04-data-sources/source-registry.md](./04-data-sources/source-registry.md)
 
 ### 接入新数据源前必读
 

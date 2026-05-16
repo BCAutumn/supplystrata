@@ -55,11 +55,11 @@ Phase 0 全部出场条件满足。
 
 ### 风险与缓解
 
-| 风险                       | 缓解                                                          |
-| ------------------------ | ----------------------------------------------------------- |
-| schema 设计漏洞              | 在 PR 时跑 forward + backward + forward 迁移；至少 2 人 review |
-| dependency-cruiser 限制踩坑  | 写一份 README 列出已知合法依赖，CI 报错时按图索骥                          |
-| pnpm workspace 包间引用问题    | 在 ADR-004 中固定方案；不轻易改                                        |
+| 风险                        | 缓解                                                           |
+| --------------------------- | -------------------------------------------------------------- |
+| schema 设计漏洞             | 在 PR 时跑 forward + backward + forward 迁移；至少 2 人 review |
+| dependency-cruiser 限制踩坑 | 写一份 README 列出已知合法依赖，CI 报错时按图索骥              |
+| pnpm workspace 包间引用问题 | 在 ADR-004 中固定方案；不轻易改                                |
 
 ---
 
@@ -98,6 +98,7 @@ Phase 1 出场。
 - [x] `tests/e2e/nvidia-fixture.test.ts`：不联网 fixture e2e，覆盖 parser/extractor/scorer/apply/render/unknown map
 - [x] `apps/cli`：`dq run` 最小只读数据质量检查
 - [x] `scripts/release-check.mjs`：开源发布前本地体检（secret scan + tests + smoke + dq + graph check）
+- [x] [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md)：公开 alpha 后可信度优先升级计划
 
 ### 出场条件（即 MVP 验收）
 
@@ -117,15 +118,32 @@ Phase 1 出场。
 
 不给估时。逐 task 跟踪即可，但**不要在 Phase 2 之内开始接 Comtrade / EIA 等数据源**。
 
+### 下一批 PR 顺序
+
+公开 alpha 后，Phase 2 的下一步不先追更多数据源，而是按 [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md) 先修可信度：
+
+1. Component taxonomy + memory/HBM 修正。
+2. Source authority matrix。
+3. EntityResolver hardening。
+4. Unknown extractor prefix fail-fast。
+5. Exact citation offsets + evidence fingerprint。
+6. SourceRegistry + FetchRun + SourceHealth。
+7. Generic SEC rule pack。
+8. CompanyCard / ComponentCard 升级。
+
 ### 风险与缓解
 
-| 风险                                    | 缓解                                                                  |
-| ------------------------------------- | ------------------------------------------------------------------- |
-| LLM 抽取出现幻觉                            | 强制 cite_text 子串校验 + needs_review = true                              |
-| Apple Supplier List PDF 表格解析不稳定        | 半自动流程；不强求全自动                                                        |
-| Entity Resolver 上下文消歧规则覆盖不到 corner case | 增量加 hard-code 规则 + golden set 持续扩充                                    |
-| 韩文 IR 文件                              | MVP 跳过；Samsung / SK Hynix 用英文版                                       |
-| Neo4j 与 Postgres 不一致                  | rebuild() 命令 + housekeeping 校验                                       |
+| 风险                                               | 缓解                                                                              |
+| -------------------------------------------------- | --------------------------------------------------------------------------------- |
+| LLM 抽取出现幻觉                                   | 强制 cite_text 子串校验 + needs_review = true                                     |
+| Apple Supplier List PDF 表格解析不稳定             | 半自动流程；不强求全自动                                                          |
+| Entity Resolver 上下文消歧规则覆盖不到 corner case | 增量加 hard-code 规则 + golden set 持续扩充                                       |
+| 韩文 IR 文件                                       | MVP 跳过；Samsung / SK Hynix 用英文版                                             |
+| Neo4j 与 Postgres 不一致                           | rebuild() 命令 + housekeeping 校验                                                |
+| memory 被过度具体化为 HBM                          | 先修抽取规则与 component taxonomy；未明确出现 HBM 原文时只输出 `memory`           |
+| source cap 过粗导致宏观/线索源误入高等级边         | 引入 source authority matrix；宏观数据默认进 observations，不直接进 company edge  |
+| fuzzy resolver 误合并短别名或集团/子公司           | fuzzy 默认人工 review；短别名必须有 identifier / jurisdiction 等交叉验证          |
+| `pg-boss` 文档早于实现                             | Phase 2 保持单进程 CLI；队列化放到 Phase 3 monitoring layer，一起补 source health |
 
 ---
 
@@ -209,3 +227,4 @@ Phase 4 出场，且 ADR 通过"开放 Level 1-3 自动入图"。
 > - Phase 0: TBD
 > - Phase 1: 已落地。运行时发现并修复 3 个真实问题：workspace 直接依赖漏声明、seed alias 幂等性、Neo4j 关系索引语法。
 > - Phase 2: NVIDIA/SEC 纵向切片已跑通；运行时发现并修复文档去重后的 chunk 外键问题、Samsung 远距离列表误抽取问题、Apple supplier `3M` seed 缺口、review apply 与 Neo4j 双写一致性问题。
+> - Phase 2: 公开 alpha 后的静态审查发现 4 个可信度优先风险：memory/HBM 过度具体化、source cap 粗粒度、fuzzy resolver 自动合并风险、`pg-boss` 文档/实现不一致。已沉淀为 [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md)。

@@ -282,9 +282,9 @@ CREATE TABLE pending_entities (
 );
 ```
 
-### 13. pgboss schema
+### 13. pgboss schema（Phase 3 目标）
 
-`pg-boss` 自带 schema（默认 `pgboss`）。任务队列：
+`v0.1.0-alpha.1` 尚未引入后台队列。Phase 3 如果启动持续监控，再由 `pg-boss` 自带 schema（默认 `pgboss`）管理任务队列：
 
 - `ingest`
 - `parse`
@@ -381,15 +381,15 @@ data/raw/apple-suppliers/ENT-APPLE/2024/02/a2bf...09cc.pdf
 
 本系统几乎不允许物理删除：
 
-| 数据                | 删除策略                                  |
-| ----------------- | ------------------------------------- |
-| evidence          | 不允许删；只能 supersede                     |
-| edges             | 不允许删；只能 deprecate                     |
-| documents         | 不允许删；只能 mark `parse_status="skipped"` |
-| entity_master     | 不允许删；只能 status="merged_into" 或 deprecated |
-| chunk_entities    | 可重建                                   |
-| extraction_review_queue | rejected 后仍保留（作为 negative sample）   |
-| change_records    | 永不删                                   |
+| 数据                    | 删除策略                                          |
+| ----------------------- | ------------------------------------------------- |
+| evidence                | 不允许删；只能 supersede                          |
+| edges                   | 不允许删；只能 deprecate                          |
+| documents               | 不允许删；只能 mark `parse_status="skipped"`      |
+| entity_master           | 不允许删；只能 status="merged_into" 或 deprecated |
+| chunk_entities          | 可重建                                            |
+| extraction_review_queue | rejected 后仍保留（作为 negative sample）         |
+| change_records          | 永不删                                            |
 
 例外：
 

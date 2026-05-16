@@ -49,7 +49,9 @@
 
 ## Pipeline 编排
 
-### 队列设计（pg-boss）
+### 队列设计（Phase 3 目标：pg-boss）
+
+`v0.1.0-alpha.1` 没有后台队列，ingest / parse / extract / score / apply 仍由 CLI 单进程串起。下面是 Phase 3 进入持续监控后的目标形态，不能当作当前 alpha 已实现能力。
 
 ```
 queue: ingest.plan        → 接收 trigger，扇出到 ingest.fetch
@@ -70,7 +72,7 @@ queue: housekeeping       → daily 任务
 - `documents` 表以 `(source_adapter_id, source_url, bytes_sha256)` 唯一
 - `extract` 任务以 `(doc_id, extractor_version)` 唯一
 
-### 失败与 DLQ
+### 失败与 DLQ（Phase 3 目标）
 
 - pg-boss 自动重试（指数退避，最多 3 次）
 - 失败入 `pgboss.archive`；CLI 命令 `supplystrata jobs failed` 列出

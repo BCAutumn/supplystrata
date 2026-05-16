@@ -81,8 +81,9 @@
 
 ### 1. 单进程优先，但天生支持队列化
 
-MVP 跑在单进程里，用 `pg-boss`（基于 Postgres 的轻量队列，不引入 Redis）。
-但所有跨阶段调用必须通过"作业 + 事件"，不允许函数直接 import 调用。这样将来要拆成 worker / API / 调度器很容易。
+`v0.1.0-alpha.1` 实现仍是单进程 CLI，没有引入后台队列依赖。Phase 2 继续保持单进程优先，把 source/fetch/change 的状态模型先做扎实。
+
+Phase 3 如果进入持续监控，再引入 `pg-boss`（基于 Postgres 的轻量队列，不引入 Redis）。届时所有跨阶段调用必须通过"作业 + 事件"，不允许函数直接 import 调用。这样将来要拆成 worker / API / 调度器很容易。
 
 ### 2. 每个 Source Adapter 是独立 package
 
