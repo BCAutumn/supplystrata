@@ -1,7 +1,7 @@
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import { createInitialState, selectSegment, type WorkbenchState } from "./app-state.js";
 import { createChainCanvas } from "./canvas/chain-canvas.js";
-import { loadWorkbenchModelFromFile } from "./data/load-report.js";
+import { loadWorkbenchModelFromFile, loadWorkbenchModelFromUrl } from "./data/load-report.js";
 import { renderChangesTimeline } from "./panels/changes-timeline.js";
 import { renderEvidencePanel } from "./panels/evidence-panel.js";
 import { renderSourceHealthPanel } from "./panels/source-health-panel.js";
@@ -12,6 +12,7 @@ let state: WorkbenchState = createInitialState();
 const canvas = requireElement("chain-canvas", HTMLCanvasElement);
 const fileInput = requireElement("report-file", HTMLInputElement);
 const title = requireElement("workbench-title", HTMLHeadingElement);
+const loadStatus = requireElement("load-status", HTMLParagraphElement);
 const summary = requireElement("summary-strip", HTMLDivElement);
 const inspectorPanel = requireElement("inspector-panel", HTMLElement);
 const unknownPanel = requireElement("unknown-panel", HTMLElement);
@@ -28,22 +29,42 @@ const chainCanvas = createChainCanvas(canvas, {
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (file === undefined) return;
-  void load(file);
+  void loadFromFile(file);
 });
 
 render();
 
-async function load(file: File): Promise<void> {
+const initialReportUrl = reportUrlFromLocation(window.location);
+if (initialReportUrl !== null) {
+  void loadFromUrl(initialReportUrl);
+}
+
+async function loadFromFile(file: File): Promise<void> {
   try {
-    state = {
-      model: await loadWorkbenchModelFromFile(file),
-      selectedSegmentIndex: null
-    };
-    render();
+    loadStatus.textContent = `Loading ${file.name}...`;
+    setModel(await loadWorkbenchModelFromFile(file));
+    loadStatus.textContent = `Loaded ${file.name}`;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown load error";
-    inspectorPanel.innerHTML = `<h2>Load failed</h2><p class="error">${escapeHtml(message)}</p>`;
+    showLoadError(error);
   }
+}
+
+async function loadFromUrl(reportUrl: string): Promise<void> {
+  try {
+    loadStatus.textContent = `Loading ${reportUrl}...`;
+    setModel(await loadWorkbenchModelFromUrl(reportUrl));
+    loadStatus.textContent = `Loaded ${reportUrl}`;
+  } catch (error) {
+    showLoadError(error);
+  }
+}
+
+function setModel(model: WorkbenchState["model"]): void {
+  state = {
+    model,
+    selectedSegmentIndex: null
+  };
+  render();
 }
 
 function render(): void {
@@ -78,9 +99,22 @@ function render(): void {
   renderChangesTimeline(changesPanel, model);
 }
 
+function showLoadError(error: unknown): void {
+  const message = error instanceof Error ? error.message : "Unknown load error";
+  loadStatus.textContent = "Load failed";
+  inspectorPanel.innerHTML = `<h2>Load failed</h2><p class="error">${escapeHtml(message)}</p>`;
+}
+
 function selectedSegment(stateValue: WorkbenchState): ChainViewSegmentModel | null {
   if (stateValue.model === null || stateValue.selectedSegmentIndex === null) return null;
   return stateValue.model.chain_segments[stateValue.selectedSegmentIndex] ?? null;
+}
+
+function reportUrlFromLocation(location: Location): string | null {
+  const url = new URL(location.href);
+  const reportUrl = url.searchParams.get("report");
+  if (reportUrl === null || reportUrl.trim() === "") return null;
+  return reportUrl;
 }
 
 function metric(label: string, value: number): string {

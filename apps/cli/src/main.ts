@@ -7,6 +7,7 @@ import { registerGraphDqAndCardCommands } from "./commands/graph-dq-cards.js";
 import { registerPipelinePreviewCommands } from "./commands/pipeline-preview.js";
 import { registerSourcesAndChangesCommands } from "./commands/sources-changes.js";
 import { registerWorkbenchCommands } from "./commands/workbench.js";
+import { formatCliError } from "./cli-utils.js";
 
 const program = new Command();
 
@@ -20,4 +21,9 @@ registerGraphDqAndCardCommands(program);
 registerClaimCommands(program);
 registerWorkbenchCommands(program);
 
-await program.parseAsync(process.argv);
+try {
+  await program.parseAsync(process.argv);
+} catch (error) {
+  process.stderr.write(`${formatCliError(error)}\n`);
+  process.exitCode = 1;
+}

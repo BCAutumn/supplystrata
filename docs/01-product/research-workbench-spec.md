@@ -9,7 +9,13 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 pnpm research-preview
 ```
 
-然后打开 `apps/research-preview/index.html`，加载导出的 JSON。
+然后打开本地服务输出的 URL：
+
+```text
+http://127.0.0.1:4173/apps/research-preview/index.html?report=/reports/nvidia-workbench.json
+```
+
+如果没有传 `?report=`，工作台仍然支持手动加载 JSON 文件。自动加载入口是给 CLI、桌面端、Agent 产品嵌入使用的；文件选择入口是给本地调试和外部复现使用的。
 
 ## 决策
 
@@ -80,6 +86,7 @@ apps/research-preview/
 
 React 不存在；DOM 只负责 shell 和 side panels，Canvas 负责图谱。
 当前前端只读本地 JSON 文件，不直连 Postgres / Neo4j，也不调用 CLI。
+本地服务只负责静态文件和导出 JSON 的读取，不引入后端 API。
 
 ## 数据契约
 
@@ -162,3 +169,19 @@ show inferred edges
 - README 不再推荐直接使用该脚本。
 - 脚本可以保留为 fixture generator 或删除。
 - 工作台入口改为 `pnpm research-preview`，数据入口改为 `pnpm cli workbench export --company <company> --out <file>`。
+
+## 与最初 HTML 的差异
+
+最初的 `reports/latest-nvidia-research.html` 是一次性报告页：它从 `preview report` JSON 生成，形态上更像“把 NVIDIA 研究结果排版出来”。它不读取 Postgres truth store，不消费 `ChainViewModel`，也不承载 source health、change timeline 和 claim/evidence 的长期契约。
+
+`apps/research-preview` 是研究工作台：它从 `workbench export` JSON 读取 `chain_segments / claims / evidences / unknown_items / sources / changes`，用 Canvas 画事实边、观测、线索和未知边界。它的目标不是只展示 NVIDIA，而是未来输入 Apple、Tesla、Microsoft、SpaceX 等任意研究对象时，都沿用同一个数据契约和交互模型。
+
+因此两者的核心区别是：
+
+```text
+旧 HTML
+  单报告、NVIDIA 形态强、preview 数据、适合快速验收视觉方向。
+
+新 workbench
+  通用工作台、公司可配置、truth-store 导出、适合继续做深层供应链追踪。
+```

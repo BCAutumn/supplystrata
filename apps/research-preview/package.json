@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "preview": "node -e \"console.log('Open apps/research-preview/index.html and load a workbench JSON export.')\""
+    "preview": "cd ../.. && node scripts/serve-research-preview.mjs"
   },
   "dependencies": {
     "@supplystrata/chain-view": "workspace:*",

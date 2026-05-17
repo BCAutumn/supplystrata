@@ -77,3 +77,26 @@ export function writeJson(value: unknown): void {
 export function isSupportedFormType(value: string): value is "10-K" | "10-Q" | "20-F" | "8-K" {
   return value === "10-K" || value === "10-Q" || value === "20-F" || value === "8-K";
 }
+
+export function formatCliError(error: unknown): string {
+  if (isConnectionRefused(error)) {
+    return [
+      "A local database service is not reachable.",
+      "DB-backed commands need Postgres; graph commands may also need Neo4j. Start the required service or set POSTGRES_URL / NEO4J_URI to a reachable endpoint, then retry.",
+      "DB-free preview commands remain available, for example: pnpm cli preview nvidia --format json"
+    ].join("\n");
+  }
+  return error instanceof Error ? error.message : "Unknown CLI error";
+}
+
+function isConnectionRefused(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  if (error["code"] === "ECONNREFUSED") return true;
+  const nestedErrors = error["errors"];
+  if (!Array.isArray(nestedErrors)) return false;
+  return nestedErrors.some(isConnectionRefused);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

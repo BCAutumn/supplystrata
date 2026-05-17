@@ -2,7 +2,7 @@
 
 本文记录 MVP 阶段 HTML 预览页的产品方向。它不是正式前端技术方案，而是避免输出层偏离 SupplyStrata 核心：**全球供应链追踪的第一屏必须是 chain graph，而不是摘要卡片列表**。
 
-当前静态预览由 `scripts/render-research-html.mjs` 从 `preview report` JSON 生成：
+最初的静态预览由 `scripts/render-research-html.mjs` 从 `preview report` JSON 生成：
 
 ```bash
 pnpm --silent cli preview report nvidia --format json --lang zh > reports/latest-nvidia-research.json
@@ -67,9 +67,24 @@ ChangeEventTimeline
 
 v0.2 的正式预览工作台不引入 React，采用全量 TypeScript + Canvas。DOM 只承载 shell 和右侧面板，图谱布局、hit-testing、缩放、证据格式化、unknown 分类、source health 计算都应放在独立 TypeScript 模块中。
 
+`apps/research-preview` 已经成为新的工作台入口：
+
+```bash
+pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
+pnpm research-preview
+```
+
+自动打开形态使用 URL 参数：
+
+```text
+http://127.0.0.1:4173/apps/research-preview/index.html?report=/reports/nvidia-workbench.json
+```
+
+这个入口和旧 HTML 的区别是：旧 HTML 展示一份 preview 报告，新工作台消费 truth-store 导出的 `WorkbenchModel`，其中包含 chain segments、claims、evidences、unknowns、source health 和 changes。未来 Apple / Tesla / Microsoft / SpaceX 的深度研究应优先走这个契约，而不是复制新的 HTML 脚本。
+
 ## 下一步
 
-1. 把当前 HTML 原型沉淀成 `apps/research-preview`，避免 `scripts/render-research-html.mjs` 继续膨胀。
-2. 用同一份 JSON contract 支持 CLI、静态 HTML 和未来只读 API。
+1. 用 `apps/research-preview` 替代新的静态 HTML 脚本扩张。
+2. 继续收紧 `WorkbenchModel`，让 CLI、工作台和未来只读 API 共用一份契约。
 3. 增加 source monitor 事件视图：`DOCUMENT_NEW / DOCUMENT_CHANGED / EDGE_ADDED / EDGE_UPDATED / SOURCE_FAILED`。
 4. 当 Phase 2 数据覆盖扩大后，把一级边扩展成真正的 n-tier chain，而不是在没有证据时用推断填满图。
