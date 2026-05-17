@@ -12,6 +12,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0001_baseline_schema",
     description: "Create SupplyStrata baseline Postgres schema.",
     sql: migrationSql
+  },
+  {
+    id: "0002_drop_extraction_review_queue",
+    description: "Remove obsolete extraction_review_queue after review_candidates became the single review store.",
+    sql: "DROP TABLE IF EXISTS extraction_review_queue"
   }
 ];
 

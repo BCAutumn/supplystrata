@@ -107,9 +107,6 @@ async function cleanupFixtureRows(client: pg.Pool): Promise<void> {
     edgesWithNonFixtureEvidence.has(edgeId),
   );
 
-  await client.query(
-    "DELETE FROM extraction_review_queue WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'",
-  );
   if (fixtureEvidenceIds.length > 0) {
     await client.query(
       "DELETE FROM change_records WHERE evidence_ids && $1::text[]",

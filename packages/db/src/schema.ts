@@ -273,20 +273,6 @@ CREATE TABLE IF NOT EXISTS unknown_items (
 );
 CREATE INDEX IF NOT EXISTS idx_unknown_items_scope ON unknown_items(scope_kind, scope_id);
 
-CREATE TABLE IF NOT EXISTS extraction_review_queue (
-  review_id TEXT PRIMARY KEY,
-  candidate JSONB NOT NULL,
-  scoring JSONB NOT NULL,
-  doc_id TEXT NOT NULL REFERENCES documents(doc_id),
-  chunk_id TEXT REFERENCES document_chunks(chunk_id),
-  status TEXT NOT NULL DEFAULT 'pending',
-  reviewer TEXT,
-  reviewed_at TIMESTAMPTZ,
-  decision_reason TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_review_queue_status ON extraction_review_queue(status);
-
 CREATE TABLE IF NOT EXISTS review_candidates (
   review_id TEXT PRIMARY KEY,
   candidate_key TEXT,

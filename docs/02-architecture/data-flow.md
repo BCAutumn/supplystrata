@@ -169,7 +169,7 @@ if extractor is "trade.bol.repeat-importer" AND evidence_count >= 6:
 
 - 自动写入 Postgres truth store，并记录 evidence / edge / change_records。
 
-`extraction_review_queue` 是早期 schema 遗留表，保留用于历史数据兼容；新的人工审核入口统一走 `review_candidates`。
+人工审核入口统一走 `review_candidates`，不再保留旧的抽取专用 review 表。
 
 ### Step 8: Graph Builder
 

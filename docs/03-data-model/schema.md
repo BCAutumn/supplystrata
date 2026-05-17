@@ -334,28 +334,30 @@ CREATE INDEX idx_unknown_items_scope ON unknown_items(scope_kind, scope_id);
 CREATE INDEX idx_unknown_items_status ON unknown_items(status);
 ```
 
-### 11. extraction_review_queue
+### 11. review_candidates
+
+人工审核统一入口。所有不应自动入图的候选都用同一个 review 信封，不按数据源另建队列。
 
 ```sql
-CREATE TABLE extraction_review_queue (
-  review_id        TEXT PRIMARY KEY,                -- REV-uuid
-  candidate        JSONB NOT NULL,                   -- 完整 CandidateRelation
-  scoring          JSONB NOT NULL,                   -- ScoringResult
-  doc_id           TEXT NOT NULL REFERENCES documents(doc_id),
-  chunk_id         TEXT REFERENCES document_chunks(chunk_id),
-  status           TEXT NOT NULL DEFAULT 'pending',  -- pending|approved|rejected|fixed
-  reviewer         TEXT,
-  reviewed_at      TIMESTAMPTZ,
-  decision_reason  TEXT,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE review_candidates (
+  review_id         TEXT PRIMARY KEY,
+  candidate_key     TEXT,
+  kind              TEXT NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'pending',
+  candidate         JSONB NOT NULL,
+  doc_id            TEXT REFERENCES documents(doc_id),
+  source_adapter_id TEXT NOT NULL,
+  reviewer          TEXT,
+  reviewed_at       TIMESTAMPTZ,
+  decision_reason   TEXT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE INDEX idx_review_queue_status ON extraction_review_queue(status);
 ```
 
 ### 12. extraction_rejections
 
-硬校验失败的候选进入这里，不进入人工 review 队列。人工看过以后拒绝的候选仍留在 `extraction_review_queue(status='rejected')`。
+硬校验失败的候选进入这里，不进入人工 review 队列。人工看过以后拒绝的候选留在 `review_candidates(status='rejected')`。
 
 ```sql
 CREATE TABLE extraction_rejections (
@@ -495,7 +497,7 @@ data/raw/apple-suppliers/ENT-APPLE/2024/02/a2bf...09cc.pdf
 | documents               | 不允许删；只能 mark `parse_status="skipped"`      |
 | entity_master           | 不允许删；只能 status="merged_into" 或 deprecated |
 | chunk_entities          | 可重建                                            |
-| extraction_review_queue | rejected 后仍保留（作为 negative sample）         |
+| review_candidates       | rejected 后仍保留（作为 negative sample）         |
 | change_records          | 永不删                                            |
 
 例外：
