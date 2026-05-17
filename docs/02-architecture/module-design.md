@@ -22,7 +22,9 @@ supplystrata/
 │   ├── raw/                                # 原始 PDF/HTML/JSON
 │   └── tmp/
 ├── packages/
-│   ├── core/                               # 所有共享类型 / zod schema / IDs
+│   ├── core/                               # 纯领域类型 / IDs / 领域纯函数
+│   ├── config/                             # 环境变量 schema / .env 显式加载
+│   ├── observability/                      # Logger 接口与 pino 默认实现
 │   ├── db/                                 # drizzle schema + migrations + repos
 │   ├── graph/                              # Neo4j adapter
 │   ├── object-store/                       # 抽象的对象存储（本地FS / MinIO）
@@ -61,7 +63,9 @@ supplystrata/
 ## 依赖方向（必须严格遵守）
 
 ```
-core   ← 几乎所有 package
+core   ← 几乎所有 package（纯类型/纯函数，无顶层 IO 副作用）
+config ← 需要读取环境变量的基础设施包显式消费
+observability ← pipeline / graph-builder 等执行层显式消费
 db     ← 仅 pipeline / repos 消费方
 graph  ← 仅 graph-builder / render 消费方
 parsers/* ← sources/* 与 relation-extractor 消费
@@ -75,6 +79,8 @@ render ← apps/cli 消费
 
 **禁止反向依赖**。例如 `core` 不能依赖 `db`、`sources/*` 不能直接依赖 `graph`。
 CI 里加 dependency-cruiser 校验。
+
+`core` 必须保持纯净：不得读取 `.env`、不得实例化 logger、不得封装网络请求、不得访问文件系统。配置读取放在 `@supplystrata/config`；日志放在 `@supplystrata/observability`；source 抓取工具放在 `@supplystrata/source-adapter-spec` 的 adapter 工具层。
 
 ## 关键接口契约
 
@@ -150,6 +156,7 @@ export interface DocumentChunk {
 - adapter **不直接**解析关系或写实体主表；实体消歧由 entity-resolver / review apply 阶段处理
 - adapter 的 `normalize()` 必须返回完整 `NormalizedDocument`。HTML / PDF / text 用 parser 包清洗切块；结构化 JSON 源也要生成可审计文本摘要和 chunks。
 - adapter **必须**声明 `rate_limit`，并通过 `createRateLimitedSourceAdapter()` 导出统一限速后的实例；pipeline / source monitor 不再各自实现限速。
+- HTML snapshot 类数据源优先使用 `defineHtmlSnapshotAdapter()`，避免每个 IR/官网源重复实现 fetch、缓存回退、对象存储落盘和 `RawDocument` 组装。单个 adapter 只声明 URL 计划、source metadata、storage prefix 和 normalize 策略。
 
 ### 2. EntityResolver
 

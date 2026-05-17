@@ -18,6 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@supplystrata/core": ["packages/core/src/index.ts"],
+      "@supplystrata/config": ["packages/config/src/index.ts"],
       "@supplystrata/data-quality": ["packages/data-quality/src/index.ts"],
       "@supplystrata/db": ["packages/db/src/index.ts"],
       "@supplystrata/entity-import": ["packages/entity-import/src/index.ts"],
@@ -29,6 +30,7 @@
       "@supplystrata/graph": ["packages/graph/src/index.ts"],
       "@supplystrata/graph-builder": ["packages/graph-builder/src/index.ts"],
       "@supplystrata/object-store": ["packages/object-store/src/index.ts"],
+      "@supplystrata/observability": ["packages/observability/src/index.ts"],
       "@supplystrata/parsers-html": ["packages/parsers/html/src/index.ts"],
       "@supplystrata/parsers-pdf": ["packages/parsers/pdf/src/index.ts"],
       "@supplystrata/parsers-text": ["packages/parsers/text/src/index.ts"],

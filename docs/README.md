@@ -62,6 +62,7 @@ docs/
 │   ├── v0.2-alpha-plan.md           v0.2-alpha P0/P1/P2 任务与验收
 │   ├── release-criteria.md          v0.2 与 Phase 2 full acceptance 的发布标准
 │   ├── quickstart.md                从空环境跑到研究输出
+│   ├── code-quality-hardening.md    进入中期目标前的质量修复计划与状态
 │   ├── coding-standards.md          代码规范（TS strict、命名、目录约定）
 │   ├── testing-strategy.md          测试策略（单元/契约/数据快照）
 │   ├── git-workflow.md              分支策略、提交规范、PR 模板

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { createId, fetchBytesWithTimeout, loadEnv, requireEnvValue, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
+import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export interface OpenCorporatesSearchInput {

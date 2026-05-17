@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { logger, type ApplyResult, type ApprovedCandidate, type RelationType } from "@supplystrata/core";
+import { type ApplyResult, type ApprovedCandidate, type RelationType } from "@supplystrata/core";
 import { loadDocument, recordPendingEntity } from "@supplystrata/db";
 import {
   applyEntitySourceReviewCandidate,
@@ -18,6 +18,7 @@ import {
   supplierListReviewToSupplierRelation
 } from "@supplystrata/review-candidates";
 import { getReviewCandidate, listApprovedReviewCandidates, markReviewCandidateApplied, markReviewCandidateBlocked } from "@supplystrata/review-store";
+import { getLogger } from "@supplystrata/observability";
 
 export interface AppliedReviewEdgeResult extends ApplyResult {
   role: "supplier_relation" | "facility_relation";
@@ -99,7 +100,7 @@ export async function applyApprovedReviewCandidate(pool: pg.Pool, reviewId: stri
   const facilityRelation = supplierListReviewToFacilityRelation(item.candidate, facilityImport.display_name);
   const facilityResolution = await resolver.resolve(facilityRelation.object_resolve);
   if (facilityResolution.status !== "resolved" || facilityResolution.entity_id === undefined) {
-    logger.warn({ review_id: reviewId, facility_entity_id: facilityImport.entity_id }, "facility entity was imported but could not be resolved by its canonical alias");
+    getLogger().warn({ review_id: reviewId, facility_entity_id: facilityImport.entity_id }, "facility entity was imported but could not be resolved by its canonical alias");
     await markReviewCandidateBlocked(pool, { reviewId, reason: `cannot resolve facility: ${facilityRelation.object_resolve.surface}` });
     return { status: "blocked", review_id: reviewId, reason: `cannot resolve facility: ${facilityRelation.object_resolve.surface}` };
   }

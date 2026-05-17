@@ -2,7 +2,6 @@ import type pg from "pg";
 import {
   createId,
   inferExtractionMethod,
-  logger,
   type ApplyResult,
   type ApprovedCandidate,
   type CandidateRelation,
@@ -15,6 +14,7 @@ import { listCurrentEdges } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import { Neo4jGraphStore, type GraphStore } from "@supplystrata/graph";
+import { getLogger } from "@supplystrata/observability";
 
 export interface GraphProjectionStats {
   nodes: number;
@@ -289,7 +289,7 @@ export class GraphBuilder {
       return { status: "synced" };
     } catch (error) {
       const errorMessage = messageFromUnknown(error);
-      logger.warn({ stage: "graph-sync", edge_id: edgeId, err: errorMessage }, "Neo4j materialized view sync failed; Postgres truth was committed");
+      getLogger().warn({ stage: "graph-sync", edge_id: edgeId, err: errorMessage }, "Neo4j materialized view sync failed; Postgres truth was committed");
       return { status: "failed", error_message: errorMessage };
     }
   }
@@ -428,7 +428,7 @@ async function rollbackQuietly(client: pg.PoolClient): Promise<void> {
   try {
     await client.query("ROLLBACK");
   } catch (error) {
-    logger.error({ stage: "postgres-rollback", err: messageFromUnknown(error) }, "rollback failed after graph apply error");
+    getLogger().error({ stage: "postgres-rollback", err: messageFromUnknown(error) }, "rollback failed after graph apply error");
   }
 }
 

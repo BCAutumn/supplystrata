@@ -106,14 +106,13 @@ importers:
         specifier: ~12.1.0
         version: 12.1.0
 
-  packages/core:
+  packages/config:
     dependencies:
-      pino:
-        specifier: ~9.5.0
-        version: 9.5.0
       zod:
         specifier: ~3.24.1
         version: 3.24.4
+
+  packages/core: {}
 
   packages/data-quality:
     dependencies:
@@ -126,6 +125,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
@@ -198,6 +200,9 @@ importers:
 
   packages/graph:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
@@ -222,15 +227,27 @@ importers:
       '@supplystrata/graph':
         specifier: workspace:*
         version: link:../graph
+      '@supplystrata/observability':
+        specifier: workspace:*
+        version: link:../observability
       pg:
         specifier: ~8.13.1
         version: 8.13.3
 
   packages/object-store:
     dependencies:
-      '@supplystrata/core':
+      '@supplystrata/config':
         specifier: workspace:*
-        version: link:../core
+        version: link:../config
+
+  packages/observability:
+    dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../config
+      pino:
+        specifier: ~9.5.0
+        version: 9.5.0
 
   packages/parsers/html:
     dependencies:
@@ -261,6 +278,9 @@ importers:
 
   packages/pipeline:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
@@ -282,6 +302,9 @@ importers:
       '@supplystrata/graph-builder':
         specifier: workspace:*
         version: link:../graph-builder
+      '@supplystrata/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@supplystrata/relation-extractor-rule':
         specifier: workspace:*
         version: link:../relation-extractor/rule
@@ -366,9 +389,15 @@ importers:
 
   packages/source-adapter-spec:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+      '@supplystrata/object-store':
+        specifier: workspace:*
+        version: link:../object-store
 
   packages/source-monitor:
     dependencies:
@@ -402,6 +431,9 @@ importers:
 
   packages/sources/apple-suppliers:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
@@ -420,6 +452,9 @@ importers:
 
   packages/sources/asml-ir:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
@@ -435,6 +470,9 @@ importers:
 
   packages/sources/companies-house:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
@@ -453,6 +491,9 @@ importers:
 
   packages/sources/opencorporates:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
@@ -471,6 +512,9 @@ importers:
 
   packages/sources/samsung-ir:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
@@ -486,6 +530,9 @@ importers:
 
   packages/sources/sec-edgar:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
@@ -501,6 +548,9 @@ importers:
 
   packages/sources/skhynix-ir:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
@@ -516,6 +566,9 @@ importers:
 
   packages/sources/tsmc-ir:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core

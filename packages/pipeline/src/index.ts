@@ -1,7 +1,6 @@
 import type pg from "pg";
+import { loadEnv } from "@supplystrata/config";
 import {
-  loadEnv,
-  logger,
   type ApprovedCandidate,
   type CandidateRelation,
   type DocumentType,
@@ -14,6 +13,7 @@ import { insertReviewQueue, saveNormalizedDocument } from "@supplystrata/db";
 import { DbEntityResolver, SeedEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
+import { getLogger } from "@supplystrata/observability";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
@@ -152,12 +152,12 @@ export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input:
       for await (const candidate of extractor.extract(normalized)) {
         candidates += 1;
         if (!isValidCandidate(candidate, normalized.text)) {
-          logger.warn({ stage: "extract", extractor: candidate.extractor_id }, "candidate rejected by local validation");
+          getLogger().warn({ stage: "extract", extractor: candidate.extractor_id }, "candidate rejected by local validation");
           continue;
         }
         const scoring = await scorer.score(candidate, normalized);
         if (scoring.needs_review) {
-          logger.warn({ stage: "score", candidate: candidate.extractor_id }, "candidate needs review and was not auto-applied");
+          getLogger().warn({ stage: "score", candidate: candidate.extractor_id }, "candidate needs review and was not auto-applied");
           continue;
         }
         const chunkId = savedDocument.chunks.find((chunk) => chunk.text.includes(candidate.cite_text))?.chunk_id;
@@ -240,13 +240,13 @@ function resolvedPreviewFields(prefix: "subject" | "object", result: ResolveResu
 
 export async function runDefaultNvidiaSlice(pool: pg.Pool): Promise<PipelineSummary> {
   const env = loadEnv();
-  logger.info({ stage: "pipeline", llm_provider: env.LLM_PROVIDER }, "running default NVIDIA SEC slice");
+  getLogger().info({ stage: "pipeline", llm_provider: env.LLM_PROVIDER }, "running default NVIDIA SEC slice");
   return runSecEdgarPipeline(pool, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] });
 }
 
 export async function previewDefaultNvidiaSlice(): Promise<SupplyChainPreview> {
   const env = loadEnv();
-  logger.info({ stage: "preview", llm_provider: env.LLM_PROVIDER }, "previewing default NVIDIA SEC slice without database");
+  getLogger().info({ stage: "preview", llm_provider: env.LLM_PROVIDER }, "previewing default NVIDIA SEC slice without database");
   return previewSecEdgarSupplyChain({ cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] });
 }
 
@@ -283,7 +283,7 @@ async function previewOptionalDisclosure(sourceAdapterId: string, fn: () => Prom
     return await fn();
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
-    logger.warn({ stage: "preview", adapter: sourceAdapterId, error: message }, "optional disclosure source unavailable");
+    getLogger().warn({ stage: "preview", adapter: sourceAdapterId, error: message }, "optional disclosure source unavailable");
     return {
       doc_id: "",
       source_adapter_id: sourceAdapterId,
@@ -389,7 +389,7 @@ async function fetchAndNormalizeFirstTask<TInput>(input: FetchAndNormalizeInput<
   }
   const task = tasks[0];
   if (task === undefined) throw new Error(`${input.adapter.id} adapter produced no fetch task`);
-  logger.info({ stage: "ingest", adapter: input.adapter.id, task_id: task.task_id }, `fetching ${input.logLabel}`);
+  getLogger().info({ stage: "ingest", adapter: input.adapter.id, task_id: task.task_id }, `fetching ${input.logLabel}`);
   const raw = await input.adapter.fetch(task, input.context);
   const normalized = await input.adapter.normalize(raw, input.context);
   const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
@@ -450,7 +450,7 @@ async function fetchAndParseSecEdgar(input: SecEdgarInput): Promise<FetchedSecDo
   const task = tasks[0];
   if (task === undefined) throw new Error("SEC adapter produced no fetch task");
 
-  logger.info({ stage: "ingest", adapter: "sec-edgar", task_id: task.task_id }, "fetching SEC filing");
+  getLogger().info({ stage: "ingest", adapter: "sec-edgar", task_id: task.task_id }, "fetching SEC filing");
   const raw = await secEdgarAdapter.fetch(task, ctx);
   const documentType = readDocumentType(raw.metadata["document_type"]);
   const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;

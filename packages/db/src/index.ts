@@ -2,9 +2,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse } from "csv-parse/sync";
 import pg from "pg";
+import { loadEnv } from "@supplystrata/config";
 import {
   createId,
-  loadEnv,
   normalizeAlias,
   type AliasRecord,
   type ApprovedCandidate,

@@ -1,9 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import pino from "pino";
-import { z } from "zod";
-
-loadDotEnvIfPresent();
 
 export const ENTITY_KINDS = [
   "company",
@@ -189,30 +184,6 @@ export interface ApplyResult {
   graph_sync: { status: "synced" } | { status: "failed"; error_message: string };
 }
 
-export const envSchema = z.object({
-  POSTGRES_URL: z.string().url().default("postgres://supplystrata:dev@localhost:5432/supplystrata"),
-  NEO4J_URI: z.string().default("bolt://localhost:7687"),
-  NEO4J_USER: z.string().default("neo4j"),
-  NEO4J_PASSWORD: z.string().default("devpassword"),
-  OBJECT_STORE_FS_BASE: z.string().default("./data/raw"),
-  SEC_USER_AGENT: z.string().min(8).default("SupplyStrata MVP contact@example.com"),
-  LLM_PROVIDER: z.enum(["none", "openai", "anthropic", "deepseek"]).default("none"),
-  OPENAI_API_KEY: z.string().optional(),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  DEEPSEEK_API_KEY: z.string().optional(),
-  OPEN_CORPORATES_API_TOKEN: z.string().optional(),
-  COMPANIES_HOUSE_API_KEY: z.string().optional(),
-  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info")
-});
-
-export type Env = z.infer<typeof envSchema>;
-
-export function loadEnv(): Env {
-  return envSchema.parse(process.env);
-}
-
-export const logger = pino({ level: loadEnv().LOG_LEVEL }, pino.destination(2));
-
 export function createId(prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS"): string {
   return `${prefix}-${randomUUID()}`;
 }
@@ -221,55 +192,7 @@ export function normalizeAlias(input: string): string {
   return input.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-export function requireEnvValue(value: string | undefined, name: string): string {
-  if (value === undefined || value.trim().length === 0) {
-    throw new Error(`Missing required environment value: ${name}`);
-  }
-  return value;
-}
-
-export interface FetchBytesOptions {
-  userAgent: string;
-  timeoutMs: number;
-  sourceLabel: string;
-  headers?: Record<string, string>;
-}
-
-// 统一处理公开网页抓取的超时与状态码错误，避免各 adapter 自己散落网络细节。
-export async function fetchBytesWithTimeout(url: string, options: FetchBytesOptions): Promise<Uint8Array> {
-  try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": options.userAgent, ...options.headers },
-      signal: AbortSignal.timeout(options.timeoutMs)
-    });
-    if (!response.ok) throw new Error(`${options.sourceLabel} fetch failed: ${response.status} ${response.statusText}`);
-    return new Uint8Array(await response.arrayBuffer());
-  } catch (error) {
-    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
-      throw new Error(`${options.sourceLabel} fetch timed out after ${options.timeoutMs}ms`);
-    }
-    throw error;
-  }
-}
-
 export function toIsoDateOnly(value: string): string | undefined {
   const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
   return match?.[1];
-}
-
-function loadDotEnvIfPresent(path = ".env"): void {
-  if (!existsSync(path)) return;
-  const lines = readFileSync(path, "utf8").split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
-    const separator = trimmed.indexOf("=");
-    if (separator <= 0) continue;
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed
-      .slice(separator + 1)
-      .trim()
-      .replace(/^"|"$/g, "");
-    if (process.env[key] === undefined) process.env[key] = value;
-  }
 }

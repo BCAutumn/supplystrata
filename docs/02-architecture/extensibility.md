@@ -37,6 +37,33 @@ export const unComtradeAdapter: SourceAdapter<...> = {
 };
 ```
 
+HTML snapshot 类来源（公司 IR、年报网页、新闻稿网页）优先用 `defineHtmlSnapshotAdapter()`：
+
+```ts
+export const companyIrAdapter = defineHtmlSnapshotAdapter<CompanyIrInput>({
+  id: "company-ir",
+  tier: "P0",
+  description: "Company official investor relations pages",
+  tos_url: "https://example.com/investors",
+  rate_limit: { requests: 1, per_seconds: 3 },
+  sourceLabel: "Company IR",
+  storagePrefix: "company-ir/example",
+  async *plan(input) {
+    yield {
+      task_id: `company-ir-${input.year}`,
+      url: annualReportUrl(input.year),
+      expected_format: "html",
+      hint: { entity_id: input.entityId, document_type: "annual_report", period: `${input.year}-12-31` }
+    };
+  },
+  async normalize(raw) {
+    return normalizeHtmlDocument({ raw, documentType: "annual_report" });
+  }
+});
+```
+
+这个工厂统一处理限速、超时抓取、缓存回退、sha256、对象存储落盘和 `RawDocument` 元数据，避免新 adapter 复制旧 adapter 的实现细节。
+
 ### 1.3 在 source registry 注册
 
 `packages/pipeline/src/registry.ts`：

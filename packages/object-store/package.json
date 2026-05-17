@@ -6,6 +6,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@supplystrata/core": "workspace:*"
+    "@supplystrata/config": "workspace:*"
   }
 }

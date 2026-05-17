@@ -1,5 +1,6 @@
 import neo4j, { type Driver } from "neo4j-driver";
-import { loadEnv, RELATION_TYPES, type EntityRecord, type RelationType } from "@supplystrata/core";
+import { loadEnv } from "@supplystrata/config";
+import { RELATION_TYPES, type EntityRecord, type RelationType } from "@supplystrata/core";
 
 export interface GraphEdgeInput {
   edge_id: string;

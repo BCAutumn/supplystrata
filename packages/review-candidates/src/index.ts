@@ -3,7 +3,7 @@ import { type CandidateRelation, type RelationType } from "@supplystrata/core";
 import { candidateAliases, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
 
-export type ReviewCandidateKind = "supplier_list_row" | "entity_source_candidate" | "relation_extraction";
+export type ReviewCandidateKind = ReviewCandidate["kind"];
 export type ReviewCandidateStatus = "pending" | "approved" | "rejected" | "blocked" | "applied";
 
 export interface ReviewEvidenceContext {

@@ -1,9 +1,5 @@
-import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { createId, fetchBytesWithTimeout, loadEnv } from "@supplystrata/core";
-import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { loadEnv } from "@supplystrata/config";
+import { defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface SamsungIrInput {
@@ -11,12 +7,14 @@ export interface SamsungIrInput {
   entityId: "ENT-SAMSUNG-ELECTRONICS";
 }
 
-const samsungIrAdapterBase: SourceAdapter<SamsungIrInput, Uint8Array> = {
+export const samsungIrAdapter = defineHtmlSnapshotAdapter<SamsungIrInput>({
   id: "samsung-ir",
   tier: "P0",
   description: "Samsung Electronics official investor relations / newsroom disclosures",
   tos_url: "https://www.samsung.com/global/ir/",
   rate_limit: { requests: 1, per_seconds: 3 },
+  sourceLabel: "Samsung disclosure",
+  storagePrefix: "company-ir/samsung",
   async *plan(input) {
     yield {
       task_id: `samsung-ir-fy-results-${input.year}`,
@@ -25,34 +23,10 @@ const samsungIrAdapterBase: SourceAdapter<SamsungIrInput, Uint8Array> = {
       hint: { entity_id: input.entityId, document_type: "annual_report", period: `${input.year}-12-31` }
     };
   },
-  async fetch(task, ctx) {
-    const year = task.hint?.period?.slice(0, 4) ?? "unknown";
-    const bytes = await fetchOrLoadCached(task.url, ctx.userAgent, year);
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const storageKey = `company-ir/samsung/${year}/${sha256}.html`;
-    await new FsObjectStore(loadEnv().OBJECT_STORE_FS_BASE).put(storageKey, bytes);
-    return {
-      doc_id: createId("DOC"),
-      source_adapter_id: "samsung-ir",
-      url: task.url,
-      fetched_at: ctx.now().toISOString(),
-      bytes_sha256: sha256,
-      storage_key: storageKey,
-      body: bytes,
-      metadata: {
-        task_id: task.task_id,
-        document_type: task.hint?.document_type ?? "annual_report",
-        primary_entity_id: task.hint?.entity_id,
-        source_date: task.hint?.period
-      }
-    };
-  },
   async normalize(raw) {
     return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
-};
-
-export const samsungIrAdapter = createRateLimitedSourceAdapter(samsungIrAdapterBase);
+});
 
 export function officialDisclosureUrl(year: number): string {
   if (year !== 2025) return "https://news.samsung.com/global/";
@@ -61,25 +35,4 @@ export function officialDisclosureUrl(year: number): string {
 
 export function createSamsungIrAdapterContext(): AdapterContext {
   return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
-}
-
-async function fetchOrLoadCached(url: string, userAgent: string, year: string): Promise<Uint8Array> {
-  try {
-    return await fetchBytesWithTimeout(url, { userAgent, timeoutMs: 12_000, sourceLabel: "Samsung disclosure" });
-  } catch (error) {
-    const cached = await readLatestCached(year);
-    if (cached !== undefined) return cached;
-    throw error;
-  }
-}
-
-async function readLatestCached(year: string): Promise<Uint8Array | undefined> {
-  const dir = join(loadEnv().OBJECT_STORE_FS_BASE, "company-ir", "samsung", year);
-  try {
-    const files = (await readdir(dir)).filter((file) => file.endsWith(".html")).sort();
-    const latest = files.at(-1);
-    return latest === undefined ? undefined : new Uint8Array(await readFile(join(dir, latest)));
-  } catch {
-    return undefined;
-  }
 }

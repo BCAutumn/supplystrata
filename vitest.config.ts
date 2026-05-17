@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@supplystrata/core": resolve(__dirname, "packages/core/src/index.ts"),
+      "@supplystrata/config": resolve(__dirname, "packages/config/src/index.ts"),
       "@supplystrata/db": resolve(__dirname, "packages/db/src/index.ts"),
       "@supplystrata/entity-import": resolve(__dirname, "packages/entity-import/src/index.ts"),
       "@supplystrata/entity-source": resolve(__dirname, "packages/entity-source/src/index.ts"),
@@ -15,6 +16,7 @@ export default defineConfig({
       "@supplystrata/graph": resolve(__dirname, "packages/graph/src/index.ts"),
       "@supplystrata/graph-builder": resolve(__dirname, "packages/graph-builder/src/index.ts"),
       "@supplystrata/object-store": resolve(__dirname, "packages/object-store/src/index.ts"),
+      "@supplystrata/observability": resolve(__dirname, "packages/observability/src/index.ts"),
       "@supplystrata/parsers-html": resolve(__dirname, "packages/parsers/html/src/index.ts"),
       "@supplystrata/parsers-pdf": resolve(__dirname, "packages/parsers/pdf/src/index.ts"),
       "@supplystrata/parsers-text": resolve(__dirname, "packages/parsers/text/src/index.ts"),

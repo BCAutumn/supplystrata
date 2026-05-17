@@ -6,7 +6,7 @@ import { getPendingEntity, migrate, seedFromCsv } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { backfillEvidenceTrace } from "@supplystrata/evidence-maintenance";
 import { GraphBuilder } from "@supplystrata/graph-builder";
-import { listDueSourceChecks, listSourceHealthRows, parseSourcePolicyConfig, syncSourcePolicyConfig } from "@supplystrata/source-monitor";
+import { listDueSourceChecks, listSourceHealthRows, parseSourcePolicyConfig, syncSourceHealthRegistry, syncSourcePolicyConfig } from "@supplystrata/source-monitor";
 import {
   applyApprovedReviewCandidate,
   applyApprovedReviewCandidates,
@@ -144,6 +144,12 @@ sources.command("status").option("--format <format>", "markdown or json", "markd
     `Manual-only: ${summary.manualOnly}`,
     `Requires key: ${summary.requiresKey}`
   ].join("\n"));
+});
+sources.command("sync").description("sync source registry metadata into Postgres").action(async () => {
+  await withPool(async (pool) => {
+    const result = await syncSourceHealthRegistry(pool);
+    writeJson({ ok: true, ...result });
+  });
 });
 sources.command("health").option("--format <format>", "markdown or json", "markdown").description("show source monitoring health from Postgres").action(async (options: { format: string }) => {
   await withPool(async (pool) => {

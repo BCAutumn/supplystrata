@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@supplystrata/config": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
     "@supplystrata/entity-import": "workspace:*",
@@ -13,6 +14,7 @@
     "@supplystrata/entity-resolver": "workspace:*",
     "@supplystrata/evidence-scorer": "workspace:*",
     "@supplystrata/graph-builder": "workspace:*",
+    "@supplystrata/observability": "workspace:*",
     "@supplystrata/relation-extractor-rule": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",

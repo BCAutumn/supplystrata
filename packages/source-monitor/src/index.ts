@@ -89,7 +89,6 @@ export async function syncSourceHealthRegistry(client: DbClient): Promise<{ upse
 }
 
 export async function listSourceHealthRows(client: DbClient): Promise<SourceHealthRow[]> {
-  await syncSourceHealthRegistry(client);
   const result = await client.query<SourceHealthRow>(
     `SELECT h.source_adapter_id, h.tier, h.category, h.registry_status, h.automation, h.tos_url, h.official_url, h.requires_key,
             h.last_checked_at, h.last_success_at, h.last_failure_at, h.failure_count, h.last_change_at, h.last_error_message,
@@ -111,7 +110,6 @@ export async function syncSourcePolicyConfig(client: DbClient, input: { config: 
 }
 
 export async function listDueSourceChecks(client: DbClient, input: { now?: string; limit?: number } = {}): Promise<SourcePolicyRow[]> {
-  await syncSourceHealthRegistry(client);
   const now = input.now ?? new Date().toISOString();
   const limit = input.limit ?? 50;
   const result = await client.query<SourcePolicyRow>(

@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join, normalize, resolve } from "node:path";
 import type { Readable } from "node:stream";
-import { loadEnv } from "@supplystrata/core";
+import { loadEnv } from "@supplystrata/config";
 
 export interface ObjectStore {
   put(key: string, body: Uint8Array, meta?: Record<string, string>): Promise<void>;
@@ -32,8 +32,9 @@ export class FsObjectStore implements ObjectStore {
     try {
       await stat(this.#safePath(key));
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") return false;
+      throw error;
     }
   }
 
@@ -48,4 +49,8 @@ export class FsObjectStore implements ObjectStore {
     }
     return join(this.#baseDir, normalized);
   }
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }

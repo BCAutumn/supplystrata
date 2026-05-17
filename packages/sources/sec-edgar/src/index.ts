@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { createId, loadEnv, type FetchTask } from "@supplystrata/core";
+import { loadEnv } from "@supplystrata/config";
+import { createId, type FetchTask } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export type SecEdgarFormType = "10-K" | "10-Q" | "20-F" | "8-K";
@@ -33,9 +34,8 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
   async *plan(input, ctx) {
     const cik10 = normalizeCik(input.cik);
     const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik10}.json`;
-    const response = await fetch(submissionsUrl, { headers: { "User-Agent": ctx.userAgent } });
-    if (!response.ok) throw new Error(`SEC submissions failed: ${response.status} ${response.statusText}`);
-    const payload = parseSubmissionPayload(await response.json());
+    const payloadJson: unknown = JSON.parse(new TextDecoder().decode(await fetchBytesWithTimeout(submissionsUrl, { userAgent: ctx.userAgent, timeoutMs: 12_000, sourceLabel: "SEC submissions" })));
+    const payload = parseSubmissionPayload(payloadJson);
     const recent = payload.filings.recent;
     const maxTasks = Math.max(1, input.limit ?? 1);
     let yielded = 0;
@@ -58,9 +58,7 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
     if (yielded === 0) throw new Error(`No requested SEC filing found for CIK ${input.cik}`);
   },
   async fetch(task, ctx) {
-    const response = await fetch(task.url, { headers: { "User-Agent": ctx.userAgent } });
-    if (!response.ok) throw new Error(`SEC filing fetch failed: ${response.status} ${response.statusText}`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = await fetchBytesWithTimeout(task.url, { userAgent: ctx.userAgent, timeoutMs: 20_000, sourceLabel: "SEC filing" });
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const entityPart = task.hint?.entity_id ?? "unknown";
     const period = task.hint?.period ?? new Date().toISOString().slice(0, 10);
