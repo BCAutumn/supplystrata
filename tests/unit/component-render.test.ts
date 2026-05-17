@@ -37,49 +37,57 @@ function componentCardFixture(): ComponentCardModel {
       taxonomy_path: ["semiconductor", "memory"],
       aliases: ["DRAM/HBM"]
     },
-    known_suppliers: [{
-      entity_id: "ENT-SKHYNIX",
-      name: "SK Hynix",
-      roles: ["BUYS_FROM"],
-      edge_count: 1,
-      best_evidence_level: 5,
-      best_confidence: 0.94
-    }],
-    known_consumers: [{
-      entity_id: "ENT-NVIDIA",
-      name: "NVIDIA",
-      roles: ["BUYS_FROM"],
-      edge_count: 1,
-      best_evidence_level: 5,
-      best_confidence: 0.94
-    }],
-    evidence_edges: [{
-      edge_id: "EDGE-1",
-      relation: "BUYS_FROM",
-      supplier_id: "ENT-SKHYNIX",
-      supplier_name: "SK Hynix",
-      consumer_id: "ENT-NVIDIA",
-      consumer_name: "NVIDIA",
-      evidence_level: 5,
-      confidence: 0.94,
-      is_inferred: false,
-      primary_evidence_id: "EV-1",
-      cite_text: "We purchase memory from SK Hynix.",
-      source_url: "https://example.com/10k",
-      source_date: new Date("2026-02-25T00:00:00.000Z")
-    }],
+    known_suppliers: [
+      {
+        entity_id: "ENT-SKHYNIX",
+        name: "SK Hynix",
+        roles: ["BUYS_FROM"],
+        edge_count: 1,
+        best_evidence_level: 5,
+        best_confidence: 0.94
+      }
+    ],
+    known_consumers: [
+      {
+        entity_id: "ENT-NVIDIA",
+        name: "NVIDIA",
+        roles: ["BUYS_FROM"],
+        edge_count: 1,
+        best_evidence_level: 5,
+        best_confidence: 0.94
+      }
+    ],
+    evidence_edges: [
+      {
+        edge_id: "EDGE-1",
+        relation: "BUYS_FROM",
+        supplier_id: "ENT-SKHYNIX",
+        supplier_name: "SK Hynix",
+        consumer_id: "ENT-NVIDIA",
+        consumer_name: "NVIDIA",
+        evidence_level: 5,
+        confidence: 0.94,
+        is_inferred: false,
+        primary_evidence_id: "EV-1",
+        cite_text: "We purchase memory from SK Hynix.",
+        source_url: "https://example.com/10k",
+        source_date: new Date("2026-02-25T00:00:00.000Z")
+      }
+    ],
     source_coverage: {
       sources: 1,
       evidence_edges: 1,
       latest_source_date: "2026-02-25"
     },
-    unknown_map: [{
-      unknown_id: "UNK-1",
-      question: "Exact allocation by HBM generation",
-      why_unknown: "The official disclosure says memory, not generation-specific allocation.",
-      blocking_data_sources: ["private contracts"],
-      proxies: ["supplier capex commentary"],
-      status: "open"
-    }]
+    unknown_map: [
+      {
+        unknown_id: "UNK-1",
+        question: "Exact allocation by HBM generation",
+        why_unknown: "The official disclosure says memory, not generation-specific allocation.",
+        blocking_data_sources: ["private contracts"],
+        proxies: ["supplier capex commentary"],
+        status: "open"
+      }
+    ]
   };
 }

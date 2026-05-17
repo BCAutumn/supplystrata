@@ -6,17 +6,17 @@
 
 ```ts
 type EntityKind =
-  | "company"            // 法人 (Hon Hai Precision Industry, NVIDIA Corporation)
-  | "company_group"      // 概念集团 (Samsung Group) —— 极少用
-  | "business_unit"      // 公司内部业务部门 (Samsung Foundry, Samsung Memory)
-  | "facility"           // 物理设施（工厂/晶圆厂/数据中心）
-  | "port"               // 港口
-  | "vessel"             // 船舶
-  | "carrier"            // 承运商（航运/航空）
-  | "product"            // 产品/SKU 抽象（NVIDIA H100, HBM3e 8GB）
-  | "component"          // 组件抽象（HBM, DRAM, advanced packaging）
-  | "industry_node"      // 行业概念节点（"AI accelerator", "wafer foundry"，用于树形分类）
-  | "person"             // 高管/公开人物（极少用，且谨慎）
+  | "company" // 法人 (Hon Hai Precision Industry, NVIDIA Corporation)
+  | "company_group" // 概念集团 (Samsung Group) —— 极少用
+  | "business_unit" // 公司内部业务部门 (Samsung Foundry, Samsung Memory)
+  | "facility" // 物理设施（工厂/晶圆厂/数据中心）
+  | "port" // 港口
+  | "vessel" // 船舶
+  | "carrier" // 承运商（航运/航空）
+  | "product" // 产品/SKU 抽象（NVIDIA H100, HBM3e 8GB）
+  | "component" // 组件抽象（HBM, DRAM, advanced packaging）
+  | "industry_node" // 行业概念节点（"AI accelerator", "wafer foundry"，用于树形分类）
+  | "person" // 高管/公开人物（极少用，且谨慎）
   | "government_agency"; // 监管或采购方
 ```
 
@@ -74,7 +74,7 @@ interface EntityAlias {
   alias: string;
   language?: string;
   alias_kind: "official" | "informal" | "abbreviation" | "translation" | "former";
-  evidence_id?: string;                // 别名来源的证据 ID（PR 加别名必须给）
+  evidence_id?: string; // 别名来源的证据 ID（PR 加别名必须给）
   source_type?: "10-K" | "Wikipedia" | "manual" | "company-website" | "news";
   added_by: string;
   added_at: string;
@@ -114,11 +114,11 @@ ENT-SAMSUNG-ELEC          kind=company             ticker=005930.KS
 interface Facility extends EntityMaster {
   kind: "facility";
   facility_kind: "fab" | "assembly" | "test_packaging" | "data_center" | "port_terminal" | "warehouse" | "mine";
-  operator_entity_id?: string;         // 谁在运营
-  owner_entity_id?: string;            // 谁在持有（可与 operator 不同）
+  operator_entity_id?: string; // 谁在运营
+  owner_entity_id?: string; // 谁在持有（可与 operator 不同）
   geo: { country: string; lat?: number; lng?: number; address?: string };
-  process_node?: string;               // 仅 fab 用，如 "5nm" / "3nm"
-  capacity_text?: string;              // 自由文本 + cite，不强求结构化产能
+  process_node?: string; // 仅 fab 用，如 "5nm" / "3nm"
+  capacity_text?: string; // 自由文本 + cite，不强求结构化产能
 }
 ```
 

@@ -27,16 +27,9 @@ interface CompanyHeaderRow extends pg.QueryResultRow {
   display_name: string;
 }
 
-export async function renderCompany(
-  pool: pg.Pool,
-  query: string,
-  format: OutputFormat,
-): Promise<string> {
+export async function renderCompany(pool: pg.Pool, query: string, format: OutputFormat): Promise<string> {
   const entityId = await resolveEntityId(pool, query);
-  const headerResult = await pool.query<CompanyHeaderRow>(
-    "SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1",
-    [entityId],
-  );
+  const headerResult = await pool.query<CompanyHeaderRow>("SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1", [entityId]);
   const header = headerResult.rows[0];
   if (header === undefined) throw new Error(`Entity not found: ${entityId}`);
   const upstreamEdges = await loadCompanyEdges(pool, entityId, "upstream");
@@ -50,19 +43,14 @@ export async function renderCompany(
         entity: header,
         directly_disclosed_upstream: upstreamEdges,
         directly_disclosed_downstream: downstreamEdges,
-        unknown_map: unknownItems,
+        unknown_map: unknownItems
       },
       null,
-      2,
+      2
     );
   }
 
-  const lines = [
-    `# ${header.canonical_name} [${header.entity_id}]`,
-    "",
-    "## Directly disclosed upstream (Level 4-5)",
-    "",
-  ];
+  const lines = [`# ${header.canonical_name} [${header.entity_id}]`, "", "## Directly disclosed upstream (Level 4-5)", ""];
   if (upstreamEdges.length === 0) {
     lines.push("(no directly disclosed upstream edges yet)", "");
   }
@@ -80,35 +68,19 @@ export async function renderCompany(
   return lines.join("\n");
 }
 
-function appendCompanyEdges(
-  lines: string[],
-  edges: readonly CompanyEdgeRow[],
-): void {
+function appendCompanyEdges(lines: string[], edges: readonly CompanyEdgeRow[]): void {
   for (const edge of edges) {
     const component = edge.component === null ? "" : ` (${edge.component})`;
-    lines.push(
-      `- ${edge.relation}${component} -> ${edge.counterparty_name} [Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}]`,
-    );
-    if (edge.source_date !== null)
-      lines.push(
-        `  Source date: ${edge.source_date.toISOString().slice(0, 10)}`,
-      );
+    lines.push(`- ${edge.relation}${component} -> ${edge.counterparty_name} [Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}]`);
+    if (edge.source_date !== null) lines.push(`  Source date: ${edge.source_date.toISOString().slice(0, 10)}`);
     if (edge.cite_text !== null) lines.push(`  "${edge.cite_text}"`);
-    if (edge.primary_evidence_id !== null)
-      lines.push(`  Evidence: ${edge.primary_evidence_id}`);
+    if (edge.primary_evidence_id !== null) lines.push(`  Evidence: ${edge.primary_evidence_id}`);
     lines.push("");
   }
 }
 
-async function loadCompanyEdges(
-  pool: pg.Pool,
-  entityId: string,
-  direction: "upstream" | "downstream",
-): Promise<CompanyEdgeRow[]> {
-  const relationFilter =
-    direction === "upstream"
-      ? "e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT')"
-      : "e.relation = 'SUPPLIES_TO'";
+async function loadCompanyEdges(pool: pg.Pool, entityId: string, direction: "upstream" | "downstream"): Promise<CompanyEdgeRow[]> {
+  const relationFilter = direction === "upstream" ? "e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT')" : "e.relation = 'SUPPLIES_TO'";
   const result = await pool.query<CompanyEdgeRow>(
     `SELECT e.edge_id, e.relation, e.component, e.component_id, e.component_specificity,
             e.object_id AS counterparty_id,
@@ -122,7 +94,7 @@ async function loadCompanyEdges(
      WHERE e.subject_id = $1 AND e.validity = 'current' AND e.evidence_level >= 4
        AND ${relationFilter}
      ORDER BY e.evidence_level DESC, e.confidence DESC, o.display_name`,
-    [entityId],
+    [entityId]
   );
   return result.rows;
 }

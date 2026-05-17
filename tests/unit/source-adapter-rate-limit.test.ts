@@ -20,10 +20,7 @@ describe("source adapter rate limiter", () => {
       expected_format: "html" as const
     };
 
-    await Promise.all([
-      adapter.fetch(task, adapterContext()),
-      adapter.fetch(task, adapterContext())
-    ]);
+    await Promise.all([adapter.fetch(task, adapterContext()), adapter.fetch(task, adapterContext())]);
 
     expect(waits).toEqual([2000]);
     expect(calls).toEqual(["fetch:task-1", "fetch:task-1"]);
@@ -45,11 +42,14 @@ describe("source adapter rate limiter", () => {
     for await (const _task of adapter.plan({ id: "a" }, adapterContext())) {
       break;
     }
-    await adapter.fetch({
-      task_id: "task-1",
-      url: "https://example.com/a",
-      expected_format: "html"
-    }, adapterContext());
+    await adapter.fetch(
+      {
+        task_id: "task-1",
+        url: "https://example.com/a",
+        expected_format: "html"
+      },
+      adapterContext()
+    );
 
     expect(waits).toEqual([2000]);
     expect(calls).toEqual(["plan:a", "fetch:task-1"]);

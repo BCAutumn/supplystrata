@@ -209,22 +209,25 @@ function sourceChangeRowToItem(row: SourceChangeRow): ChangeTimelineItem {
   });
 }
 
-function withOptionalChangeFields(item: ChangeTimelineItem, fields: {
-  source_adapter_id?: string | null;
-  source_item_id?: string | null;
-  doc_id?: string | null;
-  edge_id?: string | null;
-  evidence_id?: string | null;
-  evidence_level?: EvidenceLevel | null;
-  subject_id?: string | null;
-  subject_name?: string | null;
-  object_id?: string | null;
-  object_name?: string | null;
-  relation?: RelationType | null;
-  component?: string | null;
-  before?: Record<string, unknown> | null;
-  after?: Record<string, unknown> | null;
-}): ChangeTimelineItem {
+function withOptionalChangeFields(
+  item: ChangeTimelineItem,
+  fields: {
+    source_adapter_id?: string | null;
+    source_item_id?: string | null;
+    doc_id?: string | null;
+    edge_id?: string | null;
+    evidence_id?: string | null;
+    evidence_level?: EvidenceLevel | null;
+    subject_id?: string | null;
+    subject_name?: string | null;
+    object_id?: string | null;
+    object_name?: string | null;
+    relation?: RelationType | null;
+    component?: string | null;
+    before?: Record<string, unknown> | null;
+    after?: Record<string, unknown> | null;
+  }
+): ChangeTimelineItem {
   const output = { ...item };
   if (fields.source_adapter_id !== undefined && fields.source_adapter_id !== null) output.source_adapter_id = fields.source_adapter_id;
   if (fields.source_item_id !== undefined && fields.source_item_id !== null) output.source_item_id = fields.source_item_id;

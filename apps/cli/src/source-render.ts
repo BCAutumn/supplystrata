@@ -22,7 +22,9 @@ export function renderSourceHealth(sources: SourceHealthRow[], format: OutputFor
   for (const source of sources) {
     lines.push(`- ${source.source_adapter_id} [${source.tier}] ${source.registry_status}`);
     lines.push(`  Automation: ${source.automation}; category: ${source.category}; key: ${source.requires_key ? "yes" : "no"}`);
-    lines.push(`  Policy: ${source.policy_enabled === false ? "disabled" : "enabled"}; cadence: ${formatMinutes(source.check_cadence_minutes)}; next: ${formatDate(source.next_check_at)}`);
+    lines.push(
+      `  Policy: ${source.policy_enabled === false ? "disabled" : "enabled"}; cadence: ${formatMinutes(source.check_cadence_minutes)}; next: ${formatDate(source.next_check_at)}`
+    );
     lines.push(`  Last checked: ${formatDate(source.last_checked_at)}; last success: ${formatDate(source.last_success_at)}; failures: ${source.failure_count}`);
     lines.push(`  Last change: ${formatDate(source.last_change_at)}`);
     if (source.last_error_message !== null) lines.push(`  Last error: ${source.last_error_message}`);

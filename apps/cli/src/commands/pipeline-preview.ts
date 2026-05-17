@@ -27,15 +27,19 @@ export function registerPipelinePreviewCommands(program: Command): void {
     });
 
   const pipeline = program.command("pipeline").description("pipeline shortcuts");
-  pipeline.command("nvidia").description("run SEC/NVIDIA 10-K vertical slice").action(async () => {
-    await withPool(async (pool) => {
-      const summary = await runDefaultNvidiaSlice(pool);
-      writeJson(summary);
+  pipeline
+    .command("nvidia")
+    .description("run SEC/NVIDIA 10-K vertical slice")
+    .action(async () => {
+      await withPool(async (pool) => {
+        const summary = await runDefaultNvidiaSlice(pool);
+        writeJson(summary);
+      });
     });
-  });
 
   const preview = program.command("preview").description("database-free supply-chain parsing previews");
-  preview.command("nvidia")
+  preview
+    .command("nvidia")
     .option("--format <format>", "markdown or json", "markdown")
     .description("preview NVIDIA SEC 10-K parsing without database")
     .action(async (options: { format: string }) => {
@@ -43,7 +47,8 @@ export function registerPipelinePreviewCommands(program: Command): void {
       write(renderPreview(result, parseFormat(options.format)));
     });
 
-  preview.command("apple-suppliers")
+  preview
+    .command("apple-suppliers")
     .option("--format <format>", "markdown, json, or csv", "markdown")
     .option("--limit <count>", "max rows for markdown preview", "25")
     .description("preview Apple Supplier List semi-auto candidates")
@@ -53,7 +58,8 @@ export function registerPipelinePreviewCommands(program: Command): void {
     });
 
   const previewReport = preview.command("report").description("database-free research reports");
-  previewReport.command("nvidia")
+  previewReport
+    .command("nvidia")
     .option("--format <format>", "markdown or json", "markdown")
     .option("--lang <lang>", "en or zh", "en")
     .description("preview an NVIDIA supply-chain research memo")
@@ -77,5 +83,8 @@ export function registerPipelinePreviewCommands(program: Command): void {
 }
 
 function parseFormTypes(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
-  return value.split(",").map((item) => item.trim()).filter(isSupportedFormType);
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(isSupportedFormType);
 }

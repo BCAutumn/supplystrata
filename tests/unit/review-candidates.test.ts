@@ -40,7 +40,8 @@ describe("review candidates", () => {
     expect(candidate).toMatchObject({
       kind: "supplier_list_row",
       title: "Buyer -> Supplier Co.",
-      candidate_key: "example-supplier-list|https://example.com/suppliers.pdf|ENT-BUYER|Supplier Co.|Penang|Malaysia|Example Supplier List FY26 line 1|Supplier Co.                         Penang                                     Malaysia",
+      candidate_key:
+        "example-supplier-list|https://example.com/suppliers.pdf|ENT-BUYER|Supplier Co.|Penang|Malaysia|Example Supplier List FY26 line 1|Supplier Co.                         Penang                                     Malaysia",
       payload: {
         buyer_entity_id: "ENT-BUYER",
         supplier_name: "Supplier Co.",
@@ -132,7 +133,9 @@ describe("review candidates", () => {
     expect(first.review_id).not.toBe(second.review_id);
     expect(first.candidate_key).not.toBe(second.candidate_key);
     expect(first.review_id).toBe(buildSupplierListReviewCandidate({ candidate: base, docId: "DOC-example", sourceUrl: "https://example.com/a.pdf" }).review_id);
-    expect(first.candidate_key).toBe(buildSupplierListReviewCandidate({ candidate: base, docId: "DOC-other", sourceUrl: "https://example.com/a.pdf" }).candidate_key);
+    expect(first.candidate_key).toBe(
+      buildSupplierListReviewCandidate({ candidate: base, docId: "DOC-other", sourceUrl: "https://example.com/a.pdf" }).candidate_key
+    );
   });
 
   it("converts external entity source hits into review/import candidates", () => {

@@ -20,15 +20,15 @@
 
 ### 字段映射
 
-| OC 字段                          | entity_master 映射                |
-| ------------------------------ | ------------------------------- |
-| `name`                         | canonical_name 候选               |
-| `previous_names[]`             | aliases (`alias_kind="former"`) |
-| `alternative_names[]`          | aliases (`alias_kind="informal"`) |
-| `jurisdiction_code`            | primary_country (映射 ISO 2)      |
-| `incorporation_date`           | founded_year                    |
-| `company_number`               | identifiers.open_corporates_id  |
-| `registered_address`           | hq_location                    |
+| OC 字段               | entity_master 映射                |
+| --------------------- | --------------------------------- |
+| `name`                | canonical_name 候选               |
+| `previous_names[]`    | aliases (`alias_kind="former"`)   |
+| `alternative_names[]` | aliases (`alias_kind="informal"`) |
+| `jurisdiction_code`   | primary_country (映射 ISO 2)      |
+| `incorporation_date`  | founded_year                      |
+| `company_number`      | identifiers.open_corporates_id    |
+| `registered_address`  | hq_location                       |
 
 ### 已知坑
 
@@ -60,13 +60,13 @@
 
 ### 字段映射
 
-| CH 字段                  | entity_master 映射                |
-| ---------------------- | ------------------------------- |
-| `company_name`         | canonical_name 候选               |
-| `company_number`       | identifiers.companies_house_number |
-| `registered_office_address` | hq_location                |
-| `previous_company_names`    | aliases (former)              |
-| `accounts.next_due`         | metadata                      |
+| CH 字段                     | entity_master 映射                 |
+| --------------------------- | ---------------------------------- |
+| `company_name`              | canonical_name 候选                |
+| `company_number`            | identifiers.companies_house_number |
+| `registered_office_address` | hq_location                        |
+| `previous_company_names`    | aliases (former)                   |
+| `accounts.next_due`         | metadata                           |
 
 ### 用法
 

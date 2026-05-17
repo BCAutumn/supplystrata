@@ -25,7 +25,11 @@ interface CountRow extends pg.QueryResultRow {
   count: string;
 }
 
-export async function applyEntitySourceReviewCandidate(client: DbClient, candidate: EntitySourceReviewCandidate, reviewer: string): Promise<EntityImportResult> {
+export async function applyEntitySourceReviewCandidate(
+  client: DbClient,
+  candidate: EntitySourceReviewCandidate,
+  reviewer: string
+): Promise<EntityImportResult> {
   const conflict = await findIdentifierConflict(client, candidate);
   if (conflict !== undefined && conflict !== candidate.payload.proposed_entity_id) {
     return { status: "blocked", reason: `identifier already belongs to ${conflict}` };
@@ -62,17 +66,7 @@ export async function applyEntitySourceReviewCandidate(client: DbClient, candida
        evidence_for_existence = COALESCE(entity_master.evidence_for_existence, EXCLUDED.evidence_for_existence),
        attrs = entity_master.attrs || EXCLUDED.attrs,
        updated_at = now()`,
-    [
-      entityId,
-      source.name,
-      source.name,
-      source.identifiers,
-      primaryCountry,
-      hqLocation,
-      [] as string[],
-      candidate.evidence.source_url,
-      attrs
-    ]
+    [entityId, source.name, source.name, source.identifiers, primaryCountry, hqLocation, [] as string[], candidate.evidence.source_url, attrs]
   );
 
   let aliasesInserted = 0;
@@ -82,15 +76,7 @@ export async function applyEntitySourceReviewCandidate(client: DbClient, candida
       `INSERT INTO entity_alias (alias_id, entity_id, alias, alias_norm, language, alias_kind, source_type, added_by, status)
        VALUES ($1,$2,$3,$4,'en',$5,$6,$7,'active')
        ON CONFLICT (entity_id, alias_norm, language) DO NOTHING`,
-      [
-        aliasId(entityId, alias),
-        entityId,
-        alias,
-        normalizeAlias(alias),
-        alias === source.name ? "official" : "informal",
-        source.source_adapter_id,
-        reviewer
-      ]
+      [aliasId(entityId, alias), entityId, alias, normalizeAlias(alias), alias === source.name ? "official" : "informal", source.source_adapter_id, reviewer]
     );
     if (result.rowCount === 1) aliasesInserted += 1;
     else aliasesSkipped += 1;
@@ -129,7 +115,11 @@ export async function applyEntitySourceReviewCandidate(client: DbClient, candida
   };
 }
 
-export async function ensureSupplierListFacilityEntity(client: DbClient, candidate: SupplierListReviewCandidate, reviewer: string): Promise<FacilityImportResult> {
+export async function ensureSupplierListFacilityEntity(
+  client: DbClient,
+  candidate: SupplierListReviewCandidate,
+  reviewer: string
+): Promise<FacilityImportResult> {
   const entityId = supplierListFacilityEntityId(candidate);
   const displayName = supplierListFacilityDisplayName(candidate);
   const aliasConflict = await findAliasConflict(client, [displayName], entityId);
@@ -165,16 +155,7 @@ export async function ensureSupplierListFacilityEntity(client: DbClient, candida
        evidence_for_existence = COALESCE(entity_master.evidence_for_existence, EXCLUDED.evidence_for_existence),
        attrs = entity_master.attrs || EXCLUDED.attrs,
        updated_at = now()`,
-    [
-      entityId,
-      displayName,
-      displayName,
-      { supplystrata_facility_id: entityId },
-      hqLocation,
-      ["supplier facility"],
-      candidate.evidence.source_url,
-      attrs
-    ]
+    [entityId, displayName, displayName, { supplystrata_facility_id: entityId }, hqLocation, ["supplier facility"], candidate.evidence.source_url, attrs]
   );
 
   const aliasResult = await client.query(
@@ -203,11 +184,20 @@ export async function ensureSupplierListFacilityEntity(client: DbClient, candida
     ]
   );
 
-  return { status: "applied", entity_id: entityId, display_name: displayName, aliases_inserted: aliasesInserted, aliases_skipped: aliasesSkipped, change_id: changeId };
+  return {
+    status: "applied",
+    entity_id: entityId,
+    display_name: displayName,
+    aliases_inserted: aliasesInserted,
+    aliases_skipped: aliasesSkipped,
+    change_id: changeId
+  };
 }
 
 async function findIdentifierConflict(client: DbClient, candidate: EntitySourceReviewCandidate): Promise<string | undefined> {
-  const identifiers = Object.entries(candidate.payload.candidate.identifiers).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0);
+  const identifiers = Object.entries(candidate.payload.candidate.identifiers).filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0
+  );
   for (const [key, value] of identifiers) {
     const result = await client.query<EntityIdRow>(
       `SELECT entity_id
@@ -222,7 +212,11 @@ async function findIdentifierConflict(client: DbClient, candidate: EntitySourceR
   return undefined;
 }
 
-async function findAliasConflict(client: DbClient, aliases: readonly string[], targetEntityId: string): Promise<{ entity_id: string; alias: string } | undefined> {
+async function findAliasConflict(
+  client: DbClient,
+  aliases: readonly string[],
+  targetEntityId: string
+): Promise<{ entity_id: string; alias: string } | undefined> {
   for (const alias of aliases) {
     const result = await client.query<EntityIdRow>(
       `SELECT entity_id
@@ -267,6 +261,10 @@ function countryFromJurisdiction(jurisdiction: string | undefined): string | nul
 }
 
 function aliasId(entityId: string, alias: string): string {
-  const digest = createHash("sha256").update(`${entityId}|${normalizeAlias(alias)}`).digest("hex").slice(0, 12).toUpperCase();
+  const digest = createHash("sha256")
+    .update(`${entityId}|${normalizeAlias(alias)}`)
+    .digest("hex")
+    .slice(0, 12)
+    .toUpperCase();
   return `ALIAS-${entityId}-${digest}`.slice(0, 128);
 }

@@ -79,7 +79,10 @@ export function createOpenCorporatesAdapterContext(): AdapterContext {
   return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
 }
 
-export async function lookupOpenCorporatesCompanies(input: OpenCorporatesSearchInput, ctx: AdapterContext = createOpenCorporatesAdapterContext()): Promise<{ raw: RawDocument<Uint8Array>; candidates: EntitySourceCandidate[] }> {
+export async function lookupOpenCorporatesCompanies(
+  input: OpenCorporatesSearchInput,
+  ctx: AdapterContext = createOpenCorporatesAdapterContext()
+): Promise<{ raw: RawDocument<Uint8Array>; candidates: EntitySourceCandidate[] }> {
   const task = await firstTask(openCorporatesAdapter.plan(input, ctx));
   const raw = await openCorporatesAdapter.fetch(task, ctx);
   return { raw, candidates: extractOpenCorporatesCandidates(raw) };
@@ -99,27 +102,32 @@ export function buildOpenCorporatesSearchUrl(input: OpenCorporatesSearchInput): 
 
 export function extractOpenCorporatesCandidates(raw: RawDocument<Uint8Array>): EntitySourceCandidate[] {
   const payload = parseOpenCorporatesPayload(raw.body);
-  return payload.map(({ company }) => createEntitySourceCandidate({
-    source_adapter_id: "opencorporates",
-    source_url: raw.url,
-    external_id: `${company.jurisdiction_code}/${company.company_number}`,
-    name: company.name,
-    jurisdiction_code: company.jurisdiction_code,
-    company_number: company.company_number,
-    ...(company.current_status === undefined ? {} : { current_status: company.current_status }),
-    ...(company.company_type === undefined ? {} : { company_type: company.company_type }),
-    ...(company.incorporation_date === undefined ? {} : { incorporation_date: company.incorporation_date }),
-    ...(company.registered_address === undefined ? {} : { registered_address: company.registered_address }),
-    previous_names: company.previous_names,
-    alternative_names: company.alternative_names,
-    identifiers: {
-      open_corporates_id: `${company.jurisdiction_code}/${company.company_number}`,
+  return payload.map(({ company }) =>
+    createEntitySourceCandidate({
+      source_adapter_id: "opencorporates",
+      source_url: raw.url,
+      external_id: `${company.jurisdiction_code}/${company.company_number}`,
+      name: company.name,
+      jurisdiction_code: company.jurisdiction_code,
       company_number: company.company_number,
-      jurisdiction_code: company.jurisdiction_code
-    },
-    confidence: 0.74,
-    provenance_note: company.opencorporates_url === undefined ? "OpenCorporates company search result" : `OpenCorporates company search result: ${company.opencorporates_url}`
-  }));
+      ...(company.current_status === undefined ? {} : { current_status: company.current_status }),
+      ...(company.company_type === undefined ? {} : { company_type: company.company_type }),
+      ...(company.incorporation_date === undefined ? {} : { incorporation_date: company.incorporation_date }),
+      ...(company.registered_address === undefined ? {} : { registered_address: company.registered_address }),
+      previous_names: company.previous_names,
+      alternative_names: company.alternative_names,
+      identifiers: {
+        open_corporates_id: `${company.jurisdiction_code}/${company.company_number}`,
+        company_number: company.company_number,
+        jurisdiction_code: company.jurisdiction_code
+      },
+      confidence: 0.74,
+      provenance_note:
+        company.opencorporates_url === undefined
+          ? "OpenCorporates company search result"
+          : `OpenCorporates company search result: ${company.opencorporates_url}`
+    })
+  );
 }
 
 function normalizeOpenCorporatesDocument(raw: RawDocument<Uint8Array>): NormalizedDocument {
@@ -146,7 +154,9 @@ function formatEntitySourceCandidateText(candidate: EntitySourceCandidate): stri
     candidate.previous_names.length === 0 ? undefined : `previous_names: ${candidate.previous_names.join("; ")}`,
     candidate.alternative_names.length === 0 ? undefined : `alternative_names: ${candidate.alternative_names.join("; ")}`,
     `provenance: ${candidate.provenance_note}`
-  ].filter((line): line is string => line !== undefined).join("\n");
+  ]
+    .filter((line): line is string => line !== undefined)
+    .join("\n");
 }
 
 function parseOpenCorporatesPayload(bytes: Uint8Array): OpenCorporatesCompanyWrapper[] {
@@ -204,7 +214,10 @@ async function firstTask(tasks: AsyncIterable<FetchTask>): Promise<FetchTask> {
 }
 
 function stableQueryId(input: OpenCorporatesSearchInput): string {
-  return createHash("sha256").update(`${input.query}|${input.jurisdictionCode ?? ""}|${String(input.limit ?? "")}`).digest("hex").slice(0, 16);
+  return createHash("sha256")
+    .update(`${input.query}|${input.jurisdictionCode ?? ""}|${String(input.limit ?? "")}`)
+    .digest("hex")
+    .slice(0, 16);
 }
 
 function clampLimit(limit: number | undefined): number {

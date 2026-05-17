@@ -10,26 +10,28 @@ describe("entity source adapters", () => {
       "https://api.opencorporates.com/v0.4/companies/search?q=Arm+Holdings&per_page=2&jurisdiction_code=gb"
     );
 
-    const candidates = extractOpenCorporatesCandidates(rawJson("opencorporates", {
-      results: {
-        companies: [
-          {
-            company: {
-              name: "ARM HOLDINGS PLC",
-              company_number: "02557590",
-              jurisdiction_code: "gb",
-              current_status: "Active",
-              company_type: "Public Limited Company",
-              incorporation_date: "1990-11-12",
-              registered_address: "110 Fulbourn Road, Cambridge",
-              opencorporates_url: "https://opencorporates.com/companies/gb/02557590",
-              previous_names: [{ company_name: "ADVANCED RISC MACHINES LIMITED" }],
-              alternative_names: ["Arm Holdings"]
+    const candidates = extractOpenCorporatesCandidates(
+      rawJson("opencorporates", {
+        results: {
+          companies: [
+            {
+              company: {
+                name: "ARM HOLDINGS PLC",
+                company_number: "02557590",
+                jurisdiction_code: "gb",
+                current_status: "Active",
+                company_type: "Public Limited Company",
+                incorporation_date: "1990-11-12",
+                registered_address: "110 Fulbourn Road, Cambridge",
+                opencorporates_url: "https://opencorporates.com/companies/gb/02557590",
+                previous_names: [{ company_name: "ADVANCED RISC MACHINES LIMITED" }],
+                alternative_names: ["Arm Holdings"]
+              }
             }
-          }
-        ]
-      }
-    }));
+          ]
+        }
+      })
+    );
 
     expect(candidates).toMatchObject([
       {
@@ -54,19 +56,21 @@ describe("entity source adapters", () => {
       "https://api.company-information.service.gov.uk/search/companies?q=ARM+HOLDINGS&items_per_page=1"
     );
 
-    const candidates = extractCompaniesHouseCandidates(rawJson("companies-house", {
-      items: [
-        {
-          title: "ARM HOLDINGS PLC",
-          company_number: "02557590",
-          company_status: "active",
-          company_type: "plc",
-          date_of_creation: "1990-11-12",
-          address_snippet: "110 Fulbourn Road, Cambridge",
-          links: { self: "/company/02557590" }
-        }
-      ]
-    }));
+    const candidates = extractCompaniesHouseCandidates(
+      rawJson("companies-house", {
+        items: [
+          {
+            title: "ARM HOLDINGS PLC",
+            company_number: "02557590",
+            company_status: "active",
+            company_type: "plc",
+            date_of_creation: "1990-11-12",
+            address_snippet: "110 Fulbourn Road, Cambridge",
+            links: { self: "/company/02557590" }
+          }
+        ]
+      })
+    );
 
     expect(candidates).toMatchObject([
       {

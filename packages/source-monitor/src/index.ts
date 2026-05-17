@@ -177,11 +177,13 @@ export async function recordDocumentObservation(client: DbClient, input: Documen
       input.source_adapter_id,
       sourceItemId,
       input.doc_id,
-      previous === undefined ? null : {
-        doc_id: previous.latest_doc_id,
-        bytes_sha256: previous.latest_bytes_sha256,
-        storage_key: previous.latest_storage_key
-      },
+      previous === undefined
+        ? null
+        : {
+            doc_id: previous.latest_doc_id,
+            bytes_sha256: previous.latest_bytes_sha256,
+            storage_key: previous.latest_storage_key
+          },
       {
         doc_id: input.doc_id,
         bytes_sha256: input.bytes_sha256,
@@ -257,14 +259,7 @@ async function upsertDefaultSourcePolicy(client: DbClient, source: SourceRegistr
     `INSERT INTO source_policies (source_adapter_id, enabled, check_cadence_minutes, jitter_minutes, priority, config_source, notes)
      VALUES ($1,$2,$3,$4,$5,'default',$6)
      ON CONFLICT (source_adapter_id) DO NOTHING`,
-    [
-      policy.source_adapter_id,
-      policy.enabled,
-      policy.check_cadence_minutes,
-      policy.jitter_minutes ?? 0,
-      policy.priority ?? 100,
-      policy.notes ?? null
-    ]
+    [policy.source_adapter_id, policy.enabled, policy.check_cadence_minutes, policy.jitter_minutes ?? 0, policy.priority ?? 100, policy.notes ?? null]
   );
 }
 

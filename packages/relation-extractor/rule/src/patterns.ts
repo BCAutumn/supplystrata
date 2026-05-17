@@ -21,15 +21,20 @@ export const MEMORY_COMPONENT_PATTERNS: readonly ComponentPatternDefinition[] = 
 
 export const PRODUCT_COMPONENT_PATTERNS: readonly ComponentPatternDefinition[] = RULE_PATTERN_CATALOG.productComponents.map(compileComponentPattern);
 
-export const MANUFACTURING_SERVICES_COMPONENT: ComponentPatternDefinition = compileComponentPattern(RULE_PATTERN_CATALOG.sharedComponents.manufacturingServices);
+export const MANUFACTURING_SERVICES_COMPONENT: ComponentPatternDefinition = compileComponentPattern(
+  RULE_PATTERN_CATALOG.sharedComponents.manufacturingServices
+);
 
 export const FOUNDRY_WAFER_COMPONENT: ComponentPatternDefinition = compileComponentPattern(RULE_PATTERN_CATALOG.sharedComponents.foundryWafer);
 
-export const CUSTOMER_COUNTERPARTY_PATTERNS: readonly CounterpartyPatternDefinition[] = RULE_PATTERN_CATALOG.customerCounterparties.map(compileCounterpartyPattern);
+export const CUSTOMER_COUNTERPARTY_PATTERNS: readonly CounterpartyPatternDefinition[] =
+  RULE_PATTERN_CATALOG.customerCounterparties.map(compileCounterpartyPattern);
 
-export const SUPPLIER_COUNTERPARTY_PATTERNS: readonly CounterpartyPatternDefinition[] = RULE_PATTERN_CATALOG.supplierCounterparties.map(compileCounterpartyPattern);
+export const SUPPLIER_COUNTERPARTY_PATTERNS: readonly CounterpartyPatternDefinition[] =
+  RULE_PATTERN_CATALOG.supplierCounterparties.map(compileCounterpartyPattern);
 
-export const MANUFACTURING_SERVICE_SUPPLIER_PATTERNS: readonly ManufacturingServiceSupplierDefinition[] = RULE_PATTERN_CATALOG.manufacturingServiceSuppliers.map(compileManufacturingServiceSupplier);
+export const MANUFACTURING_SERVICE_SUPPLIER_PATTERNS: readonly ManufacturingServiceSupplierDefinition[] =
+  RULE_PATTERN_CATALOG.manufacturingServiceSuppliers.map(compileManufacturingServiceSupplier);
 
 function compileComponentPattern(spec: ComponentPatternSpec): ComponentPatternDefinition {
   return {

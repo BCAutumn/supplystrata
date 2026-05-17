@@ -113,10 +113,7 @@ export interface SourceAdapter<TFetchInput, TRawDoc, TNormalizedDoc> {
   fetch(task: FetchTask, ctx: AdapterContext): Promise<RawDocument<TRawDoc>>;
 
   /** 把原始字节标准化为系统通用文档；必须产出 text + chunks，不允许只返回元数据壳 */
-  normalize(
-    raw: RawDocument<TRawDoc>,
-    ctx: AdapterContext,
-  ): Promise<NormalizedDocument>;
+  normalize(raw: RawDocument<TRawDoc>, ctx: AdapterContext): Promise<NormalizedDocument>;
 }
 
 export interface FetchTask {
@@ -178,11 +175,7 @@ export interface EntityResolver {
   resolve(input: ResolveInput): Promise<ResolveResult>;
 
   /** 注册新别名（必须带证据） */
-  registerAlias(
-    alias: string,
-    entityId: string,
-    evidence: Provenance,
-  ): Promise<void>;
+  registerAlias(alias: string, entityId: string, evidence: Provenance): Promise<void>;
 
   /** 显式拆分错误合并 */
   split(entityId: string, newCanonicals: NewEntitySpec[]): Promise<SplitResult>;
@@ -224,10 +217,7 @@ export interface RelationExtractor {
   readonly priority: number; // 大者先跑
   readonly relation_types: RelationType[];
 
-  extract(
-    doc: NormalizedDocument,
-    ctx: ExtractorContext,
-  ): AsyncIterable<CandidateRelation>;
+  extract(doc: NormalizedDocument, ctx: ExtractorContext): AsyncIterable<CandidateRelation>;
 }
 
 export interface CandidateRelation {
@@ -255,10 +245,7 @@ export interface CandidateRelation {
 
 ```ts
 export interface EvidenceScorer {
-  score(
-    candidate: CandidateRelation,
-    doc: NormalizedDocument,
-  ): Promise<ScoringResult>;
+  score(candidate: CandidateRelation, doc: NormalizedDocument): Promise<ScoringResult>;
 }
 
 export interface ScoringResult {
@@ -280,11 +267,7 @@ export interface ScoringResult {
 ```ts
 export interface GraphBuilder {
   apply(approved: ApprovedCandidate): Promise<ApplyResult>;
-  deprecate(
-    edgeId: string,
-    reason: string,
-    evidence: Provenance,
-  ): Promise<void>;
+  deprecate(edgeId: string, reason: string, evidence: Provenance): Promise<void>;
   rebuild(): Promise<{ nodes: number; edges: number }>;
 }
 
@@ -299,9 +282,7 @@ export interface ApplyResult {
   evidence_id: string;
   change_id: string;
   is_new_edge: boolean;
-  graph_sync:
-    | { status: "synced" }
-    | { status: "failed"; error_message: string };
+  graph_sync: { status: "synced" } | { status: "failed"; error_message: string };
 }
 ```
 
@@ -314,11 +295,7 @@ export interface ApplyResult {
 
 ```ts
 export interface ObjectStore {
-  put(
-    key: string,
-    body: Uint8Array | NodeJS.ReadableStream,
-    meta?: Record<string, string>,
-  ): Promise<void>;
+  put(key: string, body: Uint8Array | NodeJS.ReadableStream, meta?: Record<string, string>): Promise<void>;
   get(key: string): Promise<NodeJS.ReadableStream>;
   exists(key: string): Promise<boolean>;
   url(key: string, expiresInSeconds?: number): Promise<string>;

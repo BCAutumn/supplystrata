@@ -61,21 +61,8 @@
 type SourceAuthority = {
   source_adapter_id: string;
   document_type: DocumentType;
-  publisher_type:
-    | "regulator"
-    | "company_official"
-    | "government_registry"
-    | "official_supplier_list"
-    | "macro_statistical_agency"
-    | "news"
-    | "manual";
-  relation_authority:
-    | "self_disclosure"
-    | "counterparty_disclosure"
-    | "registry_fact"
-    | "facility_claim"
-    | "macro_trend"
-    | "lead_only";
+  publisher_type: "regulator" | "company_official" | "government_registry" | "official_supplier_list" | "macro_statistical_agency" | "news" | "manual";
+  relation_authority: "self_disclosure" | "counterparty_disclosure" | "registry_fact" | "facility_claim" | "macro_trend" | "lead_only";
   max_evidence_level: 1 | 2 | 3 | 4 | 5;
 };
 ```

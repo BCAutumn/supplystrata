@@ -18,7 +18,9 @@ function rawHtml(body: string): RawDocument<Uint8Array> {
 describe("html parser", () => {
   it("preserves readable boundaries between adjacent block elements", () => {
     const doc = parseHtml({
-      raw: rawHtml("<html><head><title>Annual Report</title></head><body><p>We assemble final products.</p><h2>Competition</h2><p>Markets change quickly.</p></body></html>"),
+      raw: rawHtml(
+        "<html><head><title>Annual Report</title></head><body><p>We assemble final products.</p><h2>Competition</h2><p>Markets change quickly.</p></body></html>"
+      ),
       documentType: "10-K"
     });
 

@@ -45,11 +45,7 @@ export function createEntitySourceCandidate(input: Omit<EntitySourceCandidate, "
 }
 
 export function candidateAliases(candidate: EntitySourceCandidate): string[] {
-  return uniqueNonEmptyStrings([
-    candidate.name,
-    ...candidate.previous_names,
-    ...candidate.alternative_names
-  ]);
+  return uniqueNonEmptyStrings([candidate.name, ...candidate.previous_names, ...candidate.alternative_names]);
 }
 
 function uniqueNonEmptyStrings(values: readonly string[]): string[] {

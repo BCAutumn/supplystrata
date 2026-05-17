@@ -81,11 +81,7 @@ function extractorVersionFromLlmMeta(llmMeta: CandidateRelation["llm_meta"] | un
   return "unknown";
 }
 
-function relationCandidateHash(input: {
-  identity: EvidenceTraceIdentity;
-  extractor_id: string | null;
-  normalized_cite_text_sha256: string;
-}): string {
+function relationCandidateHash(input: { identity: EvidenceTraceIdentity; extractor_id: string | null; normalized_cite_text_sha256: string }): string {
   return sha256Hex(
     JSON.stringify({
       subject_id: input.identity.subject_id,

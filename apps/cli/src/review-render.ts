@@ -45,8 +45,7 @@ export function renderReviewApplyBatch(summary: ReviewApplyBatchSummary, format:
       if (result.status === "applied") {
         const edges = result.apply_results.map((item) => `${item.role}:${item.edge_id}/${item.relation}/${item.graph_sync.status}`).join(", ");
         lines.push(`- ${result.review_id}: applied ${result.apply_results.length} edges (${edges}); facility ${result.facility_import.entity_id}`);
-      }
-      else if (result.status === "entity_applied") lines.push(`- ${result.review_id}: imported entity ${result.import_result.entity_id}`);
+      } else if (result.status === "entity_applied") lines.push(`- ${result.review_id}: imported entity ${result.import_result.entity_id}`);
       else lines.push(`- ${result.review_id}: ${result.status} - ${result.reason}`);
     }
   }

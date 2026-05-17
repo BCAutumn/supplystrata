@@ -31,7 +31,11 @@ export async function extractPdfText(bytes: Uint8Array, layout = true): Promise<
 }
 
 function normalizePdfText(text: string): string {
-  return text.normalize("NFKC").replace(/\r\n?/g, "\n").replace(/\uFEFF/g, "").trim();
+  return text
+    .normalize("NFKC")
+    .replace(/\r\n?/g, "\n")
+    .replace(/\uFEFF/g, "")
+    .trim();
 }
 
 export async function parsePdf(input: PdfParseInput): Promise<NormalizedDocument> {

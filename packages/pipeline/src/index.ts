@@ -179,7 +179,14 @@ export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input:
     await graphBuilder.close();
   }
 
-  return { doc_id: savedDocument.doc_id, fetched_url: input.fetchedUrl ?? normalized.source_url, chunks: savedDocument.chunks.length, candidates, applied_edges: applied, evidence_ids: evidenceIds };
+  return {
+    doc_id: savedDocument.doc_id,
+    fetched_url: input.fetchedUrl ?? normalized.source_url,
+    chunks: savedDocument.chunks.length,
+    candidates,
+    applied_edges: applied,
+    evidence_ids: evidenceIds
+  };
 }
 
 export async function previewSecEdgarSupplyChain(input: SecEdgarInput): Promise<SupplyChainPreview> {
@@ -342,7 +349,10 @@ export async function previewAppleSuppliers(input: AppleSuppliersInput = { fisca
   };
 }
 
-export async function enqueueAppleSupplierReviewCandidates(pool: pg.Pool, input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }): Promise<ReviewEnqueueSummary> {
+export async function enqueueAppleSupplierReviewCandidates(
+  pool: pg.Pool,
+  input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }
+): Promise<ReviewEnqueueSummary> {
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,

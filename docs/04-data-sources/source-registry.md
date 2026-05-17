@@ -10,37 +10,37 @@
 
 ## 总表
 
-| source_adapter_id | tier | 数据源                           | 主要拿到什么                                 | 默认证据等级范围       | 接入方式                              | ToS / 法律        | 状态        |
-| ----------------- | ---- | -------------------------------- | -------------------------------------------- | ---------------------- | ------------------------------------- | ----------------- | ----------- |
-| `sec-edgar`       | P0   | SEC EDGAR                        | 10-K / 10-Q / 20-F / 8-K / company facts     | 4-5                    | 官方 REST API                         | 公开 + UA 必填    | implemented |
-| `company-ir`      | P0   | 公司 IR 官网（多 adapter 子项）  | 年报 / earnings / presentation               | 4                      | 受控 HTTP，单页解析                   | 各家网站 ToS 各异 | planned     |
-| `tsmc-ir`         | P0   | TSMC IR                          | 年报 / 月度营收 / 财报                       | 4                      | HTTP + PDF                            | 公开              | preview     |
-| `samsung-ir`      | P0   | Samsung IR                       | 年报 / IR materials                          | 4                      | HTTP + PDF                            | 公开              | preview     |
-| `skhynix-ir`      | P0   | SK Hynix IR                      | Earnings release / IR transcripts            | 4                      | HTTP + PDF                            | 公开              | preview     |
-| `asml-ir`         | P0   | ASML IR                          | 年报 / quarterly                             | 4                      | HTTP + PDF                            | 公开              | preview     |
-| `apple-suppliers` | P0   | Apple Supplier List + 报告       | 供应商名单（含工厂地点）                     | 4                      | 半自动 PDF + 校验                     | 公开              | preview     |
-| `opencorporates`  | P0   | OpenCorporates                   | 全球公司实体 / 别名                          | 用于 entity-resolution | 官方 API + token（限速）              | 公开 + 注明来源   | preview     |
-| `companies-house` | P0   | UK Companies House               | 英国公司登记                                 | 用于 entity-resolution | 官方 API + key                        | OGL v3            | preview     |
-| `seed-entities`   | P0   | 项目内 curated seed CSV          | 核心公司 / 高频供应商 / ticker / CIK / alias | 用于 entity-resolution | 手工维护 + 官方来源校验               | 仅存事实标识      | implemented |
-| `dart-kr`         | P1   | 韩国 DART                        | Samsung / SK Hynix 韩文披露                  | 4-5                    | API                                   | 公开              | scoped      |
-| `un-comtrade`     | P1   | UN Comtrade                      | 国家-商品贸易流（HS code）                   | 2-3                    | API（限速）                           | 注册 + 限速       | scoped      |
-| `census-trade`    | P1   | U.S. Census International Trade  | 美国进出口（月度）                           | 2-3                    | API                                   | 公开              | scoped      |
-| `usitc-dataweb`   | P1   | USITC DataWeb                    | 美国官方贸易/关税                            | 2-3                    | API/CSV                               | 公开              | scoped      |
-| `eia`             | P1   | U.S. EIA                         | 能源 / 电力 / 油气数据                       | 2-3 (背景信号)         | API                                   | 公开 + UA         | scoped      |
-| `fred`            | P1   | FRED (St. Louis Fed)             | 宏观经济时间序列                             | 2-3 (背景信号)         | API                                   | 公开              | scoped      |
-| `worldbank-pink`  | P1   | World Bank Pink Sheet            | 商品价格月度数据                             | 2-3 (背景信号)         | XLSX 下载                             | 公开              | scoped      |
-| `usgs-mcs`        | P1   | USGS Mineral Commodity Summaries | 矿产基本面                                   | 2-3 (背景信号)         | PDF + CSV                             | 公开              | scoped      |
-| `iea-critical-minerals` | P1 | IEA Critical Minerals Data Explorer | 关键矿物需求 / 供应情景                  | 2-3 (背景信号)         | CSV/API/下载（以官方可用方式为准）    | 公开              | scoped      |
-| `rmi-facilities`  | P1   | Responsible Minerals Initiative facility lists | 冶炼 / 精炼 / 处理设施候选        | 2-3 (设施/原材料候选)  | CSV/XLSX/网页下载（需遵守来源条款）   | 公开 + 归因       | scoped      |
-| `eu-crma`         | P1   | EU Critical Raw Materials Act     | 关键原材料政策 / 风险 / 战略项目背景         | 2-3 (政策背景信号)     | 官方网页 / PDF                         | 公开              | scoped      |
-| `osh`             | P1   | Open Supply Hub                  | 全球生产设施                                 | 3-4                    | API                                   | 公开              | scoped      |
-| `noaa-ais`        | P2   | NOAA AccessAIS / bulk            | 美国水域 AIS 船舶                            | 2 (背景信号)           | 下载 / 区域选择                       | 公开              | scoped      |
-| `sam-gov`         | P2   | SAM.gov Contract Opportunities   | 美国联邦采购机会                             | 2-3                    | API                                   | 公开              | scoped      |
-| `usaspending`     | P2   | USAspending.gov                  | 美国联邦合同 / 拨款                          | 2-3                    | API                                   | 公开              | scoped      |
-| `eu-ted`          | P2   | EU TED                           | 欧洲公共采购                                 | 2-3                    | API                                   | 公开              | scoped      |
-| `gdelt`           | P2   | GDELT                            | 全球新闻事件                                 | 1-2 (线索)             | API/BQ                                | 公开              | scoped      |
-| `manual`          | P0   | 手动录入                         | 任何无法/不便自动化的线索                    | 1-2                    | CLI 命令                              | n/a               | planned     |
-| `import-yeti`     | -    | ImportYeti                       | 美国 BOL 搜索                                | 3                      | **不做自动抓取**；仅手工录入 + manual | ToS 严禁自动化    | not adapter |
+| source_adapter_id       | tier | 数据源                                         | 主要拿到什么                                 | 默认证据等级范围       | 接入方式                              | ToS / 法律        | 状态        |
+| ----------------------- | ---- | ---------------------------------------------- | -------------------------------------------- | ---------------------- | ------------------------------------- | ----------------- | ----------- |
+| `sec-edgar`             | P0   | SEC EDGAR                                      | 10-K / 10-Q / 20-F / 8-K / company facts     | 4-5                    | 官方 REST API                         | 公开 + UA 必填    | implemented |
+| `company-ir`            | P0   | 公司 IR 官网（多 adapter 子项）                | 年报 / earnings / presentation               | 4                      | 受控 HTTP，单页解析                   | 各家网站 ToS 各异 | planned     |
+| `tsmc-ir`               | P0   | TSMC IR                                        | 年报 / 月度营收 / 财报                       | 4                      | HTTP + PDF                            | 公开              | preview     |
+| `samsung-ir`            | P0   | Samsung IR                                     | 年报 / IR materials                          | 4                      | HTTP + PDF                            | 公开              | preview     |
+| `skhynix-ir`            | P0   | SK Hynix IR                                    | Earnings release / IR transcripts            | 4                      | HTTP + PDF                            | 公开              | preview     |
+| `asml-ir`               | P0   | ASML IR                                        | 年报 / quarterly                             | 4                      | HTTP + PDF                            | 公开              | preview     |
+| `apple-suppliers`       | P0   | Apple Supplier List + 报告                     | 供应商名单（含工厂地点）                     | 4                      | 半自动 PDF + 校验                     | 公开              | preview     |
+| `opencorporates`        | P0   | OpenCorporates                                 | 全球公司实体 / 别名                          | 用于 entity-resolution | 官方 API + token（限速）              | 公开 + 注明来源   | preview     |
+| `companies-house`       | P0   | UK Companies House                             | 英国公司登记                                 | 用于 entity-resolution | 官方 API + key                        | OGL v3            | preview     |
+| `seed-entities`         | P0   | 项目内 curated seed CSV                        | 核心公司 / 高频供应商 / ticker / CIK / alias | 用于 entity-resolution | 手工维护 + 官方来源校验               | 仅存事实标识      | implemented |
+| `dart-kr`               | P1   | 韩国 DART                                      | Samsung / SK Hynix 韩文披露                  | 4-5                    | API                                   | 公开              | scoped      |
+| `un-comtrade`           | P1   | UN Comtrade                                    | 国家-商品贸易流（HS code）                   | 2-3                    | API（限速）                           | 注册 + 限速       | scoped      |
+| `census-trade`          | P1   | U.S. Census International Trade                | 美国进出口（月度）                           | 2-3                    | API                                   | 公开              | scoped      |
+| `usitc-dataweb`         | P1   | USITC DataWeb                                  | 美国官方贸易/关税                            | 2-3                    | API/CSV                               | 公开              | scoped      |
+| `eia`                   | P1   | U.S. EIA                                       | 能源 / 电力 / 油气数据                       | 2-3 (背景信号)         | API                                   | 公开 + UA         | scoped      |
+| `fred`                  | P1   | FRED (St. Louis Fed)                           | 宏观经济时间序列                             | 2-3 (背景信号)         | API                                   | 公开              | scoped      |
+| `worldbank-pink`        | P1   | World Bank Pink Sheet                          | 商品价格月度数据                             | 2-3 (背景信号)         | XLSX 下载                             | 公开              | scoped      |
+| `usgs-mcs`              | P1   | USGS Mineral Commodity Summaries               | 矿产基本面                                   | 2-3 (背景信号)         | PDF + CSV                             | 公开              | scoped      |
+| `iea-critical-minerals` | P1   | IEA Critical Minerals Data Explorer            | 关键矿物需求 / 供应情景                      | 2-3 (背景信号)         | CSV/API/下载（以官方可用方式为准）    | 公开              | scoped      |
+| `rmi-facilities`        | P1   | Responsible Minerals Initiative facility lists | 冶炼 / 精炼 / 处理设施候选                   | 2-3 (设施/原材料候选)  | CSV/XLSX/网页下载（需遵守来源条款）   | 公开 + 归因       | scoped      |
+| `eu-crma`               | P1   | EU Critical Raw Materials Act                  | 关键原材料政策 / 风险 / 战略项目背景         | 2-3 (政策背景信号)     | 官方网页 / PDF                        | 公开              | scoped      |
+| `osh`                   | P1   | Open Supply Hub                                | 全球生产设施                                 | 3-4                    | API                                   | 公开              | scoped      |
+| `noaa-ais`              | P2   | NOAA AccessAIS / bulk                          | 美国水域 AIS 船舶                            | 2 (背景信号)           | 下载 / 区域选择                       | 公开              | scoped      |
+| `sam-gov`               | P2   | SAM.gov Contract Opportunities                 | 美国联邦采购机会                             | 2-3                    | API                                   | 公开              | scoped      |
+| `usaspending`           | P2   | USAspending.gov                                | 美国联邦合同 / 拨款                          | 2-3                    | API                                   | 公开              | scoped      |
+| `eu-ted`                | P2   | EU TED                                         | 欧洲公共采购                                 | 2-3                    | API                                   | 公开              | scoped      |
+| `gdelt`                 | P2   | GDELT                                          | 全球新闻事件                                 | 1-2 (线索)             | API/BQ                                | 公开              | scoped      |
+| `manual`                | P0   | 手动录入                                       | 任何无法/不便自动化的线索                    | 1-2                    | CLI 命令                              | n/a               | planned     |
+| `import-yeti`           | -    | ImportYeti                                     | 美国 BOL 搜索                                | 3                      | **不做自动抓取**；仅手工录入 + manual | ToS 严禁自动化    | not adapter |
 
 `status` 取值：
 

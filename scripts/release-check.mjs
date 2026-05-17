@@ -44,6 +44,8 @@ async function main() {
   await checkNoSecretsInTrackedSurface();
 
   await runNamedCommand("type-check", ["type-check"]);
+  await runNamedCommand("format check", ["format:check"]);
+  await runNamedCommand("build", ["build"]);
   await runNamedCommand("unit tests", ["test:unit"]);
   await runNamedCommand("integration tests", ["test:integration"]);
   await runNamedCommand("e2e fixture tests", ["test:e2e"]);
@@ -110,7 +112,11 @@ async function* walk(dir) {
 }
 
 function shouldSkip(rel, name) {
-  return name === ".env" ||
+  return (
+    name === ".env" ||
+    name === "dist" ||
+    name === "coverage" ||
+    name === ".tmp-build-test" ||
     rel === ".git" ||
     rel.startsWith(".git/") ||
     rel === "node_modules" ||
@@ -122,15 +128,18 @@ function shouldSkip(rel, name) {
     rel === "coverage" ||
     rel.startsWith("coverage/") ||
     rel === "dist" ||
-    rel.startsWith("dist/");
+    rel.startsWith("dist/")
+  );
 }
 
 function isLikelyTextFile(name) {
-  return /\.(cjs|csv|html|js|json|md|mjs|ts|tsx|txt|yaml|yml)$/i.test(name) ||
+  return (
+    /\.(cjs|csv|html|js|json|md|mjs|ts|tsx|txt|yaml|yml)$/i.test(name) ||
     name === ".gitignore" ||
     name === ".env.example" ||
     name === "LICENSE" ||
-    name === "NOTICE";
+    name === "NOTICE"
+  );
 }
 
 function secretPatterns() {

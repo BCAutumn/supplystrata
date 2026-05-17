@@ -18,7 +18,10 @@ export function estimateTokens(text: string): number {
 
 export function chunkText(text: string, docId: string, targetChars = 6000): DocumentChunk[] {
   const normalized = normalizeText(text);
-  const paragraphs = normalized.split(/\n{2,}/).map((part) => part.trim()).filter((part) => part.length > 0);
+  const paragraphs = normalized
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
   const chunks: DocumentChunk[] = [];
   let buffer: string[] = [];
   let bufferLength = 0;

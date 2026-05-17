@@ -25,7 +25,8 @@ export function renderAppleSuppliersPreview(result: AppleSuppliersPreview, forma
   for (const candidate of result.candidates.slice(0, limit)) {
     lines.push(`- Apple -> ${candidate.supplier_name}; ${candidate.location_text}; ${candidate.country_or_region}`);
   }
-  if (result.candidates.length > limit) lines.push(``, `... ${result.candidates.length - limit} more rows omitted; use --format csv for the full review sheet.`);
+  if (result.candidates.length > limit)
+    lines.push(``, `... ${result.candidates.length - limit} more rows omitted; use --format csv for the full review sheet.`);
   return lines.join("\n");
 }
 
@@ -62,7 +63,12 @@ export function renderPreview(result: SupplyChainPreview, format: OutputFormat):
   for (const item of defaultNvidiaUnknownMap()) {
     lines.push(`- ${item}`);
   }
-  lines.push("", "## Reading Rule", "", "This preview only states relationships supported by quoted public filing text. It does not estimate allocation, pricing, volume, or investment impact.");
+  lines.push(
+    "",
+    "## Reading Rule",
+    "",
+    "This preview only states relationships supported by quoted public filing text. It does not estimate allocation, pricing, volume, or investment impact."
+  );
   return lines.join("\n");
 }
 
@@ -91,7 +97,11 @@ export function renderResearchReport(result: NvidiaResearchReportPreview, format
     lines.push("");
   }
   lines.push("## TSMC Context", "");
-  lines.push(result.tsmc.mentions_nvidia ? "- TSMC annual report mentions NVIDIA by name." : "- TSMC annual report context was parsed, but this preview did not find NVIDIA mentioned by name. Treat it as capability/context evidence, not a bilateral confirmation.");
+  lines.push(
+    result.tsmc.mentions_nvidia
+      ? "- TSMC annual report mentions NVIDIA by name."
+      : "- TSMC annual report context was parsed, but this preview did not find NVIDIA mentioned by name. Treat it as capability/context evidence, not a bilateral confirmation."
+  );
   for (const signal of result.tsmc.signals) {
     lines.push(`- ${signal.title} [Level ${signal.evidence_level}, conf ${signal.confidence.toFixed(3)}]`);
     lines.push(`  Evidence: "${signal.cite_text}"`);
@@ -103,7 +113,12 @@ export function renderResearchReport(result: NvidiaResearchReportPreview, format
   for (const item of defaultNvidiaUnknownMap()) {
     lines.push(`- ${item}`);
   }
-  lines.push("", "## Bottom Line", "", "The current evidence supports a first-hop upstream map for foundry, memory, and manufacturing-services relationships. It does not support customer allocation, pricing, shipment volume, or investment conclusions.");
+  lines.push(
+    "",
+    "## Bottom Line",
+    "",
+    "The current evidence supports a first-hop upstream map for foundry, memory, and manufacturing-services relationships. It does not support customer allocation, pricing, shipment volume, or investment conclusions."
+  );
   return lines.join("\n");
 }
 
@@ -172,12 +187,18 @@ function renderResearchReportZh(result: NvidiaResearchReportPreview): string {
     const component = candidate.component === undefined ? "" : `（${translateComponent(candidate.component)}）`;
     const object = candidate.object_name ?? candidate.object_surface;
     const objectId = candidate.object_entity_id === undefined ? "" : ` [${candidate.object_entity_id}]`;
-    lines.push(`- ${translateRelation(candidate.relation)}${component} -> ${object}${objectId} [Level ${candidate.evidence_level}, 置信度 ${candidate.confidence.toFixed(3)}]`);
+    lines.push(
+      `- ${translateRelation(candidate.relation)}${component} -> ${object}${objectId} [Level ${candidate.evidence_level}, 置信度 ${candidate.confidence.toFixed(3)}]`
+    );
     lines.push(`  证据原文：${translateEvidence(candidate.cite_text)}`);
     lines.push("");
   }
   lines.push("## TSMC 背景证据", "");
-  lines.push(result.tsmc.mentions_nvidia ? "- TSMC 年报直接点名 NVIDIA。" : "- 已解析 TSMC 年报背景，但本预览没有发现 TSMC 年报直接点名 NVIDIA。因此这里是能力/背景证据，不是双边确认。");
+  lines.push(
+    result.tsmc.mentions_nvidia
+      ? "- TSMC 年报直接点名 NVIDIA。"
+      : "- 已解析 TSMC 年报背景，但本预览没有发现 TSMC 年报直接点名 NVIDIA。因此这里是能力/背景证据，不是双边确认。"
+  );
   for (const signal of result.tsmc.signals) {
     lines.push(`- ${translateTsmcSignal(signal.title)} [Level ${signal.evidence_level}, 置信度 ${signal.confidence.toFixed(3)}]`);
     lines.push(`  证据原文：${translateEvidence(signal.cite_text)}`);
@@ -189,7 +210,12 @@ function renderResearchReportZh(result: NvidiaResearchReportPreview): string {
   for (const item of defaultNvidiaUnknownMapZh()) {
     lines.push(`- ${item}`);
   }
-  lines.push("", "## 结论边界", "", "当前证据足以支持 NVIDIA 在晶圆代工、内存、组装测试封装服务上的一级上游图谱。当前证据不支持推断客户分配、合同价格、供应商季度出货量，也不输出任何投资结论。");
+  lines.push(
+    "",
+    "## 结论边界",
+    "",
+    "当前证据足以支持 NVIDIA 在晶圆代工、内存、组装测试封装服务上的一级上游图谱。当前证据不支持推断客户分配、合同价格、供应商季度出货量，也不输出任何投资结论。"
+  );
   return lines.join("\n");
 }
 
@@ -295,10 +321,7 @@ function translateEvidence(text: string): string {
       "We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited, or TSMC, and Samsung Electronics Co., Ltd., or Samsung, to produce our semiconductor wafers.",
       "NVIDIA 披露：公司使用 Taiwan Semiconductor Manufacturing Company Limited（TSMC）和 Samsung Electronics（Samsung）等晶圆代工厂生产半导体晶圆。"
     ],
-    [
-      "We purchase memory from SK Hynix Inc., Micron Technology, Inc., and Samsung.",
-      "NVIDIA 披露：公司从 SK Hynix、Micron Technology 和 Samsung 采购内存。"
-    ],
+    ["We purchase memory from SK Hynix Inc., Micron Technology, Inc., and Samsung.", "NVIDIA 披露：公司从 SK Hynix、Micron Technology 和 Samsung 采购内存。"],
     [
       "We engage with independent subcontractors and contract manufacturers such as Hon Hai Precision Industry Co., Ltd., Wistron Corporation, and Fabrinet to perform assembly, testing and packaging of our final products.Competition The market for our products is intensely competitive and is characterized by rapid technological change and evolving industry standards.",
       "NVIDIA 披露：公司与 Hon Hai Precision Industry、Wistron 和 Fabrinet 等独立分包商及合同制造商合作，进行最终产品的组装、测试和封装。"
@@ -335,10 +358,7 @@ function translateEvidence(text: string): string {
       "We deliver value throughout the semiconductor value chain. Our comprehensive lithography portfolio enables cost-effective microchip scaling for our customers.",
       "ASML 披露：公司贯穿半导体价值链交付价值，完整的光刻产品组合帮助客户以具成本效益的方式推进芯片微缩。"
     ],
-    [
-      "TWINSCAN NXE:3800E – full-specification system improves throughput by 37%",
-      "ASML 披露：TWINSCAN NXE:3800E 全规格系统将吞吐量提高 37%。"
-    ]
+    ["TWINSCAN NXE:3800E – full-specification system improves throughput by 37%", "ASML 披露：TWINSCAN NXE:3800E 全规格系统将吞吐量提高 37%。"]
   ]);
   return known.get(text) ?? text;
 }

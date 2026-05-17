@@ -72,7 +72,10 @@ export function createCompaniesHouseAdapterContext(): AdapterContext {
   return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
 }
 
-export async function lookupCompaniesHouseCompanies(input: CompaniesHouseSearchInput, ctx: AdapterContext = createCompaniesHouseAdapterContext()): Promise<{ raw: RawDocument<Uint8Array>; candidates: EntitySourceCandidate[] }> {
+export async function lookupCompaniesHouseCompanies(
+  input: CompaniesHouseSearchInput,
+  ctx: AdapterContext = createCompaniesHouseAdapterContext()
+): Promise<{ raw: RawDocument<Uint8Array>; candidates: EntitySourceCandidate[] }> {
   const task = await firstTask(companiesHouseAdapter.plan(input, ctx));
   const raw = await companiesHouseAdapter.fetch(task, ctx);
   return { raw, candidates: extractCompaniesHouseCandidates(raw) };
@@ -89,27 +92,32 @@ export function buildCompaniesHouseSearchUrl(input: CompaniesHouseSearchInput): 
 
 export function extractCompaniesHouseCandidates(raw: RawDocument<Uint8Array>): EntitySourceCandidate[] {
   const items = parseCompaniesHousePayload(raw.body);
-  return items.map((item) => createEntitySourceCandidate({
-    source_adapter_id: "companies-house",
-    source_url: raw.url,
-    external_id: item.company_number,
-    name: item.title,
-    jurisdiction_code: "gb",
-    company_number: item.company_number,
-    ...(item.company_status === undefined ? {} : { current_status: item.company_status }),
-    ...(item.company_type === undefined ? {} : { company_type: item.company_type }),
-    ...(item.date_of_creation === undefined ? {} : { incorporation_date: item.date_of_creation }),
-    ...(item.address_snippet === undefined ? {} : { registered_address: item.address_snippet }),
-    previous_names: [],
-    alternative_names: [],
-    identifiers: {
-      companies_house_number: item.company_number,
+  return items.map((item) =>
+    createEntitySourceCandidate({
+      source_adapter_id: "companies-house",
+      source_url: raw.url,
+      external_id: item.company_number,
+      name: item.title,
+      jurisdiction_code: "gb",
       company_number: item.company_number,
-      jurisdiction_code: "gb"
-    },
-    confidence: 0.82,
-    provenance_note: item.links_self === undefined ? "Companies House company search result" : `Companies House company search result: https://find-and-update.company-information.service.gov.uk${item.links_self}`
-  }));
+      ...(item.company_status === undefined ? {} : { current_status: item.company_status }),
+      ...(item.company_type === undefined ? {} : { company_type: item.company_type }),
+      ...(item.date_of_creation === undefined ? {} : { incorporation_date: item.date_of_creation }),
+      ...(item.address_snippet === undefined ? {} : { registered_address: item.address_snippet }),
+      previous_names: [],
+      alternative_names: [],
+      identifiers: {
+        companies_house_number: item.company_number,
+        company_number: item.company_number,
+        jurisdiction_code: "gb"
+      },
+      confidence: 0.82,
+      provenance_note:
+        item.links_self === undefined
+          ? "Companies House company search result"
+          : `Companies House company search result: https://find-and-update.company-information.service.gov.uk${item.links_self}`
+    })
+  );
 }
 
 function normalizeCompaniesHouseDocument(raw: RawDocument<Uint8Array>): NormalizedDocument {
@@ -134,7 +142,9 @@ function formatEntitySourceCandidateText(candidate: EntitySourceCandidate): stri
     candidate.incorporation_date === undefined ? undefined : `incorporation_date: ${candidate.incorporation_date}`,
     candidate.registered_address === undefined ? undefined : `registered_address: ${candidate.registered_address}`,
     `provenance: ${candidate.provenance_note}`
-  ].filter((line): line is string => line !== undefined).join("\n");
+  ]
+    .filter((line): line is string => line !== undefined)
+    .join("\n");
 }
 
 function parseCompaniesHousePayload(bytes: Uint8Array): CompaniesHouseSearchItem[] {
@@ -170,7 +180,10 @@ async function firstTask(tasks: AsyncIterable<FetchTask>): Promise<FetchTask> {
 }
 
 function stableQueryId(input: CompaniesHouseSearchInput): string {
-  return createHash("sha256").update(`${input.query}|${String(input.limit ?? "")}`).digest("hex").slice(0, 16);
+  return createHash("sha256")
+    .update(`${input.query}|${String(input.limit ?? "")}`)
+    .digest("hex")
+    .slice(0, 16);
 }
 
 function clampLimit(limit: number | undefined): number {

@@ -2,6 +2,11 @@ node_modules/
 data/
 reports/
 .env
-coverage/
 dist/
+packages/*/dist/
+packages/*/*/dist/
+packages/*/*/*/dist/
+apps/*/dist/
+.tmp-build-test/
+coverage/
 *.log

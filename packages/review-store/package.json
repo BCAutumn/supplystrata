@@ -3,12 +3,21 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "pg": "~8.13.1"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
 }

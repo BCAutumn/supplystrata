@@ -18,14 +18,14 @@
 
 ### 字段映射
 
-| OSH 字段             | 系统映射                          |
-| ------------------ | ----------------------------- |
-| `os_id`            | facility 节点 identifier         |
-| `name`             | canonical_name 候选             |
-| `address`          | facility.geo                  |
-| `country_code`     | facility.geo.country          |
-| `contributors[]`   | edge: brand/org → facility（关系类型见下） |
-| `sector`/`product_type` | facility 属性                   |
+| OSH 字段                | 系统映射                                   |
+| ----------------------- | ------------------------------------------ |
+| `os_id`                 | facility 节点 identifier                   |
+| `name`                  | canonical_name 候选                        |
+| `address`               | facility.geo                               |
+| `country_code`          | facility.geo.country                       |
+| `contributors[]`        | edge: brand/org → facility（关系类型见下） |
+| `sector`/`product_type` | facility 属性                              |
 
 ### 关系生成
 

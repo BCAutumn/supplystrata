@@ -39,12 +39,14 @@
 [x] review apply 移除旧单边 apply_result 返回，接口统一为结构化 apply_results。
 [x] relation-extractor 的规则数据下沉到 patterns/sec-official-supply-chain.json，pattern-catalog.ts 只负责读取和严格校验。
 [x] 普通 manual evidence 降级为 lead_only / cap 2，避免人工录入绕过 source authority。
+[x] 建立 Prettier 全仓格式化基线，并把 format:check 纳入 CI / release-check。
+[x] 新增 build-packages.mjs，workspace packages/apps 可输出 dist JS 与 d.ts，package exports 指向 dist，development condition 指向 src。
 ```
 
 ## 下一批质量修复
 
 ```text
-[ ] 建立 Prettier 全仓格式化基线；当前历史文件未统一格式，不能直接把 format-check 放入 CI。
+[ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
 ```
 
 ## 验收门槛

@@ -26,12 +26,12 @@
 
 ### 解析重点
 
-| 文件类型      | 重点段落                                                              |
-| --------- | ----------------------------------------------------------------- |
-| 10-K      | Item 1 Business、Item 1A Risk Factors、Item 7 MD&A、Item 8 Financial Statements |
-| 10-Q      | MD&A、Notes（特别是 segment / customer concentration）                   |
-| 20-F      | Item 4 Information on the Company、Item 5 Operating and Financial Review |
-| 8-K       | Item 1.01 (Material Definitive Agreement)、Item 8.01 (Other Events) |
+| 文件类型 | 重点段落                                                                        |
+| -------- | ------------------------------------------------------------------------------- |
+| 10-K     | Item 1 Business、Item 1A Risk Factors、Item 7 MD&A、Item 8 Financial Statements |
+| 10-Q     | MD&A、Notes（特别是 segment / customer concentration）                          |
+| 20-F     | Item 4 Information on the Company、Item 5 Operating and Financial Review        |
+| 8-K      | Item 1.01 (Material Definitive Agreement)、Item 8.01 (Other Events)             |
 
 ### 抽取规则示例
 
@@ -192,11 +192,11 @@ MVP 阶段对 ESG 报告：
 
 ## 综合已知盲区与对策
 
-| 盲区                   | 对策                                                  |
-| -------------------- | --------------------------------------------------- |
-| 监管文件中的 Customer A 匿名化 | 自动入 unknown_map；记录金额/百分比作为约束                        |
-| 未来时态披露                | 降级到 Level 2；不进图谱                                    |
-| 韩文 / 日文 IR 文件         | MVP 优先英文版；缺英文版则跳过                                   |
-| 文件版本更新（同 URL 内容变化）   | 通过 sha256 检测内容变化；新版本作为 superseding evidence          |
-| 表格解析错误               | apple-suppliers 强制人工 review；其他来源采样核查（每月 50 条）        |
-| 公司改名 / 重组            | 在 entity_master 加别名 + OWNS_BUSINESS_UNIT；文件之间链接不变  |
+| 盲区                            | 对策                                                            |
+| ------------------------------- | --------------------------------------------------------------- |
+| 监管文件中的 Customer A 匿名化  | 自动入 unknown_map；记录金额/百分比作为约束                     |
+| 未来时态披露                    | 降级到 Level 2；不进图谱                                        |
+| 韩文 / 日文 IR 文件             | MVP 优先英文版；缺英文版则跳过                                  |
+| 文件版本更新（同 URL 内容变化） | 通过 sha256 检测内容变化；新版本作为 superseding evidence       |
+| 表格解析错误                    | apple-suppliers 强制人工 review；其他来源采样核查（每月 50 条） |
+| 公司改名 / 重组                 | 在 entity_master 加别名 + OWNS_BUSINESS_UNIT；文件之间链接不变  |

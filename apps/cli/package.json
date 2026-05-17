@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "supplystrata": "./src/main.ts"
+    "supplystrata": "./dist/main.js"
   },
   "dependencies": {
     "@supplystrata/core": "workspace:*",
@@ -20,5 +20,9 @@
     "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/source-registry": "workspace:*",
     "commander": "~12.1.0"
-  }
+  },
+  "main": "./dist/main.js",
+  "files": [
+    "dist"
+  ]
 }

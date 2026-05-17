@@ -17,7 +17,9 @@ export function renderEntityLookup(result: EntityLookupSummary, format: OutputFo
     }
     for (const candidate of source.candidates) {
       lines.push(`- ${candidate.name} (${candidate.external_id})`);
-      lines.push(`  Status: ${candidate.current_status ?? "unknown"}; jurisdiction: ${candidate.jurisdiction_code ?? "unknown"}; confidence: ${candidate.confidence.toFixed(2)}`);
+      lines.push(
+        `  Status: ${candidate.current_status ?? "unknown"}; jurisdiction: ${candidate.jurisdiction_code ?? "unknown"}; confidence: ${candidate.confidence.toFixed(2)}`
+      );
       if (candidate.company_number !== undefined) lines.push(`  Company number: ${candidate.company_number}`);
       if (candidate.registered_address !== undefined) lines.push(`  Address: ${candidate.registered_address}`);
       if (candidate.previous_names.length > 0) lines.push(`  Former names: ${candidate.previous_names.join("; ")}`);

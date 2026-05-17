@@ -46,16 +46,9 @@ interface ChainEdgeRow extends pg.QueryResultRow {
   cite_text: string | null;
 }
 
-export async function renderChain(
-  pool: pg.Pool,
-  query: string,
-  input: { depth: number; format: OutputFormat },
-): Promise<string> {
+export async function renderChain(pool: pg.Pool, query: string, input: { depth: number; format: OutputFormat }): Promise<string> {
   const entityId = await resolveEntityId(pool, query);
-  const headerResult = await pool.query<EntityHeaderRow>(
-    "SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1",
-    [entityId],
-  );
+  const headerResult = await pool.query<EntityHeaderRow>("SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1", [entityId]);
   const header = headerResult.rows[0];
   if (header === undefined) throw new Error(`Entity not found: ${entityId}`);
   const edges = await loadUpstreamChainEdges(pool, entityId, input.depth);
@@ -63,9 +56,9 @@ export async function renderChain(
     {
       root: header,
       max_depth: input.depth,
-      edges,
+      edges
     },
-    input.format,
+    input.format
   );
 }
 
@@ -75,10 +68,9 @@ export function renderChainCard(
     max_depth: number;
     edges: readonly ChainEdge[];
   },
-  format: OutputFormat,
+  format: OutputFormat
 ): string {
-  if (format === "json")
-    return JSON.stringify({ schema_version: "1.0.0", ...card }, null, 2);
+  if (format === "json") return JSON.stringify({ schema_version: "1.0.0", ...card }, null, 2);
 
   const lines = [
     `# Supply Chain ${card.root.display_name} [${card.root.entity_id}]`,
@@ -87,7 +79,7 @@ export function renderChainCard(
     `Edges: ${card.edges.length}`,
     "",
     "## Upstream chain",
-    "",
+    ""
   ];
   if (card.edges.length === 0) {
     lines.push("(no Level 4-5 upstream chain edges yet)");
@@ -96,25 +88,17 @@ export function renderChainCard(
   for (const edge of card.edges) {
     const indent = "  ".repeat(edge.depth - 1);
     const component = edge.component === null ? "" : ` (${edge.component})`;
+    lines.push(`${indent}- depth ${edge.depth}: ${edge.subject_name} -${edge.relation}${component}-> ${edge.object_name}`);
+    lines.push(`${indent}  Upstream node: ${edge.upstream_name} [${edge.upstream_id}]`);
     lines.push(
-      `${indent}- depth ${edge.depth}: ${edge.subject_name} -${edge.relation}${component}-> ${edge.object_name}`,
-    );
-    lines.push(
-      `${indent}  Upstream node: ${edge.upstream_name} [${edge.upstream_id}]`,
-    );
-    lines.push(
-      `${indent}  Evidence: Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}${edge.primary_evidence_id === null ? "" : `, ${edge.primary_evidence_id}`}`,
+      `${indent}  Evidence: Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}${edge.primary_evidence_id === null ? "" : `, ${edge.primary_evidence_id}`}`
     );
     if (edge.cite_text !== null) lines.push(`${indent}  "${edge.cite_text}"`);
   }
   return lines.join("\n");
 }
 
-async function loadUpstreamChainEdges(
-  pool: pg.Pool,
-  rootEntityId: string,
-  maxDepth: number,
-): Promise<ChainEdge[]> {
+async function loadUpstreamChainEdges(pool: pg.Pool, rootEntityId: string, maxDepth: number): Promise<ChainEdge[]> {
   const depth = Math.min(Math.max(maxDepth, 1), 5);
   const result = await pool.query<ChainEdgeRow>(
     `WITH RECURSIVE walk AS (
@@ -172,7 +156,7 @@ async function loadUpstreamChainEdges(
      FROM chain_edges
      WHERE upstream_id IS NOT NULL
      ORDER BY depth, subject_name, relation, object_name`,
-    [rootEntityId, depth],
+    [rootEntityId, depth]
   );
   return result.rows.map((row) => ({
     depth: row.depth,
@@ -189,6 +173,6 @@ async function loadUpstreamChainEdges(
     evidence_level: row.evidence_level,
     confidence: row.confidence,
     primary_evidence_id: row.primary_evidence_id,
-    cite_text: row.cite_text,
+    cite_text: row.cite_text
   }));
 }

@@ -34,7 +34,9 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
   async *plan(input, ctx) {
     const cik10 = normalizeCik(input.cik);
     const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik10}.json`;
-    const payloadJson: unknown = JSON.parse(new TextDecoder().decode(await fetchBytesWithTimeout(submissionsUrl, { userAgent: ctx.userAgent, timeoutMs: 12_000, sourceLabel: "SEC submissions" })));
+    const payloadJson: unknown = JSON.parse(
+      new TextDecoder().decode(await fetchBytesWithTimeout(submissionsUrl, { userAgent: ctx.userAgent, timeoutMs: 12_000, sourceLabel: "SEC submissions" }))
+    );
     const payload = parseSubmissionPayload(payloadJson);
     const recent = payload.filings.recent;
     const maxTasks = Math.max(1, input.limit ?? 1);
@@ -112,12 +114,16 @@ function parseSubmissionPayload(value: unknown): SecSubmissionPayload {
   }
   const recent = (filings as { recent: unknown }).recent;
   if (typeof recent !== "object" || recent === null) throw new Error("SEC recent filings payload invalid");
-  return { filings: { recent: {
-    accessionNumber: readStringArray(recent, "accessionNumber"),
-    primaryDocument: readStringArray(recent, "primaryDocument"),
-    form: readStringArray(recent, "form"),
-    filingDate: readStringArray(recent, "filingDate")
-  } } };
+  return {
+    filings: {
+      recent: {
+        accessionNumber: readStringArray(recent, "accessionNumber"),
+        primaryDocument: readStringArray(recent, "primaryDocument"),
+        form: readStringArray(recent, "form"),
+        filingDate: readStringArray(recent, "filingDate")
+      }
+    }
+  };
 }
 
 function readStringArray(source: unknown, key: keyof SecRecentFilings): string[] {

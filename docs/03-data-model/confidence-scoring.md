@@ -16,12 +16,12 @@ interface ScoringInput {
   evidence_level: 1 | 2 | 3 | 4 | 5;
   extraction_method: "rule" | "llm" | "manual" | "hybrid";
   cite_text: string;
-  document_type: string;                  // "10-K", "earnings_call", ...
-  source_age_days: number;                // 从 source_date 到当前
+  document_type: string; // "10-K", "earnings_call", ...
+  source_age_days: number; // 从 source_date 到当前
   modal_verb_strength: "strong" | "neutral" | "weak" | "future";
   subject_resolver_status: "resolved" | "ambiguous" | "unknown";
   object_resolver_status: "resolved" | "ambiguous" | "unknown";
-  cross_source_corroboration: number;     // 独立来源数（含本条 = 1）
+  cross_source_corroboration: number; // 独立来源数（含本条 = 1）
   recent_corroboration_within_180d: boolean;
   has_superseding_evidence: boolean;
 }
@@ -158,7 +158,7 @@ confidence = 0.35
 ```ts
 interface ConfidenceBreakdown {
   base: number;
-  factors: { name: string; value: number }[];   // 每一项加减分
+  factors: { name: string; value: number }[]; // 每一项加减分
   cap?: number;
   final: number;
 }

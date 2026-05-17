@@ -36,7 +36,11 @@ export function extractFixedWidthSupplierListCandidates(text: string, config: Su
   for (const rawLine of text.split("\n")) {
     const line = rawLine.replace(/\s+$/g, "");
     if (shouldSkipLine(line, config)) continue;
-    const columns = line.trim().split(/\s{2,}/).map((item) => item.trim()).filter((item) => item.length > 0);
+    const columns = line
+      .trim()
+      .split(/\s{2,}/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
     if (columns.length < 2) continue;
     logicalLine += 1;
 
@@ -68,7 +72,11 @@ export function extractFixedWidthSupplierListCandidates(text: string, config: Su
   return candidates;
 }
 
-function parseCandidateColumns(columns: string[], startsWithText: boolean, currentSupplier: string | undefined): { supplier: string; location: string; country: string } | undefined {
+function parseCandidateColumns(
+  columns: string[],
+  startsWithText: boolean,
+  currentSupplier: string | undefined
+): { supplier: string; location: string; country: string } | undefined {
   if (startsWithText) {
     const [supplier, location, country] = columns;
     if (supplier === undefined || location === undefined || country === undefined) return undefined;

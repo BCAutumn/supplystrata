@@ -5,8 +5,8 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "cli": "tsx apps/cli/src/main.ts",
-    "db:migrate": "tsx apps/cli/src/main.ts db migrate",
+    "cli": "NODE_OPTIONS=--conditions=development tsx apps/cli/src/main.ts",
+    "db:migrate": "NODE_OPTIONS=--conditions=development tsx apps/cli/src/main.ts db migrate",
     "test": "pnpm test:unit",
     "test:all": "vitest run",
     "test:unit": "vitest run tests/unit",
@@ -17,7 +17,10 @@
     "release:check": "node scripts/release-check.mjs",
     "type-check": "tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "eslint .",
-    "dep-check": "dependency-cruiser --config .dependency-cruiser.cjs packages apps"
+    "dep-check": "dependency-cruiser --config .dependency-cruiser.cjs packages apps",
+    "build": "node scripts/build-packages.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "cheerio": "~1.0.0",

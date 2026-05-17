@@ -29,21 +29,21 @@ Comtrade / EIA / FRED / World Bank / NOAA AIS / GDELT
 
 ## ROI 表
 
-| 数据源 | 当前状态 | 接入成本 | 边产出 | 等级上限 | 法律风险 | v0.2 ROI |
-| --- | --- | --- | --- | --- | --- | --- |
-| SEC EDGAR 10-K | implemented | 低 | 高，约 5-15 条/Tier-1 公司 | 5 | 极低 | 极高 |
-| SEC EDGAR 10-Q / 8-K | adapter 已支持 plan/fetch/normalize，monitor 未接 | 低 | 中，适合变化监控 | 5 | 极低 | 极高 |
-| Apple Supplier List | preview/review 流程已有 | 低 | 极高，设施候选多 | 4 | 极低 | 极高 |
-| DART-KR | scoped | 中 | 中-高，Samsung/SK Hynix 交叉验证 | 4-5 | 极低 | 高 |
-| EDINET | scoped/未列入 v0.2 P0 | 中 | 中，日本供应链节点 | 4-5 | 极低 | 中高 |
-| TSMC/Samsung/SK hynix/ASML IR 网页 | preview | 中 | 低，多为 signal | 4 | 低 | 低到中 |
-| OpenCorporates / Companies House | preview | 中 | 0 条供应边，但支撑实体解析 | n/a | 极低 | 必备支撑 |
-| UN Comtrade / Census / USITC | scoped | 中 | 0 公司边，只 observation | 2-3 | 极低 | Phase 3 |
-| EIA / FRED / World Bank | scoped | 低 | 0 公司边，只背景 | 2-3 | 极低 | Phase 3 |
-| USGS / IEA / RMI / EU CRMA | scoped | 中 | 0 公司边，组件/原材料背景 | 2-3 | 低 | Phase 3 |
-| NOAA AIS / 港口数据 | scoped | 高 | 0 公司边，route observation | 2 | 低 | Phase 3+ |
-| ImportYeti / BOL | manual only | 低到中 | 推断边，但噪声高 | 3 | 中 | 仅手工 |
-| GDELT / SAM.gov / TED | scoped | 低 | lead 为主 | 1-2 | 低 | Phase 3+ |
+| 数据源                             | 当前状态                                          | 接入成本 | 边产出                           | 等级上限 | 法律风险 | v0.2 ROI |
+| ---------------------------------- | ------------------------------------------------- | -------- | -------------------------------- | -------- | -------- | -------- |
+| SEC EDGAR 10-K                     | implemented                                       | 低       | 高，约 5-15 条/Tier-1 公司       | 5        | 极低     | 极高     |
+| SEC EDGAR 10-Q / 8-K               | adapter 已支持 plan/fetch/normalize，monitor 未接 | 低       | 中，适合变化监控                 | 5        | 极低     | 极高     |
+| Apple Supplier List                | preview/review 流程已有                           | 低       | 极高，设施候选多                 | 4        | 极低     | 极高     |
+| DART-KR                            | scoped                                            | 中       | 中-高，Samsung/SK Hynix 交叉验证 | 4-5      | 极低     | 高       |
+| EDINET                             | scoped/未列入 v0.2 P0                             | 中       | 中，日本供应链节点               | 4-5      | 极低     | 中高     |
+| TSMC/Samsung/SK hynix/ASML IR 网页 | preview                                           | 中       | 低，多为 signal                  | 4        | 低       | 低到中   |
+| OpenCorporates / Companies House   | preview                                           | 中       | 0 条供应边，但支撑实体解析       | n/a      | 极低     | 必备支撑 |
+| UN Comtrade / Census / USITC       | scoped                                            | 中       | 0 公司边，只 observation         | 2-3      | 极低     | Phase 3  |
+| EIA / FRED / World Bank            | scoped                                            | 低       | 0 公司边，只背景                 | 2-3      | 极低     | Phase 3  |
+| USGS / IEA / RMI / EU CRMA         | scoped                                            | 中       | 0 公司边，组件/原材料背景        | 2-3      | 低       | Phase 3  |
+| NOAA AIS / 港口数据                | scoped                                            | 高       | 0 公司边，route observation      | 2        | 低       | Phase 3+ |
+| ImportYeti / BOL                   | manual only                                       | 低到中   | 推断边，但噪声高                 | 3        | 中       | 仅手工   |
+| GDELT / SAM.gov / TED              | scoped                                            | 低       | lead 为主                        | 1-2      | 低       | Phase 3+ |
 
 ## 关键判断
 

@@ -66,12 +66,12 @@
 
 ## 关系类型规划（Phase 3+）
 
-| relation        | 主体    | 客体   | 数据源        |
-| --------------- | ----- | ---- | ---------- |
-| `OWNS_VESSEL`   | 船东    | 船舶   | LR / IHS / 公开 ITU MMSI register |
-| `OPERATES_VESSEL` | 运营人  | 船舶   | 公开班轮公告      |
-| `CALLS_PORT`    | 船舶    | 港口   | AIS（聚合后）   |
-| `CARRIES_FOR`   | 承运商   | 货主   | 推断（多源）      |
+| relation          | 主体   | 客体 | 数据源                            |
+| ----------------- | ------ | ---- | --------------------------------- |
+| `OWNS_VESSEL`     | 船东   | 船舶 | LR / IHS / 公开 ITU MMSI register |
+| `OPERATES_VESSEL` | 运营人 | 船舶 | 公开班轮公告                      |
+| `CALLS_PORT`      | 船舶   | 港口 | AIS（聚合后）                     |
+| `CARRIES_FOR`     | 承运商 | 货主 | 推断（多源）                      |
 
 不在 MVP 范围；写在这里只是为了 schema 提前对齐。
 

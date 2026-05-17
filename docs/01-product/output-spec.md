@@ -211,13 +211,7 @@ interface ChangeRecord {
   change_id: string;
   detected_at: string;
   scope: { type: "company" | "component" | "edge"; id: string };
-  change_type:
-    | "new_edge"
-    | "edge_supersession"
-    | "evidence_level_changed"
-    | "alias_added"
-    | "facility_added"
-    | "filing_filed";
+  change_type: "new_edge" | "edge_supersession" | "evidence_level_changed" | "alias_added" | "facility_added" | "filing_filed";
   before?: unknown;
   after?: unknown;
   evidence: EvidenceRef[];

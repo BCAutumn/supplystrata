@@ -95,10 +95,7 @@ export function buildSupplierListReviewCandidate(input: {
   };
 }
 
-export function buildEntitySourceReviewCandidate(input: {
-  surface: string;
-  candidate: EntitySourceCandidate;
-}): EntitySourceReviewCandidate {
+export function buildEntitySourceReviewCandidate(input: { surface: string; candidate: EntitySourceCandidate }): EntitySourceReviewCandidate {
   const candidateKey = stableEntitySourceCandidateKey(input);
   const aliases = candidateAliases(input.candidate);
   const surface = input.surface.normalize("NFKC").trim().replace(/\s+/g, " ");
@@ -234,11 +231,7 @@ function stableSupplierListCandidateKey(input: { candidate: SupplierListCandidat
 }
 
 function stableSupplierListReviewId(candidate: SupplierListCandidate, candidateKey: string): string {
-  const readable = [
-    candidate.buyer_entity_id,
-    candidate.supplier_name,
-    candidate.country_or_region
-  ]
+  const readable = [candidate.buyer_entity_id, candidate.supplier_name, candidate.country_or_region]
     .join("|")
     .normalize("NFKC")
     .toLowerCase()
@@ -262,11 +255,7 @@ function stableEntitySourceCandidateKey(input: { surface: string; candidate: Ent
 }
 
 function stableEntitySourceReviewId(candidate: EntitySourceCandidate, candidateKey: string): string {
-  const readable = [
-    candidate.source_adapter_id,
-    candidate.name,
-    candidate.jurisdiction_code ?? ""
-  ]
+  const readable = [candidate.source_adapter_id, candidate.name, candidate.jurisdiction_code ?? ""]
     .join("|")
     .normalize("NFKC")
     .toLowerCase()

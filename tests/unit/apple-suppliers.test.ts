@@ -29,7 +29,14 @@ describe("Apple Supplier List preview", () => {
         normalized_record_text: "Apple | 3M | Guangdong, Jiangsu, Shanghai | China mainland",
         needs_review: true
       },
-      { buyer_entity_id: "ENT-APPLE", buyer_name: "Apple", supplier_name: "3M", location_text: "Miyazaki, Yamagata", country_or_region: "Japan", needs_review: true },
+      {
+        buyer_entity_id: "ENT-APPLE",
+        buyer_name: "Apple",
+        supplier_name: "3M",
+        location_text: "Miyazaki, Yamagata",
+        country_or_region: "Japan",
+        needs_review: true
+      },
       {
         buyer_entity_id: "ENT-APPLE",
         buyer_name: "Apple",
@@ -38,7 +45,14 @@ describe("Apple Supplier List preview", () => {
         country_or_region: "China mainland",
         needs_review: true
       },
-      { buyer_entity_id: "ENT-APPLE", buyer_name: "Apple", supplier_name: "Advanced Semiconductor Engineering Technology Holding Co., Ltd.", location_text: "Taiwan", country_or_region: "Taiwan", needs_review: true }
+      {
+        buyer_entity_id: "ENT-APPLE",
+        buyer_name: "Apple",
+        supplier_name: "Advanced Semiconductor Engineering Technology Holding Co., Ltd.",
+        location_text: "Taiwan",
+        country_or_region: "Taiwan",
+        needs_review: true
+      }
     ]);
   });
 });

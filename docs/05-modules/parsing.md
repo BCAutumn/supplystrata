@@ -40,13 +40,13 @@ output : { text, chunks[], tables[]?, language?, metadata }
 
 Chunking 策略（按文档类型分发）：
 
-| document_type     | 策略                                                |
-| ----------------- | ------------------------------------------------- |
-| 10-K / 10-Q / 20-F | 按 Item / Section 标题切；超长 section 再按段落切，目标 1500-2500 token |
-| earnings call     | 按 speaker turn 切                                  |
-| supplier list (PDF) | 按表格行切（每行一个 chunk）                                |
-| press release     | 整篇 + 按段落                                          |
-| ESG report        | 按章节                                               |
+| document_type       | 策略                                                                    |
+| ------------------- | ----------------------------------------------------------------------- |
+| 10-K / 10-Q / 20-F  | 按 Item / Section 标题切；超长 section 再按段落切，目标 1500-2500 token |
+| earnings call       | 按 speaker turn 切                                                      |
+| supplier list (PDF) | 按表格行切（每行一个 chunk）                                            |
+| press release       | 整篇 + 按段落                                                           |
+| ESG report          | 按章节                                                                  |
 
 每个 chunk 必须有：
 
@@ -88,7 +88,7 @@ Apple Supplier List 用复杂路径。
 const SITE_RULES: Record<string, SiteRule> = {
   "www.sec.gov": { content_selector: "body", noise_selectors: [] },
   "investor.tsmc.com": { content_selector: "main, .content", noise_selectors: [".sidebar", ".cookie-banner"] },
-  "www.skhynix.com": { content_selector: "#content", noise_selectors: [".gnb", ".footer"] },
+  "www.skhynix.com": { content_selector: "#content", noise_selectors: [".gnb", ".footer"] }
   // ...
 };
 ```
@@ -127,7 +127,7 @@ const SITE_RULES: Record<string, SiteRule> = {
 只用 SEC `company-facts` JSON：
 
 ```ts
-fetch("https://data.sec.gov/api/xbrl/companyfacts/CIK<10digit>.json")
+fetch("https://data.sec.gov/api/xbrl/companyfacts/CIK<10digit>.json");
 ```
 
 输出：财务指标时间序列。这层数据**不**直接生成关系边，但可以作为 entity 的 attrs 与时间序列信号。

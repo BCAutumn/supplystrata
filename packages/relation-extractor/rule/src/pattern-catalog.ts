@@ -44,12 +44,18 @@ function parseRulePatternCatalog(value: unknown, path: string): RulePatternCatal
     memoryComponents: parseComponentPatternSpecs(readField(record, "memoryComponents", path), `${path}.memoryComponents`),
     productComponents: parseComponentPatternSpecs(readField(record, "productComponents", path), `${path}.productComponents`),
     sharedComponents: {
-      manufacturingServices: parseComponentPatternSpec(readField(shared, "manufacturingServices", `${path}.sharedComponents`), `${path}.sharedComponents.manufacturingServices`),
+      manufacturingServices: parseComponentPatternSpec(
+        readField(shared, "manufacturingServices", `${path}.sharedComponents`),
+        `${path}.sharedComponents.manufacturingServices`
+      ),
       foundryWafer: parseComponentPatternSpec(readField(shared, "foundryWafer", `${path}.sharedComponents`), `${path}.sharedComponents.foundryWafer`)
     },
     customerCounterparties: parseCounterpartyPatternSpecs(readField(record, "customerCounterparties", path), `${path}.customerCounterparties`),
     supplierCounterparties: parseCounterpartyPatternSpecs(readField(record, "supplierCounterparties", path), `${path}.supplierCounterparties`),
-    manufacturingServiceSuppliers: parseManufacturingServiceSupplierSpecs(readField(record, "manufacturingServiceSuppliers", path), `${path}.manufacturingServiceSuppliers`)
+    manufacturingServiceSuppliers: parseManufacturingServiceSupplierSpecs(
+      readField(record, "manufacturingServiceSuppliers", path),
+      `${path}.manufacturingServiceSuppliers`
+    )
   };
 }
 

@@ -4,11 +4,11 @@
 
 ## 三种存储
 
-| 存储             | 用途                       | 真相级别        |
-| -------------- | ------------------------ | ----------- |
-| PostgreSQL     | 元数据 / 证据 / 实体 / 队列 / 变更日志 | 单一真相        |
-| Neo4j          | 图谱当前态                    | 物化视图（可重建）   |
-| Object Storage | 原始字节 (PDF/HTML/JSON 等)    | 原始证据物理保存    |
+| 存储           | 用途                                   | 真相级别           |
+| -------------- | -------------------------------------- | ------------------ |
+| PostgreSQL     | 元数据 / 证据 / 实体 / 队列 / 变更日志 | 单一真相           |
+| Neo4j          | 图谱当前态                             | 物化视图（可重建） |
+| Object Storage | 原始字节 (PDF/HTML/JSON 等)            | 原始证据物理保存   |
 
 ## packages/db
 
@@ -127,22 +127,22 @@ export interface ObjectStore {
 
 ## 备份策略
 
-| 存储               | 备份                                    |
-| ---------------- | ------------------------------------- |
-| Postgres         | 每日 `pg_dump`，写入 `data/backups/pg/`     |
-| Neo4j            | 不备份（可从 Postgres 全量重建）                  |
-| Object storage   | 每日 rsync / 拷贝（仅在 MVP 期；上 S3 后无需）       |
+| 存储           | 备份                                           |
+| -------------- | ---------------------------------------------- |
+| Postgres       | 每日 `pg_dump`，写入 `data/backups/pg/`        |
+| Neo4j          | 不备份（可从 Postgres 全量重建）               |
+| Object storage | 每日 rsync / 拷贝（仅在 MVP 期；上 S3 后无需） |
 
 MVP 阶段所有备份留本地。生产部署再讨论异地备份。
 
 ## 性能
 
-| 操作                          | 目标         |
-| --------------------------- | ---------- |
-| 单文档 evidence 插入             | < 50ms     |
-| 单条 edge 写 Postgres + Neo4j | < 200ms    |
-| `supplystrata company nvidia --depth 1` | < 2s       |
-| 全图 rebuild（Phase 0 数据量）     | < 60s      |
-| 实体名搜索（fuzzy）                | < 500ms    |
+| 操作                                    | 目标    |
+| --------------------------------------- | ------- |
+| 单文档 evidence 插入                    | < 50ms  |
+| 单条 edge 写 Postgres + Neo4j           | < 200ms |
+| `supplystrata company nvidia --depth 1` | < 2s    |
+| 全图 rebuild（Phase 0 数据量）          | < 60s   |
+| 实体名搜索（fuzzy）                     | < 500ms |
 
 不达标 → 加 index 或者优化查询，不轻易加复杂中间件。

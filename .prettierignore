@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+data/
+reports/
+.git/
+.env
+pnpm-lock.yaml

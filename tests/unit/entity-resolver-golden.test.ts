@@ -35,13 +35,11 @@ describe("SeedEntityResolver golden set", () => {
     for (const item of cases) {
       const result = await resolver.resolve({
         surface: item.surface,
-        ...(item.identifiers === undefined
-          ? {}
-          : { identifiers: item.identifiers }),
+        ...(item.identifiers === undefined ? {} : { identifiers: item.identifiers })
       });
       expect(result, item.surface).toMatchObject({
         status: "resolved",
-        entity_id: item.expectedEntityId,
+        entity_id: item.expectedEntityId
       });
     }
   });
@@ -51,42 +49,42 @@ describe("SeedEntityResolver golden set", () => {
     const samsung = await resolver.resolve({ surface: "Samsung" });
     const samsungMemory = await resolver.resolve({
       surface: "Samsung",
-      context: { nearby_text: "HBM memory DRAM supply" },
+      context: { nearby_text: "HBM memory DRAM supply" }
     });
     const samsungFoundry = await resolver.resolve({
       surface: "Samsung",
-      context: { nearby_text: "wafer foundry fabrication" },
+      context: { nearby_text: "wafer foundry fabrication" }
     });
     const foxconnUs = await resolver.resolve({
       surface: "Foxconn",
-      context: { nearby_text: "Ohio Wisconsin manufacturing facility" },
+      context: { nearby_text: "Ohio Wisconsin manufacturing facility" }
     });
     const fuzzyMicron = await resolver.resolve({ surface: "Micron Technolog" });
     const shortAlias = await resolver.resolve({ surface: "Mic" });
 
     expect(samsung).toMatchObject({
       status: "ambiguous",
-      needs_human_review: true,
+      needs_human_review: true
     });
     expect(samsungMemory).toMatchObject({
       status: "resolved",
-      entity_id: "ENT-SAMSUNG-MEMORY",
+      entity_id: "ENT-SAMSUNG-MEMORY"
     });
     expect(samsungFoundry).toMatchObject({
       status: "resolved",
-      entity_id: "ENT-SAMSUNG-FOUNDRY",
+      entity_id: "ENT-SAMSUNG-FOUNDRY"
     });
     expect(foxconnUs).toMatchObject({
       status: "ambiguous",
-      needs_human_review: true,
+      needs_human_review: true
     });
     expect(fuzzyMicron).toMatchObject({
       status: "ambiguous",
-      needs_human_review: true,
+      needs_human_review: true
     });
     expect(shortAlias).toMatchObject({
       status: "unknown",
-      needs_human_review: true,
+      needs_human_review: true
     });
   });
 });
@@ -95,9 +93,7 @@ async function buildGoldenCases(): Promise<GoldenCase[]> {
   const entities = await readCsv<EntityGoldenRow>("seeds/entities.csv");
   const aliases = await readCsv<AliasGoldenRow>("seeds/aliases.csv");
   const entitiesById = new Map(entities.map((row) => [row.entity_id, row]));
-  const uniqueTickers = uniqueTickerSet(
-    entities.filter((row) => row.status === "active"),
-  );
+  const uniqueTickers = uniqueTickerSet(entities.filter((row) => row.status === "active"));
   const cases: GoldenCase[] = [];
 
   for (const entity of entities.filter((row) => row.status === "active")) {
@@ -119,11 +115,7 @@ async function buildGoldenCases(): Promise<GoldenCase[]> {
     }
     if (
       alias.alias_kind === "abbreviation" &&
-      splitTickers(entity.tickers).some(
-        (ticker) =>
-          uniqueTickers.has(normalizeAlias(ticker)) &&
-          normalizeAlias(ticker) === normalizeAlias(alias.alias),
-      )
+      splitTickers(entity.tickers).some((ticker) => uniqueTickers.has(normalizeAlias(ticker)) && normalizeAlias(ticker) === normalizeAlias(alias.alias))
     ) {
       addCase(cases, alias.alias, alias.entity_id, { ticker: alias.alias });
     }
@@ -137,7 +129,7 @@ async function readCsv<T extends object>(path: string): Promise<T[]> {
   return parse(text, {
     columns: true,
     skip_empty_lines: true,
-    bom: true,
+    bom: true
   }) as T[];
 }
 
@@ -149,11 +141,7 @@ function uniqueTickerSet(entities: EntityGoldenRow[]): Set<string> {
       counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
     }
   }
-  return new Set(
-    [...counts.entries()]
-      .filter(([, count]) => count === 1)
-      .map(([ticker]) => ticker),
-  );
+  return new Set([...counts.entries()].filter(([, count]) => count === 1).map(([ticker]) => ticker));
 }
 
 function splitTickers(value: string): string[] {
@@ -163,26 +151,15 @@ function splitTickers(value: string): string[] {
     .filter((ticker) => ticker.length > 0);
 }
 
-function addCase(
-  cases: GoldenCase[],
-  surface: string,
-  expectedEntityId: string,
-  identifiers?: GoldenCase["identifiers"],
-): void {
+function addCase(cases: GoldenCase[], surface: string, expectedEntityId: string, identifiers?: GoldenCase["identifiers"]): void {
   const cleaned = surface.trim();
   if (cleaned.length === 0) return;
   const key = `${normalizeAlias(cleaned)}|${expectedEntityId}|${identifiers?.ticker ?? ""}|${identifiers?.cik ?? ""}`;
-  if (
-    cases.some(
-      (item) =>
-        `${normalizeAlias(item.surface)}|${item.expectedEntityId}|${item.identifiers?.ticker ?? ""}|${item.identifiers?.cik ?? ""}` ===
-        key,
-    )
-  )
+  if (cases.some((item) => `${normalizeAlias(item.surface)}|${item.expectedEntityId}|${item.identifiers?.ticker ?? ""}|${item.identifiers?.cik ?? ""}` === key))
     return;
   cases.push({
     surface: cleaned,
     expectedEntityId,
-    ...(identifiers === undefined ? {} : { identifiers }),
+    ...(identifiers === undefined ? {} : { identifiers })
   });
 }

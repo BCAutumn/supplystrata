@@ -136,8 +136,8 @@ interface LlmExtractor<TIn, TOut> {
     "noFallthroughCasesInSwitch": true,
     "noPropertyAccessFromIndexSignature": true,
     "isolatedModules": true,
-    "skipLibCheck": true,
-  },
+    "skipLibCheck": true
+  }
 }
 ```
 

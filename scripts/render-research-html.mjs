@@ -37,7 +37,13 @@ const sourceCards = [
   sourceCard("NVIDIA SEC 10-K", report.nvidia.fetched_url, report.nvidia.source_date, report.nvidia.chunks, `${candidates.length} edges`),
   sourceCard("TSMC IR", report.tsmc?.fetched_url, report.tsmc?.source_date, report.tsmc?.chunks, `${report.tsmc?.signals?.length ?? 0} signals`),
   sourceCard("Samsung IR", report.samsung?.fetched_url, report.samsung?.source_date, report.samsung?.chunks, `${report.samsung?.signals?.length ?? 0} signals`),
-  sourceCard("SK hynix IR", report.skhynix?.fetched_url, report.skhynix?.source_date, report.skhynix?.chunks, `${report.skhynix?.signals?.length ?? 0} signals`),
+  sourceCard(
+    "SK hynix IR",
+    report.skhynix?.fetched_url,
+    report.skhynix?.source_date,
+    report.skhynix?.chunks,
+    `${report.skhynix?.signals?.length ?? 0} signals`
+  ),
   sourceCard("ASML IR", report.asml?.fetched_url, report.asml?.source_date, report.asml?.chunks, `${report.asml?.signals?.length ?? 0} signals`)
 ];
 
@@ -680,7 +686,9 @@ function trimLabel(value, maxLength) {
 }
 
 function canonicalName(value) {
-  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 }
 
 function escapeHtml(value) {

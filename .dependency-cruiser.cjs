@@ -33,6 +33,7 @@ module.exports = {
     }
   ],
   options: {
+    exclude: { path: "(^|/)dist/" },
     doNotFollow: { path: "node_modules" },
     tsConfig: { fileName: "tsconfig.typecheck.json" },
     enhancedResolveOptions: {

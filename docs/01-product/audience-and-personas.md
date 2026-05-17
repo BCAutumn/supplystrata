@@ -67,18 +67,18 @@ E. 普通散户：需要低门槛解读或交易建议。
 
 ## 功能取舍
 
-| 功能 | v0.2 决策 | 理由 |
-| --- | --- | --- |
-| ComponentCard / `cli component` | 做 | A/B 都需要按组件研究链路 |
-| `cli changes` | 做 | 研究员每天最关心“有什么变了” |
-| `cli search` | 做 | 本地研究需要快速找实体、边、证据 |
-| `apps/research-preview` | 做 | B 第一次接触必须看到真实工作台形态 |
-| Apple Supplier List facility edges | 做 | 最快产生高等级设施边，验证 review/apply 价值 |
-| SEC 10-Q / 8-K | 做 | 监控变化必须有更高频监管文件 |
-| DART-KR | P1 | 对 Samsung / SK Hynix 的交叉验证 ROI 高 |
-| LLM 真实抽取 | v0.2 搁置 | 规则边界未稳定前，LLM 会增加不可复现拐点 |
-| 投资 dashboard | 不做 | 本仓库是事实层，不输出投资建议 |
-| 用户登录 / 多租户 | 不做 | A/B 本地使用，不需要团队产品复杂度 |
+| 功能                               | v0.2 决策 | 理由                                         |
+| ---------------------------------- | --------- | -------------------------------------------- |
+| ComponentCard / `cli component`    | 做        | A/B 都需要按组件研究链路                     |
+| `cli changes`                      | 做        | 研究员每天最关心“有什么变了”                 |
+| `cli search`                       | 做        | 本地研究需要快速找实体、边、证据             |
+| `apps/research-preview`            | 做        | B 第一次接触必须看到真实工作台形态           |
+| Apple Supplier List facility edges | 做        | 最快产生高等级设施边，验证 review/apply 价值 |
+| SEC 10-Q / 8-K                     | 做        | 监控变化必须有更高频监管文件                 |
+| DART-KR                            | P1        | 对 Samsung / SK Hynix 的交叉验证 ROI 高      |
+| LLM 真实抽取                       | v0.2 搁置 | 规则边界未稳定前，LLM 会增加不可复现拐点     |
+| 投资 dashboard                     | 不做      | 本仓库是事实层，不输出投资建议               |
+| 用户登录 / 多租户                  | 不做      | A/B 本地使用，不需要团队产品复杂度           |
 
 ## 反模式
 
@@ -86,4 +86,3 @@ E. 普通散户：需要低门槛解读或交易建议。
 - 为了吸引投资人，提前做漂亮 dashboard。
 - 为了“智能”，在 v0.2 启用 LLM 自动抽取。
 - 为了开源热闹，把 onboarding 做成营销页而不是可复现研究路径。
-

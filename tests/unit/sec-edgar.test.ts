@@ -16,20 +16,22 @@ describe("SEC EDGAR adapter helpers", () => {
   });
 
   it("plans the latest matching 10-Q and multiple recent 8-K filings", async () => {
-    vi.stubGlobal("fetch", async () =>
-      new Response(
-        JSON.stringify({
-          filings: {
-            recent: {
-              accessionNumber: ["0001045810-26-000011", "0001045810-26-000010", "0001045810-26-000009", "0001045810-26-000008"],
-              primaryDocument: ["nvda-20260426.htm", "nvda-8k-a.htm", "nvda-8k-b.htm", "nvda-10k.htm"],
-              form: ["10-Q", "8-K", "8-K", "10-K"],
-              filingDate: ["2026-05-27", "2026-05-10", "2026-04-20", "2026-02-24"]
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(
+          JSON.stringify({
+            filings: {
+              recent: {
+                accessionNumber: ["0001045810-26-000011", "0001045810-26-000010", "0001045810-26-000009", "0001045810-26-000008"],
+                primaryDocument: ["nvda-20260426.htm", "nvda-8k-a.htm", "nvda-8k-b.htm", "nvda-10k.htm"],
+                form: ["10-Q", "8-K", "8-K", "10-K"],
+                filingDate: ["2026-05-27", "2026-05-10", "2026-04-20", "2026-02-24"]
+              }
             }
-          }
-        }),
-        { status: 200 }
-      )
+          }),
+          { status: 200 }
+        )
     );
 
     const quarterlyTasks = [];
@@ -58,7 +60,9 @@ describe("SEC EDGAR adapter helpers", () => {
       fetched_at: "2026-05-17T00:00:00.000Z",
       bytes_sha256: "sha",
       storage_key: "sec-edgar/example-8k.htm",
-      body: new TextEncoder().encode("<html><head><title>NVIDIA 8-K</title></head><body><p>NVIDIA filed a current report describing supply commitments.</p></body></html>"),
+      body: new TextEncoder().encode(
+        "<html><head><title>NVIDIA 8-K</title></head><body><p>NVIDIA filed a current report describing supply commitments.</p></body></html>"
+      ),
       metadata: {
         document_type: "8-K",
         primary_entity_id: "ENT-NVIDIA",

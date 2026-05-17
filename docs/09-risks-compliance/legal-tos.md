@@ -22,30 +22,30 @@
 
 ## 各 P0/P1 数据源态度
 
-| Source            | 状态              | 关键依据                                                  |
-| ----------------- | --------------- | ----------------------------------------------------- |
-| SEC EDGAR         | approved        | 官方 API + 强制 UA + 限速；公开文件                                |
-| 公司 IR (各家)        | per-site review | 各家 robots.txt + ToS 单独检查；不抓动态接口；适当限速                    |
-| Apple Supplier 报告 | approved        | 官方静态 PDF                                              |
-| OpenCorporates    | approved        | 官方公开 API；遵守归因                                          |
-| UK Companies House | approved      | 官方 API + 注册 key                                       |
-| DART (KR)         | approved        | 官方 OPEN API + key                                     |
-| TrendForce / DigiTimes 公开新闻文章 | manual only | 不做自动化抓取；仅手工录入引用片段                                     |
-| ImportYeti        | manual only     | ToS 严禁自动化                                              |
-| UN Comtrade       | approved        | 官方 API + 限速                                            |
-| U.S. Census trade | approved        | 官方 API                                                |
-| USITC DataWeb     | approved        | 官方 + 注册                                               |
-| Open Supply Hub   | approved        | 官方 API + 注明来源                                          |
-| EIA / FRED        | approved        | 官方 API                                                |
-| NOAA AIS          | approved        | 公共领域                                                  |
-| World Bank Pink   | approved        | 公共领域                                                  |
-| USGS              | approved        | 公共领域                                                  |
-| IEA Critical Minerals | approved    | 官方公开数据 / 下载；按 IEA 条款归因                            |
-| RMI facility lists | per-source review | 官方列表；接入前确认下载、归因、再分发限制                         |
-| EU CRMA           | approved        | 欧盟官方公开政策资料                                           |
-| SAM.gov / USAspending | approved    | 官方 API                                                |
-| EU TED            | approved        | 官方 API                                                |
-| GDELT             | approved        | 公开数据集                                                  |
+| Source                              | 状态              | 关键依据                                               |
+| ----------------------------------- | ----------------- | ------------------------------------------------------ |
+| SEC EDGAR                           | approved          | 官方 API + 强制 UA + 限速；公开文件                    |
+| 公司 IR (各家)                      | per-site review   | 各家 robots.txt + ToS 单独检查；不抓动态接口；适当限速 |
+| Apple Supplier 报告                 | approved          | 官方静态 PDF                                           |
+| OpenCorporates                      | approved          | 官方公开 API；遵守归因                                 |
+| UK Companies House                  | approved          | 官方 API + 注册 key                                    |
+| DART (KR)                           | approved          | 官方 OPEN API + key                                    |
+| TrendForce / DigiTimes 公开新闻文章 | manual only       | 不做自动化抓取；仅手工录入引用片段                     |
+| ImportYeti                          | manual only       | ToS 严禁自动化                                         |
+| UN Comtrade                         | approved          | 官方 API + 限速                                        |
+| U.S. Census trade                   | approved          | 官方 API                                               |
+| USITC DataWeb                       | approved          | 官方 + 注册                                            |
+| Open Supply Hub                     | approved          | 官方 API + 注明来源                                    |
+| EIA / FRED                          | approved          | 官方 API                                               |
+| NOAA AIS                            | approved          | 公共领域                                               |
+| World Bank Pink                     | approved          | 公共领域                                               |
+| USGS                                | approved          | 公共领域                                               |
+| IEA Critical Minerals               | approved          | 官方公开数据 / 下载；按 IEA 条款归因                   |
+| RMI facility lists                  | per-source review | 官方列表；接入前确认下载、归因、再分发限制             |
+| EU CRMA                             | approved          | 欧盟官方公开政策资料                                   |
+| SAM.gov / USAspending               | approved          | 官方 API                                               |
+| EU TED                              | approved          | 官方 API                                               |
+| GDELT                               | approved          | 公开数据集                                             |
 
 每个 source adapter 启动时必须在自身 README 注明 ToS 链接 + 限速 + UA 设置。CI 在每月 housekeeping 检查 ToS 链接仍可访问。
 

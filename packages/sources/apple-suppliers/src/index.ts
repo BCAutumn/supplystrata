@@ -135,13 +135,7 @@ function appleSupplierListParseConfig(fiscalYear: number): SupplierListParseConf
     confidence: 0.65,
     reviewReason: "供应商名单来自 PDF 表格解析，候选边必须人工复核后才能 apply。",
     ignoredExactLines: ["Supplier List"],
-    ignoredLinePrefixes: [
-      "The Apple supplier list represents",
-      "direct spend for materials",
-      "of our products worldwide",
-      "SUPPLIER NAME",
-      "PRIMARY LOCATIONS"
-    ]
+    ignoredLinePrefixes: ["The Apple supplier list represents", "direct spend for materials", "of our products worldwide", "SUPPLIER NAME", "PRIMARY LOCATIONS"]
   };
 }
 

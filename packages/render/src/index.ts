@@ -9,7 +9,7 @@ import {
   type ChangeTimelineInput,
   type ChangeTimelineItem,
   type PendingEntityStatusFilter,
-  type UnknownItemRow,
+  type UnknownItemRow
 } from "@supplystrata/db";
 import type { EvidenceLevel, RelationType } from "@supplystrata/core";
 
@@ -79,11 +79,7 @@ interface ComponentEdgeRow extends pg.QueryResultRow {
   source_date: Date | null;
 }
 
-export async function renderComponent(
-  pool: pg.Pool,
-  query: string,
-  format: OutputFormat,
-): Promise<string> {
+export async function renderComponent(pool: pg.Pool, query: string, format: OutputFormat): Promise<string> {
   const component = await resolveComponent(pool, query);
   const edges = await loadComponentEdges(pool, component);
   const evidenceEdges = edges.map(toComponentEvidenceEdge);
@@ -98,15 +94,12 @@ export async function renderComponent(
     known_consumers: consumers,
     evidence_edges: evidenceEdges,
     source_coverage: sourceCoverage,
-    unknown_map: unknownItems,
+    unknown_map: unknownItems
   };
   return renderComponentCard(card, format);
 }
 
-export function renderComponentCard(
-  card: ComponentCardModel,
-  format: OutputFormat,
-): string {
+export function renderComponentCard(card: ComponentCardModel, format: OutputFormat): string {
   if (format === "json") {
     return JSON.stringify(
       {
@@ -116,10 +109,10 @@ export function renderComponentCard(
         known_consumers: card.known_consumers,
         evidence_edges: card.evidence_edges,
         source_coverage: card.source_coverage,
-        unknown_map: card.unknown_map,
+        unknown_map: card.unknown_map
       },
       null,
-      2,
+      2
     );
   }
 
@@ -130,7 +123,7 @@ export function renderComponentCard(
     `Aliases: ${card.component.aliases.length === 0 ? "(none)" : card.component.aliases.join(", ")}`,
     "",
     "## Known suppliers",
-    "",
+    ""
   ];
   appendComponentParticipants(lines, card.known_suppliers);
   lines.push("", "## Known consumers", "");
@@ -151,16 +144,10 @@ export function renderComponentCard(
   return lines.join("\n");
 }
 
-export async function renderEvidence(
-  pool: pg.Pool,
-  evidenceId: string,
-  format: OutputFormat,
-): Promise<string> {
+export async function renderEvidence(pool: pg.Pool, evidenceId: string, format: OutputFormat): Promise<string> {
   const evidence = await getEvidence(pool, evidenceId);
-  if (evidence === undefined)
-    throw new Error(`Evidence not found: ${evidenceId}`);
-  if (format === "json")
-    return JSON.stringify({ schema_version: "1.0.0", evidence }, null, 2);
+  if (evidence === undefined) throw new Error(`Evidence not found: ${evidenceId}`);
+  if (format === "json") return JSON.stringify({ schema_version: "1.0.0", evidence }, null, 2);
   return [
     `# Evidence ${evidence.evidence_id}`,
     "",
@@ -177,9 +164,7 @@ export async function renderEvidence(
     "",
     "## Edge",
     "",
-    evidence.edge_id === null
-      ? "(not attached to an edge)"
-      : `${evidence.subject_name} -${evidence.relation}-> ${evidence.object_name}`,
+    evidence.edge_id === null ? "(not attached to an edge)" : `${evidence.subject_name} -${evidence.relation}-> ${evidence.object_name}`,
     "",
     "## Location",
     "",
@@ -190,7 +175,7 @@ export async function renderEvidence(
     "",
     "## Cite text",
     "",
-    evidence.cite_text,
+    evidence.cite_text
   ].join("\n");
 }
 
@@ -199,113 +184,58 @@ function renderOffsets(start: number | null, end: number | null): string {
   return `${start}-${end}`;
 }
 
-export async function renderUnknownMap(
-  pool: pg.Pool,
-  query: string,
-  format: OutputFormat,
-): Promise<string> {
+export async function renderUnknownMap(pool: pg.Pool, query: string, format: OutputFormat): Promise<string> {
   const entityId = await resolveEntityId(pool, query);
   const items = await listUnknownItems(pool, entityId);
-  if (format === "json")
-    return JSON.stringify(
-      { schema_version: "1.0.0", scope: entityId, items },
-      null,
-      2,
-    );
-  return [
-    `# Unknown map [${entityId}]`,
-    "",
-    ...items.flatMap((item) => [
-      `- ${item.question}`,
-      `  Why unknown: ${item.why_unknown}`,
-    ]),
-  ].join("\n");
+  if (format === "json") return JSON.stringify({ schema_version: "1.0.0", scope: entityId, items }, null, 2);
+  return [`# Unknown map [${entityId}]`, "", ...items.flatMap((item) => [`- ${item.question}`, `  Why unknown: ${item.why_unknown}`])].join("\n");
 }
 
-export async function renderChanges(
-  pool: pg.Pool,
-  input: ChangeTimelineInput & { format: OutputFormat },
-): Promise<string> {
+export async function renderChanges(pool: pg.Pool, input: ChangeTimelineInput & { format: OutputFormat }): Promise<string> {
   const changes = await listChangeTimeline(pool, input);
   return renderChangeTimelineItems(changes, {
     format: input.format,
-    since: input.since,
+    since: input.since
   });
 }
 
-export function renderChangeTimelineItems(
-  items: readonly ChangeTimelineItem[],
-  input: { format: OutputFormat; since: string },
-): string {
-  if (input.format === "json")
-    return JSON.stringify(
-      { schema_version: "1.0.0", since: input.since, changes: items },
-      null,
-      2,
-    );
+export function renderChangeTimelineItems(items: readonly ChangeTimelineItem[], input: { format: OutputFormat; since: string }): string {
+  if (input.format === "json") return JSON.stringify({ schema_version: "1.0.0", since: input.since, changes: items }, null, 2);
   const attention = items.filter((item) => item.requires_attention);
   const normal = items.filter((item) => !item.requires_attention);
-  const lines = [
-    `# Changes since ${input.since}`,
-    "",
-    `Total: ${items.length}`,
-    `Requires attention: ${attention.length}`,
-  ];
+  const lines = [`# Changes since ${input.since}`, "", `Total: ${items.length}`, `Requires attention: ${attention.length}`];
   appendChangeGroup(lines, "Requires attention", attention);
   appendChangeGroup(lines, "Timeline", normal);
   return lines.join("\n");
 }
 
-function appendChangeGroup(
-  lines: string[],
-  title: string,
-  items: readonly ChangeTimelineItem[],
-): void {
+function appendChangeGroup(lines: string[], title: string, items: readonly ChangeTimelineItem[]): void {
   lines.push("", `## ${title}`, "");
   if (items.length === 0) {
     lines.push("(none)");
     return;
   }
   for (const item of items) {
-    lines.push(
-      `- ${item.event_type} ${changePrimaryId(item)} at ${item.occurred_at}`,
-    );
+    lines.push(`- ${item.event_type} ${changePrimaryId(item)} at ${item.occurred_at}`);
     lines.push(`  ${changeSummary(item)}`);
-    if (item.source_adapter_id !== undefined)
-      lines.push(`  Source: ${item.source_adapter_id}`);
+    if (item.source_adapter_id !== undefined) lines.push(`  Source: ${item.source_adapter_id}`);
     if (item.evidence_id !== undefined)
-      lines.push(
-        `  Evidence: ${item.evidence_id}${item.evidence_level === undefined ? "" : ` [Level ${item.evidence_level}]`}`,
-      );
+      lines.push(`  Evidence: ${item.evidence_id}${item.evidence_level === undefined ? "" : ` [Level ${item.evidence_level}]`}`);
     if (item.doc_id !== undefined) lines.push(`  Document: ${item.doc_id}`);
   }
 }
 
 function changePrimaryId(item: ChangeTimelineItem): string {
-  return (
-    item.edge_id ??
-    item.evidence_id ??
-    item.doc_id ??
-    item.source_item_id ??
-    item.scope_id ??
-    item.event_id
-  );
+  return item.edge_id ?? item.evidence_id ?? item.doc_id ?? item.source_item_id ?? item.scope_id ?? item.event_id;
 }
 
 function changeSummary(item: ChangeTimelineItem): string {
-  if (item.event_family === "source")
-    return `Source monitor recorded ${item.event_type.toLowerCase()} for ${item.source_adapter_id ?? "unknown source"}.`;
-  if (
-    item.subject_name !== undefined &&
-    item.object_name !== undefined &&
-    item.relation !== undefined
-  ) {
-    const component =
-      item.component === undefined ? "" : ` (${item.component})`;
+  if (item.event_family === "source") return `Source monitor recorded ${item.event_type.toLowerCase()} for ${item.source_adapter_id ?? "unknown source"}.`;
+  if (item.subject_name !== undefined && item.object_name !== undefined && item.relation !== undefined) {
+    const component = item.component === undefined ? "" : ` (${item.component})`;
     return `${item.subject_name} -${item.relation}${component}-> ${item.object_name}.`;
   }
-  if (item.scope_kind !== undefined && item.scope_id !== undefined)
-    return `${item.scope_kind}:${item.scope_id} changed by ${item.caused_by}.`;
+  if (item.scope_kind !== undefined && item.scope_id !== undefined) return `${item.scope_kind}:${item.scope_id} changed by ${item.caused_by}.`;
   return `Change ${item.event_id} caused by ${item.caused_by}.`;
 }
 
@@ -315,53 +245,27 @@ export async function renderPendingEntities(
     status: PendingEntityStatusFilter;
     limit: number;
     format: OutputFormat;
-  },
+  }
 ): Promise<string> {
   const items = await listPendingEntities(pool, {
     status: input.status,
-    limit: input.limit,
+    limit: input.limit
   });
-  if (input.format === "json")
-    return JSON.stringify(
-      { schema_version: "1.0.0", pending_entities: items },
-      null,
-      2,
-    );
-  const lines = [
-    "# Pending Entities",
-    "",
-    `Status: ${input.status}`,
-    `Count: ${items.length}`,
-    "",
-  ];
+  if (input.format === "json") return JSON.stringify({ schema_version: "1.0.0", pending_entities: items }, null, 2);
+  const lines = ["# Pending Entities", "", `Status: ${input.status}`, `Count: ${items.length}`, ""];
   for (const item of items) {
     lines.push(`- ${item.pending_id}: ${item.surface}`);
-    lines.push(
-      `  Status: ${item.status}; occurrences: ${item.occurrence_count}; first seen: ${item.first_seen_at.toISOString()}`,
-    );
-    if (item.resolved_entity_id !== null)
-      lines.push(`  Resolved entity: ${item.resolved_entity_id}`);
-    lines.push(
-      `  Next: supplystrata entity pending lookup ${item.pending_id} --source all`,
-    );
+    lines.push(`  Status: ${item.status}; occurrences: ${item.occurrence_count}; first seen: ${item.first_seen_at.toISOString()}`);
+    if (item.resolved_entity_id !== null) lines.push(`  Resolved entity: ${item.resolved_entity_id}`);
+    lines.push(`  Next: supplystrata entity pending lookup ${item.pending_id} --source all`);
   }
   return lines.join("\n");
 }
 
-export async function renderPendingEntity(
-  pool: pg.Pool,
-  pendingId: string,
-  format: OutputFormat,
-): Promise<string> {
+export async function renderPendingEntity(pool: pg.Pool, pendingId: string, format: OutputFormat): Promise<string> {
   const item = await getPendingEntity(pool, pendingId);
-  if (item === undefined)
-    throw new Error(`Pending entity not found: ${pendingId}`);
-  if (format === "json")
-    return JSON.stringify(
-      { schema_version: "1.0.0", pending_entity: item },
-      null,
-      2,
-    );
+  if (item === undefined) throw new Error(`Pending entity not found: ${pendingId}`);
+  if (format === "json") return JSON.stringify({ schema_version: "1.0.0", pending_entity: item }, null, 2);
   return [
     `# Pending Entity ${item.pending_id}`,
     "",
@@ -369,9 +273,7 @@ export async function renderPendingEntity(
     `Status: ${item.status}`,
     `Occurrences: ${item.occurrence_count}`,
     `First seen: ${item.first_seen_at.toISOString()}`,
-    item.resolved_entity_id === null
-      ? "Resolved entity: (none)"
-      : `Resolved entity: ${item.resolved_entity_id}`,
+    item.resolved_entity_id === null ? "Resolved entity: (none)" : `Resolved entity: ${item.resolved_entity_id}`,
     item.reviewer === null ? "Reviewer: (none)" : `Reviewer: ${item.reviewer}`,
     "",
     "## Context",
@@ -381,17 +283,13 @@ export async function renderPendingEntity(
     "## Next",
     "",
     `supplystrata entity pending lookup ${item.pending_id} --source all`,
-    `supplystrata review enqueue entity-source "${item.surface}" --source <source>`,
+    `supplystrata review enqueue entity-source "${item.surface}" --source <source>`
   ].join("\n");
 }
 
-async function resolveComponent(
-  pool: pg.Pool,
-  query: string,
-): Promise<ComponentHeaderRow> {
+async function resolveComponent(pool: pg.Pool, query: string): Promise<ComponentHeaderRow> {
   const normalized = query.trim().toLowerCase();
-  if (normalized.length === 0)
-    throw new Error("Component query must not be empty");
+  if (normalized.length === 0) throw new Error("Component query must not be empty");
   const result = await pool.query<ComponentHeaderRow>(
     `SELECT component_id, name, taxonomy_path, aliases
      FROM components
@@ -400,17 +298,14 @@ async function resolveComponent(
         OR EXISTS (SELECT 1 FROM unnest(aliases) AS alias WHERE lower(alias) = $1)
      ORDER BY CASE WHEN lower(component_id) = $1 THEN 0 WHEN lower(name) = $1 THEN 1 ELSE 2 END, component_id
      LIMIT 1`,
-    [normalized],
+    [normalized]
   );
   const component = result.rows[0];
   if (component === undefined) throw new Error(`Component not found: ${query}`);
   return component;
 }
 
-async function loadComponentEdges(
-  pool: pg.Pool,
-  component: ComponentHeaderRow,
-): Promise<ComponentEdgeRow[]> {
+async function loadComponentEdges(pool: pg.Pool, component: ComponentHeaderRow): Promise<ComponentEdgeRow[]> {
   const result = await pool.query<ComponentEdgeRow>(
     `SELECT e.edge_id, e.relation,
             e.subject_id,
@@ -432,7 +327,7 @@ async function loadComponentEdges(
          OR (e.component_id IS NULL AND EXISTS (SELECT 1 FROM unnest($3::text[]) AS alias WHERE lower(e.component) = lower(alias)))
        )
      ORDER BY e.evidence_level DESC, e.confidence DESC, s.display_name, o.display_name`,
-    [component.component_id, component.name, component.aliases],
+    [component.component_id, component.name, component.aliases]
   );
   return result.rows;
 }
@@ -452,7 +347,7 @@ function toComponentEvidenceEdge(row: ComponentEdgeRow): ComponentEvidenceEdge {
     primary_evidence_id: row.primary_evidence_id,
     cite_text: row.cite_text,
     source_url: row.source_url,
-    source_date: row.source_date,
+    source_date: row.source_date
   };
 }
 
@@ -467,21 +362,18 @@ function componentEdgeDirection(row: ComponentEdgeRow): {
       supplier_id: row.subject_id,
       supplier_name: row.subject_name,
       consumer_id: row.object_id,
-      consumer_name: row.object_name,
+      consumer_name: row.object_name
     };
   }
   return {
     supplier_id: row.object_id,
     supplier_name: row.object_name,
     consumer_id: row.subject_id,
-    consumer_name: row.subject_name,
+    consumer_name: row.subject_name
   };
 }
 
-function summarizeComponentParticipants(
-  edges: readonly ComponentEvidenceEdge[],
-  role: "supplier" | "consumer",
-): ComponentParticipant[] {
+function summarizeComponentParticipants(edges: readonly ComponentEvidenceEdge[], role: "supplier" | "consumer"): ComponentParticipant[] {
   const byEntity = new Map<string, ComponentParticipant>();
   for (const edge of edges) {
     const entityId = role === "supplier" ? edge.supplier_id : edge.consumer_id;
@@ -492,28 +384,20 @@ function summarizeComponentParticipants(
       roles: [],
       edge_count: 0,
       best_evidence_level: edge.evidence_level,
-      best_confidence: edge.confidence,
+      best_confidence: edge.confidence
     };
     item.edge_count += 1;
-    item.best_evidence_level = Math.max(
-      item.best_evidence_level,
-      edge.evidence_level,
-    ) as EvidenceLevel;
+    item.best_evidence_level = Math.max(item.best_evidence_level, edge.evidence_level) as EvidenceLevel;
     item.best_confidence = Math.max(item.best_confidence, edge.confidence);
     if (!item.roles.includes(edge.relation)) item.roles.push(edge.relation);
     byEntity.set(entityId, item);
   }
   return [...byEntity.values()].sort(
-    (left, right) =>
-      right.best_evidence_level - left.best_evidence_level ||
-      right.best_confidence - left.best_confidence ||
-      left.name.localeCompare(right.name),
+    (left, right) => right.best_evidence_level - left.best_evidence_level || right.best_confidence - left.best_confidence || left.name.localeCompare(right.name)
   );
 }
 
-function summarizeComponentSourceCoverage(
-  edges: readonly ComponentEvidenceEdge[],
-): {
+function summarizeComponentSourceCoverage(edges: readonly ComponentEvidenceEdge[]): {
   sources: number;
   evidence_edges: number;
   latest_source_date: string | null;
@@ -524,53 +408,38 @@ function summarizeComponentSourceCoverage(
     if (edge.source_url !== null) sources.add(edge.source_url);
     if (edge.source_date !== null) {
       const sourceDate = edge.source_date.toISOString().slice(0, 10);
-      if (latestSourceDate === null || sourceDate > latestSourceDate)
-        latestSourceDate = sourceDate;
+      if (latestSourceDate === null || sourceDate > latestSourceDate) latestSourceDate = sourceDate;
     }
   }
   return {
     sources: sources.size,
     evidence_edges: edges.length,
-    latest_source_date: latestSourceDate,
+    latest_source_date: latestSourceDate
   };
 }
 
-function appendComponentParticipants(
-  lines: string[],
-  items: readonly ComponentParticipant[],
-): void {
+function appendComponentParticipants(lines: string[], items: readonly ComponentParticipant[]): void {
   if (items.length === 0) {
     lines.push("(none recorded at Level 4-5)");
     return;
   }
   for (const item of items) {
     lines.push(`- ${item.name} [${item.entity_id}]`);
-    lines.push(
-      `  Evidence: Level ${item.best_evidence_level}, conf ${item.best_confidence.toFixed(3)}, edges ${item.edge_count}`,
-    );
+    lines.push(`  Evidence: Level ${item.best_evidence_level}, conf ${item.best_confidence.toFixed(3)}, edges ${item.edge_count}`);
     lines.push(`  Roles: ${item.roles.join(", ")}`);
   }
 }
 
-function appendComponentEvidenceEdges(
-  lines: string[],
-  edges: readonly ComponentEvidenceEdge[],
-): void {
+function appendComponentEvidenceEdges(lines: string[], edges: readonly ComponentEvidenceEdge[]): void {
   if (edges.length === 0) {
     lines.push("(no Level 4-5 component edges yet)");
     return;
   }
   for (const edge of edges) {
-    lines.push(
-      `- ${edge.supplier_name} -> ${edge.consumer_name} via ${edge.relation} [Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}]`,
-    );
-    if (edge.source_date !== null)
-      lines.push(
-        `  Source date: ${edge.source_date.toISOString().slice(0, 10)}`,
-      );
+    lines.push(`- ${edge.supplier_name} -> ${edge.consumer_name} via ${edge.relation} [Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}]`);
+    if (edge.source_date !== null) lines.push(`  Source date: ${edge.source_date.toISOString().slice(0, 10)}`);
     if (edge.cite_text !== null) lines.push(`  "${edge.cite_text}"`);
-    if (edge.primary_evidence_id !== null)
-      lines.push(`  Evidence: ${edge.primary_evidence_id}`);
+    if (edge.primary_evidence_id !== null) lines.push(`  Evidence: ${edge.primary_evidence_id}`);
   }
 }
 
@@ -580,11 +449,9 @@ function appendSourceCoverage(
     sources: number;
     evidence_edges: number;
     latest_source_date: string | null;
-  },
+  }
 ): void {
   lines.push(`- Evidence edges: ${coverage.evidence_edges}`);
   lines.push(`- Distinct source URLs: ${coverage.sources}`);
-  lines.push(
-    `- Latest source date: ${coverage.latest_source_date ?? "(none)"}`,
-  );
+  lines.push(`- Latest source date: ${coverage.latest_source_date ?? "(none)"}`);
 }

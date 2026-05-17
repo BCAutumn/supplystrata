@@ -29,11 +29,11 @@
 
 ```ts
 interface TradeFlowSignal {
-  reporter_country: string;     // ISO2
-  partner_country: string;      // ISO2
+  reporter_country: string; // ISO2
+  partner_country: string; // ISO2
   hs_code: string;
   trade_flow: "import" | "export";
-  period: string;               // YYYY-MM 或 YYYY
+  period: string; // YYYY-MM 或 YYYY
   value_usd?: number;
   qty?: number;
   qty_unit?: string;

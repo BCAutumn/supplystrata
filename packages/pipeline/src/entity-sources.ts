@@ -30,16 +30,18 @@ export interface EntityReviewEnqueueSummary {
 export async function lookupEntitySourceCandidates(input: EntityLookupInput): Promise<EntityLookupSummary> {
   const query = input.query.trim();
   if (query.length === 0) throw new Error("Entity lookup query must not be empty");
-  const sources = input.source === "all" ? ["opencorporates", "companies-house"] as const : [input.source] as const;
+  const sources = input.source === "all" ? (["opencorporates", "companies-house"] as const) : ([input.source] as const);
   const results: EntitySourceLookupResult[] = [];
 
   for (const source of sources) {
     if (source === "opencorporates") {
-      results.push(await lookupOpenCorporatesSource({
-        query,
-        limit: input.limit,
-        ...(input.jurisdictionCode === undefined ? {} : { jurisdictionCode: input.jurisdictionCode })
-      }));
+      results.push(
+        await lookupOpenCorporatesSource({
+          query,
+          limit: input.limit,
+          ...(input.jurisdictionCode === undefined ? {} : { jurisdictionCode: input.jurisdictionCode })
+        })
+      );
     }
     if (source === "companies-house") {
       results.push(await lookupCompaniesHouseSource({ query, limit: input.limit }));

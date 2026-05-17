@@ -4,11 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { normalizeAlias, type NormalizedDocument } from "@supplystrata/core";
 import { createPool, migrate, saveNormalizedDocument } from "@supplystrata/db";
 import { applyApprovedReviewCandidate } from "@supplystrata/pipeline";
-import {
-  buildSupplierListReviewCandidate,
-  supplierListFacilityDisplayName,
-  supplierListFacilityEntityId
-} from "@supplystrata/review-candidates";
+import { buildSupplierListReviewCandidate, supplierListFacilityDisplayName, supplierListFacilityEntityId } from "@supplystrata/review-candidates";
 import { decideReviewCandidate, enqueueReviewCandidates, getReviewCandidate } from "@supplystrata/review-store";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
 import { canConnectToIntegrationDatabase } from "./helpers.js";
@@ -94,10 +90,10 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
       facilityDisplayName
     ]);
     const evidence = await pool.query<CountRow>("SELECT count(*)::text AS count FROM evidence WHERE doc_id = 'DOC-ITEST-APPLE-SUPPLIER'");
-    const changes = await pool.query<CountRow>(
-      "SELECT count(*)::text AS count FROM change_records WHERE scope_id = $1 OR evidence_ids && $2::text[]",
-      [facilityEntityId, result.apply_results.map((item) => item.evidence_id)]
-    );
+    const changes = await pool.query<CountRow>("SELECT count(*)::text AS count FROM change_records WHERE scope_id = $1 OR evidence_ids && $2::text[]", [
+      facilityEntityId,
+      result.apply_results.map((item) => item.evidence_id)
+    ]);
 
     expect(facility.rows[0]?.count).toBe("1");
     expect(facilityAlias.rows[0]?.count).toBe("1");

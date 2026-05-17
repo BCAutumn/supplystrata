@@ -108,12 +108,15 @@ export async function getReviewCandidate(client: DbClient, reviewId: string): Pr
   return rowToReviewItem(result.rows[0]);
 }
 
-export async function decideReviewCandidate(client: DbClient, input: {
-  reviewId: string;
-  decision: Extract<ReviewCandidateStatus, "approved" | "rejected">;
-  reviewer: string;
-  reason?: string;
-}): Promise<ReviewQueueItem> {
+export async function decideReviewCandidate(
+  client: DbClient,
+  input: {
+    reviewId: string;
+    decision: Extract<ReviewCandidateStatus, "approved" | "rejected">;
+    reviewer: string;
+    reason?: string;
+  }
+): Promise<ReviewQueueItem> {
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = $2, reviewer = $3, reviewed_at = now(), decision_reason = $4

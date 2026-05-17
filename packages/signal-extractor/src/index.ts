@@ -38,12 +38,7 @@ export function extractAsmlSignalsFromText(text: string): OfficialDisclosureSign
     text,
     "We deliver value throughout the semiconductor value chain. Our comprehensive lithography portfolio enables cost-effective microchip scaling for our customers."
   );
-  addExactSignal(
-    signals,
-    "ASML reports EUV lithography demand",
-    text,
-    "TWINSCAN NXE:3800E – full-specification system improves throughput by 37%"
-  );
+  addExactSignal(signals, "ASML reports EUV lithography demand", text, "TWINSCAN NXE:3800E – full-specification system improves throughput by 37%");
   return signals;
 }
 

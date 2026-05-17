@@ -194,18 +194,9 @@ prompt: |
 ```ts
 interface EntityResolver {
   resolve(input: ResolveInput): Promise<ResolveResult>;
-  registerAlias(
-    alias: string,
-    entityId: string,
-    evidence: Provenance,
-  ): Promise<void>;
+  registerAlias(alias: string, entityId: string, evidence: Provenance): Promise<void>;
   split(entityId: string, newCanonicals: NewEntitySpec[]): Promise<SplitResult>;
-  merge(
-    loserId: string,
-    winnerId: string,
-    reason: string,
-    evidence: Provenance,
-  ): Promise<MergeResult>;
+  merge(loserId: string, winnerId: string, reason: string, evidence: Provenance): Promise<MergeResult>;
 }
 ```
 

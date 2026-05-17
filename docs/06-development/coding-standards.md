@@ -15,18 +15,18 @@
 
 ## 命名约定
 
-| 类型           | 规则                                       | 例                                           |
-| ------------ | ---------------------------------------- | ------------------------------------------- |
-| ID prefix    | 全大写连字符                                   | `ENT-`, `EV-`, `EDGE-`, `DOC-`, `CHK-`, `CHG-`, `REV-`, `PND-`, `UNK-`, `ALIAS-` |
-| 包名           | `@supplystrata/<kebab>`                  | `@supplystrata/sources-sec-edgar`           |
-| 文件名          | kebab-case + `.ts`                       | `entity-resolver.ts`                        |
-| Class        | PascalCase                              | `EvidenceScorer`                             |
-| Interface    | PascalCase（不要前缀 `I`）                     | `SourceAdapter`                              |
-| Type alias   | PascalCase                              | `RelationType`                               |
-| 常量           | SCREAMING_SNAKE                         | `MAX_LLM_CHUNKS`                             |
-| 枚举字符串字面量    | 用字符串 union 而非 enum                       | `type Status = "ok" \| "fail"`               |
-| 测试文件         | `<src>.test.ts` 或 `tests/...`           |                                             |
-| Fixture      | `tests/fixtures/<topic>/<name>.<ext>`    |                                             |
+| 类型             | 规则                                  | 例                                                                               |
+| ---------------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| ID prefix        | 全大写连字符                          | `ENT-`, `EV-`, `EDGE-`, `DOC-`, `CHK-`, `CHG-`, `REV-`, `PND-`, `UNK-`, `ALIAS-` |
+| 包名             | `@supplystrata/<kebab>`               | `@supplystrata/sources-sec-edgar`                                                |
+| 文件名           | kebab-case + `.ts`                    | `entity-resolver.ts`                                                             |
+| Class            | PascalCase                            | `EvidenceScorer`                                                                 |
+| Interface        | PascalCase（不要前缀 `I`）            | `SourceAdapter`                                                                  |
+| Type alias       | PascalCase                            | `RelationType`                                                                   |
+| 常量             | SCREAMING_SNAKE                       | `MAX_LLM_CHUNKS`                                                                 |
+| 枚举字符串字面量 | 用字符串 union 而非 enum              | `type Status = "ok" \| "fail"`                                                   |
+| 测试文件         | `<src>.test.ts` 或 `tests/...`        |                                                                                  |
+| Fixture          | `tests/fixtures/<topic>/<name>.<ext>` |                                                                                  |
 
 ## 模块导出
 
@@ -87,7 +87,7 @@ const Env = z.object({
   OPENAI_API_KEY: z.string().optional(),
   LLM_PROVIDER: z.enum(["anthropic", "openai", "none"]).default("none"),
   LLM_RESOLVER_ENABLED: z.coerce.boolean().default(false),
-  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info")
 });
 export const env = Env.parse(process.env);
 ```

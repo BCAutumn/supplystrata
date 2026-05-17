@@ -91,7 +91,9 @@ export const tradeFlowMacroExtractor: RelationExtractor = {
   id: "trade.macro.country-flow",
   priority: 30,
   relation_types: ["TRADE_FLOW"],
-  extract: async function* (doc, ctx) { /* ... */ }
+  extract: async function* (doc, ctx) {
+    /* ... */
+  }
 };
 ```
 
@@ -287,13 +289,13 @@ supplystrata graph export <scope> --format gexf
 
 ## 扩展不支持的场景（明确写出来）
 
-| 想做                              | 明确不支持的原因                                                                                            |
-| ------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 改证据等级语义（如新增 Level 6）           | 等级是核心契约；要改必须开 ADR + 全量重评级                                                                          |
-| 引入"无 cite_text 的关系"             | 系统的可信度根基；任何 PR 加这种 path 直接 reject                                                                  |
-| 让 source adapter 直接写 Neo4j      | 破坏数据流单向性                                                                                            |
-| 让前端直接读 Neo4j 而不过 Postgres 证据    | 失去可追溯性                                                                                              |
-| 多租户/权限隔离                        | MVP 阶段非目标，要做需要重新设计 storage layer                                                                    |
+| 想做                                    | 明确不支持的原因                                  |
+| --------------------------------------- | ------------------------------------------------- |
+| 改证据等级语义（如新增 Level 6）        | 等级是核心契约；要改必须开 ADR + 全量重评级       |
+| 引入"无 cite_text 的关系"               | 系统的可信度根基；任何 PR 加这种 path 直接 reject |
+| 让 source adapter 直接写 Neo4j          | 破坏数据流单向性                                  |
+| 让前端直接读 Neo4j 而不过 Postgres 证据 | 失去可追溯性                                      |
+| 多租户/权限隔离                         | MVP 阶段非目标，要做需要重新设计 storage layer    |
 
 ## 接入新数据源的检查清单（PR Checklist）
 

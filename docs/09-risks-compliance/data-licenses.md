@@ -2,27 +2,27 @@
 
 每个数据源的 license 状态汇总。**任何与商业化相关的决策必须征询律师**。
 
-| Source            | License / 性质                                        | 我们能做                          | 我们不能做                            |
-| ----------------- | --------------------------------------------------- | ----------------------------- | -------------------------------- |
-| SEC EDGAR         | Public domain (US government)                       | 全部使用、引用、重新发布                 | 无禁                               |
-| 公司 IR             | 版权属公司                                              | fair use 引用片段；本地存档作证据         | 重新发布全文 / 长片段                     |
-| Apple Supplier 报告 | 版权属 Apple                                          | 引用、抽取关系                       | 把 PDF 重新发布                        |
-| OpenCorporates    | OC ToS（含 attribution 要求）                            | 数据使用 + 注明来源                   | 商业批量再发布（需付费 license）            |
-| UK Companies House | UK Open Government License v3.0                    | 商业 / 非商业均可，需注明来源              | 暗示官方背书                           |
-| DART (KR)         | KOFIA / 韩国政府数据                                     | 公共使用 + 引用                     | 商业再发布需另问                          |
-| TrendForce / DigiTimes 公开新闻 | 版权属各媒体                                | fair use 引用片段                  | 大量复制 / 翻墙获取                       |
-| UN Comtrade       | UN License (rather permissive for research)         | 引用、研究、非商用                     | 大规模商业再发布需许可                       |
-| U.S. Census trade | Public domain                                       | 全部使用                          |                                  |
-| USITC DataWeb     | 美国政府数据                                            | 全部使用                          |                                  |
-| Open Supply Hub   | OSH 数据使用条款（一般公开 / 注明来源）                            | 数据使用                          | 不遵守 attribution                   |
-| EIA / FRED        | 美国政府数据                                            | 全部使用                          |                                  |
-| NOAA AIS          | 公共领域                                               | 全部使用                          |                                  |
-| World Bank Pink   | 公共领域                                               | 全部使用                          |                                  |
-| USGS              | 公共领域                                               | 全部使用                          |                                  |
-| SAM.gov / USAspending | 美国政府数据                                          | 全部使用                          |                                  |
-| EU TED            | 欧盟开放数据                                            | 全部使用                          |                                  |
-| GDELT             | 公开数据集（特定 dataset 各自许可）                              | 一般可使用                         | 大量重发布，注明许可                        |
-| ImportYeti        | 平台 ToS（禁止自动化、严格使用条款）                              | 仅人工查询                         | 自动化抓取 / 批量保存                      |
+| Source                          | License / 性质                              | 我们能做                          | 我们不能做                       |
+| ------------------------------- | ------------------------------------------- | --------------------------------- | -------------------------------- |
+| SEC EDGAR                       | Public domain (US government)               | 全部使用、引用、重新发布          | 无禁                             |
+| 公司 IR                         | 版权属公司                                  | fair use 引用片段；本地存档作证据 | 重新发布全文 / 长片段            |
+| Apple Supplier 报告             | 版权属 Apple                                | 引用、抽取关系                    | 把 PDF 重新发布                  |
+| OpenCorporates                  | OC ToS（含 attribution 要求）               | 数据使用 + 注明来源               | 商业批量再发布（需付费 license） |
+| UK Companies House              | UK Open Government License v3.0             | 商业 / 非商业均可，需注明来源     | 暗示官方背书                     |
+| DART (KR)                       | KOFIA / 韩国政府数据                        | 公共使用 + 引用                   | 商业再发布需另问                 |
+| TrendForce / DigiTimes 公开新闻 | 版权属各媒体                                | fair use 引用片段                 | 大量复制 / 翻墙获取              |
+| UN Comtrade                     | UN License (rather permissive for research) | 引用、研究、非商用                | 大规模商业再发布需许可           |
+| U.S. Census trade               | Public domain                               | 全部使用                          |                                  |
+| USITC DataWeb                   | 美国政府数据                                | 全部使用                          |                                  |
+| Open Supply Hub                 | OSH 数据使用条款（一般公开 / 注明来源）     | 数据使用                          | 不遵守 attribution               |
+| EIA / FRED                      | 美国政府数据                                | 全部使用                          |                                  |
+| NOAA AIS                        | 公共领域                                    | 全部使用                          |                                  |
+| World Bank Pink                 | 公共领域                                    | 全部使用                          |                                  |
+| USGS                            | 公共领域                                    | 全部使用                          |                                  |
+| SAM.gov / USAspending           | 美国政府数据                                | 全部使用                          |                                  |
+| EU TED                          | 欧盟开放数据                                | 全部使用                          |                                  |
+| GDELT                           | 公开数据集（特定 dataset 各自许可）         | 一般可使用                        | 大量重发布，注明许可             |
+| ImportYeti                      | 平台 ToS（禁止自动化、严格使用条款）        | 仅人工查询                        | 自动化抓取 / 批量保存            |
 
 ## 我们仓库的 license 选择
 

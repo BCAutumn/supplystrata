@@ -3,7 +3,7 @@ import tsParser from "@typescript-eslint/parser";
 
 export default [
   {
-    ignores: ["node_modules/**", "data/**", "dist/**", "coverage/**"]
+    ignores: ["node_modules/**", "data/**", "dist/**", "**/dist/**", "coverage/**"]
   },
   {
     files: ["**/*.ts"],
@@ -34,10 +34,10 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          "patterns": [
+          patterns: [
             {
-              "group": ["@supplystrata/sources-*"],
-              "message": "CLI 和应用入口应通过 pipeline / source-registry 消费 source adapter，避免绕过编排层。"
+              group: ["@supplystrata/sources-*"],
+              message: "CLI 和应用入口应通过 pipeline / source-registry 消费 source adapter，避免绕过编排层。"
             }
           ]
         }
