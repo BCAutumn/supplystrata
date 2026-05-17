@@ -19,6 +19,12 @@ export interface DataQualitySummary {
   issues: DataQualityIssue[];
 }
 
+export interface DataQualityRule {
+  readonly rule_id: string;
+  readonly scope: "global" | "entity_specific";
+  check(client: DbClient): Promise<DataQualityIssue[]>;
+}
+
 interface EdgeWithoutEvidenceRow extends pg.QueryResultRow {
   edge_id: string;
   subject_id: string;
@@ -67,17 +73,9 @@ interface CountRow extends pg.QueryResultRow {
 
 export async function runDataQualityChecks(client: DbClient): Promise<DataQualitySummary> {
   const issues: DataQualityIssue[] = [];
-  issues.push(...await checkCurrentEdgesHaveEvidence(client));
-  issues.push(...await checkActiveEvidenceHasUsableCiteText(client));
-  issues.push(...await checkActiveEvidenceReferencesExistingEdges(client));
-  issues.push(...await checkActiveEvidenceCiteTextMatchesChunk(client));
-  issues.push(...await checkActiveEvidenceTraceabilityMetadata(client));
-  issues.push(...await checkActiveEvidenceCandidateDuplicates(client));
-  issues.push(...await checkActiveEvidenceHasNoHtmlBoundaryGlue(client));
-  issues.push(...await checkLlmEvidenceConstraints(client));
-  issues.push(...await checkPrimaryEvidenceMatchesBestEvidence(client));
-  issues.push(...await checkParsedDocumentsHaveChunks(client));
-  issues.push(...await checkNvidiaUnknownMap(client));
+  for (const rule of DATA_QUALITY_RULES) {
+    issues.push(...await rule.check(client));
+  }
 
   const counts = countIssues(issues);
   return {
@@ -87,6 +85,28 @@ export async function runDataQualityChecks(client: DbClient): Promise<DataQualit
     issues
   };
 }
+
+export const GLOBAL_DATA_QUALITY_RULES: readonly DataQualityRule[] = [
+  { rule_id: "edge.current_without_active_evidence", scope: "global", check: checkCurrentEdgesHaveEvidence },
+  { rule_id: "evidence.cite_text_too_short", scope: "global", check: checkActiveEvidenceHasUsableCiteText },
+  { rule_id: "evidence.edge_missing", scope: "global", check: checkActiveEvidenceReferencesExistingEdges },
+  { rule_id: "evidence.chunk_trace", scope: "global", check: checkActiveEvidenceCiteTextMatchesChunk },
+  { rule_id: "evidence.traceability_metadata", scope: "global", check: checkActiveEvidenceTraceabilityMetadata },
+  { rule_id: "evidence.duplicate_relation_candidate", scope: "global", check: checkActiveEvidenceCandidateDuplicates },
+  { rule_id: "evidence.html_boundary_glue", scope: "global", check: checkActiveEvidenceHasNoHtmlBoundaryGlue },
+  { rule_id: "evidence.llm_constraints", scope: "global", check: checkLlmEvidenceConstraints },
+  { rule_id: "edge.primary_evidence_mismatch", scope: "global", check: checkPrimaryEvidenceMatchesBestEvidence },
+  { rule_id: "document.parsed_without_chunks", scope: "global", check: checkParsedDocumentsHaveChunks }
+];
+
+export const ENTITY_SPECIFIC_DATA_QUALITY_RULES: readonly DataQualityRule[] = [
+  { rule_id: "unknown_map.nvidia_minimum_items", scope: "entity_specific", check: checkNvidiaUnknownMap }
+];
+
+export const DATA_QUALITY_RULES: readonly DataQualityRule[] = [
+  ...GLOBAL_DATA_QUALITY_RULES,
+  ...ENTITY_SPECIFIC_DATA_QUALITY_RULES
+];
 
 async function checkCurrentEdgesHaveEvidence(client: DbClient): Promise<DataQualityIssue[]> {
   const result = await client.query<EdgeWithoutEvidenceRow>(

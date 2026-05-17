@@ -80,7 +80,7 @@ export class Neo4jGraphStore implements GraphStore {
     await this.#write(
       `MATCH (s:Entity { entity_id: $subject_id })
        MATCH (o:Entity { entity_id: $object_id })
-       MERGE (s)-[r:${edge.relation} { edge_id: $edge_id }]->(o)
+       MERGE (s)-[r:${cypherRelationType(edge.relation)} { edge_id: $edge_id }]->(o)
        SET r.component = $component,
            r.component_id = $component_id,
            r.component_specificity = $component_specificity,
@@ -127,6 +127,23 @@ export class Neo4jGraphStore implements GraphStore {
       await session.close();
     }
   }
+}
+
+function cypherRelationType(relation: RelationType): RelationType {
+  switch (relation) {
+    case "BUYS_FROM":
+    case "SUPPLIES_TO":
+    case "USES_FOUNDRY":
+    case "USES_COMPONENT":
+    case "MANUFACTURES_AT":
+    case "OWNS_SUBSIDIARY":
+    case "OWNS_BUSINESS_UNIT":
+    case "IS_A":
+    case "OPERATES_FACILITY":
+      return relation;
+  }
+  const exhaustive: never = relation;
+  return exhaustive;
 }
 
 function labelsForKind(kind: EntityRecord["kind"]): string[] {

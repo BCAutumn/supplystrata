@@ -161,15 +161,15 @@ if extractor is "trade.bol.repeat-importer" AND evidence_count >= 6:
 
 如果 `needs_review = true`：
 
-- 写 `extraction_review_queue`
+- 写通用 `review_candidates`
 - CLI 命令 `supplystrata review next` 取出一条
 - 研究员看：原文片段 + 抽取器 ID + 候选 → 选择 approve / reject / fix
 
 如果 `needs_review = false`：
 
-- 自动 approve
+- 自动写入 Postgres truth store，并记录 evidence / edge / change_records。
 
-approved 候选写入 review queue 的 approved 状态。批处理命令只能 apply approved 候选，不能把 pending 候选直接写图。
+`extraction_review_queue` 是早期 schema 遗留表，保留用于历史数据兼容；新的人工审核入口统一走 `review_candidates`。
 
 ### Step 8: Graph Builder
 

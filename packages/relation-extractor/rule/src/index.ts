@@ -4,6 +4,17 @@ import type {
   NormalizedDocument,
   RelationType,
 } from "@supplystrata/core";
+import {
+  CUSTOMER_COUNTERPARTY_PATTERNS,
+  FOUNDRY_WAFER_COMPONENT,
+  MANUFACTURING_SERVICES_COMPONENT,
+  MANUFACTURING_SERVICE_SUPPLIER_PATTERNS,
+  MEMORY_COMPONENT_PATTERNS,
+  PRODUCT_COMPONENT_PATTERNS,
+  SUPPLIER_COUNTERPARTY_PATTERNS,
+  type ComponentPatternDefinition,
+  type CounterpartyPatternDefinition
+} from "./patterns.js";
 
 export interface RelationExtractor {
   readonly id: string;
@@ -25,48 +36,6 @@ interface ComponentClassification {
   readonly componentId?: string;
   readonly specificity: CandidateRelation["component_specificity"];
 }
-
-interface CounterpartyPattern {
-  readonly surface: string;
-  readonly pattern: RegExp;
-}
-
-const CUSTOMER_COUNTERPARTIES: readonly CounterpartyPattern[] = [
-  { surface: "Microsoft", pattern: /\b(?:microsoft|azure)\b/i },
-  {
-    surface: "Amazon",
-    pattern: /\b(?:amazon|amazon\.com|aws|amazon web services)\b/i,
-  },
-  { surface: "Alphabet", pattern: /\b(?:alphabet|google|google cloud|gcp)\b/i },
-  { surface: "Meta", pattern: /\b(?:meta|meta platforms|facebook)\b/i },
-  { surface: "Oracle", pattern: /\b(?:oracle|oci|oracle cloud)\b/i },
-  { surface: "CoreWeave", pattern: /\bcoreweave\b/i },
-  { surface: "OpenAI", pattern: /\bopenai\b/i },
-  { surface: "Apple", pattern: /\bapple\b/i },
-  { surface: "Dell", pattern: /\b(?:dell|dell technologies)\b/i },
-  { surface: "HPE", pattern: /\b(?:hpe|hewlett packard enterprise)\b/i },
-  {
-    surface: "Supermicro",
-    pattern: /\b(?:supermicro|super micro computer)\b/i,
-  },
-];
-
-const SUPPLIER_COUNTERPARTIES: readonly CounterpartyPattern[] = [
-  {
-    surface: "TSMC",
-    pattern: /\b(?:tsmc|taiwan semiconductor manufacturing)\b/i,
-  },
-  { surface: "Samsung", pattern: /\bsamsung\b/i },
-  { surface: "SK hynix", pattern: /\bsk\s*hynix\b/i },
-  { surface: "Micron", pattern: /\bmicron\b/i },
-  { surface: "Intel", pattern: /\bintel\b/i },
-  { surface: "ASML", pattern: /\basml\b/i },
-  { surface: "Hon Hai", pattern: /\b(?:hon hai|foxconn)\b/i },
-  { surface: "Wistron", pattern: /\bwistron\b/i },
-  { surface: "Fabrinet", pattern: /\bfabrinet\b/i },
-  { surface: "Quanta", pattern: /\bquanta\b/i },
-  { surface: "Inventec", pattern: /\binventec\b/i },
-];
 
 export const secOfficialSupplyChainExtractor: RelationExtractor = {
   id: SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID,
@@ -97,7 +66,6 @@ export function extractFromSentence(
   options: ExtractSentenceOptions = {},
 ): CandidateRelation[] {
   const candidates: CandidateRelation[] = [];
-  const lower = sentence.toLowerCase();
   const manufacturingContext =
     /(foundr|wafer|fabricat|manufactur|supplier|subcontractor|assembly|test)/i.test(
       sentence,
@@ -115,7 +83,7 @@ export function extractFromSentence(
 
   if (
     (manufacturingContext || foundryListContext) &&
-    /(tsmc|taiwan semiconductor manufacturing)/i.test(sentence)
+    matchesAnyCounterparty(sentence, { surface: "TSMC", patterns: [/\b(?:tsmc|taiwan semiconductor manufacturing)\b/i] })
   ) {
     candidates.push(
       buildCandidate({
@@ -126,11 +94,7 @@ export function extractFromSentence(
         objectSurface: "TSMC",
         citeText: sentence,
         locator,
-        component: {
-          component: "wafer",
-          componentId: "COMP-WAFER",
-          specificity: "explicit",
-        },
+        component: componentFromDefinition(FOUNDRY_WAFER_COMPONENT),
       }),
     );
   }
@@ -144,11 +108,7 @@ export function extractFromSentence(
         objectSurface: "Samsung",
         citeText: sentence,
         locator,
-        component: {
-          component: "wafer",
-          componentId: "COMP-WAFER",
-          specificity: "explicit",
-        },
+        component: componentFromDefinition(FOUNDRY_WAFER_COMPONENT),
       }),
     );
   }
@@ -194,78 +154,25 @@ export function extractFromSentence(
       }),
     );
   }
-  if (
-    lower.includes("hon hai") &&
-    /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(
-      sentence,
-    )
-  ) {
-    candidates.push(
-      buildCandidate({
-        subjectSurface,
-        documentType,
-        extractorId,
-        relation: "BUYS_FROM",
-        objectSurface: "Hon Hai",
-        citeText: sentence,
-        locator,
-        component: {
-          component: "manufacturing services",
-          componentId: "COMP-MANUFACTURING-SERVICES",
-          specificity: "explicit",
-        },
-      }),
-    );
+  for (const supplier of MANUFACTURING_SERVICE_SUPPLIER_PATTERNS) {
+    if (matchesAnyCounterparty(sentence, supplier) && /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(sentence)) {
+      candidates.push(
+        buildCandidate({
+          subjectSurface,
+          documentType,
+          extractorId,
+          relation: "BUYS_FROM",
+          objectSurface: supplier.surface,
+          citeText: sentence,
+          locator,
+          component: componentFromDefinition(supplier.serviceComponent),
+        }),
+      );
+    }
   }
-  if (
-    lower.includes("wistron") &&
-    /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(
-      sentence,
-    )
-  ) {
-    candidates.push(
-      buildCandidate({
-        subjectSurface,
-        documentType,
-        extractorId,
-        relation: "BUYS_FROM",
-        objectSurface: "Wistron",
-        citeText: sentence,
-        locator,
-        component: {
-          component: "manufacturing services",
-          componentId: "COMP-MANUFACTURING-SERVICES",
-          specificity: "explicit",
-        },
-      }),
-    );
-  }
-  if (
-    lower.includes("fabrinet") &&
-    /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(
-      sentence,
-    )
-  ) {
-    candidates.push(
-      buildCandidate({
-        subjectSurface,
-        documentType,
-        extractorId,
-        relation: "BUYS_FROM",
-        objectSurface: "Fabrinet",
-        citeText: sentence,
-        locator,
-        component: {
-          component: "manufacturing services",
-          componentId: "COMP-MANUFACTURING-SERVICES",
-          specificity: "explicit",
-        },
-      }),
-    );
-  }
-  for (const counterparty of CUSTOMER_COUNTERPARTIES) {
+  for (const counterparty of CUSTOMER_COUNTERPARTY_PATTERNS) {
     if (
-      counterparty.pattern.test(sentence) &&
+      matchesAnyCounterparty(sentence, counterparty) &&
       isNamedCustomerDisclosure(sentence)
     ) {
       const component = classifyProductComponent(sentence);
@@ -284,8 +191,8 @@ export function extractFromSentence(
       );
     }
   }
-  for (const counterparty of SUPPLIER_COUNTERPARTIES) {
-    if (!counterparty.pattern.test(sentence)) continue;
+  for (const counterparty of SUPPLIER_COUNTERPARTY_PATTERNS) {
+    if (!matchesAnyCounterparty(sentence, counterparty)) continue;
     const commitmentComponent = classifySupplyCommitmentComponent(sentence);
     if (isPurchaseObligationDisclosure(sentence)) {
       candidates.push(
@@ -330,29 +237,7 @@ export function extractFromSentence(
 function classifyMemoryComponent(
   sentence: string,
 ): ComponentClassification | undefined {
-  if (/\b(?:hbm(?:3e?|4)?|high[-\s]?bandwidth\s+memory)\b/i.test(sentence)) {
-    return {
-      component: "HBM",
-      componentId: "COMP-HBM",
-      specificity: "explicit",
-    };
-  }
-  if (/\b(?:dram|dynamic\s+random\s+access\s+memory)\b/i.test(sentence)) {
-    return {
-      component: "DRAM",
-      componentId: "COMP-DRAM",
-      specificity: "explicit",
-    };
-  }
-  // 普通 memory 语境只支持父组件，不能替用户推断成 HBM。
-  if (/\bmemor(?:y|ies)\b/i.test(sentence)) {
-    return {
-      component: "memory",
-      componentId: "COMP-MEMORY",
-      specificity: "unspecified",
-    };
-  }
-  return undefined;
+  return classifyComponent(sentence, MEMORY_COMPONENT_PATTERNS);
 }
 
 function classifyProductComponent(
@@ -360,35 +245,7 @@ function classifyProductComponent(
 ): ComponentClassification | undefined {
   const memory = classifyMemoryComponent(sentence);
   if (memory !== undefined) return memory;
-  if (/\b(?:gpu|graphics processing units?|accelerators?)\b/i.test(sentence)) {
-    return {
-      component: "GPU",
-      componentId: "COMP-GPU",
-      specificity: "explicit",
-    };
-  }
-  if (/\b(?:ai servers?|gpu servers?|accelerated servers?)\b/i.test(sentence)) {
-    return {
-      component: "AI server",
-      componentId: "COMP-SERVER",
-      specificity: "explicit",
-    };
-  }
-  if (/\b(?:advanced packaging|cowos|2\.5d packaging)\b/i.test(sentence)) {
-    return {
-      component: "advanced packaging",
-      componentId: "COMP-ADVANCED-PACKAGING",
-      specificity: "explicit",
-    };
-  }
-  if (/\b(?:wafer|foundry|foundries|fabrication)\b/i.test(sentence)) {
-    return {
-      component: "wafer",
-      componentId: "COMP-WAFER",
-      specificity: "explicit",
-    };
-  }
-  return undefined;
+  return classifyComponent(sentence, PRODUCT_COMPONENT_PATTERNS);
 }
 
 function classifySupplyCommitmentComponent(
@@ -397,15 +254,28 @@ function classifySupplyCommitmentComponent(
   const product = classifyProductComponent(sentence);
   if (product !== undefined) return product;
   if (
-    /\b(?:assembly|testing|packaging|contract manufactur)\b/i.test(sentence)
+    MANUFACTURING_SERVICES_COMPONENT.patterns.some((pattern) => pattern.test(sentence))
   ) {
-    return {
-      component: "manufacturing services",
-      componentId: "COMP-MANUFACTURING-SERVICES",
-      specificity: "explicit",
-    };
+    return componentFromDefinition(MANUFACTURING_SERVICES_COMPONENT);
   }
   return undefined;
+}
+
+function classifyComponent(sentence: string, definitions: readonly ComponentPatternDefinition[]): ComponentClassification | undefined {
+  const definition = definitions.find((item) => item.patterns.some((pattern) => pattern.test(sentence)));
+  return definition === undefined ? undefined : componentFromDefinition(definition);
+}
+
+function componentFromDefinition(definition: ComponentPatternDefinition): ComponentClassification {
+  return {
+    component: definition.component,
+    componentId: definition.componentId,
+    specificity: definition.specificity
+  };
+}
+
+function matchesAnyCounterparty(sentence: string, counterparty: CounterpartyPatternDefinition): boolean {
+  return counterparty.patterns.some((pattern) => pattern.test(sentence));
 }
 
 function isNamedCustomerDisclosure(sentence: string): boolean {

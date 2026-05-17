@@ -93,7 +93,7 @@ ORDER BY 1 DESC;
 
 CREATE VIEW v_review_backlog AS
 SELECT status, count(*) AS n
-FROM extraction_review_queue
+FROM review_candidates
 GROUP BY status;
 
 CREATE VIEW v_evidence_level_distribution AS

@@ -240,42 +240,7 @@ function sourceById(sourceAdapterId: string): SourceRegistryEntry | undefined {
 }
 
 function fallbackAuthority(input: { source_adapter_id: string; document_type: DocumentType }): SourceAuthority {
-  if (input.document_type === "10-K" || input.document_type === "10-Q" || input.document_type === "20-F" || input.document_type === "8-K") {
-    return {
-      source_adapter_id: input.source_adapter_id,
-      document_type: input.document_type,
-      publisher_type: "regulator",
-      relation_authority: "self_disclosure",
-      max_evidence_level: 5
-    };
-  }
-  if (input.document_type === "annual_report") {
-    return {
-      source_adapter_id: input.source_adapter_id,
-      document_type: input.document_type,
-      publisher_type: "company_official",
-      relation_authority: "self_disclosure",
-      max_evidence_level: 4
-    };
-  }
-  if (input.document_type === "supplier_list") {
-    return {
-      source_adapter_id: input.source_adapter_id,
-      document_type: input.document_type,
-      publisher_type: "official_supplier_list",
-      relation_authority: "facility_claim",
-      max_evidence_level: 4
-    };
-  }
-  if (input.document_type === "company_registry") {
-    return {
-      source_adapter_id: input.source_adapter_id,
-      document_type: input.document_type,
-      publisher_type: "government_registry",
-      relation_authority: "registry_fact",
-      max_evidence_level: 4
-    };
-  }
+  // 未注册来源不能只靠 document_type 获得高证据等级；先降级成 lead，直到 source_registry 显式登记权威。
   return {
     source_adapter_id: input.source_adapter_id,
     document_type: input.document_type,

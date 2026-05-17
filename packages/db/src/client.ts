@@ -1,6 +1,6 @@
 import pg from "pg";
 import { loadEnv } from "@supplystrata/config";
-import { migrationSql } from "./schema.js";
+import { runMigrations } from "./migrations.js";
 
 const { Pool } = pg;
 
@@ -13,6 +13,5 @@ export function createPool(): pg.Pool {
 }
 
 export async function migrate(client: DbClient): Promise<void> {
-  // 多个 integration test worker 可能同时启动迁移；事务级 advisory lock 避免并发 CREATE TABLE 竞态。
-  await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('supplystrata:migrate', 0));\n${migrationSql}`);
+  await runMigrations(client);
 }

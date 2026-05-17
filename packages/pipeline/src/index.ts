@@ -9,7 +9,7 @@ import {
   type RawDocument,
   type ResolveResult
 } from "@supplystrata/core";
-import { insertReviewQueue, saveNormalizedDocument } from "@supplystrata/db";
+import { saveNormalizedDocument } from "@supplystrata/db";
 import { DbEntityResolver, SeedEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
@@ -171,7 +171,6 @@ export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input:
           ...(chunkId === undefined ? {} : { chunk_id: chunkId })
         };
         const result = await graphBuilder.apply(approved);
-        await insertReviewQueue(pool, approved);
         evidenceIds.push(result.evidence_id);
         applied += 1;
       }

@@ -28,6 +28,13 @@
 [x] db/src/index.ts 拆成 client / seed / documents / pending / query，公开入口只做 re-export。
 [x] 新增 @supplystrata/signal-extractor，pipeline 不再直接承载 IR signal 抽取业务规则。
 [x] review apply 拆成实体导入、supplier-list 实体解析、设施准备、证据评分、写图、状态标记等显式阶段。
+[x] relation-extractor 的 counterparty / component 模式迁入 patterns.ts，主抽取器只保留流程。
+[x] data-quality 改为规则注册表，实体专用规则不再散落在 runDataQualityChecks 主流程中。
+[x] migrate 接入 schema_migrations baseline registry，后续增量迁移有正式记录入口。
+[x] `pnpm test` 改为离线 unit 门禁；`pnpm test:all` 才跑完整 vitest suite。
+[x] ESLint 增加 no-floating-promises / no-misused-promises，并只在 apps/cli 限制直接 import source adapter。
+[x] 新增 Dependabot 配置，自动跟踪 npm 与 GitHub Actions 依赖更新。
+[x] 新 pipeline 不再写入旧 extraction_review_queue；人工审核统一走 review_candidates，旧表仅作历史兼容。
 ```
 
 ## 下一批质量修复
@@ -36,8 +43,9 @@
 [ ] 将 relation-extractor 中 counterparty/component 白名单数据化。
 [ ] 将 data-quality 中实体专用规则迁出主入口，改成规则注册表。
 [ ] CLI 命令树拆到 commands/*.ts，main.ts 只负责组装。
-[ ] 将 db schema 从单一 schema 字符串迁移到带 schema_migrations 的正式迁移系统。
-[ ] 将 review_candidates 和旧 extraction_review_queue 的历史双轨合并成单一 review store。
+[ ] 将 db schema 从 baseline migration 继续拆成真正的逐版本增量 migration。
+[ ] 移除 extraction_review_queue 历史表前，先提供一次性迁移/归档脚本。
+[ ] 建立 Prettier 全仓格式化基线；当前历史文件未统一格式，不能直接把 format-check 放入 CI。
 ```
 
 ## 验收门槛

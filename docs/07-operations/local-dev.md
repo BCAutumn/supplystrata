@@ -111,7 +111,8 @@ pnpm cli ingest sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K
 ### 测试
 
 ```bash
-pnpm test                          # 所有
+pnpm test                          # 离线单元测试，等同 pnpm test:unit
+pnpm test:all                      # 所有 vitest 测试；无数据库时 integration/e2e 会按测试条件 skip
 pnpm test:unit
 pnpm test:integration
 pnpm test:e2e

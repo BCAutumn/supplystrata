@@ -84,7 +84,7 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 | `manual`                                            | `manual`                 | `self_disclosure`  | 5                  | reviewer 必须录入原始来源 URL 与 cite_text；等级由人工和 scorer 共同限制。          |
 | `import-yeti`                                       | `manual`                 | `lead_only`        | 3                  | 不做 adapter；手工摘录也只能作为低等级线索，默认需要 review。                       |
 
-未注册 adapter 会按 `document_type` 做保守 fallback：SEC 表单类可到 5，`annual_report` / `supplier_list` / `company_registry` 可到 4，其它默认 `lead_only` 且上限 2。
+未注册 adapter 一律按 `manual / lead_only / max_evidence_level=2` 处理；不能只因为 `document_type` 写成 `10-K` 或 `annual_report` 就获得高证据等级。新增高权威来源必须先进入 source registry。离线测试专用的 `sec-edgar-fixture` 显式映射到 `sec-edgar`。
 
 抽取方法是 LLM 时仍按 [evidence-model.md](../03-data-model/evidence-model.md) 中"LLM 上限 4"规则降级。宏观贸易、能源、AIS、新闻和采购类来源默认进入 observations / leads，不得直接生成高等级公司供应链边。
 

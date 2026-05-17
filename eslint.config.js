@@ -22,8 +22,26 @@ export default [
       "@typescript-eslint/no-unsafe-assignment": "error",
       "@typescript-eslint/no-unsafe-member-access": "error",
       "@typescript-eslint/no-unsafe-argument": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/consistent-type-imports": "error",
       "no-console": "error"
+    }
+  },
+  {
+    files: ["apps/cli/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          "patterns": [
+            {
+              "group": ["@supplystrata/sources-*"],
+              "message": "CLI 和应用入口应通过 pipeline / source-registry 消费 source adapter，避免绕过编排层。"
+            }
+          ]
+        }
+      ]
     }
   }
 ];

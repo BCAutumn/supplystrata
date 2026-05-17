@@ -88,6 +88,10 @@ CI 里加 dependency-cruiser 校验。
 
 `pipeline` 只做编排：抓取、标准化、调用 extractor/scorer/resolver/builder、记录 source observation。官方披露 signal 抽取放在 `@supplystrata/signal-extractor`，供应链事实关系抽取放在 `relation-extractor`。pipeline 不直接维护公司名单、组件名单或行业启发式。
 
+`relation-extractor/rule` 的 counterparty / component 识别模式放在 `patterns.ts`。新增公司、组件、制造服务供应商时优先扩展模式数据；只有新增一种抽取语义时才修改主抽取流程。
+
+`data-quality` 通过 `DATA_QUALITY_RULES` 注册规则。全局规则和实体专用规则分组注册，避免在 `runDataQualityChecks()` 中继续堆业务特例。
+
 ## 关键接口契约
 
 ### 1. SourceAdapter（最重要，决定能不能扩展）

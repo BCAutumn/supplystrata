@@ -48,10 +48,11 @@ describe("source registry", () => {
     });
   });
 
-  it("falls back by document type when a new adapter is not registered yet", () => {
+  it("caps unregistered adapters as manual leads until they are explicitly registered", () => {
     expect(sourceAuthorityFor({ source_adapter_id: "future-sec-adapter", document_type: "10-K" })).toMatchObject({
-      publisher_type: "regulator",
-      max_evidence_level: 5
+      publisher_type: "manual",
+      relation_authority: "lead_only",
+      max_evidence_level: 2
     });
     expect(sourceAuthorityFor({ source_adapter_id: "future-macro-adapter", document_type: "manual" })).toMatchObject({
       publisher_type: "manual",

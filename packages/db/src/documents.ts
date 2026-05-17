@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { createId, type ApprovedCandidate, type NormalizedDocument } from "@supplystrata/core";
+import type { NormalizedDocument } from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
 export interface SavedDocumentRef {
@@ -114,13 +114,4 @@ export async function loadDocument(client: DbClient, docId: string): Promise<Doc
     ...(doc.primary_entity_id === null ? {} : { primary_entity_id: doc.primary_entity_id }),
     ...(doc.source_date === null ? {} : { source_date: doc.source_date.toISOString().slice(0, 10) })
   };
-}
-
-export async function insertReviewQueue(client: DbClient, approved: ApprovedCandidate): Promise<void> {
-  await client.query(
-    `INSERT INTO extraction_review_queue (review_id, candidate, scoring, doc_id, chunk_id, status, reviewer, reviewed_at)
-     VALUES ($1,$2,$3,$4,$5,'approved','auto',now())
-     ON CONFLICT (review_id) DO NOTHING`,
-    [createId("REV"), approved.candidate, approved.scoring, approved.doc_id, approved.chunk_id ?? null]
-  );
 }

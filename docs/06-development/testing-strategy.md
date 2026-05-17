@@ -124,7 +124,7 @@ pnpm test:e2e
 
 它使用 `tests/fixtures/sec-edgar/nvidia-10k-supply-chain-mini.html`，不访问外网，验证 HTML parser → rule extractor → evidence scorer → GraphBuilder apply → Neo4j rebuild/check → CompanyCard/UnknownMap render 全链路。
 
-`test:e2e` 需要可连接的 Postgres，因为它验证真实 schema、apply 和 render；本地没有数据库时会自动 skip。这样普通贡献者可以先跑 `type-check` / `test:unit` / `lint` / `dep-check`，不需要为了离线单元门禁安装 Docker。
+`pnpm test` 只跑离线单元测试，等同 `pnpm test:unit`。`pnpm test:all` 会执行完整 vitest suite；`test:integration` 和 `test:e2e` 需要可连接的 Postgres，因为它们验证真实 schema、apply 和 render。本地没有数据库时会自动 skip。这样普通贡献者可以先跑 `type-check` / `test` / `lint` / `dep-check`，不需要为了离线单元门禁安装 Docker。
 
 当前 integration suite 依赖本地 Postgres：
 

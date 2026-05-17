@@ -182,6 +182,8 @@ supplystrata graph check --format markdown
 
 不写：cite_text / evidence_ids / 详细 attrs（去 Postgres 拉）。
 
+关系类型必须从 core 的 `RelationType` 穷举映射进入 Cypher，不能把外部字符串直接拼成 Neo4j 关系类型。新增关系类型时需要同时更新 `RELATION_TYPES`、Postgres/Neo4j 投影逻辑和对应测试。
+
 ## 测试
 
 - apply 的事务原子性测试（人为打断 Postgres / Neo4j）
