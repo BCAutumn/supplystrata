@@ -276,6 +276,15 @@ importers:
         specifier: ~9.5.0
         version: 9.5.0
 
+  packages/observation-store:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+
   packages/parsers/html:
     dependencies:
       '@supplystrata/core':

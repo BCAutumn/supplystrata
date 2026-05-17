@@ -374,13 +374,16 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 
 ### PR D：observation-store + seed fixtures
 
-新增 `packages/observation-store` 或先放入 `packages/db/src/observations.ts`。第一版只用 fixture，不接 Comtrade/EIA/NOAA。
+状态：已落地第一版。`packages/observation-store` 提供 observation / lead 的幂等写入边界；第一版只支持 fixture 或上层模块传入的已标准化观测，不接 Comtrade/EIA/NOAA，不写 graph。
+
+新增 `packages/observation-store`。第一版只用 fixture 或内部调用，不接外部宏观源。
 
 验收：
 
-- 能写入 `CAPEX_OBSERVATION`、`INVENTORY_OBSERVATION`、`TRADE_FLOW_OBSERVATION` fixture。
-- observation 不会被 graph-builder 物化成 Neo4j edge。
-- ComponentCard JSON 能带 `related_observations`。
+- [x] 能写入 `INVENTORY_OBSERVATION` / `TRADE_FLOW_OBSERVATION` 等观测输入。
+- [x] observation / lead 写入路径不会触碰 `edges`。
+- [x] ComponentCard JSON 能带 `related_observations`。
+- [ ] 后续 fixture 扩展到 `CAPEX_OBSERVATION`，并接入 chain-view observation segment。
 
 ### PR E：chain-view package
 
@@ -491,13 +494,13 @@ v0.2 仍然优先完成：
 中期骨架完成的标准：
 
 ```text
-[ ] claims / claim_evidence / claim_unknowns 落库
-[ ] observations / lead_observations 落库
-[ ] chain_views / chain_segments 落库
+[x] claims / claim_evidence / claim_unknowns 落库
+[x] observations / lead_observations 落库
+[x] chain_views / chain_segments 落库
 [x] packages/claim-builder 可以生成无 unsupported claim 的第一版 claims
 [x] packages/chain-view 可以输出分层 ChainViewModel
 [x] CLI JSON 输出包含 semantic_layer
 [ ] research-preview 能消费 ChainViewModel
-[ ] observations/leads 不会进入 Neo4j fact edge
+[x] observations/leads 不会进入 Neo4j fact edge
 [ ] LLM 仍然不能直接写 edge/claim
 ```

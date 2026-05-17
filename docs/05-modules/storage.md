@@ -46,6 +46,8 @@ packages/db/src/
 
 每个职责文件暴露：
 
+`observations.ts` 只负责 `observations` / `lead_observations` 的 insert/upsert/list/get。观测数据的幂等 ID、置信度范围、时间窗口等输入边界由 `@supplystrata/observation-store` 负责；仓储层不判断宏观信号是否能升级成事实边。
+
 - 强类型查询/写入函数
 - 不暴露原始 SQL string
 - 复杂查询用命名方法（`listCurrentEdges`, `getEvidence`, `listChangeTimeline`）

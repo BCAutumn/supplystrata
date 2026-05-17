@@ -131,6 +131,7 @@ interface ComponentCard {
   supply_constraints: string[]; // textual, must cite evidence
   public_price_signals: PriceSignal[]; // 例：TrendForce 公开新闻摘录
   related_macro_signals: MacroSignal[];
+  related_observations: ObservationRecord[]; // trade / energy / inventory / capex 等上下文；不是事实边
 
   unknown_map: UnknownItem[];
 }

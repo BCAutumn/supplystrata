@@ -3,11 +3,13 @@ import {
   getEvidence,
   getPendingEntity,
   listChangeTimeline,
+  listObservationsByScope,
   listPendingEntities,
   listUnknownItems,
   resolveEntityId,
   type ChangeTimelineInput,
   type ChangeTimelineItem,
+  type ObservationRow,
   type PendingEntityStatusFilter,
   type UnknownItemRow
 } from "@supplystrata/db";
@@ -60,6 +62,7 @@ export interface ComponentCardModel {
     evidence_edges: number;
     latest_source_date: string | null;
   };
+  related_observations: ObservationRow[];
   unknown_map: UnknownItemRow[];
 }
 
@@ -86,6 +89,7 @@ export async function renderComponent(pool: pg.Pool, query: string, format: Outp
   const suppliers = summarizeComponentParticipants(evidenceEdges, "supplier");
   const consumers = summarizeComponentParticipants(evidenceEdges, "consumer");
   const unknownItems = await listUnknownItems(pool, component.component_id);
+  const relatedObservations = await listObservationsByScope(pool, { scope_kind: "component", scope_id: component.component_id, limit: 10 });
   const sourceCoverage = summarizeComponentSourceCoverage(evidenceEdges);
 
   const card: ComponentCardModel = {
@@ -94,6 +98,7 @@ export async function renderComponent(pool: pg.Pool, query: string, format: Outp
     known_consumers: consumers,
     evidence_edges: evidenceEdges,
     source_coverage: sourceCoverage,
+    related_observations: relatedObservations,
     unknown_map: unknownItems
   };
   return renderComponentCard(card, format);
@@ -109,6 +114,7 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
         known_consumers: card.known_consumers,
         evidence_edges: card.evidence_edges,
         source_coverage: card.source_coverage,
+        related_observations: card.related_observations,
         unknown_map: card.unknown_map
       },
       null,
@@ -130,6 +136,8 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
   appendComponentParticipants(lines, card.known_consumers);
   lines.push("", "## Evidence edges", "");
   appendComponentEvidenceEdges(lines, card.evidence_edges);
+  lines.push("", "## Related observations", "");
+  appendRelatedObservations(lines, card.related_observations);
   lines.push("", "## Source coverage", "");
   appendSourceCoverage(lines, card.source_coverage);
   lines.push("", "## Unknown map", "");
@@ -440,6 +448,19 @@ function appendComponentEvidenceEdges(lines: string[], edges: readonly Component
     if (edge.source_date !== null) lines.push(`  Source date: ${edge.source_date.toISOString().slice(0, 10)}`);
     if (edge.cite_text !== null) lines.push(`  "${edge.cite_text}"`);
     if (edge.primary_evidence_id !== null) lines.push(`  Evidence: ${edge.primary_evidence_id}`);
+  }
+}
+
+function appendRelatedObservations(lines: string[], observations: readonly ObservationRow[]): void {
+  if (observations.length === 0) {
+    lines.push("(no component-scoped observations recorded yet)");
+    return;
+  }
+  for (const observation of observations) {
+    lines.push(`- ${observation.observation_type}: ${observation.metric_name}`);
+    lines.push(`  Scope: ${observation.scope_kind}:${observation.scope_id}; source: ${observation.source_adapter_id}`);
+    lines.push(`  Value: ${observation.metric_value ?? "(n/a)"}${observation.metric_unit === null ? "" : ` ${observation.metric_unit}`}`);
+    lines.push(`  Confidence: ${observation.confidence.toFixed(3)}`);
   }
 }
 

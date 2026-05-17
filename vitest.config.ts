@@ -18,6 +18,7 @@ export default defineConfig({
       "@supplystrata/graph": resolve(__dirname, "packages/graph/src/index.ts"),
       "@supplystrata/graph-builder": resolve(__dirname, "packages/graph-builder/src/index.ts"),
       "@supplystrata/object-store": resolve(__dirname, "packages/object-store/src/index.ts"),
+      "@supplystrata/observation-store": resolve(__dirname, "packages/observation-store/src/index.ts"),
       "@supplystrata/observability": resolve(__dirname, "packages/observability/src/index.ts"),
       "@supplystrata/parsers-html": resolve(__dirname, "packages/parsers/html/src/index.ts"),
       "@supplystrata/parsers-pdf": resolve(__dirname, "packages/parsers/pdf/src/index.ts"),

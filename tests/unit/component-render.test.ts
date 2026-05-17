@@ -11,6 +11,8 @@ describe("ComponentCard renderer", () => {
     expect(output).toContain("## Known consumers");
     expect(output).toContain("NVIDIA [ENT-NVIDIA]");
     expect(output).toContain("SK Hynix -> NVIDIA via BUYS_FROM");
+    expect(output).toContain("## Related observations");
+    expect(output).toContain("INVENTORY_OBSERVATION: inventory_days");
     expect(output).toContain("Exact allocation by HBM generation");
   });
 
@@ -20,12 +22,14 @@ describe("ComponentCard renderer", () => {
       component: { component_id: string };
       known_suppliers: unknown[];
       evidence_edges: unknown[];
+      related_observations: unknown[];
     };
 
     expect(parsed.schema_version).toBe("1.0.0");
     expect(parsed.component.component_id).toBe("COMP-MEMORY");
     expect(parsed.known_suppliers).toHaveLength(1);
     expect(parsed.evidence_edges).toHaveLength(1);
+    expect(parsed.related_observations).toHaveLength(1);
   });
 });
 
@@ -79,6 +83,32 @@ function componentCardFixture(): ComponentCardModel {
       evidence_edges: 1,
       latest_source_date: "2026-02-25"
     },
+    related_observations: [
+      {
+        observation_id: "OBS-1",
+        observation_type: "INVENTORY_OBSERVATION",
+        source_adapter_id: "fixture-observation",
+        source_item_id: null,
+        doc_id: null,
+        scope_kind: "component",
+        scope_id: "COMP-MEMORY",
+        geography_kind: null,
+        geography_id: null,
+        component_id: "COMP-MEMORY",
+        metric_name: "inventory_days",
+        metric_value: "42",
+        metric_unit: "days",
+        time_window_start: null,
+        time_window_end: null,
+        baseline_value: null,
+        change_value: null,
+        change_percent: null,
+        confidence: 0.7,
+        provenance: { fixture: true },
+        attrs: {},
+        created_at: new Date("2026-02-25T00:00:00.000Z")
+      }
+    ],
     unknown_map: [
       {
         unknown_id: "UNK-1",

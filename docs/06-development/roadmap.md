@@ -171,6 +171,8 @@ Phase 2 出场。
 - [x] `packages/claim-builder`：从 current fact edge + primary evidence 生成可审计 claim
 - [x] `apps/cli claims build`：幂等构建 claim 层
 - [x] `observations` / `lead_observations` schema
+- [x] `packages/observation-store`：observation / lead 幂等写入边界
+- [x] `packages/render`：ComponentCard JSON/Markdown 带 `related_observations`
 - [x] `chain_views` / `chain_segments` schema
 - [x] `packages/chain-view`：输出带 `semantic_layer` 的 CompanyChainViewModel（edge/claim 第一版）
 - [ ] `packages/chain-view`：接入 observation / lead / unknown segment

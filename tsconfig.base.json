@@ -32,6 +32,7 @@
       "@supplystrata/graph": ["packages/graph/src/index.ts"],
       "@supplystrata/graph-builder": ["packages/graph-builder/src/index.ts"],
       "@supplystrata/object-store": ["packages/object-store/src/index.ts"],
+      "@supplystrata/observation-store": ["packages/observation-store/src/index.ts"],
       "@supplystrata/observability": ["packages/observability/src/index.ts"],
       "@supplystrata/parsers-html": ["packages/parsers/html/src/index.ts"],
       "@supplystrata/parsers-pdf": ["packages/parsers/pdf/src/index.ts"],
