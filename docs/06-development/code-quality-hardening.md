@@ -37,12 +37,14 @@
 [x] 移除旧 extraction_review_queue；人工审核统一走 review_candidates。
 [x] CLI 命令树拆到 commands/*.ts，main.ts 只负责组装。
 [x] review apply 移除旧单边 apply_result 返回，接口统一为结构化 apply_results。
+[x] relation-extractor 的规则数据拆到 pattern-catalog.ts，patterns.ts 只负责正则编译。
+[x] 普通 manual evidence 降级为 lead_only / cap 2，避免人工录入绕过 source authority。
 ```
 
 ## 下一批质量修复
 
 ```text
-[ ] 将 relation-extractor 的 patterns.ts 继续下沉为可配置 seed/JSON，减少发版才能改规则的问题。
+[ ] 将 relation-extractor 的 pattern-catalog.ts 继续下沉为可配置 seed/JSON，减少发版才能改规则的问题。
 [ ] 将 db schema 从 baseline migration 继续拆成真正的逐版本增量 migration。
 [ ] 建立 Prettier 全仓格式化基线；当前历史文件未统一格式，不能直接把 format-check 放入 CI。
 ```
