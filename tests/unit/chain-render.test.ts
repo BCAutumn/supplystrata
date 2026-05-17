@@ -2,40 +2,45 @@ import { describe, expect, it } from "vitest";
 import { renderChainCard } from "@supplystrata/render";
 
 describe("Chain renderer", () => {
-  it("renders upstream edges by depth", () => {
+  it("renders semantic chain segments by depth", () => {
     const output = renderChainCard(
       {
-        root: {
-          entity_id: "ENT-NVIDIA",
-          canonical_name: "NVIDIA Corporation",
-          display_name: "NVIDIA"
-        },
+        schema_version: "1.0.0",
+        view_type: "company_chain",
+        root: { kind: "company", id: "ENT-NVIDIA", name: "NVIDIA" },
         max_depth: 2,
-        edges: [
+        generated_by: "unit-test",
+        segments: [
           {
+            sequence_index: 0,
             depth: 1,
+            semantic_layer: "edge",
+            from: { kind: "company", id: "ENT-NVIDIA", name: "NVIDIA" },
+            to: { kind: "company", id: "ENT-SKHYNIX", name: "SK Hynix" },
             edge_id: "EDGE-1",
             relation: "BUYS_FROM",
-            subject_id: "ENT-NVIDIA",
-            subject_name: "NVIDIA",
-            object_id: "ENT-SKHYNIX",
-            object_name: "SK Hynix",
-            upstream_id: "ENT-SKHYNIX",
-            upstream_name: "SK Hynix",
             component: "memory",
             component_id: "COMP-MEMORY",
+            evidence_ids: ["EV-1"],
             evidence_level: 5,
             confidence: 0.94,
-            primary_evidence_id: "EV-1",
-            cite_text: "We purchase memory from SK Hynix."
+            label: "NVIDIA -BUYS_FROM-> SK Hynix"
           }
-        ]
+        ],
+        stats: {
+          fact_edges: 1,
+          claims: 0,
+          observations: 0,
+          leads: 0,
+          unknowns: 0
+        }
       },
       "markdown"
     );
 
     expect(output).toContain("# Supply Chain NVIDIA [ENT-NVIDIA]");
-    expect(output).toContain("depth 1: NVIDIA -BUYS_FROM (memory)-> SK Hynix");
-    expect(output).toContain("Upstream node: SK Hynix [ENT-SKHYNIX]");
+    expect(output).toContain("Fact edges: 1");
+    expect(output).toContain("edge depth 1: NVIDIA -BUYS_FROM (memory)-> SK Hynix");
+    expect(output).toContain("To: SK Hynix [ENT-SKHYNIX]");
   });
 });

@@ -309,7 +309,7 @@ unknown
 - [x] `chain_views` / `chain_segments` 建表。
 - [x] `packages/core` 增加 Claim / Observation / Lead / SemanticLayer / ChainView 类型常量。
 - [ ] `pnpm db:migrate` 在有 Postgres 的环境可创建新表。
-- [ ] `pnpm type-check` / `pnpm test:unit` / `pnpm lint` / `pnpm dep-check` 通过。
+- [x] `pnpm type-check` / `pnpm test:unit` / `pnpm lint` / `pnpm dep-check` 通过。
 - [x] docs/03-data-model/schema.md 同步。
 
 ### PR B：Core 类型与 DB 仓储
@@ -344,6 +344,8 @@ packages/db/src/chain-views.ts
 
 ### PR C：claim-builder
 
+状态：已落地第一版。`packages/claim-builder` 只从 current、非 inferred、Level >= 4 且有 primary evidence 的事实边生成 claim；使用确定性 `CLM-EDGE-*` id 幂等 upsert，不抓源、不写图、不提高证据等级。
+
 新增 `packages/claim-builder`。
 
 输入：
@@ -356,8 +358,6 @@ packages/db/src/chain-views.ts
 
 - `claims`
 - `claim_evidence`
-- `claim_unknowns`
-- `change_records`
 
 第一版只支持事实边 claim：
 
@@ -367,8 +367,9 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 
 验收：
 
-- 每个 claim 至少有 1 条 evidence。
-- claim evidence level 不超过 edge/evidence。
+- [x] 每个 claim 至少有 1 条 evidence。
+- [x] claim evidence level 不超过 edge/evidence。
+- [x] `supplystrata claims build --min-level 4` 可幂等运行。
 - `renderCompany` 可以选择基于 claim 输出事实句。
 
 ### PR D：observation-store + seed fixtures
@@ -383,6 +384,8 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 
 ### PR E：chain-view package
 
+状态：已落地第一版。`packages/chain-view` 输出 `CompanyChainViewModel`，`packages/render` 已改为消费该模型；当前先支持 `edge` / `claim` 两层 segment，observation / lead / unknown 下一步接入。
+
 新增 `packages/chain-view`。
 
 职责：
@@ -395,9 +398,10 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 
 验收：
 
-- `supplystrata chain <company> --format json` 输出 `chain_segments`。
-- 每段都有 `semantic_layer`。
-- 默认只展示 Level 4/5 fact edges，observations/leads 不污染事实边。
+- [x] `supplystrata chain <company> --format json` 输出分层 `segments`。
+- [x] 每段都有 `semantic_layer`。
+- [x] 默认只展示 Level 4/5 fact edges，observations/leads 不污染事实边。
+- [ ] observation / lead / unknown segments 接入。
 
 ### PR F：语义级 changes
 
@@ -490,9 +494,9 @@ v0.2 仍然优先完成：
 [ ] claims / claim_evidence / claim_unknowns 落库
 [ ] observations / lead_observations 落库
 [ ] chain_views / chain_segments 落库
-[ ] packages/claim-builder 可以生成无 unsupported claim 的第一版 claims
-[ ] packages/chain-view 可以输出分层 ChainViewModel
-[ ] CLI JSON 输出包含 semantic_layer
+[x] packages/claim-builder 可以生成无 unsupported claim 的第一版 claims
+[x] packages/chain-view 可以输出分层 ChainViewModel
+[x] CLI JSON 输出包含 semantic_layer
 [ ] research-preview 能消费 ChainViewModel
 [ ] observations/leads 不会进入 Neo4j fact edge
 [ ] LLM 仍然不能直接写 edge/claim

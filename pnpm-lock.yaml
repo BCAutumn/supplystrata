@@ -386,6 +386,9 @@ importers:
 
   packages/render:
     dependencies:
+      '@supplystrata/chain-view':
+        specifier: workspace:*
+        version: link:../chain-view
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core

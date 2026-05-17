@@ -15,7 +15,7 @@ import type { EvidenceLevel, RelationType } from "@supplystrata/core";
 
 export type OutputFormat = "markdown" | "json";
 
-export { renderChain, renderChainCard, type ChainEdge } from "./chain.js";
+export { renderChain, renderChainCard, type ChainViewModel, type ChainViewSegmentModel } from "./chain.js";
 export { renderCompany } from "./company.js";
 
 export interface ComponentHeaderRow extends pg.QueryResultRow {

@@ -134,6 +134,19 @@ company     公司名、别名、ticker 或 entity_id
 
 返回 chain-first upstream view。它沿 Level 4-5 的 `BUYS_FROM` / `USES_FOUNDRY` / `SUPPLIES_TO` / `MANUFACTURES_AT` 边递归展开，默认不展示 Level 1-3 推断边。
 
+JSON 输出消费 `@supplystrata/chain-view` 的 `CompanyChainViewModel`，每段都有 `semantic_layer`。当前已支持 `edge` 与 `claim` 分层，后续 observation / lead / unknown 只新增 segment，不改变事实边语义。
+
+### supplystrata claims build
+
+```
+--min-level 4|5
+--limit N
+--generated-by <id>
+--format markdown | json
+```
+
+从已验证事实边生成 claim 层。它只扫描 current、非 inferred、有 primary evidence 的 Level 4/5 边；重复运行会更新同一个确定性 claim，不会产生重复结论。
+
 ### supplystrata evidence `<id>`
 
 ```
