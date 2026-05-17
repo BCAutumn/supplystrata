@@ -60,6 +60,14 @@ CREATE TABLE IF NOT EXISTS evidence (
 );
 CREATE INDEX IF NOT EXISTS idx_evidence_edge ON evidence(edge_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_doc ON evidence(doc_id);
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS cite_start_char INT;
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS cite_end_char INT;
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS cite_text_sha256 TEXT;
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS normalized_cite_text_sha256 TEXT;
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS source_snapshot_sha256 TEXT;
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS parser_version TEXT;
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS extractor_version TEXT;
+ALTER TABLE evidence ADD COLUMN IF NOT EXISTS relation_candidate_hash TEXT;
 CREATE INDEX IF NOT EXISTS idx_evidence_relation_candidate_hash ON evidence(relation_candidate_hash) WHERE relation_candidate_hash IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS edges (
