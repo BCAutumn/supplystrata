@@ -190,7 +190,7 @@ supplystrata review apply-approved --reviewer <name> [--limit N] [--format markd
 - `supplier_list_row`：生成两条受控关系：buyer `BUYS_FROM` supplier，以及 supplier `MANUFACTURES_AT` facility。apply 前会先做实体解析和证据评分；如果 supplier 还没进入实体库，候选会变成 `blocked`，同时写入 `pending_entities`，不会生成脏边。只有 buyer / supplier 都能解析，并且 facility 实体能由已审核行稳定创建时，才交给 `GraphBuilder.apply()`。
 - `entity_source_candidate`：把外部登记源候选写入 `entity_master` / `entity_alias`，并把同 surface 的 `pending_entities` 标记为 resolved。写入前会检查 identifier / alias 是否已经属于其它实体，冲突时 blocked。
 
-如果实体是高频且低歧义的 curated seed，比如 `3M`，也可以先补 `seeds/entities.csv` / `seeds/aliases.csv`，再执行 `supplystrata admin seed` 和原 review 的 `apply`。supplier list apply 成功后会关闭同 surface 的 pending entity。
+如果实体是高频且低歧义的 curated seed，比如 `3M`，也可以先补 `seeds/entities.csv` / `seeds/aliases.csv`，再执行 `supplystrata admin seed` 和原 review 的 `apply`。supplier list apply 成功后会关闭同 surface 的 pending entity。`blocked` 候选允许人工补完实体后重试；`apply-approved` 批处理仍只扫描 `approved`，不会自动重试所有 blocked 项。
 
 `review apply` 的返回值里会带 `apply_results[].graph_sync`。`synced` 表示 Neo4j 当前态已经同步；`failed` 表示 Postgres 真相存储已经写入成功，但 Neo4j 物化视图没有同步成功，应执行 `supplystrata graph rebuild`。为了兼容旧调用，返回值仍保留第一条 supplier edge 的 `apply_result`。
 

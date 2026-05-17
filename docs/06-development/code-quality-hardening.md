@@ -27,16 +27,17 @@
 [x] review candidate kind 改为由实际联合类型派生，避免 kind 表和类型守卫分叉。
 [x] db/src/index.ts 拆成 client / seed / documents / pending / query，公开入口只做 re-export。
 [x] 新增 @supplystrata/signal-extractor，pipeline 不再直接承载 IR signal 抽取业务规则。
+[x] review apply 拆成实体导入、supplier-list 实体解析、设施准备、证据评分、写图、状态标记等显式阶段。
 ```
 
 ## 下一批质量修复
 
 ```text
-[ ] 将 review apply 拆成状态机阶段，明确 approved / blocked / applied 转移。
 [ ] 将 relation-extractor 中 counterparty/component 白名单数据化。
 [ ] 将 data-quality 中实体专用规则迁出主入口，改成规则注册表。
 [ ] CLI 命令树拆到 commands/*.ts，main.ts 只负责组装。
 [ ] 将 db schema 从单一 schema 字符串迁移到带 schema_migrations 的正式迁移系统。
+[ ] 将 review_candidates 和旧 extraction_review_queue 的历史双轨合并成单一 review store。
 ```
 
 ## 验收门槛
