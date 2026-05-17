@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { createId, loadEnv, type FetchTask, type RawDocument } from "@supplystrata/core";
+import { createId, loadEnv, type FetchTask } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export type SecEdgarFormType = "10-K" | "10-Q" | "20-F" | "8-K";
 
@@ -82,24 +83,8 @@ export const secEdgarAdapter: SourceAdapter<SecEdgarInput, Uint8Array> = {
     };
   },
   async normalize(raw) {
-    const primaryEntityId = stringMetadata(raw, "primary_entity_id");
-    const sourceDate = stringMetadata(raw, "source_date");
     const documentType = secDocumentTypeFromMetadata(raw.metadata["document_type"]);
-    return {
-      doc_id: raw.doc_id,
-      source_adapter_id: raw.source_adapter_id,
-      document_type: documentType,
-      language: "en",
-      fetched_at: raw.fetched_at,
-      source_url: raw.url,
-      storage_key: raw.storage_key,
-      bytes_sha256: raw.bytes_sha256,
-      text: "",
-      chunks: [],
-      metadata: raw.metadata,
-      ...(primaryEntityId === undefined ? {} : { primary_entity_id: primaryEntityId }),
-      ...(sourceDate === undefined ? {} : { source_date: sourceDate })
-    };
+    return normalizeHtmlDocument({ raw, documentType });
   }
 };
 
@@ -146,11 +131,6 @@ function readStringArray(source: unknown, key: keyof SecRecentFilings): string[]
 function requireString(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) throw new Error(`Missing SEC value: ${name}`);
   return value;
-}
-
-function stringMetadata(raw: RawDocument<Uint8Array>, key: string): string | undefined {
-  const value = raw.metadata[key];
-  return typeof value === "string" ? value : undefined;
 }
 
 function secDocumentTypeFromMetadata(value: unknown): SecEdgarFormType {

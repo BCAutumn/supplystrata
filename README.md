@@ -82,10 +82,23 @@
 
 ## 当前可运行切片
 
-本地启动后可以跑完整 NVIDIA 公开披露切片：
+不启动 Docker、只看解析效果：
 
 ```bash
 pnpm install
+pnpm --silent cli preview nvidia --format markdown
+pnpm --silent cli preview report nvidia --format markdown --lang zh
+pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-Q --format markdown
+pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 8-K --format markdown
+```
+
+`preview` 命令是无数据库路径，只做 source adapter `plan/fetch/normalize`、规则抽取、seed 实体消歧和证据评分；适合未来嵌入 TS 桌面端或 agent 产品。当前切片只使用规则抽取，没有调用 LLM API。
+
+需要累积证据、审计、review/apply 和图谱重建时，需要 Postgres；需要本地图谱物化检查时再接 Neo4j。Docker 只是本地开发里最省事的一种启动方式，不是产品运行时强依赖；也可以使用你已有的 Postgres / Neo4j 服务并改 `.env` 连接串。
+
+用 Docker 启动本地持久化环境：
+
+```bash
 docker compose up -d postgres neo4j
 pnpm smoke:network
 ```
@@ -96,18 +109,7 @@ pnpm smoke:network
 pnpm smoke:local
 ```
 
-不启动 Docker、只看解析效果：
-
-```bash
-pnpm --silent cli preview nvidia --format markdown
-pnpm --silent cli preview report nvidia --format markdown --lang zh
-pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-Q --format markdown
-pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 8-K --format markdown
-```
-
-当前切片只使用规则抽取，没有调用 LLM API。LLM 策略、`needs_review` 默认值与 cite_text 校验规则仍按 [ADR-003](./docs/10-decisions/ADR-003-llm-strategy.md) 保留，但不属于这次已经跑通的路径。
-
-`preview` 命令是无数据库路径，只做 SEC 抓取、HTML 解析、规则抽取、seed 实体消歧和证据评分；适合未来嵌入 TS 桌面端或 agent 产品。Postgres/Neo4j 路径用于累积证据、审计、review 和图谱重建。
+LLM 策略、`needs_review` 默认值与 cite_text 校验规则仍按 [ADR-003](./docs/10-decisions/ADR-003-llm-strategy.md) 保留，但不属于这次已经跑通的路径。
 
 `sec-edgar` adapter 支持 `10-K / 10-Q / 20-F / 8-K`。当前 NVIDIA shortcut 仍默认跑 10-K；10-Q / 8-K 先作为显式命令和后续 source monitor 调度入口。
 

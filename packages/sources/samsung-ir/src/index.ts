@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createId, fetchBytesWithTimeout, loadEnv } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface SamsungIrInput {
   year: number;
@@ -47,19 +48,7 @@ export const samsungIrAdapter: SourceAdapter<SamsungIrInput, Uint8Array> = {
     };
   },
   async normalize(raw) {
-    return {
-      doc_id: raw.doc_id,
-      source_adapter_id: raw.source_adapter_id,
-      document_type: "annual_report",
-      language: "en",
-      fetched_at: raw.fetched_at,
-      source_url: raw.url,
-      storage_key: raw.storage_key,
-      bytes_sha256: raw.bytes_sha256,
-      text: "",
-      chunks: [],
-      metadata: raw.metadata
-    };
+    return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
 };
 

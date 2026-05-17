@@ -282,9 +282,6 @@ importers:
       '@supplystrata/graph-builder':
         specifier: workspace:*
         version: link:../graph-builder
-      '@supplystrata/parsers-html':
-        specifier: workspace:*
-        version: link:../parsers/html
       '@supplystrata/relation-extractor-rule':
         specifier: workspace:*
         version: link:../relation-extractor/rule
@@ -385,6 +382,18 @@ importers:
         specifier: ~8.13.1
         version: 8.13.3
 
+  packages/source-normalizers:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/parsers-html':
+        specifier: workspace:*
+        version: link:../parsers/html
+      '@supplystrata/parsers-text':
+        specifier: workspace:*
+        version: link:../parsers/text
+
   packages/source-registry:
     dependencies:
       '@supplystrata/core':
@@ -420,6 +429,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
 
   packages/sources/companies-house:
     dependencies:
@@ -435,6 +447,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
 
   packages/sources/opencorporates:
     dependencies:
@@ -450,6 +465,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
 
   packages/sources/samsung-ir:
     dependencies:
@@ -462,6 +480,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
 
   packages/sources/sec-edgar:
     dependencies:
@@ -474,6 +495,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
 
   packages/sources/skhynix-ir:
     dependencies:
@@ -486,6 +510,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
 
   packages/sources/tsmc-ir:
     dependencies:
@@ -498,6 +525,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
 
   packages/supplier-list: {}
 

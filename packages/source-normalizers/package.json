@@ -1,0 +1,13 @@
+{
+  "name": "@supplystrata/source-normalizers",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/parsers-html": "workspace:*",
+    "@supplystrata/parsers-text": "workspace:*"
+  }
+}

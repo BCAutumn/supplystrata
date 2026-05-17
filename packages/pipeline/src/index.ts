@@ -14,7 +14,6 @@ import { insertReviewQueue, saveNormalizedDocument } from "@supplystrata/db";
 import { DbEntityResolver, SeedEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
-import { parseHtml } from "@supplystrata/parsers-html";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
@@ -256,8 +255,7 @@ export async function previewTsmcIr(input: TsmcIrInput = { year: 2025, entityId:
     adapter: tsmcIrAdapter,
     input,
     context: createTsmcIrAdapterContext(),
-    logLabel: "TSMC IR annual report",
-    normalize: (rawDocument) => normalizeOfficialHtml(rawDocument, input.entityId)
+    logLabel: "TSMC IR annual report"
   });
   return {
     doc_id: normalized.doc_id,
@@ -302,7 +300,6 @@ export async function previewSamsungIr(input: SamsungIrInput = { year: 2025, ent
     adapter: samsungIrAdapter,
     input,
     context: createSamsungIrAdapterContext(),
-    primaryEntityId: input.entityId,
     logLabel: "Samsung official disclosure",
     extractSignals: extractSamsungSignalsFromText
   });
@@ -313,7 +310,6 @@ export async function previewSkHynixIr(input: SkHynixIrInput = { year: 2025, ent
     adapter: skHynixIrAdapter,
     input,
     context: createSkHynixIrAdapterContext(),
-    primaryEntityId: input.entityId,
     logLabel: "SK hynix official disclosure",
     extractSignals: extractSkHynixSignalsFromText
   });
@@ -324,7 +320,6 @@ export async function previewAsmlIr(input: AsmlIrInput = { year: 2025, entityId:
     adapter: asmlIrAdapter,
     input,
     context: createAsmlIrAdapterContext(),
-    primaryEntityId: input.entityId,
     logLabel: "ASML annual report",
     extractSignals: extractAsmlSignalsFromText
   });
@@ -335,8 +330,7 @@ export async function previewAppleSuppliers(input: AppleSuppliersInput = { fisca
     adapter: appleSuppliersAdapter,
     input,
     context: createAppleSuppliersAdapterContext(),
-    logLabel: "Apple Supplier List",
-    normalize: (rawDocument, ctx) => appleSuppliersAdapter.normalize(rawDocument, ctx)
+    logLabel: "Apple Supplier List"
   });
   return {
     doc_id: normalized.doc_id,
@@ -352,8 +346,7 @@ export async function enqueueAppleSupplierReviewCandidates(pool: pg.Pool, input:
     adapter: appleSuppliersAdapter,
     input,
     context: createAppleSuppliersAdapterContext(),
-    logLabel: "Apple Supplier List",
-    normalize: (rawDocument, ctx) => appleSuppliersAdapter.normalize(rawDocument, ctx)
+    logLabel: "Apple Supplier List"
   });
   const saved = await saveNormalizedDocument(pool, normalized);
   await recordSavedDocumentObservation(pool, normalized, saved.doc_id);
@@ -380,7 +373,6 @@ interface FetchAndNormalizeInput<TInput> {
   input: TInput;
   context: AdapterContext;
   logLabel: string;
-  normalize(raw: RawDocument<Uint8Array>, ctx: AdapterContext): NormalizedDocument | Promise<NormalizedDocument>;
 }
 
 interface FetchedNormalizedDocument {
@@ -399,7 +391,7 @@ async function fetchAndNormalizeFirstTask<TInput>(input: FetchAndNormalizeInput<
   if (task === undefined) throw new Error(`${input.adapter.id} adapter produced no fetch task`);
   logger.info({ stage: "ingest", adapter: input.adapter.id, task_id: task.task_id }, `fetching ${input.logLabel}`);
   const raw = await input.adapter.fetch(task, input.context);
-  const normalized = await input.normalize(raw, input.context);
+  const normalized = await input.adapter.normalize(raw, input.context);
   const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
   return { raw, normalized, ...(sourceDate === undefined ? {} : { sourceDate }) };
 }
@@ -408,7 +400,6 @@ interface OfficialDisclosureInput<TInput> {
   adapter: SourceAdapter<TInput, Uint8Array>;
   input: TInput;
   context: AdapterContext;
-  primaryEntityId: string;
   logLabel: string;
   extractSignals(text: string): TsmcIrSignal[];
 }
@@ -418,8 +409,7 @@ async function previewOfficialDisclosure<TInput>(input: OfficialDisclosureInput<
     adapter: input.adapter,
     input: input.input,
     context: input.context,
-    logLabel: input.logLabel,
-    normalize: (rawDocument) => normalizeOfficialHtml(rawDocument, input.primaryEntityId)
+    logLabel: input.logLabel
   });
   return {
     doc_id: normalized.doc_id,
@@ -429,11 +419,6 @@ async function previewOfficialDisclosure<TInput>(input: OfficialDisclosureInput<
     chunks: normalized.chunks.length,
     signals: input.extractSignals(normalized.text)
   };
-}
-
-function normalizeOfficialHtml(raw: RawDocument<Uint8Array>, primaryEntityId: string): NormalizedDocument {
-  const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
-  return parseHtml({ raw, documentType: "annual_report", primaryEntityId, ...(sourceDate === undefined ? {} : { sourceDate }) });
 }
 
 async function recordSavedDocumentObservation(pool: pg.Pool, normalized: NormalizedDocument, docId: string): Promise<void> {
@@ -450,7 +435,7 @@ async function recordSavedDocumentObservation(pool: pg.Pool, normalized: Normali
 
 interface FetchedSecDocument {
   raw: Awaited<ReturnType<typeof secEdgarAdapter.fetch>>;
-  normalized: ReturnType<typeof parseHtml>;
+  normalized: NormalizedDocument;
   documentType: DocumentType;
   sourceDate?: string;
 }
@@ -469,8 +454,7 @@ async function fetchAndParseSecEdgar(input: SecEdgarInput): Promise<FetchedSecDo
   const raw = await secEdgarAdapter.fetch(task, ctx);
   const documentType = readDocumentType(raw.metadata["document_type"]);
   const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
-  const primaryEntityId = typeof raw.metadata["primary_entity_id"] === "string" ? raw.metadata["primary_entity_id"] : input.entityId;
-  const normalized = parseHtml({ raw, documentType, primaryEntityId, ...(sourceDate === undefined ? {} : { sourceDate }) });
+  const normalized = await secEdgarAdapter.normalize(raw, ctx);
   return { raw, normalized, documentType, ...(sourceDate === undefined ? {} : { sourceDate }) };
 }
 

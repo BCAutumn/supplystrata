@@ -3,6 +3,7 @@ import { createId, fetchBytesWithTimeout, loadEnv, requireEnvValue, type FetchTa
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import { FsObjectStore } from "@supplystrata/object-store";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export interface OpenCorporatesSearchInput {
   query: string;
@@ -120,19 +121,29 @@ export function extractOpenCorporatesCandidates(raw: RawDocument<Uint8Array>): E
 
 function normalizeOpenCorporatesDocument(raw: RawDocument<Uint8Array>): NormalizedDocument {
   const candidates = extractOpenCorporatesCandidates(raw);
-  return {
-    doc_id: raw.doc_id,
-    source_adapter_id: raw.source_adapter_id,
-    document_type: "company_registry",
-    language: "en",
-    fetched_at: raw.fetched_at,
-    source_url: raw.url,
-    storage_key: raw.storage_key,
-    bytes_sha256: raw.bytes_sha256,
-    text: candidates.map((candidate) => `${candidate.name} | ${candidate.external_id}`).join("\n"),
-    chunks: [],
-    metadata: { ...raw.metadata, parser_version: "opencorporates-json-v1", candidate_count: candidates.length }
-  };
+  return normalizeTextDocument({
+    raw,
+    documentType: "company_registry",
+    parserVersion: "opencorporates-json-v1",
+    text: candidates.map(formatEntitySourceCandidateText).join("\n\n"),
+    extraMetadata: { candidate_count: candidates.length }
+  });
+}
+
+function formatEntitySourceCandidateText(candidate: EntitySourceCandidate): string {
+  return [
+    `name: ${candidate.name}`,
+    `external_id: ${candidate.external_id}`,
+    `jurisdiction: ${candidate.jurisdiction_code}`,
+    candidate.company_number === undefined ? undefined : `company_number: ${candidate.company_number}`,
+    candidate.current_status === undefined ? undefined : `status: ${candidate.current_status}`,
+    candidate.company_type === undefined ? undefined : `company_type: ${candidate.company_type}`,
+    candidate.incorporation_date === undefined ? undefined : `incorporation_date: ${candidate.incorporation_date}`,
+    candidate.registered_address === undefined ? undefined : `registered_address: ${candidate.registered_address}`,
+    candidate.previous_names.length === 0 ? undefined : `previous_names: ${candidate.previous_names.join("; ")}`,
+    candidate.alternative_names.length === 0 ? undefined : `alternative_names: ${candidate.alternative_names.join("; ")}`,
+    `provenance: ${candidate.provenance_note}`
+  ].filter((line): line is string => line !== undefined).join("\n");
 }
 
 function parseOpenCorporatesPayload(bytes: Uint8Array): OpenCorporatesCompanyWrapper[] {

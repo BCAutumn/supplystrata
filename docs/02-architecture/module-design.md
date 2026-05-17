@@ -96,7 +96,7 @@ export interface SourceAdapter<TFetchInput, TRawDoc, TNormalizedDoc> {
   /** 抓取一个具体任务的原始字节 */
   fetch(task: FetchTask, ctx: AdapterContext): Promise<RawDocument<TRawDoc>>;
 
-  /** 把原始字节标准化为系统通用文档 */
+  /** 把原始字节标准化为系统通用文档；必须产出 text + chunks，不允许只返回元数据壳 */
   normalize(
     raw: RawDocument<TRawDoc>,
     ctx: AdapterContext,
@@ -147,7 +147,8 @@ export interface DocumentChunk {
 约束：
 
 - adapter **不直接**写入 Postgres / Neo4j；写入由 pipeline 统一处理
-- adapter **必须**调用 `ctx.entityResolver` 来解析实体，而不是自己造 ID
+- adapter **不直接**解析关系或写实体主表；实体消歧由 entity-resolver / review apply 阶段处理
+- adapter 的 `normalize()` 必须返回完整 `NormalizedDocument`。HTML / PDF / text 用 parser 包清洗切块；结构化 JSON 源也要生成可审计文本摘要和 chunks。
 - adapter **必须**遵守 `rate_limit` 自我限流（pipeline 也会强制）
 
 ### 2. EntityResolver

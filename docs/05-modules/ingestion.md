@@ -43,9 +43,20 @@
 
 要求：
 
+- `normalize()` 的产物必须是**完整** `NormalizedDocument`，不能只是 `doc_id/source_url` 这类元数据壳。
+- 可解析文档必须填充 `text` 与 `chunks`；HTML / PDF / 文本解析应在 adapter 的 `normalize()` 内调用通用 parser，而不是把解析散落到 pipeline。
+- 结构化 JSON 源（例如 company registry）也要生成可读文本摘要并切 chunk，方便 source monitor、review 和检索统一消费。
 - 解析失败要 friendly：标 `documents.parse_status = "parse_failed"`，写一行错误，但不阻塞
 - 输出的 chunks 必须各自有稳定 `chunk_index`（chunk_id 永不变）
 - 输出 text 必须 NFKC 规范化 + 去 BOM + 行终止符统一为 `\n`
+
+职责边界：
+
+- source adapter 负责 `plan → fetch → normalize` 的源内闭环。
+- parser 包负责通用 HTML / PDF / text 清洗与切块。
+- pipeline 只负责保存、抽取、评分、review/apply 编排；不得绕过 adapter 自行解析源文档。
+
+这样 source monitor 后续可以独立调度 `plan/fetch/normalize`，并确信拿到的是完整 normalized document，而不是需要 pipeline 再补解析的半成品。
 
 ## Pipeline 编排
 

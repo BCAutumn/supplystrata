@@ -10,9 +10,11 @@
 
 - Node.js LTS >= 22
 - pnpm >= 9
-- Docker + Docker Compose v2
+- Docker + Docker Compose v2（可选）
+- 可连接的 Postgres（持久化 pipeline / review / source monitor 需要）
+- Neo4j（可选，图谱物化视图需要）
 
-本仓库的 CLI 和数据源 adapter 都是 TypeScript。Docker 只用于本地 Postgres / Neo4j 测试环境，不是产品运行时的强依赖。
+本仓库的 CLI 和数据源 adapter 都是 TypeScript。Docker 只用于一键启动本地 Postgres / Neo4j 测试环境，不是产品运行时的强依赖；嵌入其它 TS 桌面端或 agent 产品时，可以只调用无数据库 preview / adapter API，也可以连接宿主项目提供的 Postgres。
 
 ## 1. 安装依赖
 
@@ -23,7 +25,18 @@ cp .env.example .env
 
 SEC/NVIDIA 规则切片不需要 LLM key。OpenCorporates / Companies House 查询需要在 `.env` 自行填写对应 key。
 
-## 2. 启动本地数据库
+## 2. 先跑无数据库预览
+
+如果只想确认 SEC 抓取、HTML normalize、规则抽取和 seed 消歧，先跑这个：
+
+```bash
+pnpm --silent cli preview nvidia --format markdown
+pnpm --silent cli preview report nvidia --format markdown --lang zh
+```
+
+这条路径不会落库，也不会写 Neo4j。它走的是 source adapter `plan/fetch/normalize` 契约，所以适合验证未来嵌入式调用方式。
+
+## 3. 启动本地数据库
 
 ```bash
 docker compose up -d postgres neo4j
@@ -31,7 +44,9 @@ docker compose up -d postgres neo4j
 
 第一次启动 Neo4j 可能需要 5-15 秒。
 
-## 3. 本地 smoke
+如果你不用 Docker，改 `.env` 的 `POSTGRES_URL` / `NEO4J_*` 指向已有服务即可。
+
+## 4. 本地 smoke
 
 ```bash
 pnpm smoke:local
@@ -54,7 +69,7 @@ pnpm test:integration
 
 它需要上一步的 Postgres 正在运行；否则会报 `ECONNREFUSED localhost:5432`。这类失败表示 Docker/Postgres 环境没起来，不是 parser、extractor 或 graph 逻辑失败。
 
-## 4. 联网研究 smoke
+## 5. 联网研究 smoke
 
 ```bash
 pnpm smoke:network
@@ -68,7 +83,7 @@ pnpm smoke:network
 
 通过后说明当前环境已经能从 SEC EDGAR 抓取 NVIDIA 10-K、解析公开披露、抽取供应链关系、评分证据、落 Postgres、重建 Neo4j，并输出 company card 与 unknown map。
 
-## 5. 发布前体检
+## 6. 发布前体检
 
 ```bash
 pnpm release:check
@@ -86,7 +101,7 @@ pnpm --silent cli preview report nvidia --format markdown --lang zh
 pnpm --silent cli preview apple-suppliers --limit 10 --format markdown
 ```
 
-这条路径不会落库，也不会写 Neo4j，适合未来嵌入 TS 桌面端或 agent 产品。
+这条路径不会落库，也不会写 Neo4j，适合未来嵌入 TS 桌面端或 agent 产品。需要 review 队列、source health、changes timeline、Postgres truth store 或 Neo4j 物化图时，才需要连接数据库服务。
 
 ## 常见失败
 

@@ -13,7 +13,6 @@
     "@supplystrata/entity-resolver": "workspace:*",
     "@supplystrata/evidence-scorer": "workspace:*",
     "@supplystrata/graph-builder": "workspace:*",
-    "@supplystrata/parsers-html": "workspace:*",
     "@supplystrata/relation-extractor-rule": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",

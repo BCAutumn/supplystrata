@@ -25,6 +25,7 @@ export default defineConfig({
       "@supplystrata/review-store": resolve(__dirname, "packages/review-store/src/index.ts"),
       "@supplystrata/source-adapter-spec": resolve(__dirname, "packages/source-adapter-spec/src/index.ts"),
       "@supplystrata/source-monitor": resolve(__dirname, "packages/source-monitor/src/index.ts"),
+      "@supplystrata/source-normalizers": resolve(__dirname, "packages/source-normalizers/src/index.ts"),
       "@supplystrata/source-registry": resolve(__dirname, "packages/source-registry/src/index.ts"),
       "@supplystrata/supplier-list": resolve(__dirname, "packages/supplier-list/src/index.ts"),
       "@supplystrata/sources-apple-suppliers": resolve(__dirname, "packages/sources/apple-suppliers/src/index.ts"),

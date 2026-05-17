@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createId, fetchBytesWithTimeout, loadEnv, type FetchTask, type RawDocument } from "@supplystrata/core";
+import { createId, fetchBytesWithTimeout, loadEnv, type FetchTask } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface TsmcIrInput {
   year: number;
@@ -47,19 +48,7 @@ export const tsmcIrAdapter: SourceAdapter<TsmcIrInput, Uint8Array> = {
     };
   },
   async normalize(raw) {
-    return {
-      doc_id: raw.doc_id,
-      source_adapter_id: raw.source_adapter_id,
-      document_type: "annual_report",
-      language: "en",
-      fetched_at: raw.fetched_at,
-      source_url: raw.url,
-      storage_key: raw.storage_key,
-      bytes_sha256: raw.bytes_sha256,
-      text: "",
-      chunks: [],
-      metadata: raw.metadata
-    };
+    return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
 };
 
@@ -92,9 +81,4 @@ async function readLatestCachedAnnualReport(year: string): Promise<Uint8Array | 
   } catch {
     return undefined;
   }
-}
-
-export function stringMetadata(raw: RawDocument<Uint8Array>, key: string): string | undefined {
-  const value = raw.metadata[key];
-  return typeof value === "string" ? value : undefined;
 }

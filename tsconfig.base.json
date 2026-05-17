@@ -39,6 +39,7 @@
       "@supplystrata/review-store": ["packages/review-store/src/index.ts"],
       "@supplystrata/source-adapter-spec": ["packages/source-adapter-spec/src/index.ts"],
       "@supplystrata/source-monitor": ["packages/source-monitor/src/index.ts"],
+      "@supplystrata/source-normalizers": ["packages/source-normalizers/src/index.ts"],
       "@supplystrata/source-registry": ["packages/source-registry/src/index.ts"],
       "@supplystrata/supplier-list": ["packages/supplier-list/src/index.ts"],
       "@supplystrata/sources-apple-suppliers": ["packages/sources/apple-suppliers/src/index.ts"],

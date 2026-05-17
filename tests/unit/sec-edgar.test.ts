@@ -58,7 +58,7 @@ describe("SEC EDGAR adapter helpers", () => {
       fetched_at: "2026-05-17T00:00:00.000Z",
       bytes_sha256: "sha",
       storage_key: "sec-edgar/example-8k.htm",
-      body: new Uint8Array(),
+      body: new TextEncoder().encode("<html><head><title>NVIDIA 8-K</title></head><body><p>NVIDIA filed a current report describing supply commitments.</p></body></html>"),
       metadata: {
         document_type: "8-K",
         primary_entity_id: "ENT-NVIDIA",
@@ -66,12 +66,14 @@ describe("SEC EDGAR adapter helpers", () => {
       }
     };
 
-    await expect(secEdgarAdapter.normalize(raw, adapterContext())).resolves.toMatchObject({
-      doc_id: "DOC-SEC-8K",
-      document_type: "8-K",
-      primary_entity_id: "ENT-NVIDIA",
-      source_date: "2026-05-10"
-    });
+    const normalized = await secEdgarAdapter.normalize(raw, adapterContext());
+    expect(normalized.doc_id).toBe("DOC-SEC-8K");
+    expect(normalized.document_type).toBe("8-K");
+    expect(normalized.primary_entity_id).toBe("ENT-NVIDIA");
+    expect(normalized.source_date).toBe("2026-05-10");
+    expect(normalized.metadata["parser_version"]).toBe("html-parser-v1");
+    expect(normalized.text).toContain("NVIDIA filed a current report");
+    expect(normalized.chunks.length).toBeGreaterThan(0);
   });
 });
 
