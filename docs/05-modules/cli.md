@@ -4,7 +4,12 @@
 
 当前实现按职责拆分：
 
-- `main.ts`：命令树和 handler wiring。
+- `main.ts`：只创建 `Command` 实例并注册命令模块，避免入口文件继续膨胀。
+- `commands/db-admin.ts`：数据库迁移、seed、evidence trace 回填。
+- `commands/pipeline-preview.ts`：ingest / pipeline / preview 相关命令。
+- `commands/sources-changes.ts`：source registry、source health、source policy、changes timeline。
+- `commands/entity-review.ts`：entity lookup / pending entity / review queue。
+- `commands/graph-dq-cards.ts`：graph、data quality、company / chain / component / evidence / unknown-map 卡片。
 - `cli-utils.ts`：`--format` / `--limit` 等参数解析、JSON/Markdown 输出、Postgres pool 生命周期。
 - `preview-render.ts`：NVIDIA / Apple supplier preview 和研究报告渲染。
 - `entity-render.ts` / `review-render.ts` / `source-render.ts`：各自领域的展示层。
@@ -22,59 +27,57 @@
 
 ```
 supplystrata
-├── company <ref> [--depth] [--format] [--include-inferred]
+├── db
+│   ├── migrate
+│   └── backfill-evidence-trace [--limit]
+├── admin
+│   └── seed
+├── ingest
+│   └── sec-edgar --cik <cik> [--entity] [--types]
+├── pipeline
+│   └── nvidia
+├── preview
+│   ├── nvidia [--format]
+│   ├── apple-suppliers [--format] [--limit]
+│   ├── sec-edgar --cik <cik> [--entity] [--types] [--format]
+│   └── report
+│       └── nvidia [--format] [--lang]
+├── sources
+│   ├── list [--format]
+│   ├── status [--format]
+│   ├── sync
+│   ├── health [--format]
+│   ├── due [--limit] [--format]
+│   └── policy
+│       └── sync --file <path>
+├── changes [--since] [--scope] [--type] [--source] [--attention-only] [--limit] [--format]
+├── company <ref> [--format]
 ├── component <name> [--format]
-├── entity <id> [--show-aliases] [--show-subsidiaries]
 ├── evidence <id> [--format]
-├── edge <id>
-├── unknown-map <scope> <id> [--format]
-├── unknown
-│   ├── add ...
-│   └── list ...
-├── changes [--since] [--scope]
-├── search <query>
+├── chain <company> [--depth] [--format]
+├── unknown-map <company-query> [--format]
 ├── entity
-│   └── lookup <query> [--source all|opencorporates|companies-house] [--jurisdiction] [--limit] [--format]
+│   ├── lookup <query> [--source all|opencorporates|companies-house] [--jurisdiction] [--limit] [--format]
 │   └── pending
 │       ├── list [--status pending|resolved|all] [--limit] [--format]
 │       ├── show <PND-id> [--format]
 │       └── lookup <PND-id> [--source all|opencorporates|companies-house] [--jurisdiction] [--limit] [--format]
-│
-├── ingest <adapter-id> [...adapter-args]
-├── parse [--doc] [--reparse]
-├── extract [--doc] [--extractors] [--rerun-rejected]
-├── score [--doc] [--candidate]
-├── apply [--review-id]
 ├── review
-│   ├── enqueue apple-suppliers
 │   ├── stats
 │   ├── next
 │   ├── show <id>
 │   ├── approve <id>
 │   ├── reject <id> [--reason]
-│   └── stats
-│
-├── manual
-│   ├── document add ...
-│   └── evidence add ...
-│
+│   ├── apply <id>
+│   ├── apply-approved [--reviewer] [--limit] [--format]
+│   └── enqueue
+│       ├── apple-suppliers
+│       └── entity-source <query> [--source] [--jurisdiction] [--limit]
 ├── graph
-│   ├── apply ...
 │   ├── rebuild
-│   ├── check [--format]
-│   └── deprecate ...
-│
-├── jobs
-│   ├── list
-│   ├── failed
-│   ├── retry <id>
-│   └── kill <id>
-│
-└── admin
-    ├── backup
-    ├── restore
-    ├── seed                # 加载 seeds/*.csv
-    └── version
+│   └── check [--format]
+└── dq
+    └── run [--format]
 ```
 
 ## 主要命令规格
@@ -192,7 +195,7 @@ supplystrata review apply-approved --reviewer <name> [--limit N] [--format markd
 
 如果实体是高频且低歧义的 curated seed，比如 `3M`，也可以先补 `seeds/entities.csv` / `seeds/aliases.csv`，再执行 `supplystrata admin seed` 和原 review 的 `apply`。supplier list apply 成功后会关闭同 surface 的 pending entity。`blocked` 候选允许人工补完实体后重试；`apply-approved` 批处理仍只扫描 `approved`，不会自动重试所有 blocked 项。
 
-`review apply` 的返回值里会带 `apply_results[].graph_sync`。`synced` 表示 Neo4j 当前态已经同步；`failed` 表示 Postgres 真相存储已经写入成功，但 Neo4j 物化视图没有同步成功，应执行 `supplystrata graph rebuild`。为了兼容旧调用，返回值仍保留第一条 supplier edge 的 `apply_result`。
+`review apply` 的返回值里会带 `apply_results[].graph_sync`。`synced` 表示 Neo4j 当前态已经同步；`failed` 表示 Postgres 真相存储已经写入成功，但 Neo4j 物化视图没有同步成功，应执行 `supplystrata graph rebuild`。返回值只保留结构化的 `apply_results`，不再维护旧的单边 `apply_result` 字段。
 
 `review apply-approved` 是批处理工具，只扫描 `status='approved'` 的候选，不会自动 approve `pending` 候选。每条候选仍然走同一个 `applyApprovedReviewCandidate()` 严格路径：无法解析实体会变成 `blocked`，写图异常会进入 `error`，Neo4j 同步失败会体现在单条结果的 `apply_results[].graph_sync`。
 

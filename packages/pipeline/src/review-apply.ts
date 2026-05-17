@@ -36,7 +36,6 @@ export type ReviewApplyResult =
   | {
       status: "applied";
       review_id: string;
-      apply_result: ApplyResult;
       apply_results: AppliedReviewEdgeResult[];
       pending_entities_resolved: number;
       facility_import: Extract<FacilityImportResult, { status: "applied" }>;
@@ -109,7 +108,6 @@ async function applySupplierListReviewCandidate(pool: pg.Pool, item: SupplierLis
     return {
       status: "applied",
       review_id: reviewId,
-      apply_result: applyResults[0],
       apply_results: applyResults,
       pending_entities_resolved: pendingResolved,
       facility_import: facilityPreparation.facilityImport
