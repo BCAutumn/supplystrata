@@ -25,7 +25,7 @@ supplystrata/
 │   ├── core/                               # 纯领域类型 / IDs / 领域纯函数
 │   ├── config/                             # 环境变量 schema / .env 显式加载
 │   ├── observability/                      # Logger 接口与 pino 默认实现
-│   ├── db/                                 # drizzle schema + migrations + repos
+│   ├── db/                                 # Postgres schema / migration / documents / query repositories
 │   ├── graph/                              # Neo4j adapter
 │   ├── object-store/                       # 抽象的对象存储（本地FS / MinIO）
 │   ├── source-adapter-spec/                # SourceAdapter 接口契约
@@ -41,6 +41,7 @@ supplystrata/
 │   │   ├── llm/
 │   │   └── corroborator/
 │   ├── evidence-scorer/
+│   ├── signal-extractor/                   # 官方披露 signal 抽取；不写图、不评级
 │   ├── graph-builder/
 │   ├── llm-bridge/
 │   ├── pipeline/                           # 编排；Phase 3 起再接 pg-boss 队列
@@ -71,6 +72,7 @@ graph  ← 仅 graph-builder / render 消费方
 parsers/* ← sources/* 与 relation-extractor 消费
 sources/* ← pipeline 消费
 relation-extractor ← pipeline 消费
+signal-extractor ← pipeline / preview 消费；只产出官方披露 signal，不写入事实图
 entity-resolver  ← pipeline / sources / extractor / graph-builder 消费
 evidence-scorer  ← graph-builder 消费
 llm-bridge ← relation-extractor/llm + entity-resolver 消费
@@ -81,6 +83,10 @@ render ← apps/cli 消费
 CI 里加 dependency-cruiser 校验。
 
 `core` 必须保持纯净：不得读取 `.env`、不得实例化 logger、不得封装网络请求、不得访问文件系统。配置读取放在 `@supplystrata/config`；日志放在 `@supplystrata/observability`；source 抓取工具放在 `@supplystrata/source-adapter-spec` 的 adapter 工具层。
+
+`db` 的包入口只做稳定 re-export，内部按职责拆分：`client` 负责连接与 migration 调用，`seed` 负责 CSV seed 与必要的数据回填，`documents` 负责 normalized document / chunk / review queue 写入，`pending` 负责待解析实体，`query` 负责边、证据、unknown map 的只读查询。新增仓储函数必须优先落在对应职责文件中，避免重新膨胀成单文件数据库工具箱。
+
+`pipeline` 只做编排：抓取、标准化、调用 extractor/scorer/resolver/builder、记录 source observation。官方披露 signal 抽取放在 `@supplystrata/signal-extractor`，供应链事实关系抽取放在 `relation-extractor`。pipeline 不直接维护公司名单、组件名单或行业启发式。
 
 ## 关键接口契约
 

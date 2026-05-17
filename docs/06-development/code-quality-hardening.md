@@ -25,17 +25,18 @@
 [x] source monitor 的 health/due 查询函数保持只读；registry 写入改为显式 sync。
 [x] object-store exists 只吞 ENOENT，其它文件系统错误继续抛出。
 [x] review candidate kind 改为由实际联合类型派生，避免 kind 表和类型守卫分叉。
+[x] db/src/index.ts 拆成 client / seed / documents / pending / query，公开入口只做 re-export。
+[x] 新增 @supplystrata/signal-extractor，pipeline 不再直接承载 IR signal 抽取业务规则。
 ```
 
 ## 下一批质量修复
 
 ```text
-[ ] 将 pipeline 中 IR signal 抽取搬到 relation-extractor 或 signal-extractor。
-[ ] 拆分 db/src/index.ts，按 migration / seed / documents / edges / evidence / pending 分层。
 [ ] 将 review apply 拆成状态机阶段，明确 approved / blocked / applied 转移。
 [ ] 将 relation-extractor 中 counterparty/component 白名单数据化。
 [ ] 将 data-quality 中实体专用规则迁出主入口，改成规则注册表。
 [ ] CLI 命令树拆到 commands/*.ts，main.ts 只负责组装。
+[ ] 将 db schema 从单一 schema 字符串迁移到带 schema_migrations 的正式迁移系统。
 ```
 
 ## 验收门槛

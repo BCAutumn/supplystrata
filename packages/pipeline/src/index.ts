@@ -17,6 +17,13 @@ import { getLogger } from "@supplystrata/observability";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
+import {
+  extractAsmlSignalsFromText,
+  extractSamsungSignalsFromText,
+  extractSkHynixSignalsFromText,
+  extractTsmcIrSignalsFromText,
+  type OfficialDisclosureSignal
+} from "@supplystrata/signal-extractor";
 import { recordDocumentObservation } from "@supplystrata/source-monitor";
 import {
   appleSuppliersAdapter,
@@ -80,12 +87,7 @@ export interface SupplyChainPreview {
   candidates: SupplyChainPreviewCandidate[];
 }
 
-export interface TsmcIrSignal {
-  title: string;
-  cite_text: string;
-  evidence_level: 4 | 5;
-  confidence: number;
-}
+export type TsmcIrSignal = OfficialDisclosureSignal;
 
 export interface OfficialDisclosurePreview {
   doc_id: string;
@@ -401,7 +403,7 @@ interface OfficialDisclosureInput<TInput> {
   input: TInput;
   context: AdapterContext;
   logLabel: string;
-  extractSignals(text: string): TsmcIrSignal[];
+  extractSignals(text: string): OfficialDisclosureSignal[];
 }
 
 async function previewOfficialDisclosure<TInput>(input: OfficialDisclosureInput<TInput>): Promise<OfficialDisclosurePreview> {
@@ -456,82 +458,6 @@ async function fetchAndParseSecEdgar(input: SecEdgarInput): Promise<FetchedSecDo
   const sourceDate = typeof raw.metadata["source_date"] === "string" ? raw.metadata["source_date"] : undefined;
   const normalized = await secEdgarAdapter.normalize(raw, ctx);
   return { raw, normalized, documentType, ...(sourceDate === undefined ? {} : { sourceDate }) };
-}
-
-export function extractTsmcIrSignalsFromText(text: string): TsmcIrSignal[] {
-  const signals: TsmcIrSignal[] = [];
-  addSignal(signals, "TSMC describes itself as a dedicated foundry", text, [/pure-play foundry/i, /foundry/i]);
-  addSignal(signals, "TSMC reports broad customer and product coverage", text, [/customers/i, /products/i]);
-  addSignal(signals, "TSMC links demand to AI and HPC", text, [/\bAI\b/i, /\bHPC\b|high performance computing/i]);
-  addSignal(signals, "TSMC highlights advanced packaging capacity", text, [/advanced packaging/i, /packaging/i]);
-  return signals;
-}
-
-export function extractSkHynixSignalsFromText(text: string): TsmcIrSignal[] {
-  const signals: TsmcIrSignal[] = [];
-  addSignal(signals, "SK hynix links results to HBM demand", text, [/\bHBM\b/i, /demand|sales|revenue/i]);
-  addSignal(signals, "SK hynix describes AI memory momentum", text, [/\bAI\b/i, /memory|HBM|DRAM/i]);
-  addSignal(signals, "SK hynix mentions advanced memory products", text, [/HBM|DDR5|DRAM/i, /product|products|portfolio/i]);
-  return signals;
-}
-
-export function extractSamsungSignalsFromText(text: string): TsmcIrSignal[] {
-  const signals: TsmcIrSignal[] = [];
-  addSignal(signals, "Samsung describes HBM demand", text, [/\bHBM\b/i, /demand|sales|revenue|memory/i]);
-  addSignal(signals, "Samsung links memory business to AI servers", text, [/\bAI\b/i, /server|servers|memory|HBM/i]);
-  addSignal(signals, "Samsung mentions foundry performance", text, [/foundry/i, /sales|revenue|demand|customer/i]);
-  return signals;
-}
-
-export function extractAsmlSignalsFromText(text: string): TsmcIrSignal[] {
-  const signals: TsmcIrSignal[] = [];
-  addExactSignal(
-    signals,
-    "ASML links business to semiconductor capacity",
-    text,
-    "We deliver value throughout the semiconductor value chain. Our comprehensive lithography portfolio enables cost-effective microchip scaling for our customers."
-  );
-  addExactSignal(
-    signals,
-    "ASML reports EUV lithography demand",
-    text,
-    "TWINSCAN NXE:3800E – full-specification system improves throughput by 37%"
-  );
-  return signals;
-}
-
-function addSignal(signals: TsmcIrSignal[], title: string, text: string, patterns: RegExp[]): void {
-  const cite = findSentence(text, patterns);
-  if (cite === undefined) return;
-  signals.push({ title, cite_text: cite, evidence_level: 4, confidence: 0.84 });
-}
-
-function addExactSignal(signals: TsmcIrSignal[], title: string, text: string, exactText: string): void {
-  if (!text.includes(exactText)) return;
-  signals.push({ title, cite_text: exactText, evidence_level: 4, confidence: 0.84 });
-}
-
-function findSentence(text: string, patterns: RegExp[]): string | undefined {
-  const sentences = text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length >= 40 && sentence.length <= 900);
-  const sentence = sentences.find((item) => patterns.every((pattern) => pattern.test(item)));
-  return sentence ?? findNearbySnippet(text, patterns);
-}
-
-function findNearbySnippet(text: string, patterns: RegExp[]): string | undefined {
-  const normalized = text.replace(/\s+/g, " ");
-  for (const pattern of patterns) {
-    const match = pattern.exec(normalized);
-    if (match === null) continue;
-    const start = Math.max(0, match.index - 260);
-    const end = Math.min(normalized.length, match.index + 520);
-    const snippet = normalized.slice(start, end).trim();
-    if (snippet.length >= 40 && patterns.every((item) => item.test(snippet))) return snippet;
-  }
-  return undefined;
 }
 
 function isValidCandidate(candidate: CandidateRelation, documentText: string): boolean {

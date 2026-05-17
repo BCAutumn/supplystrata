@@ -18,6 +18,8 @@
     "@supplystrata/relation-extractor-rule": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
+    "@supplystrata/signal-extractor": "workspace:*",
+    "@supplystrata/source-adapter-spec": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/sources-apple-suppliers": "workspace:*",
     "@supplystrata/sources-asml-ir": "workspace:*",

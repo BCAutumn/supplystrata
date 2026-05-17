@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractAsmlSignalsFromText, extractSkHynixSignalsFromText, extractTsmcIrSignalsFromText } from "@supplystrata/pipeline";
+import { extractAsmlSignalsFromText, extractSkHynixSignalsFromText, extractTsmcIrSignalsFromText } from "@supplystrata/signal-extractor";
 import { annualReportUrl, tsmcIrAdapter } from "@supplystrata/sources-tsmc-ir";
 
 describe("TSMC IR preview", () => {

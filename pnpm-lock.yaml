@@ -314,6 +314,12 @@ importers:
       '@supplystrata/review-store':
         specifier: workspace:*
         version: link:../review-store
+      '@supplystrata/signal-extractor':
+        specifier: workspace:*
+        version: link:../signal-extractor
+      '@supplystrata/source-adapter-spec':
+        specifier: workspace:*
+        version: link:../source-adapter-spec
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor
@@ -386,6 +392,8 @@ importers:
       pg:
         specifier: ~8.13.1
         version: 8.13.3
+
+  packages/signal-extractor: {}
 
   packages/source-adapter-spec:
     dependencies:

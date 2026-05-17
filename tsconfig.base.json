@@ -40,6 +40,7 @@
       "@supplystrata/review-candidates": ["packages/review-candidates/src/index.ts"],
       "@supplystrata/review-store": ["packages/review-store/src/index.ts"],
       "@supplystrata/source-adapter-spec": ["packages/source-adapter-spec/src/index.ts"],
+      "@supplystrata/signal-extractor": ["packages/signal-extractor/src/index.ts"],
       "@supplystrata/source-monitor": ["packages/source-monitor/src/index.ts"],
       "@supplystrata/source-normalizers": ["packages/source-normalizers/src/index.ts"],
       "@supplystrata/source-registry": ["packages/source-registry/src/index.ts"],
