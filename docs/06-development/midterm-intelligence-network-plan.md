@@ -20,10 +20,11 @@
 - `renderCompany` / `renderComponent` / `renderChain`：当前 CLI 卡片输出。
 - `research-workbench-spec.md`：TypeScript + Canvas 工作台规格。
 - `multi-tier-chain-logistics-plan.md`：`edge / observation / lead / unknown` 四层模型。
+- `packages/observation-store`：统一写入 observations / leads。
+- `packages/chain-view`：运行时输出 edge / claim / observation / lead / unknown 分层 ChainViewModel。
 
 仍缺：
 
-- `packages/observation-store`：统一写入 observations / leads。
 - 语义级 change event：`EDGE_DEPRECATED`、`UNKNOWN_RESOLVED`、`SUPPLIER_RELATION_ADDED` 等。
 - `apps/research-preview`：真正的本地研究工作台。
 
@@ -75,7 +76,7 @@ packages/observation-store
 
 packages/chain-view
   把 edges、claims、observations、leads、unknowns 组装成 ChainViewModel。
-  第一版已落地 company chain：输出 edge/claim 分层 segment；observation/lead/unknown segment 随后接入。
+  第一版已落地 company chain：输出 edge/claim/observation/lead/unknown 分层 segment。
 
 packages/render
   只负责把 CompanyCard / ComponentCard / ChainViewModel 渲染成 CLI JSON/Markdown。
@@ -236,7 +237,7 @@ UNVERIFIED_FACILITY_SIGNAL
 
 `chain_segments` 是中期最关键的前后端契约。它让同一条链可以同时包含事实边、观测、线索和未知边界。
 
-运行时模型第一版由 `@supplystrata/chain-view` 生成：它不直接写库，先把 current、非 inferred、Level >= 4 的 upstream fact edges 组装成 `ChainViewModel`，并把同一条边上的 active claim 作为独立 `semantic_layer=claim` segment 暴露给前端。这样 Canvas 工作台可以同时画事实边和可读结论，但不会把 claim 当成新的事实来源。
+运行时模型第一版由 `@supplystrata/chain-view` 生成：它不直接写库，先把 current、非 inferred、Level >= 4 的 upstream fact edges 组装成 `ChainViewModel`，并把同一条边上的 active claim 作为独立 `semantic_layer=claim` segment 暴露给前端。同时，company scope observation、链路涉及的 component observation、open lead 和 unknown item 会作为 `observation` / `lead` / `unknown` context segment 输出。这样 Canvas 工作台可以同时画事实边、可读结论、观测、线索和未知边界，但不会把 observation 或 lead 当成事实来源。
 
 ```sql
 CREATE TABLE chain_views (
@@ -383,11 +384,12 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 - [x] 能写入 `INVENTORY_OBSERVATION` / `TRADE_FLOW_OBSERVATION` 等观测输入。
 - [x] observation / lead 写入路径不会触碰 `edges`。
 - [x] ComponentCard JSON 能带 `related_observations`。
-- [ ] 后续 fixture 扩展到 `CAPEX_OBSERVATION`，并接入 chain-view observation segment。
+- [x] observation / lead 可被 `@supplystrata/chain-view` 作为 context segment 消费。
+- [ ] 后续 fixture 扩展到 `CAPEX_OBSERVATION`。
 
 ### PR E：chain-view package
 
-状态：已落地第一版。`packages/chain-view` 输出 `CompanyChainViewModel`，`packages/render` 已改为消费该模型；当前先支持 `edge` / `claim` 两层 segment，observation / lead / unknown 下一步接入。
+状态：已落地第一版。`packages/chain-view` 输出 `CompanyChainViewModel`，`packages/render` 已改为消费该模型；当前支持 `edge` / `claim` / `observation` / `lead` / `unknown` 五类 segment。observation、lead、unknown 是上下文段，不带 `evidence_level`，也不会进入 Neo4j fact edge。
 
 新增 `packages/chain-view`。
 
@@ -404,7 +406,7 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 - [x] `supplystrata chain <company> --format json` 输出分层 `segments`。
 - [x] 每段都有 `semantic_layer`。
 - [x] 默认只展示 Level 4/5 fact edges，observations/leads 不污染事实边。
-- [ ] observation / lead / unknown segments 接入。
+- [x] observation / lead / unknown segments 接入。
 
 ### PR F：语义级 changes
 
@@ -500,6 +502,7 @@ v0.2 仍然优先完成：
 [x] packages/claim-builder 可以生成无 unsupported claim 的第一版 claims
 [x] packages/chain-view 可以输出分层 ChainViewModel
 [x] CLI JSON 输出包含 semantic_layer
+[x] ChainViewModel 包含 observation / lead / unknown context segments
 [ ] research-preview 能消费 ChainViewModel
 [x] observations/leads 不会进入 Neo4j fact edge
 [ ] LLM 仍然不能直接写 edge/claim

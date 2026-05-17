@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { segmentsFromFactRow } from "@supplystrata/chain-view";
+import { segmentFromLead, segmentFromObservation, segmentFromUnknown, segmentsFromFactRow, type ChainViewRoot } from "@supplystrata/chain-view";
 
 describe("chain-view", () => {
   it("keeps fact edges and claims as separate semantic segments", () => {
@@ -57,5 +57,75 @@ describe("chain-view", () => {
     expect(segments).toHaveLength(1);
     expect(segments[0]?.sequence_index).toBe(6);
     expect(segments[0]?.semantic_layer).toBe("edge");
+  });
+
+  it("creates observation, lead, and unknown segments without evidence levels", () => {
+    const root: ChainViewRoot = { kind: "company", id: "ENT-NVIDIA", name: "NVIDIA" };
+    const observation = segmentFromObservation(
+      {
+        observation_id: "OBS-1",
+        observation_type: "INVENTORY_OBSERVATION",
+        source_adapter_id: "fixture-observation",
+        source_item_id: null,
+        doc_id: null,
+        scope_kind: "component",
+        scope_id: "COMP-MEMORY",
+        geography_kind: null,
+        geography_id: null,
+        component_id: "COMP-MEMORY",
+        metric_name: "inventory_days",
+        metric_value: "42",
+        metric_unit: "days",
+        time_window_start: null,
+        time_window_end: null,
+        baseline_value: null,
+        change_value: null,
+        change_percent: null,
+        confidence: 0.7,
+        provenance: {},
+        attrs: {},
+        created_at: new Date("2026-01-01T00:00:00.000Z")
+      },
+      { root, sequence_index: 10 }
+    );
+    const lead = segmentFromLead(
+      {
+        lead_id: "LEAD-1",
+        lead_type: "PROCUREMENT_SIGNAL",
+        source_adapter_id: "fixture-lead",
+        doc_id: null,
+        scope_kind: "company",
+        scope_id: "ENT-NVIDIA",
+        title: "Potential procurement signal",
+        summary: "Needs corroboration.",
+        cite_text: null,
+        source_url: null,
+        status: "open",
+        review_id: null,
+        attrs: {},
+        created_at: new Date("2026-01-01T00:00:00.000Z"),
+        updated_at: new Date("2026-01-01T00:00:00.000Z")
+      },
+      { root, sequence_index: 11 }
+    );
+    const unknown = segmentFromUnknown(
+      {
+        unknown_id: "UNK-1",
+        question: "Exact HBM allocation",
+        why_unknown: "Private contracts are not public.",
+        blocking_data_sources: [],
+        proxies: [],
+        status: "open"
+      },
+      { root, sequence_index: 12 }
+    );
+
+    expect(observation.semantic_layer).toBe("observation");
+    expect(observation.evidence_level).toBeUndefined();
+    expect(observation.to.kind).toBe("component");
+    expect(lead.semantic_layer).toBe("lead");
+    expect(lead.confidence).toBe(0.25);
+    expect(unknown.semantic_layer).toBe("unknown");
+    expect(unknown.label).toContain("Private contracts");
   });
 });

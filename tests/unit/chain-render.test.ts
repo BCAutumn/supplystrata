@@ -25,12 +25,26 @@ describe("Chain renderer", () => {
             evidence_level: 5,
             confidence: 0.94,
             label: "NVIDIA -BUYS_FROM-> SK Hynix"
+          },
+          {
+            sequence_index: 1,
+            depth: 0,
+            semantic_layer: "observation",
+            from: { kind: "company", id: "ENT-NVIDIA", name: "NVIDIA" },
+            to: { kind: "component", id: "COMP-MEMORY", name: "COMP-MEMORY" },
+            observation_id: "OBS-1",
+            relation: "OBSERVES",
+            component: null,
+            component_id: "COMP-MEMORY",
+            evidence_ids: [],
+            confidence: 0.7,
+            label: "INVENTORY_OBSERVATION: inventory_days = 42 days"
           }
         ],
         stats: {
           fact_edges: 1,
           claims: 0,
-          observations: 0,
+          observations: 1,
           leads: 0,
           unknowns: 0
         }
@@ -42,5 +56,8 @@ describe("Chain renderer", () => {
     expect(output).toContain("Fact edges: 1");
     expect(output).toContain("edge depth 1: NVIDIA -BUYS_FROM (memory)-> SK Hynix");
     expect(output).toContain("To: SK Hynix [ENT-SKHYNIX]");
+    expect(output).toContain("observation depth 0: NVIDIA -OBSERVES-> COMP-MEMORY");
+    expect(output).toContain("Context, conf 0.700");
+    expect(output).toContain("Observation: OBS-1");
   });
 });

@@ -94,12 +94,14 @@ interface WorkbenchModel {
 
 ```text
 edge
+claim
 observation
 lead
 unknown
 ```
 
 前端不得把 observation 画成事实边。
+`claim` 只作为可读结论或标签展示，不得被前端当成一条新的供应链关系。
 
 ## 交互
 

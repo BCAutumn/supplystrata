@@ -1,6 +1,17 @@
 import type pg from "pg";
 import type { ChainEndpointKind, EvidenceLevel, RelationType, SemanticLayer } from "@supplystrata/core";
-import { resolveEntityId, type DbClient } from "@supplystrata/db";
+import {
+  listLeadObservationsByScope,
+  listObservationsByScope,
+  listUnknownItems,
+  resolveEntityId,
+  type DbClient,
+  type LeadObservationRow,
+  type ObservationRow,
+  type UnknownItemRow
+} from "@supplystrata/db";
+
+export type ChainViewRelation = RelationType | "CLAIMS" | "OBSERVES" | "LEADS_TO" | "UNKNOWN_BOUNDARY";
 
 export interface ChainViewRoot {
   kind: ChainEndpointKind;
@@ -20,13 +31,16 @@ export interface ChainViewSegmentModel {
   semantic_layer: SemanticLayer;
   from: ChainViewEndpoint;
   to: ChainViewEndpoint;
-  relation: RelationType | "CLAIMS";
+  relation: ChainViewRelation;
   component: string | null;
   component_id: string | null;
   edge_id?: string;
   claim_id?: string;
+  observation_id?: string;
+  lead_id?: string;
+  unknown_id?: string;
   evidence_ids: string[];
-  evidence_level: EvidenceLevel;
+  evidence_level?: EvidenceLevel;
   confidence: number;
   label: string;
 }
@@ -80,13 +94,16 @@ export interface ChainFactRow extends pg.QueryResultRow {
 export async function buildCompanyChainView(client: DbClient, input: BuildCompanyChainViewInput): Promise<ChainViewModel> {
   const rootEntityId = await resolveEntityId(client, input.query);
   const root = await loadRoot(client, rootEntityId);
+  const rootModel: ChainViewRoot = { kind: "company", id: root.entity_id, name: root.display_name };
   const maxDepth = clampDepth(input.depth ?? 2);
   const rows = await loadChainFactRows(client, rootEntityId, maxDepth);
-  const segments = rows.flatMap((row, index) => segmentsFromFactRow(row, index));
+  const factSegments = rows.flatMap((row, index) => segmentsFromFactRow(row, index));
+  const contextSegments = await loadContextSegments(client, { root: rootModel, rows, sequenceStart: factSegments.length });
+  const segments = [...factSegments, ...contextSegments];
   return {
     schema_version: "1.0.0",
     view_type: "company_chain",
-    root: { kind: "company", id: root.entity_id, name: root.display_name },
+    root: rootModel,
     max_depth: maxDepth,
     generated_by: input.generated_by ?? "chain-view.company.v1",
     segments,
@@ -98,6 +115,58 @@ export function segmentsFromFactRow(row: ChainFactRow, rowIndex: number): ChainV
   const factSegment = edgeSegmentFromFactRow(row, rowIndex * 2);
   if (row.claim_id === null || row.claim_text === null) return [factSegment];
   return [factSegment, claimSegmentFromFactRow(row, rowIndex * 2 + 1)];
+}
+
+export function segmentFromObservation(row: ObservationRow, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
+  const target: ChainViewEndpoint = row.component_id === null ? input.root : { kind: "component", id: row.component_id, name: row.component_id };
+  return {
+    sequence_index: input.sequence_index,
+    depth: 0,
+    semantic_layer: "observation",
+    from: input.root,
+    to: target,
+    relation: "OBSERVES",
+    component: null,
+    component_id: row.component_id,
+    observation_id: row.observation_id,
+    evidence_ids: [],
+    confidence: row.confidence,
+    label: observationLabel(row)
+  };
+}
+
+export function segmentFromLead(row: LeadObservationRow, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
+  return {
+    sequence_index: input.sequence_index,
+    depth: 0,
+    semantic_layer: "lead",
+    from: input.root,
+    to: input.root,
+    relation: "LEADS_TO",
+    component: null,
+    component_id: null,
+    lead_id: row.lead_id,
+    evidence_ids: [],
+    confidence: leadConfidence(row),
+    label: `${row.title}: ${row.summary}`
+  };
+}
+
+export function segmentFromUnknown(row: UnknownItemRow, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
+  return {
+    sequence_index: input.sequence_index,
+    depth: 0,
+    semantic_layer: "unknown",
+    from: input.root,
+    to: input.root,
+    relation: "UNKNOWN_BOUNDARY",
+    component: null,
+    component_id: null,
+    unknown_id: row.unknown_id,
+    evidence_ids: [],
+    confidence: 0,
+    label: `${row.question} — ${row.why_unknown}`
+  };
 }
 
 function edgeSegmentFromFactRow(row: ChainFactRow, sequenceIndex: number): ChainViewSegmentModel {
@@ -218,6 +287,40 @@ async function loadChainFactRows(client: DbClient, rootEntityId: string, maxDept
   return result.rows;
 }
 
+async function loadContextSegments(
+  client: DbClient,
+  input: { root: ChainViewRoot; rows: readonly ChainFactRow[]; sequenceStart: number }
+): Promise<ChainViewSegmentModel[]> {
+  const rootObservations = await listObservationsByScope(client, { scope_kind: "company", scope_id: input.root.id, limit: 10 });
+  const componentObservations = await loadComponentObservations(client, input.rows);
+  const leads = await listLeadObservationsByScope(client, { scope_kind: "company", scope_id: input.root.id, status: "open", limit: 10 });
+  const unknowns = await listUnknownItems(client, input.root.id);
+  const segments: ChainViewSegmentModel[] = [];
+  let sequenceIndex = input.sequenceStart;
+  for (const observation of [...rootObservations, ...componentObservations]) {
+    segments.push(segmentFromObservation(observation, { root: input.root, sequence_index: sequenceIndex }));
+    sequenceIndex += 1;
+  }
+  for (const lead of leads) {
+    segments.push(segmentFromLead(lead, { root: input.root, sequence_index: sequenceIndex }));
+    sequenceIndex += 1;
+  }
+  for (const unknown of unknowns) {
+    segments.push(segmentFromUnknown(unknown, { root: input.root, sequence_index: sequenceIndex }));
+    sequenceIndex += 1;
+  }
+  return segments;
+}
+
+async function loadComponentObservations(client: DbClient, rows: readonly ChainFactRow[]): Promise<ObservationRow[]> {
+  const componentIds = [...new Set(rows.flatMap((row) => (row.component_id === null ? [] : [row.component_id])))].sort();
+  const observations: ObservationRow[] = [];
+  for (const componentId of componentIds) {
+    observations.push(...(await listObservationsByScope(client, { scope_kind: "component", scope_id: componentId, limit: 5 })));
+  }
+  return observations;
+}
+
 function summarizeSegments(segments: readonly ChainViewSegmentModel[]): ChainViewModel["stats"] {
   return {
     fact_edges: segments.filter((segment) => segment.semantic_layer === "edge").length,
@@ -236,4 +339,16 @@ function clampDepth(value: number): number {
 function requirePresent(value: string | null, field: string): string {
   if (value === null) throw new Error(`${field} is required`);
   return value;
+}
+
+function observationLabel(row: ObservationRow): string {
+  const value = row.metric_value === null ? "" : ` = ${row.metric_value}${row.metric_unit === null ? "" : ` ${row.metric_unit}`}`;
+  return `${row.observation_type}: ${row.metric_name}${value}`;
+}
+
+function leadConfidence(row: LeadObservationRow): number {
+  if (row.status === "promoted") return 0.8;
+  if (row.status === "in_review") return 0.5;
+  if (row.status === "open") return 0.25;
+  return 0;
 }

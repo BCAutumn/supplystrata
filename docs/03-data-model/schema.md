@@ -427,7 +427,7 @@ chain_segments
 - `@supplystrata/observation-store` 第一版只做幂等写入和输入边界校验；它不调用 graph-builder，不把 observation/lead 升级为边。
 - `lead_observations` 必须进入 review 或研究队列，默认不进图谱。
 - `chain_segments.semantic_layer` 必须保留 `edge / claim / observation / lead / unknown`，供 CLI、API 和研究工作台统一消费。
-- `@supplystrata/chain-view` 第一版已经能把上游 fact edge 和 active claim 组装成前端可消费的 `CompanyChainViewModel`；后续 observation / lead / unknown 只新增 segment 类型，不改事实边语义。
+- `@supplystrata/chain-view` 第一版已经能把上游 fact edge、active claim、company/component observations、open leads 和 unknown items 组装成前端可消费的 `CompanyChainViewModel`；observation / lead / unknown 是 context segment，不带 `evidence_level`，不改事实边语义。
 
 ## Neo4j 模型
 
