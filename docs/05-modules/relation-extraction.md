@@ -13,6 +13,14 @@
 
 ### 1. Rule extractors（高优先级）
 
+当前代码里的第一版通用规则包是 `rule.sec.official-supply-chain`。它只依赖 SEC 官方披露契约：
+
+- `doc.source_adapter_id === "sec-edgar"`（离线 fixture 可用 `sec-edgar-fixture`，按同一官方披露规则域处理）
+- `doc.document_type` 属于 `10-K` / `10-Q` / `8-K`
+- `doc.primary_entity_id` 存在
+
+subject 直接使用 `doc.primary_entity_id`，再交给 EntityResolver 解析。因此同一套规则可以用于 NVIDIA、AMD、Micron、Broadcom、Microsoft 等 SEC 文件，不允许把 NVIDIA 这类测试样例写死在业务逻辑里。
+
 ```
 packages/relation-extractor/rule/
 ├── 10k/
@@ -33,7 +41,7 @@ packages/relation-extractor/rule/
 
 ```ts
 export const foundryDisclosureExtractor: RelationExtractor = {
-  id: "rule.10k.foundry-disclosure",
+  id: "rule.sec.foundry-disclosure",
   priority: 100,
   relation_types: ["USES_FOUNDRY"],
   applicable: (doc) =>
@@ -42,12 +50,12 @@ export const foundryDisclosureExtractor: RelationExtractor = {
     for (const chunk of doc.chunks) {
       for (const m of matchPattern(chunk.text)) {
         yield buildCandidate({
-          subject_resolve: { surface: doc.primary_entity_id_or_name, context },
+          subject_resolve: { surface: doc.primary_entity_id, context },
           object_resolve : { surface: m.foundry_name, context: { ... } },
           relation: "USES_FOUNDRY",
           cite_text: chunk.text.slice(m.startSentenceIdx, m.endSentenceIdx),
           cite_locator: chunk.locator,
-          extractor_id: "rule.10k.foundry-disclosure",
+          extractor_id: "rule.sec.foundry-disclosure",
           raw_evidence_level_hint: 5,
           raw_confidence_hint: 0.95,
         });

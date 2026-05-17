@@ -107,12 +107,12 @@ Pipeline 拿每个 chunk 跑：
 
 按 priority 顺序跑：
 
-1. `rule.10k.foundry-disclosure`（高优先级）
+1. `rule.sec.official-supply-chain`（高优先级）
    - 模式：`utiliz(e|es) foundr(y|ies) such as (X(?:, Y)*( and Z)?)`
    - 命中 NVIDIA 10-K 中 "We utilize foundries such as TSMC and Samsung" → 提出候选 `NVIDIA USES_FOUNDRY TSMC` / `NVIDIA USES_FOUNDRY Samsung`
-2. `rule.10k.memory-disclosure`
-3. `rule.10k.contract-manufacturer`
-4. `llm.10k.relations`（兜底）
+2. `rule.sec.memory-supplier`
+3. `rule.sec.contract-manufacturer`
+4. `llm.sec.relations`（兜底，当前 v0.2 主动搁置真实启用）
    - 给 LLM 一个 chunk + zod schema，让它输出候选关系
    - 默认低 confidence、`needs_review = true`
 5. `corroborator`：跨文档对同一关系增加证据数

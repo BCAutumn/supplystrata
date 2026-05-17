@@ -127,11 +127,11 @@ Phase 1 出场。
 
 1. Component taxonomy + memory/HBM 修正（规则抽取、`COMP-MEMORY` seed、`edges.component_id` / `component_specificity` 已落地；后续继续扩 taxonomy）。
 2. Source authority matrix（`sourceAuthorityFor()` 与 scorer 的 `source_cap` / `relation_cap` 已落地；后续随新数据源扩展矩阵）。
-3. EntityResolver hardening（fuzzy 不再自动 resolved，Samsung/Foxconn/TSMC family 规则和 identifier match 已开始落地；golden set 仍待补）。
+3. EntityResolver hardening（fuzzy 不再自动 resolved，Samsung/Foxconn/TSMC family 规则和 identifier match 已落地；seed-derived golden set ≥ 200 已进入单测）。
 4. Unknown extractor prefix fail-fast（`inferExtractionMethod()` 已改为未知前缀直接抛错；scorer / graph-builder 均覆盖测试）。
 5. Exact citation offsets + evidence fingerprint。
 6. SourceRegistry + FetchRun + SourceHealth。
-7. Generic SEC rule pack。
+7. Generic SEC rule pack（第一版 `rule.sec.official-supply-chain` 已去掉 NVIDIA gate；后续扩 major customer / purchase obligation 等规则族）。
 8. Apple Supplier List facility edges 提前到 v0.2 P0。
 9. SEC 10-Q / 8-K 接入，为 source monitor 提供动态文件。
 10. `cli changes` + ChangeRecord 完整化。
@@ -152,8 +152,8 @@ Phase 1 出场。
 | source cap 过粗导致宏观/线索源误入高等级边         | 引入 source authority matrix；宏观数据默认进 observations，不直接进 company edge      |
 | fuzzy resolver 误合并短别名或集团/子公司           | fuzzy 已改为只返回候选；短别名和弱别名必须有 strong alias、identifier 或 context 支撑 |
 | `pg-boss` 文档早于实现                             | Phase 2 保持单进程 CLI；队列化放到 Phase 3 monitoring layer，一起补 source health     |
-| 静态 HTML 脚本继续膨胀                              | v0.2 迁移到 `apps/research-preview`，使用 TypeScript + Canvas，脚本只保留临时预览用途 |
-| LLM 策略已写但真实路径未启用                        | v0.2 主动搁置 LLM 真实抽取，等规则覆盖、review、golden set 稳定后再决策              |
+| 静态 HTML 脚本继续膨胀                             | v0.2 迁移到 `apps/research-preview`，使用 TypeScript + Canvas，脚本只保留临时预览用途 |
+| LLM 策略已写但真实路径未启用                       | v0.2 主动搁置 LLM 真实抽取，等规则覆盖、review、golden set 稳定后再决策               |
 
 ---
 

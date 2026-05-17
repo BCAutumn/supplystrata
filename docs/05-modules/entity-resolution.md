@@ -178,12 +178,14 @@ prompt: |
 
 - `DbEntityResolver` 和 `SeedEntityResolver` 共享同一套 exact/fuzzy/special family 规则。
 - identifier match 支持 CIK 和 ticker；ticker 可匹配 `NVDA` 或 `NVDA:US` 这类带交易所后缀的 seed。
+- resolver 支持直接解析 `ENT-*` 形式的 `entity_id`，供通用抽取器把 `NormalizedDocument.primary_entity_id` 作为 subject surface 使用。
 - fuzzy 命中只返回 `ambiguous` 候选，不自动写入 graph。
 - Samsung / Foxconn / TSMC 三组 hard-code 规则已进入单测和 DB 集成测试。
+- seed 派生 golden set 已超过 200 条，并进入 `tests/unit/entity-resolver-golden.test.ts`。
 
 仍待落地：
 
-- golden set ≥ 200。
+- 人工维护的 source-specific golden fixtures，例如 DART-KR / EDINET / supplier-list 导入后的真实歧义样本。
 - alias type 更细的来源审计，例如外部 registry 导入的 alias 要保留 provenance。
 - group / subsidiary / facility 的 `OWNS_*` 关系自动 seed 化。
 
@@ -192,9 +194,18 @@ prompt: |
 ```ts
 interface EntityResolver {
   resolve(input: ResolveInput): Promise<ResolveResult>;
-  registerAlias(alias: string, entityId: string, evidence: Provenance): Promise<void>;
+  registerAlias(
+    alias: string,
+    entityId: string,
+    evidence: Provenance,
+  ): Promise<void>;
   split(entityId: string, newCanonicals: NewEntitySpec[]): Promise<SplitResult>;
-  merge(loserId: string, winnerId: string, reason: string, evidence: Provenance): Promise<MergeResult>;
+  merge(
+    loserId: string,
+    winnerId: string,
+    reason: string,
+    evidence: Provenance,
+  ): Promise<MergeResult>;
 }
 ```
 

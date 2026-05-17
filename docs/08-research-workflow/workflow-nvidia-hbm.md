@@ -19,12 +19,12 @@ NVIDIA Form 10-K（最新一份），SEC EDGAR。
 
 ### 抽取规则命中
 
-- `rule.10k.foundry-disclosure` → `USES_FOUNDRY` (NVIDIA → TSMC) [Level 5]
-- `rule.10k.foundry-disclosure` → `USES_FOUNDRY` (NVIDIA → Samsung) [Level 5]
-- `rule.10k.memory-purchase`    → `BUYS_FROM(memory)` (NVIDIA → SK Hynix) [Level 5]
-- `rule.10k.memory-purchase`    → `BUYS_FROM(memory)` (NVIDIA → Micron) [Level 5]
-- `rule.10k.memory-purchase`    → `BUYS_FROM(memory)` (NVIDIA → Samsung Memory) [Level 5]
-- `rule.10k.contract-manufacturer` → `MANUFACTURES_AT (assembly/test)` (NVIDIA 与 Foxconn / Wistron / Fabrinet 等)
+- `rule.sec.official-supply-chain` → `USES_FOUNDRY` (NVIDIA → TSMC) [Level 5]
+- `rule.sec.official-supply-chain` → `USES_FOUNDRY` (NVIDIA → Samsung) [Level 5]
+- `rule.sec.official-supply-chain` → `BUYS_FROM(memory)` (NVIDIA → SK Hynix) [Level 5]
+- `rule.sec.official-supply-chain` → `BUYS_FROM(memory)` (NVIDIA → Micron) [Level 5]
+- `rule.sec.official-supply-chain` → `BUYS_FROM(memory)` (NVIDIA → Samsung Memory) [Level 5]
+- `rule.sec.official-supply-chain` → `BUYS_FROM(manufacturing services)` (NVIDIA 与 Foxconn / Wistron / Fabrinet 等)
 
 实体消歧重点：
 

@@ -43,7 +43,7 @@ v0.2-alpha 必须满足：
 [ ] Apple Supplier List 产生 >= 50 条 reviewed facility edge
 [ ] `cli component memory` 可输出 ComponentCard
 [x] `cli changes` 可输出最近变化
-[ ] EntityResolver golden set >= 200 并进 CI
+[x] EntityResolver golden set >= 200 并进 CI
 [ ] research workbench 可打开本地 JSON，展示 chain/evidence/source health/changes
 [ ] README 明确当前不是完整供应链数据库
 [ ] release-check 通过

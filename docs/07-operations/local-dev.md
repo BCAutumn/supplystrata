@@ -122,6 +122,8 @@ pnpm smoke:local                   # 本地 DB + seed + graph 同步
 pnpm smoke:network                 # 额外跑 SEC/NVIDIA 联网研究切片
 ```
 
+`test:integration` 和 `test:e2e` 会先探测 `POSTGRES_URL`。没有本地 Postgres 时会自动 skip，需要真实端到端写库验证时再启动你自己的 Postgres 服务；Docker 只是可选的本地启动方式，不是项目运行前提。
+
 ### 当前已验证命令链
 
 ```bash

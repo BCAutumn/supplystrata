@@ -61,8 +61,21 @@
 type SourceAuthority = {
   source_adapter_id: string;
   document_type: DocumentType;
-  publisher_type: "regulator" | "company_official" | "government_registry" | "official_supplier_list" | "macro_statistical_agency" | "news" | "manual";
-  relation_authority: "self_disclosure" | "counterparty_disclosure" | "registry_fact" | "facility_claim" | "macro_trend" | "lead_only";
+  publisher_type:
+    | "regulator"
+    | "company_official"
+    | "government_registry"
+    | "official_supplier_list"
+    | "macro_statistical_agency"
+    | "news"
+    | "manual";
+  relation_authority:
+    | "self_disclosure"
+    | "counterparty_disclosure"
+    | "registry_fact"
+    | "facility_claim"
+    | "macro_trend"
+    | "lead_only";
   max_evidence_level: 1 | 2 | 3 | 4 | 5;
 };
 ```
@@ -78,7 +91,7 @@ type SourceAuthority = {
 
 ### PR 3 — EntityResolver hardening
 
-状态：已开始落地。`DbEntityResolver` 与 `SeedEntityResolver` 已共享 exact/fuzzy/special family 规则；fuzzy 命中不再自动 resolved，Samsung / Foxconn / TSMC family 规则已补单测和 DB 集成测试。
+状态：已推进到 CI 门槛。`DbEntityResolver` 与 `SeedEntityResolver` 已共享 exact/fuzzy/special family 规则；fuzzy 命中不再自动 resolved，Samsung / Foxconn / TSMC family 规则已补单测和 DB 集成测试；seed 派生 golden set 已超过 200 条，并覆盖高风险歧义面。
 
 当前风险：模糊匹配一旦自动合并，会把错误扩散到所有边。供应链实体里短别名、集团名、子公司、事业部非常多。
 
@@ -96,6 +109,7 @@ type SourceAuthority = {
 - Foxconn / Hon Hai / FII / FIH / Hongfujin 的层级关系可解释。
 - `3M` 不会被短别名规则误判或漏 seed。
 - golden set ≥ 200 进入 CI。
+- 抽取器可以把 `primary_entity_id` 作为 subject surface 交给 resolver，不再需要把公司名硬编码进规则。
 
 ### PR 4 — Unknown extractor prefix fail-fast
 
@@ -144,6 +158,8 @@ relation_candidate_hash
 ## P1：把 NVIDIA 样板变成官方披露规则包
 
 当前的 NVIDIA 纵向切片是好样板，但下一步要变成可复用规则包，避免把半导体测试样例写成产品硬编码。
+
+状态：第一版已落地。`rule.sec.official-supply-chain` 现在只要求 `source_adapter_id = sec-edgar`（或离线 `sec-edgar-fixture`）且文档类型是 `10-K` / `10-Q` / `8-K`，subject 使用 `NormalizedDocument.primary_entity_id`，不再限定 NVIDIA。现有 foundry / memory supplier / contract manufacturer 规则被保留为通用 SEC 官方披露规则；NVIDIA 只作为 fixture 和 smoke path。
 
 目标规则包：
 

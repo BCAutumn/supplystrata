@@ -203,7 +203,7 @@ export interface ResolveResult {
 
 ```ts
 export interface RelationExtractor {
-  readonly id: string; // "rule.10k.foundry-disclosure"
+  readonly id: string; // "rule.sec.official-supply-chain"
   readonly priority: number; // 大者先跑
   readonly relation_types: RelationType[];
 
