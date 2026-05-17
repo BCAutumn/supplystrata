@@ -1,5 +1,9 @@
 import type { DbClient } from "./client.js";
-import { migrationSql } from "./schema.js";
+import { migration0001EntityCoreSql } from "./migration-sql/0001_entity_core.js";
+import { migration0002DocumentsGraphSql } from "./migration-sql/0002_documents_graph.js";
+import { migration0003SourceMonitoringSql } from "./migration-sql/0003_source_monitoring.js";
+import { migration0004ReviewQualitySql } from "./migration-sql/0004_review_quality.js";
+import { migration0005RemoveLegacyReviewQueueSql } from "./migration-sql/0005_remove_legacy_review_queue.js";
 
 interface Migration {
   readonly id: string;
@@ -9,14 +13,29 @@ interface Migration {
 
 const MIGRATIONS: readonly Migration[] = [
   {
-    id: "0001_baseline_schema",
-    description: "Create SupplyStrata baseline Postgres schema.",
-    sql: migrationSql
+    id: "0001_entity_core",
+    description: "Create entity, alias, and component taxonomy tables.",
+    sql: migration0001EntityCoreSql
   },
   {
-    id: "0002_drop_extraction_review_queue",
+    id: "0002_documents_graph",
+    description: "Create document, evidence, edge, and change-record tables.",
+    sql: migration0002DocumentsGraphSql
+  },
+  {
+    id: "0003_source_monitoring",
+    description: "Create source health, fetch-run, version, and change-event tables.",
+    sql: migration0003SourceMonitoringSql
+  },
+  {
+    id: "0004_review_quality",
+    description: "Create unknown-map, review-candidate, rejection, and pending-entity tables.",
+    sql: migration0004ReviewQualitySql
+  },
+  {
+    id: "0005_remove_legacy_review_queue",
     description: "Remove obsolete extraction_review_queue after review_candidates became the single review store.",
-    sql: "DROP TABLE IF EXISTS extraction_review_queue"
+    sql: migration0005RemoveLegacyReviewQueueSql
   }
 ];
 

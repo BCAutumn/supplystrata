@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { CandidateRelation } from "@supplystrata/core";
 
 export type ComponentPatternKey = "manufacturingServices" | "foundryWafer";
@@ -27,96 +28,106 @@ export interface RulePatternCatalog {
   readonly manufacturingServiceSuppliers: readonly ManufacturingServiceSupplierSpec[];
 }
 
-export const RULE_PATTERN_CATALOG: RulePatternCatalog = {
-  memoryComponents: [
-    {
-      component: "HBM",
-      componentId: "COMP-HBM",
-      specificity: "explicit",
-      patternSources: ["\\b(?:hbm(?:3e?|4)?|high[-\\s]?bandwidth\\s+memory)\\b"]
+const DEFAULT_PATTERN_CATALOG_URL = new URL("../patterns/sec-official-supply-chain.json", import.meta.url);
+
+export const RULE_PATTERN_CATALOG: RulePatternCatalog = loadRulePatternCatalog(DEFAULT_PATTERN_CATALOG_URL);
+
+export function loadRulePatternCatalog(url: URL): RulePatternCatalog {
+  const parsed: unknown = JSON.parse(readFileSync(url, "utf8"));
+  return parseRulePatternCatalog(parsed, url.toString());
+}
+
+function parseRulePatternCatalog(value: unknown, path: string): RulePatternCatalog {
+  const record = expectRecord(value, path);
+  const shared = expectRecord(readField(record, "sharedComponents", path), `${path}.sharedComponents`);
+  return {
+    memoryComponents: parseComponentPatternSpecs(readField(record, "memoryComponents", path), `${path}.memoryComponents`),
+    productComponents: parseComponentPatternSpecs(readField(record, "productComponents", path), `${path}.productComponents`),
+    sharedComponents: {
+      manufacturingServices: parseComponentPatternSpec(readField(shared, "manufacturingServices", `${path}.sharedComponents`), `${path}.sharedComponents.manufacturingServices`),
+      foundryWafer: parseComponentPatternSpec(readField(shared, "foundryWafer", `${path}.sharedComponents`), `${path}.sharedComponents.foundryWafer`)
     },
-    {
-      component: "DRAM",
-      componentId: "COMP-DRAM",
-      specificity: "explicit",
-      patternSources: ["\\b(?:dram|dynamic\\s+random\\s+access\\s+memory)\\b"]
-    },
-    {
-      component: "memory",
-      componentId: "COMP-MEMORY",
-      specificity: "unspecified",
-      patternSources: ["\\bmemor(?:y|ies)\\b"]
-    }
-  ],
-  productComponents: [
-    {
-      component: "GPU",
-      componentId: "COMP-GPU",
-      specificity: "explicit",
-      patternSources: ["\\b(?:gpu|graphics processing units?|accelerators?)\\b"]
-    },
-    {
-      component: "AI server",
-      componentId: "COMP-SERVER",
-      specificity: "explicit",
-      patternSources: ["\\b(?:ai servers?|gpu servers?|accelerated servers?)\\b"]
-    },
-    {
-      component: "advanced packaging",
-      componentId: "COMP-ADVANCED-PACKAGING",
-      specificity: "explicit",
-      patternSources: ["\\b(?:advanced packaging|cowos|2\\.5d packaging)\\b"]
-    },
-    {
-      component: "wafer",
-      componentId: "COMP-WAFER",
-      specificity: "explicit",
-      patternSources: ["\\b(?:wafer|foundry|foundries|fabrication)\\b"]
-    }
-  ],
-  sharedComponents: {
-    manufacturingServices: {
-      component: "manufacturing services",
-      componentId: "COMP-MANUFACTURING-SERVICES",
-      specificity: "explicit",
-      patternSources: ["\\b(?:assembly|testing|packaging|contract manufactur)\\b"]
-    },
-    foundryWafer: {
-      component: "wafer",
-      componentId: "COMP-WAFER",
-      specificity: "explicit",
-      patternSources: ["\\b(?:wafer|foundry|foundries|fabrication)\\b"]
-    }
-  },
-  customerCounterparties: [
-    { surface: "Microsoft", patternSources: ["\\b(?:microsoft|azure)\\b"] },
-    { surface: "Amazon", patternSources: ["\\b(?:amazon|amazon\\.com|aws|amazon web services)\\b"] },
-    { surface: "Alphabet", patternSources: ["\\b(?:alphabet|google|google cloud|gcp)\\b"] },
-    { surface: "Meta", patternSources: ["\\b(?:meta|meta platforms|facebook)\\b"] },
-    { surface: "Oracle", patternSources: ["\\b(?:oracle|oci|oracle cloud)\\b"] },
-    { surface: "CoreWeave", patternSources: ["\\bcoreweave\\b"] },
-    { surface: "OpenAI", patternSources: ["\\bopenai\\b"] },
-    { surface: "Apple", patternSources: ["\\bapple\\b"] },
-    { surface: "Dell", patternSources: ["\\b(?:dell|dell technologies)\\b"] },
-    { surface: "HPE", patternSources: ["\\b(?:hpe|hewlett packard enterprise)\\b"] },
-    { surface: "Supermicro", patternSources: ["\\b(?:supermicro|super micro computer)\\b"] }
-  ],
-  supplierCounterparties: [
-    { surface: "TSMC", patternSources: ["\\b(?:tsmc|taiwan semiconductor manufacturing)\\b"] },
-    { surface: "Samsung", patternSources: ["\\bsamsung\\b"] },
-    { surface: "SK hynix", patternSources: ["\\bsk\\s*hynix\\b"] },
-    { surface: "Micron", patternSources: ["\\bmicron\\b"] },
-    { surface: "Intel", patternSources: ["\\bintel\\b"] },
-    { surface: "ASML", patternSources: ["\\basml\\b"] },
-    { surface: "Hon Hai", patternSources: ["\\b(?:hon hai|foxconn)\\b"] },
-    { surface: "Wistron", patternSources: ["\\bwistron\\b"] },
-    { surface: "Fabrinet", patternSources: ["\\bfabrinet\\b"] },
-    { surface: "Quanta", patternSources: ["\\bquanta\\b"] },
-    { surface: "Inventec", patternSources: ["\\binventec\\b"] }
-  ],
-  manufacturingServiceSuppliers: [
-    { surface: "Hon Hai", patternSources: ["\\b(?:hon hai|foxconn)\\b"], serviceComponentKey: "manufacturingServices" },
-    { surface: "Wistron", patternSources: ["\\bwistron\\b"], serviceComponentKey: "manufacturingServices" },
-    { surface: "Fabrinet", patternSources: ["\\bfabrinet\\b"], serviceComponentKey: "manufacturingServices" }
-  ]
-};
+    customerCounterparties: parseCounterpartyPatternSpecs(readField(record, "customerCounterparties", path), `${path}.customerCounterparties`),
+    supplierCounterparties: parseCounterpartyPatternSpecs(readField(record, "supplierCounterparties", path), `${path}.supplierCounterparties`),
+    manufacturingServiceSuppliers: parseManufacturingServiceSupplierSpecs(readField(record, "manufacturingServiceSuppliers", path), `${path}.manufacturingServiceSuppliers`)
+  };
+}
+
+function parseComponentPatternSpecs(value: unknown, path: string): ComponentPatternSpec[] {
+  return expectArray(value, path).map((item, index) => parseComponentPatternSpec(item, `${path}[${index}]`));
+}
+
+function parseComponentPatternSpec(value: unknown, path: string): ComponentPatternSpec {
+  const record = expectRecord(value, path);
+  return {
+    component: expectString(readField(record, "component", path), `${path}.component`),
+    componentId: expectString(readField(record, "componentId", path), `${path}.componentId`),
+    specificity: parseSpecificity(readField(record, "specificity", path), `${path}.specificity`),
+    patternSources: parsePatternSources(readField(record, "patternSources", path), `${path}.patternSources`)
+  };
+}
+
+function parseCounterpartyPatternSpecs(value: unknown, path: string): CounterpartyPatternSpec[] {
+  return expectArray(value, path).map((item, index) => parseCounterpartyPatternSpec(item, `${path}[${index}]`));
+}
+
+function parseCounterpartyPatternSpec(value: unknown, path: string): CounterpartyPatternSpec {
+  const record = expectRecord(value, path);
+  return {
+    surface: expectString(readField(record, "surface", path), `${path}.surface`),
+    patternSources: parsePatternSources(readField(record, "patternSources", path), `${path}.patternSources`)
+  };
+}
+
+function parseManufacturingServiceSupplierSpecs(value: unknown, path: string): ManufacturingServiceSupplierSpec[] {
+  return expectArray(value, path).map((item, index) => parseManufacturingServiceSupplierSpec(item, `${path}[${index}]`));
+}
+
+function parseManufacturingServiceSupplierSpec(value: unknown, path: string): ManufacturingServiceSupplierSpec {
+  const record = expectRecord(value, path);
+  return {
+    surface: expectString(readField(record, "surface", path), `${path}.surface`),
+    patternSources: parsePatternSources(readField(record, "patternSources", path), `${path}.patternSources`),
+    serviceComponentKey: parseComponentPatternKey(readField(record, "serviceComponentKey", path), `${path}.serviceComponentKey`)
+  };
+}
+
+function parsePatternSources(value: unknown, path: string): string[] {
+  return expectArray(value, path).map((item, index) => expectString(item, `${path}[${index}]`));
+}
+
+function parseSpecificity(value: unknown, path: string): CandidateRelation["component_specificity"] {
+  const text = expectString(value, path);
+  if (text === "explicit" || text === "inferred" || text === "unspecified") return text;
+  throw new Error(`Invalid component specificity at ${path}: ${text}`);
+}
+
+function parseComponentPatternKey(value: unknown, path: string): ComponentPatternKey {
+  const text = expectString(value, path);
+  if (text === "manufacturingServices" || text === "foundryWafer") return text;
+  throw new Error(`Invalid component pattern key at ${path}: ${text}`);
+}
+
+function readField(record: Record<string, unknown>, key: string, path: string): unknown {
+  if (!(key in record)) throw new Error(`Missing required field ${path}.${key}`);
+  return record[key];
+}
+
+function expectRecord(value: unknown, path: string): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const record: Record<string, unknown> = {};
+    for (const [key, field] of Object.entries(value)) record[key] = field;
+    return record;
+  }
+  throw new Error(`Expected object at ${path}`);
+}
+
+function expectArray(value: unknown, path: string): unknown[] {
+  if (Array.isArray(value)) return value;
+  throw new Error(`Expected array at ${path}`);
+}
+
+function expectString(value: unknown, path: string): string {
+  if (typeof value === "string" && value.length > 0) return value;
+  throw new Error(`Expected non-empty string at ${path}`);
+}

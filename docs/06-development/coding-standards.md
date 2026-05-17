@@ -40,7 +40,7 @@
 - `apps/cli/src/main.ts`：只注册命令、连接 handler，不放大段渲染逻辑。
 - `apps/cli/src/preview-render.ts` / `source-render.ts` / `entity-render.ts` / `review-render.ts`：只负责 CLI 展示。
 - `apps/cli/src/cli-utils.ts`：只负责参数解析、输出、DB pool 生命周期。
-- `packages/db/src/schema.ts`：只放 PostgreSQL DDL；运行时查询留在 `packages/db/src/index.ts`。
+- `packages/db/src/migration-sql/*.ts`：只放 PostgreSQL DDL；运行时查询留在 `packages/db/src/*` 的职责文件中。
 
 ## 函数 / 方法
 

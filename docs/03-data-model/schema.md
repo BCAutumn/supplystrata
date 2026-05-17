@@ -5,7 +5,7 @@
 - **PostgreSQL**：所有元数据、证据、文档、实体、别名、变更、队列。是事件源 / 真相存储。
 - **Neo4j**：图谱当前状态的物化视图。可以从 Postgres 全量重建。
 
-下面给出 Phase 0-2 必须存在的表 / 节点 / 关系。MVP 当前的实际 DDL 位于 `packages/db/src/schema.ts`；后续引入正式 migrations 时，必须从该文件迁移到版本化 migration 文件，不能在多个地方维护两份 DDL。
+下面给出 Phase 0-2 必须存在的表 / 节点 / 关系。MVP 当前的实际 DDL 位于 `packages/db/src/migration-sql/*.ts`，并由 `packages/db/src/migrations.ts` 按版本顺序执行。不要再维护单个大 `schema.ts`，新增表或列必须进入新的 migration 文件。
 
 ## PostgreSQL 表清单
 
