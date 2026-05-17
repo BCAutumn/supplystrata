@@ -59,6 +59,7 @@ docs/
 │   ├── roadmap.md                ★ 阶段化路线图（Phase 0-5，不承诺自然周）
 │   ├── phase-2-upgrade-plan.md   ★ 公开 alpha 后的可信度优先升级计划
 │   ├── multi-tier-chain-logistics-plan.md ★ 多级链路 / 原材料 / 物流追踪计划
+│   ├── midterm-intelligence-network-plan.md ★ Claim / Observation / ChainView 中期骨架
 │   ├── v0.2-alpha-plan.md           v0.2-alpha P0/P1/P2 任务与验收
 │   ├── release-criteria.md          v0.2 与 Phase 2 full acceptance 的发布标准
 │   ├── quickstart.md                从空环境跑到研究输出
@@ -123,12 +124,13 @@ docs/
 1. [06-development/v0.2-alpha-plan.md](./06-development/v0.2-alpha-plan.md)
 2. [06-development/release-criteria.md](./06-development/release-criteria.md)
 3. [06-development/phase-2-upgrade-plan.md](./06-development/phase-2-upgrade-plan.md)
-4. [04-data-sources/source-roi-matrix.md](./04-data-sources/source-roi-matrix.md)
-5. [03-data-model/evidence-model.md](./03-data-model/evidence-model.md)
-6. [03-data-model/relation-model.md](./03-data-model/relation-model.md)
-7. [05-modules/entity-resolution.md](./05-modules/entity-resolution.md)
-8. [05-modules/evidence-scoring.md](./05-modules/evidence-scoring.md)
-9. [04-data-sources/source-registry.md](./04-data-sources/source-registry.md)
+4. [06-development/midterm-intelligence-network-plan.md](./06-development/midterm-intelligence-network-plan.md)
+5. [04-data-sources/source-roi-matrix.md](./04-data-sources/source-roi-matrix.md)
+6. [03-data-model/evidence-model.md](./03-data-model/evidence-model.md)
+7. [03-data-model/relation-model.md](./03-data-model/relation-model.md)
+8. [05-modules/entity-resolution.md](./05-modules/entity-resolution.md)
+9. [05-modules/evidence-scoring.md](./05-modules/evidence-scoring.md)
+10. [04-data-sources/source-registry.md](./04-data-sources/source-registry.md)
 
 ### 接入新数据源前必读
 

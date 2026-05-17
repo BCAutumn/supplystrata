@@ -39,6 +39,66 @@ export type EvidenceLevel = 1 | 2 | 3 | 4 | 5;
 export type ExtractionMethod = "rule" | "llm" | "manual" | "hybrid";
 export type ComponentSpecificity = "explicit" | "inferred" | "unspecified";
 
+export const CLAIM_TYPES = [
+  "SUPPLY_RELATION_CLAIM",
+  "FACILITY_RELATION_CLAIM",
+  "ENTITY_FACT_CLAIM",
+  "COMPONENT_EXPOSURE_CLAIM",
+  "DEMAND_SIGNAL_CLAIM",
+  "RISK_SIGNAL_CLAIM",
+  "UNKNOWN_BOUNDARY_CLAIM"
+] as const;
+
+export type ClaimType = (typeof CLAIM_TYPES)[number];
+
+export const OBSERVATION_TYPES = [
+  "TRADE_FLOW_OBSERVATION",
+  "PORT_ACTIVITY_OBSERVATION",
+  "ROUTE_OBSERVATION",
+  "ENERGY_PRICE_OBSERVATION",
+  "COMMODITY_PRICE_OBSERVATION",
+  "MINERAL_SUPPLY_OBSERVATION",
+  "CAPEX_OBSERVATION",
+  "INVENTORY_OBSERVATION",
+  "BACKLOG_OBSERVATION",
+  "CUSTOMER_CONCENTRATION_OBSERVATION",
+  "POLICY_OBSERVATION",
+  "PROCUREMENT_OBSERVATION"
+] as const;
+
+export type ObservationType = (typeof OBSERVATION_TYPES)[number];
+
+export const LEAD_TYPES = [
+  "HIRING_SIGNAL",
+  "NEWS_SIGNAL",
+  "PROCUREMENT_SIGNAL",
+  "BOL_SINGLE_RECORD",
+  "FORUM_OR_BLOG_SIGNAL",
+  "UNVERIFIED_FACILITY_SIGNAL"
+] as const;
+
+export type LeadType = (typeof LEAD_TYPES)[number];
+
+export const SEMANTIC_LAYERS = ["edge", "claim", "observation", "lead", "unknown"] as const;
+
+export type SemanticLayer = (typeof SEMANTIC_LAYERS)[number];
+
+export const CHAIN_ENDPOINT_KINDS = [
+  "company",
+  "entity",
+  "facility",
+  "component",
+  "country",
+  "port",
+  "vessel",
+  "carrier",
+  "mineral",
+  "route",
+  "document"
+] as const;
+
+export type ChainEndpointKind = (typeof CHAIN_ENDPOINT_KINDS)[number];
+
 export const EXTRACTOR_ID_PREFIXES = ["rule.", "llm.", "manual.", "review."] as const;
 
 export function inferExtractionMethod(extractorId: string): ExtractionMethod {
@@ -184,7 +244,81 @@ export interface ApplyResult {
   graph_sync: { status: "synced" } | { status: "failed"; error_message: string };
 }
 
-export function createId(prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS"): string {
+export interface ClaimRecord {
+  claim_id: string;
+  claim_type: ClaimType;
+  claim_text: string;
+  subject_id?: string;
+  object_id?: string;
+  component_id?: string;
+  edge_id?: string;
+  status: "active" | "superseded" | "rejected";
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  generated_by: string;
+  last_verified_at: string;
+}
+
+export interface ObservationRecord {
+  observation_id: string;
+  observation_type: ObservationType;
+  source_adapter_id: string;
+  scope_kind: string;
+  scope_id: string;
+  component_id?: string;
+  metric_name: string;
+  metric_value?: string;
+  metric_unit?: string;
+  time_window_start?: string;
+  time_window_end?: string;
+  confidence: number;
+}
+
+export interface LeadObservationRecord {
+  lead_id: string;
+  lead_type: LeadType;
+  source_adapter_id: string;
+  scope_kind: string;
+  scope_id: string;
+  title: string;
+  summary: string;
+  status: "open" | "in_review" | "promoted" | "rejected" | "closed";
+}
+
+export interface ChainSegmentRecord {
+  segment_id: string;
+  chain_id: string;
+  sequence_index: number;
+  from_kind: ChainEndpointKind;
+  from_id: string;
+  to_kind: ChainEndpointKind;
+  to_id: string;
+  semantic_layer: SemanticLayer;
+  relation?: string;
+  component_id?: string;
+  edge_id?: string;
+  claim_id?: string;
+  observation_id?: string;
+  lead_id?: string;
+  unknown_id?: string;
+  evidence_ids: string[];
+  confidence?: number;
+}
+
+export interface ChainViewRecord {
+  chain_id: string;
+  root_kind: ChainEndpointKind;
+  root_id: string;
+  view_type: "company_chain" | "component_chain" | "facility_chain" | "route_chain" | "material_chain" | "demand_chain" | "unknown_map";
+  title: string;
+  generated_by: string;
+  generated_at: string;
+}
+
+export function createId(
+  prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS" | "CLM" | "OBS" | "LEAD" | "CHAIN" | "SEG"
+): string {
   return `${prefix}-${randomUUID()}`;
 }
 

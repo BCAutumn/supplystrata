@@ -138,6 +138,7 @@ Phase 1 出场。
 11. CompanyCard / ComponentCard 升级。
 12. `apps/research-preview`：全量 TypeScript + Canvas，替代一次性 HTML 脚本。
 13. ChainView / multi-tier segment contract（先定义 `edge / observation / lead / unknown` 分层，不先接宏观源）。
+14. Claim / Observation / ChainView 中期骨架（详见 [midterm-intelligence-network-plan.md](./midterm-intelligence-network-plan.md)）。
 
 ### 风险与缓解
 
@@ -157,7 +158,7 @@ Phase 1 出场。
 
 ---
 
-## Phase 3 — 扩源 + 持续运行
+## Phase 3 — 情报网络骨架 + 持续运行
 
 ### 入场条件
 
@@ -165,6 +166,12 @@ Phase 2 出场。
 
 ### 任务
 
+- [x] `claims` / `claim_evidence` / `claim_unknowns` schema
+- [ ] `packages/claim-builder`：从 edge/evidence/unknown 生成可审计 claim
+- [x] `observations` / `lead_observations` schema
+- [x] `chain_views` / `chain_segments` schema
+- [ ] `packages/chain-view`：输出带 `semantic_layer` 的 ChainViewModel
+- [ ] `apps/research-preview` 消费 ChainViewModel JSON
 - [ ] `dart-kr` adapter（Samsung / SK Hynix 韩文披露的英文版）
 - [ ] 扩展亚洲/欧洲 IR 的历史覆盖与非 MVP 公司（MVP 的 4 家 IR 已在 Phase 2 接入）
 - [ ] `un-comtrade` adapter → macro_signals 表
@@ -180,6 +187,8 @@ Phase 2 出场。
 
 ### 出场条件
 
+- [ ] 报告里的事实性句子都有 `claim_id`，unsupported claim rate = 0
+- [ ] ChainView 能同时展示 fact edge、observation、lead、unknown boundary
 - [ ] Macro signals 在 ComponentCard 中已被引用
 - [ ] BOL 推断边总数 < 总边数 20%（避免被推断淹没）
 - [ ] API 集成测试通过

@@ -2,7 +2,7 @@
 
 MVP 阶段对外的"产品"就是几种**结构化卡片**和它们的 Markdown 渲染。本文档定义这些卡片的契约。任何前端、报告、API、CLI 都必须按这里的 schema 输出。
 
-所有 schema 用 TypeScript / zod 风格表达；落地在 `packages/core/src/output-schemas.ts`。
+所有 schema 用 TypeScript / zod 风格表达。当前代码先在 `packages/render` 的输出模型中逐步落地；中期目标是把稳定契约抽到独立 schema 模块，供 CLI、API 和 `apps/research-preview` 共享。
 
 ## 通用字段
 

@@ -403,6 +403,29 @@ CREATE TABLE pending_entities (
 
 不要手写 `pgboss` 表，由库管理。
 
+## 15. Claim / Observation / ChainView
+
+Phase 3 的重点不是先接更多宏观源，而是先把公开供应链情报网的语义层落库。实际 DDL 位于 `packages/db/src/migration-sql/0006_claims_observations_chain_views.ts`，详细方案见 [../06-development/midterm-intelligence-network-plan.md](../06-development/midterm-intelligence-network-plan.md)。
+
+已新增：
+
+```text
+claims
+claim_evidence
+claim_unknowns
+observations
+lead_observations
+chain_views
+chain_segments
+```
+
+约束：
+
+- `claims` 只能引用 `edges` / `evidence` / `unknown_items`，不能自己成为新事实来源。
+- `observations` 不能被 graph-builder 直接物化成 Neo4j fact edge。
+- `lead_observations` 必须进入 review 或研究队列，默认不进图谱。
+- `chain_segments.semantic_layer` 必须保留 `edge / claim / observation / lead / unknown`，供 CLI、API 和研究工作台统一消费。
+
 ## Neo4j 模型
 
 ### 节点 labels

@@ -4,6 +4,7 @@ import { migration0002DocumentsGraphSql } from "./migration-sql/0002_documents_g
 import { migration0003SourceMonitoringSql } from "./migration-sql/0003_source_monitoring.js";
 import { migration0004ReviewQualitySql } from "./migration-sql/0004_review_quality.js";
 import { migration0005RemoveLegacyReviewQueueSql } from "./migration-sql/0005_remove_legacy_review_queue.js";
+import { migration0006ClaimsObservationsChainViewsSql } from "./migration-sql/0006_claims_observations_chain_views.js";
 
 interface Migration {
   readonly id: string;
@@ -36,6 +37,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0005_remove_legacy_review_queue",
     description: "Remove obsolete extraction_review_queue after review_candidates became the single review store.",
     sql: migration0005RemoveLegacyReviewQueueSql
+  },
+  {
+    id: "0006_claims_observations_chain_views",
+    description: "Create claim, observation, lead, and chain-view contract tables.",
+    sql: migration0006ClaimsObservationsChainViewsSql
   }
 ];
 

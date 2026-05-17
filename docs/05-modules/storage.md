@@ -14,39 +14,38 @@
 
 ### 责任
 
-- drizzle schema 定义
 - migration 管理
-- 仓储层（Repository）
+- Postgres 连接池与事务入口
+- 按职责拆分的仓储/查询函数
+- 对外只暴露稳定 re-export，避免业务层直接拼散乱 SQL
 
 ### 仓储分层
 
 ```
 packages/db/src/
-├── schema/                    drizzle 表定义
-├── repos/
-│   ├── entities.repo.ts
-│   ├── aliases.repo.ts
-│   ├── documents.repo.ts
-│   ├── chunks.repo.ts
-│   ├── chunk-entities.repo.ts
-│   ├── evidence.repo.ts
-│   ├── edges.repo.ts
-│   ├── change-records.repo.ts
-│   ├── unknown-items.repo.ts
-│   ├── review-queue.repo.ts
-│   ├── pending-entities.repo.ts
-│   └── macro-signals.repo.ts
-├── migrations/
-└── client.ts                  drizzle client + connection pool
+├── client.ts                  Postgres pool / migrate 入口
+├── migrations.ts              schema_migrations + 版本顺序
+├── migration-sql/
+│   ├── 0001_entity_core.ts
+│   ├── 0002_documents_graph.ts
+│   ├── 0003_source_monitoring.ts
+│   ├── 0004_review_quality.ts
+│   └── ...
+├── seed.ts                    seed 导入与必要数据回填
+├── documents.ts               normalized document / chunks 写入
+├── query.ts                   edge / evidence / unknown / entity 只读查询
+├── changes.ts                 graph/source change timeline 查询
+├── pending.ts                 pending entity 写入与查询
+└── index.ts                   稳定 re-export
 ```
 
 ### Repository 契约
 
-每个 repo 暴露：
+每个职责文件暴露：
 
-- 强类型 CRUD（基于 zod schema）
+- 强类型查询/写入函数
 - 不暴露原始 SQL string
-- 复杂查询用命名方法（`findEdgesByEntityId`, `findEvidenceByEdgeId`）
+- 复杂查询用命名方法（`listCurrentEdges`, `getEvidence`, `listChangeTimeline`）
 - 事务支持：`tx` 参数可选
 
 例：
@@ -60,19 +59,19 @@ export interface EvidenceRepo {
 }
 ```
 
-业务模块**只**依赖 repo interface，不直接 import drizzle。
+业务模块依赖 `@supplystrata/db` 的稳定函数，不直接访问内部 migration 文件。中期如果引入更正式的 repo interface，也必须保持这个边界。
 
 ### 迁移规则
 
-- `migrations/<n>_<purpose>.sql`，n 严格递增
-- 每个迁移都要有 `<n>_<purpose>.down.sql`（回滚）
+- `migration-sql/<n>_<purpose>.ts`，n 严格递增
 - 已发布的迁移不允许修改字段；要改开新迁移
-- CI 跑 forward + backward + forward 路径
+- `schema_migrations` 记录已执行版本
+- 当前不做 down migration；需要回滚时开前向修复迁移
 
 ### 连接池
 
 - pgbouncer 不做（MVP 单机够用）
-- drizzle client 单例
+- `pg.Pool` 由执行层显式创建并传入
 - max connections：默认 20
 
 ## packages/graph

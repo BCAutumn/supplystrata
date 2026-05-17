@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { EXTRACTOR_ID_PREFIXES, inferExtractionMethod } from "@supplystrata/core";
+import {
+  CHAIN_ENDPOINT_KINDS,
+  CLAIM_TYPES,
+  EXTRACTOR_ID_PREFIXES,
+  LEAD_TYPES,
+  OBSERVATION_TYPES,
+  SEMANTIC_LAYERS,
+  createId,
+  inferExtractionMethod
+} from "@supplystrata/core";
 
 describe("core extraction method inference", () => {
   it("maps every supported extractor_id prefix explicitly", () => {
@@ -13,5 +22,44 @@ describe("core extraction method inference", () => {
   it("fails fast for unknown extractor_id prefixes", () => {
     expect(() => inferExtractionMethod("rules.10k.typo")).toThrow(/Unknown extractor_id prefix/);
     expect(() => inferExtractionMethod("10k.nvidia-supply-chain")).toThrow(/rule\., llm\., manual\., review\./);
+  });
+});
+
+describe("core intelligence-network contract constants", () => {
+  it("keeps midterm semantic layers explicit and small", () => {
+    expect(SEMANTIC_LAYERS).toEqual(["edge", "claim", "observation", "lead", "unknown"]);
+  });
+
+  it("defines first-class claim, observation, and lead types", () => {
+    expect(CLAIM_TYPES).toContain("SUPPLY_RELATION_CLAIM");
+    expect(CLAIM_TYPES).toContain("UNKNOWN_BOUNDARY_CLAIM");
+    expect(OBSERVATION_TYPES).toContain("TRADE_FLOW_OBSERVATION");
+    expect(OBSERVATION_TYPES).toContain("PORT_ACTIVITY_OBSERVATION");
+    expect(LEAD_TYPES).toContain("BOL_SINGLE_RECORD");
+    expect(LEAD_TYPES).toContain("UNVERIFIED_FACILITY_SIGNAL");
+  });
+
+  it("supports chain endpoints beyond company-to-company graph edges", () => {
+    expect(CHAIN_ENDPOINT_KINDS).toEqual([
+      "company",
+      "entity",
+      "facility",
+      "component",
+      "country",
+      "port",
+      "vessel",
+      "carrier",
+      "mineral",
+      "route",
+      "document"
+    ]);
+  });
+
+  it("creates stable ids for midterm objects", () => {
+    expect(createId("CLM")).toMatch(/^CLM-/);
+    expect(createId("OBS")).toMatch(/^OBS-/);
+    expect(createId("LEAD")).toMatch(/^LEAD-/);
+    expect(createId("CHAIN")).toMatch(/^CHAIN-/);
+    expect(createId("SEG")).toMatch(/^SEG-/);
   });
 });
