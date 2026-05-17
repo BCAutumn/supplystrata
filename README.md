@@ -3,9 +3,9 @@
 > Open Supply Chain Evidence Graph
 > 公开供应链证据图谱系统
 
-**当前阶段**：Phase 1 已完成，Phase 2 正在推进。NVIDIA SEC 10-K 纵向切片、Apple Supplier List review/apply 纵向链路、Postgres 真相存储、Neo4j 物化图、`graph check/rebuild`、CLI 输出、测试门禁和新 evidence trace/fingerprint 写入已经跑通或落地。
+SupplyStrata 是一个开源的**全球供应链证据图谱引擎**：它把公司披露、供应商名单、实体注册信息、物流与贸易观测整理成可审计、可追溯、可重建的供应链关系网络。
 
-SupplyStrata 正在把公开披露、供应商名单、实体注册信息和后续物流/贸易观测整理成一套**可审计、可追溯、可扩展的全球供应链证据图谱引擎**。当前 HTML 链路图是研究预览；v0.2 计划把它迁移为 `apps/research-preview`，采用 TypeScript + Canvas 的本地研究工作台。
+它的核心不是“爬到更多网页”，而是把公开信息变成可验证的研究资产：每条边都有证据等级、原文片段、来源链接、抓取时间、置信度、review 状态和 unknown map。你可以从一家上市公司出发，追踪上游供应商、合同制造、组件暴露、设施地点和后续物流/贸易线索，并且始终知道哪些结论有证据、哪些地方仍然未知。
 
 ---
 
