@@ -20,7 +20,7 @@ import {
   runDefaultNvidiaSlice,
   runSecEdgarPipeline
 } from "@supplystrata/pipeline";
-import { renderChanges, renderCompany, renderEvidence, renderPendingEntities, renderPendingEntity, renderUnknownMap, type OutputFormat } from "@supplystrata/render";
+import { renderChain, renderChanges, renderCompany, renderComponent, renderEvidence, renderPendingEntities, renderPendingEntity, renderUnknownMap, type OutputFormat } from "@supplystrata/render";
 import { decideReviewCandidate, getReviewCandidate, nextReviewCandidate, reviewStats } from "@supplystrata/review-store";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
 import {
@@ -355,6 +355,29 @@ program
   .action(async (query: string, options: { format: string }) => {
     await withPool(async (pool) => {
       write(await renderCompany(pool, query, parseFormat(options.format)));
+    });
+  });
+
+program
+  .command("chain")
+  .argument("<query>", "company name, alias, ticker, or entity id")
+  .option("--depth <count>", "upstream traversal depth, max 5", "2")
+  .option("--format <format>", "markdown or json", "markdown")
+  .description("render a chain-first upstream view for a company")
+  .action(async (query: string, options: { depth: string; format: string }) => {
+    await withPool(async (pool) => {
+      write(await renderChain(pool, query, { depth: parseLimit(options.depth), format: parseFormat(options.format) }));
+    });
+  });
+
+program
+  .command("component")
+  .argument("<query>", "component id, name, or alias")
+  .option("--format <format>", "markdown or json", "markdown")
+  .description("render a component supply-chain card")
+  .action(async (query: string, options: { format: string }) => {
+    await withPool(async (pool) => {
+      write(await renderComponent(pool, query, parseFormat(options.format)));
     });
   });
 

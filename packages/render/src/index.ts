@@ -8,7 +8,8 @@ import {
   resolveEntityId,
   type ChangeTimelineInput,
   type ChangeTimelineItem,
-  type PendingEntityStatusFilter
+  type PendingEntityStatusFilter,
+  type UnknownItemRow
 } from "@supplystrata/db";
 import type { EvidenceLevel, RelationType } from "@supplystrata/core";
 
@@ -35,6 +36,99 @@ interface EntityHeaderRow extends pg.QueryResultRow {
   entity_id: string;
   canonical_name: string;
   display_name: string;
+}
+
+export interface ComponentHeaderRow extends pg.QueryResultRow {
+  component_id: string;
+  name: string;
+  taxonomy_path: string[];
+  aliases: string[];
+}
+
+export interface ComponentParticipant {
+  entity_id: string;
+  name: string;
+  roles: string[];
+  edge_count: number;
+  best_evidence_level: EvidenceLevel;
+  best_confidence: number;
+}
+
+export interface ComponentEvidenceEdge {
+  edge_id: string;
+  relation: RelationType;
+  supplier_id: string;
+  supplier_name: string;
+  consumer_id: string;
+  consumer_name: string;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  primary_evidence_id: string | null;
+  cite_text: string | null;
+  source_url: string | null;
+  source_date: Date | null;
+}
+
+export interface ComponentCardModel {
+  component: ComponentHeaderRow;
+  known_suppliers: ComponentParticipant[];
+  known_consumers: ComponentParticipant[];
+  evidence_edges: ComponentEvidenceEdge[];
+  source_coverage: { sources: number; evidence_edges: number; latest_source_date: string | null };
+  unknown_map: UnknownItemRow[];
+}
+
+interface ComponentEdgeRow extends pg.QueryResultRow {
+  edge_id: string;
+  relation: RelationType;
+  subject_id: string;
+  subject_name: string;
+  object_id: string;
+  object_name: string;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  primary_evidence_id: string | null;
+  cite_text: string | null;
+  source_url: string | null;
+  source_date: Date | null;
+}
+
+export interface ChainEdge {
+  depth: number;
+  edge_id: string;
+  relation: RelationType;
+  subject_id: string;
+  subject_name: string;
+  object_id: string;
+  object_name: string;
+  upstream_id: string;
+  upstream_name: string;
+  component: string | null;
+  component_id: string | null;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  primary_evidence_id: string | null;
+  cite_text: string | null;
+}
+
+interface ChainEdgeRow extends pg.QueryResultRow {
+  depth: number;
+  edge_id: string;
+  relation: RelationType;
+  subject_id: string;
+  subject_name: string;
+  object_id: string;
+  object_name: string;
+  upstream_id: string;
+  upstream_name: string;
+  component: string | null;
+  component_id: string | null;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  primary_evidence_id: string | null;
+  cite_text: string | null;
 }
 
 export async function renderCompany(pool: pg.Pool, query: string, format: OutputFormat): Promise<string> {
@@ -65,6 +159,186 @@ export async function renderCompany(pool: pg.Pool, query: string, format: Output
   for (const item of unknownItems) {
     lines.push(`- ${item.question}`);
     lines.push(`  Why unknown: ${item.why_unknown}`);
+  }
+  return lines.join("\n");
+}
+
+export async function renderComponent(pool: pg.Pool, query: string, format: OutputFormat): Promise<string> {
+  const component = await resolveComponent(pool, query);
+  const edges = await loadComponentEdges(pool, component);
+  const evidenceEdges = edges.map(toComponentEvidenceEdge);
+  const suppliers = summarizeComponentParticipants(evidenceEdges, "supplier");
+  const consumers = summarizeComponentParticipants(evidenceEdges, "consumer");
+  const unknownItems = await listUnknownItems(pool, component.component_id);
+  const sourceCoverage = summarizeComponentSourceCoverage(evidenceEdges);
+
+  const card: ComponentCardModel = {
+    component,
+    known_suppliers: suppliers,
+    known_consumers: consumers,
+    evidence_edges: evidenceEdges,
+    source_coverage: sourceCoverage,
+    unknown_map: unknownItems
+  };
+  return renderComponentCard(card, format);
+}
+
+export async function renderChain(pool: pg.Pool, query: string, input: { depth: number; format: OutputFormat }): Promise<string> {
+  const entityId = await resolveEntityId(pool, query);
+  const headerResult = await pool.query<EntityHeaderRow>("SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1", [entityId]);
+  const header = headerResult.rows[0];
+  if (header === undefined) throw new Error(`Entity not found: ${entityId}`);
+  const edges = await loadUpstreamChainEdges(pool, entityId, input.depth);
+  return renderChainCard({
+    root: header,
+    max_depth: input.depth,
+    edges
+  }, input.format);
+}
+
+export function renderChainCard(card: { root: EntityHeaderRow; max_depth: number; edges: readonly ChainEdge[] }, format: OutputFormat): string {
+  if (format === "json") return JSON.stringify({ schema_version: "1.0.0", ...card }, null, 2);
+
+  const lines = [
+    `# Supply Chain ${card.root.display_name} [${card.root.entity_id}]`,
+    "",
+    `Max depth: ${card.max_depth}`,
+    `Edges: ${card.edges.length}`,
+    "",
+    "## Upstream chain",
+    ""
+  ];
+  if (card.edges.length === 0) {
+    lines.push("(no Level 4-5 upstream chain edges yet)");
+    return lines.join("\n");
+  }
+  for (const edge of card.edges) {
+    const indent = "  ".repeat(edge.depth - 1);
+    const component = edge.component === null ? "" : ` (${edge.component})`;
+    lines.push(`${indent}- depth ${edge.depth}: ${edge.subject_name} -${edge.relation}${component}-> ${edge.object_name}`);
+    lines.push(`${indent}  Upstream node: ${edge.upstream_name} [${edge.upstream_id}]`);
+    lines.push(`${indent}  Evidence: Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}${edge.primary_evidence_id === null ? "" : `, ${edge.primary_evidence_id}`}`);
+    if (edge.cite_text !== null) lines.push(`${indent}  "${edge.cite_text}"`);
+  }
+  return lines.join("\n");
+}
+
+async function loadUpstreamChainEdges(pool: pg.Pool, rootEntityId: string, maxDepth: number): Promise<ChainEdge[]> {
+  const depth = Math.min(Math.max(maxDepth, 1), 5);
+  const result = await pool.query<ChainEdgeRow>(
+    `WITH RECURSIVE walk AS (
+       SELECT $1::text AS node_id, ARRAY[$1::text] AS path, 0 AS depth
+       UNION ALL
+       SELECT next_edge.upstream_id,
+              walk.path || next_edge.upstream_id,
+              walk.depth + 1
+       FROM walk
+       JOIN LATERAL (
+         SELECT CASE
+                  WHEN e.relation IN ('BUYS_FROM','USES_FOUNDRY') AND e.subject_id = walk.node_id THEN e.object_id
+                  WHEN e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id THEN e.subject_id
+                  WHEN e.relation = 'MANUFACTURES_AT' AND e.subject_id = walk.node_id THEN e.object_id
+                END AS upstream_id
+         FROM edges e
+         WHERE e.validity = 'current'
+           AND e.evidence_level >= 4
+           AND (
+             (e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id)
+             OR (e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id)
+           )
+       ) next_edge ON next_edge.upstream_id IS NOT NULL
+       WHERE walk.depth < $2
+         AND NOT next_edge.upstream_id = ANY(walk.path)
+     ),
+     chain_edges AS (
+       SELECT walk.depth + 1 AS depth,
+              e.edge_id, e.relation,
+              e.subject_id, s.display_name AS subject_name,
+              e.object_id, o.display_name AS object_name,
+              CASE
+                WHEN e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id THEN e.object_id
+                WHEN e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id THEN e.subject_id
+              END AS upstream_id,
+              CASE
+                WHEN e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id THEN o.display_name
+                WHEN e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id THEN s.display_name
+              END AS upstream_name,
+              e.component, e.component_id, e.evidence_level, e.confidence, e.primary_evidence_id, ev.cite_text
+       FROM walk
+       JOIN edges e ON e.validity = 'current'
+        AND e.evidence_level >= 4
+        AND (
+          (e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id)
+          OR (e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id)
+        )
+       JOIN entity_master s ON s.entity_id = e.subject_id
+       JOIN entity_master o ON o.entity_id = e.object_id
+       LEFT JOIN evidence ev ON ev.evidence_id = e.primary_evidence_id
+       WHERE walk.depth < $2
+     )
+     SELECT depth, edge_id, relation, subject_id, subject_name, object_id, object_name,
+            upstream_id, upstream_name, component, component_id, evidence_level, confidence, primary_evidence_id, cite_text
+     FROM chain_edges
+     WHERE upstream_id IS NOT NULL
+     ORDER BY depth, subject_name, relation, object_name`,
+    [rootEntityId, depth]
+  );
+  return result.rows.map((row) => ({
+    depth: row.depth,
+    edge_id: row.edge_id,
+    relation: row.relation,
+    subject_id: row.subject_id,
+    subject_name: row.subject_name,
+    object_id: row.object_id,
+    object_name: row.object_name,
+    upstream_id: row.upstream_id,
+    upstream_name: row.upstream_name,
+    component: row.component,
+    component_id: row.component_id,
+    evidence_level: row.evidence_level,
+    confidence: row.confidence,
+    primary_evidence_id: row.primary_evidence_id,
+    cite_text: row.cite_text
+  }));
+}
+
+export function renderComponentCard(card: ComponentCardModel, format: OutputFormat): string {
+  if (format === "json") {
+    return JSON.stringify({
+      schema_version: "1.0.0",
+      component: card.component,
+      known_suppliers: card.known_suppliers,
+      known_consumers: card.known_consumers,
+      evidence_edges: card.evidence_edges,
+      source_coverage: card.source_coverage,
+      unknown_map: card.unknown_map
+    }, null, 2);
+  }
+
+  const lines = [
+    `# Component ${card.component.name} [${card.component.component_id}]`,
+    "",
+    `Taxonomy: ${card.component.taxonomy_path.join(" > ")}`,
+    `Aliases: ${card.component.aliases.length === 0 ? "(none)" : card.component.aliases.join(", ")}`,
+    "",
+    "## Known suppliers",
+    ""
+  ];
+  appendComponentParticipants(lines, card.known_suppliers);
+  lines.push("", "## Known consumers", "");
+  appendComponentParticipants(lines, card.known_consumers);
+  lines.push("", "## Evidence edges", "");
+  appendComponentEvidenceEdges(lines, card.evidence_edges);
+  lines.push("", "## Source coverage", "");
+  appendSourceCoverage(lines, card.source_coverage);
+  lines.push("", "## Unknown map", "");
+  if (card.unknown_map.length === 0) {
+    lines.push("- No component-scoped unknown items recorded yet.");
+  } else {
+    for (const item of card.unknown_map) {
+      lines.push(`- ${item.question}`);
+      lines.push(`  Why unknown: ${item.why_unknown}`);
+    }
   }
   return lines.join("\n");
 }
@@ -214,4 +488,155 @@ async function loadCompanyEdges(pool: pg.Pool, entityId: string): Promise<Compan
     [entityId]
   );
   return result.rows;
+}
+
+async function resolveComponent(pool: pg.Pool, query: string): Promise<ComponentHeaderRow> {
+  const normalized = query.trim().toLowerCase();
+  if (normalized.length === 0) throw new Error("Component query must not be empty");
+  const result = await pool.query<ComponentHeaderRow>(
+    `SELECT component_id, name, taxonomy_path, aliases
+     FROM components
+     WHERE lower(component_id) = $1
+        OR lower(name) = $1
+        OR EXISTS (SELECT 1 FROM unnest(aliases) AS alias WHERE lower(alias) = $1)
+     ORDER BY CASE WHEN lower(component_id) = $1 THEN 0 WHEN lower(name) = $1 THEN 1 ELSE 2 END, component_id
+     LIMIT 1`,
+    [normalized]
+  );
+  const component = result.rows[0];
+  if (component === undefined) throw new Error(`Component not found: ${query}`);
+  return component;
+}
+
+async function loadComponentEdges(pool: pg.Pool, component: ComponentHeaderRow): Promise<ComponentEdgeRow[]> {
+  const result = await pool.query<ComponentEdgeRow>(
+    `SELECT e.edge_id, e.relation,
+            e.subject_id,
+            s.display_name AS subject_name,
+            e.object_id,
+            o.display_name AS object_name,
+            e.evidence_level, e.confidence, e.is_inferred, e.primary_evidence_id,
+            ev.cite_text, d.source_url, d.source_date
+     FROM edges e
+     JOIN entity_master s ON s.entity_id = e.subject_id
+     JOIN entity_master o ON o.entity_id = e.object_id
+     LEFT JOIN evidence ev ON ev.evidence_id = e.primary_evidence_id
+     LEFT JOIN documents d ON d.doc_id = ev.doc_id
+     WHERE e.validity = 'current'
+       AND e.evidence_level >= 4
+       AND (
+         e.component_id = $1
+         OR (e.component_id IS NULL AND lower(e.component) = lower($2))
+         OR (e.component_id IS NULL AND EXISTS (SELECT 1 FROM unnest($3::text[]) AS alias WHERE lower(e.component) = lower(alias)))
+       )
+     ORDER BY e.evidence_level DESC, e.confidence DESC, s.display_name, o.display_name`,
+    [component.component_id, component.name, component.aliases]
+  );
+  return result.rows;
+}
+
+function toComponentEvidenceEdge(row: ComponentEdgeRow): ComponentEvidenceEdge {
+  const direction = componentEdgeDirection(row);
+  return {
+    edge_id: row.edge_id,
+    relation: row.relation,
+    supplier_id: direction.supplier_id,
+    supplier_name: direction.supplier_name,
+    consumer_id: direction.consumer_id,
+    consumer_name: direction.consumer_name,
+    evidence_level: row.evidence_level,
+    confidence: row.confidence,
+    is_inferred: row.is_inferred,
+    primary_evidence_id: row.primary_evidence_id,
+    cite_text: row.cite_text,
+    source_url: row.source_url,
+    source_date: row.source_date
+  };
+}
+
+function componentEdgeDirection(row: ComponentEdgeRow): { supplier_id: string; supplier_name: string; consumer_id: string; consumer_name: string } {
+  if (row.relation === "SUPPLIES_TO") {
+    return {
+      supplier_id: row.subject_id,
+      supplier_name: row.subject_name,
+      consumer_id: row.object_id,
+      consumer_name: row.object_name
+    };
+  }
+  return {
+    supplier_id: row.object_id,
+    supplier_name: row.object_name,
+    consumer_id: row.subject_id,
+    consumer_name: row.subject_name
+  };
+}
+
+function summarizeComponentParticipants(edges: readonly ComponentEvidenceEdge[], role: "supplier" | "consumer"): ComponentParticipant[] {
+  const byEntity = new Map<string, ComponentParticipant>();
+  for (const edge of edges) {
+    const entityId = role === "supplier" ? edge.supplier_id : edge.consumer_id;
+    const name = role === "supplier" ? edge.supplier_name : edge.consumer_name;
+    const item = byEntity.get(entityId) ?? {
+      entity_id: entityId,
+      name,
+      roles: [],
+      edge_count: 0,
+      best_evidence_level: edge.evidence_level,
+      best_confidence: edge.confidence
+    };
+    item.edge_count += 1;
+    item.best_evidence_level = Math.max(item.best_evidence_level, edge.evidence_level) as EvidenceLevel;
+    item.best_confidence = Math.max(item.best_confidence, edge.confidence);
+    if (!item.roles.includes(edge.relation)) item.roles.push(edge.relation);
+    byEntity.set(entityId, item);
+  }
+  return [...byEntity.values()].sort((left, right) =>
+    right.best_evidence_level - left.best_evidence_level ||
+    right.best_confidence - left.best_confidence ||
+    left.name.localeCompare(right.name)
+  );
+}
+
+function summarizeComponentSourceCoverage(edges: readonly ComponentEvidenceEdge[]): { sources: number; evidence_edges: number; latest_source_date: string | null } {
+  const sources = new Set<string>();
+  let latestSourceDate: string | null = null;
+  for (const edge of edges) {
+    if (edge.source_url !== null) sources.add(edge.source_url);
+    if (edge.source_date !== null) {
+      const sourceDate = edge.source_date.toISOString().slice(0, 10);
+      if (latestSourceDate === null || sourceDate > latestSourceDate) latestSourceDate = sourceDate;
+    }
+  }
+  return { sources: sources.size, evidence_edges: edges.length, latest_source_date: latestSourceDate };
+}
+
+function appendComponentParticipants(lines: string[], items: readonly ComponentParticipant[]): void {
+  if (items.length === 0) {
+    lines.push("(none recorded at Level 4-5)");
+    return;
+  }
+  for (const item of items) {
+    lines.push(`- ${item.name} [${item.entity_id}]`);
+    lines.push(`  Evidence: Level ${item.best_evidence_level}, conf ${item.best_confidence.toFixed(3)}, edges ${item.edge_count}`);
+    lines.push(`  Roles: ${item.roles.join(", ")}`);
+  }
+}
+
+function appendComponentEvidenceEdges(lines: string[], edges: readonly ComponentEvidenceEdge[]): void {
+  if (edges.length === 0) {
+    lines.push("(no Level 4-5 component edges yet)");
+    return;
+  }
+  for (const edge of edges) {
+    lines.push(`- ${edge.supplier_name} -> ${edge.consumer_name} via ${edge.relation} [Level ${edge.evidence_level}, conf ${edge.confidence.toFixed(3)}]`);
+    if (edge.source_date !== null) lines.push(`  Source date: ${edge.source_date.toISOString().slice(0, 10)}`);
+    if (edge.cite_text !== null) lines.push(`  "${edge.cite_text}"`);
+    if (edge.primary_evidence_id !== null) lines.push(`  Evidence: ${edge.primary_evidence_id}`);
+  }
+}
+
+function appendSourceCoverage(lines: string[], coverage: { sources: number; evidence_edges: number; latest_source_date: string | null }): void {
+  lines.push(`- Evidence edges: ${coverage.evidence_edges}`);
+  lines.push(`- Distinct source URLs: ${coverage.sources}`);
+  lines.push(`- Latest source date: ${coverage.latest_source_date ?? "(none)"}`);
 }

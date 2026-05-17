@@ -115,11 +115,21 @@ ref         可以是 ticker / cik / lei / entity_id / 别名
 ### supplystrata component `<name>`
 
 ```
-name        组件名（如 "HBM"）
+name        组件 ID、组件名或别名（如 "COMP-MEMORY" / "memory" / "HBM"）
 --format    markdown | json
 ```
 
-返回 ComponentCard。
+返回 ComponentCard：known_suppliers、known_consumers、evidence_edges、source_coverage、unknown_map。它只读取 `components` taxonomy 与图谱边，不绑定 Apple / NVIDIA。
+
+### supplystrata chain `<company>`
+
+```
+company     公司名、别名、ticker 或 entity_id
+--depth N   默认 2，最大 5
+--format    markdown | json
+```
+
+返回 chain-first upstream view。它沿 Level 4-5 的 `BUYS_FROM` / `USES_FOUNDRY` / `SUPPLIES_TO` / `MANUFACTURES_AT` 边递归展开，默认不展示 Level 1-3 推断边。
 
 ### supplystrata evidence `<id>`
 

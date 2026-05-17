@@ -85,10 +85,10 @@ Phase 1 出场。
 - [x] `packages/sources/company-ir/tsmc-ir`（已接入无库预览链路；完整 review/apply 待主链路统一接入）
 - [x] `packages/sources/company-ir/{samsung-ir,skhynix-ir,asml-ir}`（已接入无库预览链路；Samsung 官网当前网络可用性不稳定，已做可解释降级）
 - [x] `packages/render`：CompanyCard / EvidenceCard / UnknownMap markdown + json
-- [ ] `packages/render`：ComponentCard markdown + json
+- [x] `packages/render`：ComponentCard markdown + json
 - [ ] `packages/graph-builder`：deprecate
-- [x] `apps/cli`：`company / evidence / unknown-map`
-- [ ] `apps/cli`：`component / changes / search`
+- [x] `apps/cli`：`company / component / chain / evidence / unknown-map / changes`
+- [ ] `apps/cli`：`search`
 - [x] `apps/cli`：`ingest sec-edgar / pipeline nvidia / graph rebuild`
 - [x] `apps/cli`：`graph check`
 - [ ] `apps/cli`：独立 `parse / extract / score / apply`
