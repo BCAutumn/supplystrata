@@ -422,9 +422,11 @@ chain_segments
 约束：
 
 - `claims` 只能引用 `edges` / `evidence` / `unknown_items`，不能自己成为新事实来源。
+- `@supplystrata/claim-builder` 第一版只扫描 `current`、非 inferred、`evidence_level >= 4` 且有 `primary_evidence_id` 的事实边，并用确定性 `claim_id` 幂等 upsert；它不做抽取、不提高证据等级、不写 Neo4j。
 - `observations` 不能被 graph-builder 直接物化成 Neo4j fact edge。
 - `lead_observations` 必须进入 review 或研究队列，默认不进图谱。
 - `chain_segments.semantic_layer` 必须保留 `edge / claim / observation / lead / unknown`，供 CLI、API 和研究工作台统一消费。
+- `@supplystrata/chain-view` 第一版已经能把上游 fact edge 和 active claim 组装成前端可消费的 `CompanyChainViewModel`；后续 observation / lead / unknown 只新增 segment 类型，不改事实边语义。
 
 ## Neo4j 模型
 

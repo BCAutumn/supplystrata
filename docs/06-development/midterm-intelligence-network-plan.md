@@ -23,9 +23,7 @@
 
 仍缺：
 
-- `packages/claim-builder`：从 edge/evidence/unknown 生成可读结论。
 - `packages/observation-store`：统一写入 observations / leads。
-- `packages/chain-view`：组装前端可消费的 ChainViewModel。
 - 语义级 change event：`EDGE_DEPRECATED`、`UNKNOWN_RESOLVED`、`SUPPLIER_RELATION_ADDED` 等。
 - `apps/research-preview`：真正的本地研究工作台。
 
@@ -70,12 +68,14 @@ packages/db
 
 packages/claim-builder
   从 edge/evidence/unknown 生成可审计 claim；不抓源，不写 graph。
+  第一版已落地为 edge/evidence builder：只消费 current、非 inferred、Level >= 4 且有 primary evidence 的事实边。
 
 packages/observation-store
   统一写入 trade/energy/commodity/port/procurement/lead observations。
 
 packages/chain-view
   把 edges、claims、observations、leads、unknowns 组装成 ChainViewModel。
+  第一版已落地 company chain：输出 edge/claim 分层 segment；observation/lead/unknown segment 随后接入。
 
 packages/render
   只负责把 CompanyCard / ComponentCard / ChainViewModel 渲染成 CLI JSON/Markdown。
@@ -138,6 +138,7 @@ CREATE TABLE claim_unknowns (
 - 报告里的事实性句子必须来自 `claims`。
 - `claims.evidence_level` 不能高于关联 evidence 的最高可用等级。
 - claim 不允许自己“发明”事实；它只能聚合 edge/evidence/unknown。
+- `claims build` 使用确定性 `CLM-EDGE-*` id，重复运行只更新同一条 claim，不产生重复结论。
 - unsupported claim rate 必须等于 0。
 
 ### 4.2 Observation Layer
@@ -234,6 +235,8 @@ UNVERIFIED_FACILITY_SIGNAL
 ### 4.4 ChainView Contract
 
 `chain_segments` 是中期最关键的前后端契约。它让同一条链可以同时包含事实边、观测、线索和未知边界。
+
+运行时模型第一版由 `@supplystrata/chain-view` 生成：它不直接写库，先把 current、非 inferred、Level >= 4 的 upstream fact edges 组装成 `ChainViewModel`，并把同一条边上的 active claim 作为独立 `semantic_layer=claim` segment 暴露给前端。这样 Canvas 工作台可以同时画事实边和可读结论，但不会把 claim 当成新的事实来源。
 
 ```sql
 CREATE TABLE chain_views (

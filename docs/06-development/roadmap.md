@@ -168,10 +168,12 @@ Phase 2 出场。
 
 - [x] `claims` / `claim_evidence` / `claim_unknowns` schema
 - [x] `packages/db` claim / observation / chain-view 仓储函数
-- [ ] `packages/claim-builder`：从 edge/evidence/unknown 生成可审计 claim
+- [x] `packages/claim-builder`：从 current fact edge + primary evidence 生成可审计 claim
+- [x] `apps/cli claims build`：幂等构建 claim 层
 - [x] `observations` / `lead_observations` schema
 - [x] `chain_views` / `chain_segments` schema
-- [ ] `packages/chain-view`：输出带 `semantic_layer` 的 ChainViewModel
+- [x] `packages/chain-view`：输出带 `semantic_layer` 的 CompanyChainViewModel（edge/claim 第一版）
+- [ ] `packages/chain-view`：接入 observation / lead / unknown segment
 - [ ] `apps/research-preview` 消费 ChainViewModel JSON
 - [ ] `dart-kr` adapter（Samsung / SK Hynix 韩文披露的英文版）
 - [ ] 扩展亚洲/欧洲 IR 的历史覆盖与非 MVP 公司（MVP 的 4 家 IR 已在 Phase 2 接入）

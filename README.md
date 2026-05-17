@@ -136,6 +136,12 @@ pnpm --silent cli changes --source sec-edgar --attention-only
 pnpm --silent cli changes --scope company:ENT-NVIDIA --format json
 ```
 
+从已验证事实边生成可审计 claim 层：
+
+```bash
+pnpm --silent cli claims build --min-level 4 --format markdown
+```
+
 历史 evidence 可分批补齐精确定位和指纹：
 
 ```bash

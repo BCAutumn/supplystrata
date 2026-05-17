@@ -63,6 +63,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@supplystrata/claim-builder':
+        specifier: workspace:*
+        version: link:../../packages/claim-builder
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -105,6 +108,30 @@ importers:
       commander:
         specifier: ~12.1.0
         version: 12.1.0
+
+  packages/chain-view:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      pg:
+        specifier: ~8.13.1
+        version: 8.13.3
+
+  packages/claim-builder:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      pg:
+        specifier: ~8.13.1
+        version: 8.13.3
 
   packages/config:
     dependencies:

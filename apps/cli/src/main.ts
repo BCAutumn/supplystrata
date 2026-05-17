@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { registerClaimCommands } from "./commands/claims.js";
 import { registerDbAndAdminCommands } from "./commands/db-admin.js";
 import { registerEntityAndReviewCommands } from "./commands/entity-review.js";
 import { registerGraphDqAndCardCommands } from "./commands/graph-dq-cards.js";
@@ -15,5 +16,6 @@ registerPipelinePreviewCommands(program);
 registerSourcesAndChangesCommands(program);
 registerEntityAndReviewCommands(program);
 registerGraphDqAndCardCommands(program);
+registerClaimCommands(program);
 
 await program.parseAsync(process.argv);

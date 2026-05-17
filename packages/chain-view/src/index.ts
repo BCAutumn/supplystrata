@@ -1,0 +1,239 @@
+import type pg from "pg";
+import type { ChainEndpointKind, EvidenceLevel, RelationType, SemanticLayer } from "@supplystrata/core";
+import { resolveEntityId, type DbClient } from "@supplystrata/db";
+
+export interface ChainViewRoot {
+  kind: ChainEndpointKind;
+  id: string;
+  name: string;
+}
+
+export interface ChainViewEndpoint {
+  kind: ChainEndpointKind;
+  id: string;
+  name: string;
+}
+
+export interface ChainViewSegmentModel {
+  sequence_index: number;
+  depth: number;
+  semantic_layer: SemanticLayer;
+  from: ChainViewEndpoint;
+  to: ChainViewEndpoint;
+  relation: RelationType | "CLAIMS";
+  component: string | null;
+  component_id: string | null;
+  edge_id?: string;
+  claim_id?: string;
+  evidence_ids: string[];
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  label: string;
+}
+
+export interface ChainViewModel {
+  schema_version: "1.0.0";
+  view_type: "company_chain";
+  root: ChainViewRoot;
+  max_depth: number;
+  generated_by: string;
+  segments: ChainViewSegmentModel[];
+  stats: {
+    fact_edges: number;
+    claims: number;
+    observations: number;
+    leads: number;
+    unknowns: number;
+  };
+}
+
+export interface BuildCompanyChainViewInput {
+  query: string;
+  depth?: number;
+  generated_by?: string;
+}
+
+interface EntityHeaderRow extends pg.QueryResultRow {
+  entity_id: string;
+  display_name: string;
+}
+
+export interface ChainFactRow extends pg.QueryResultRow {
+  depth: number;
+  edge_id: string;
+  relation: RelationType;
+  subject_id: string;
+  subject_name: string;
+  object_id: string;
+  object_name: string;
+  upstream_id: string;
+  upstream_name: string;
+  component: string | null;
+  component_id: string | null;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  primary_evidence_id: string | null;
+  claim_id: string | null;
+  claim_text: string | null;
+}
+
+export async function buildCompanyChainView(client: DbClient, input: BuildCompanyChainViewInput): Promise<ChainViewModel> {
+  const rootEntityId = await resolveEntityId(client, input.query);
+  const root = await loadRoot(client, rootEntityId);
+  const maxDepth = clampDepth(input.depth ?? 2);
+  const rows = await loadChainFactRows(client, rootEntityId, maxDepth);
+  const segments = rows.flatMap((row, index) => segmentsFromFactRow(row, index));
+  return {
+    schema_version: "1.0.0",
+    view_type: "company_chain",
+    root: { kind: "company", id: root.entity_id, name: root.display_name },
+    max_depth: maxDepth,
+    generated_by: input.generated_by ?? "chain-view.company.v1",
+    segments,
+    stats: summarizeSegments(segments)
+  };
+}
+
+export function segmentsFromFactRow(row: ChainFactRow, rowIndex: number): ChainViewSegmentModel[] {
+  const factSegment = edgeSegmentFromFactRow(row, rowIndex * 2);
+  if (row.claim_id === null || row.claim_text === null) return [factSegment];
+  return [factSegment, claimSegmentFromFactRow(row, rowIndex * 2 + 1)];
+}
+
+function edgeSegmentFromFactRow(row: ChainFactRow, sequenceIndex: number): ChainViewSegmentModel {
+  return {
+    sequence_index: sequenceIndex,
+    depth: row.depth,
+    semantic_layer: "edge",
+    from: { kind: "company", id: row.subject_id, name: row.subject_name },
+    to: { kind: "company", id: row.object_id, name: row.object_name },
+    relation: row.relation,
+    component: row.component,
+    component_id: row.component_id,
+    edge_id: row.edge_id,
+    evidence_ids: row.primary_evidence_id === null ? [] : [row.primary_evidence_id],
+    evidence_level: row.evidence_level,
+    confidence: row.confidence,
+    label: `${row.subject_name} -${row.relation}-> ${row.object_name}`
+  };
+}
+
+function claimSegmentFromFactRow(row: ChainFactRow, sequenceIndex: number): ChainViewSegmentModel {
+  const claimId = requirePresent(row.claim_id, "claim_id");
+  const claimText = requirePresent(row.claim_text, "claim_text");
+  return {
+    sequence_index: sequenceIndex,
+    depth: row.depth,
+    semantic_layer: "claim",
+    from: { kind: "company", id: row.subject_id, name: row.subject_name },
+    to: { kind: "company", id: row.object_id, name: row.object_name },
+    relation: "CLAIMS",
+    component: row.component,
+    component_id: row.component_id,
+    claim_id: claimId,
+    evidence_ids: row.primary_evidence_id === null ? [] : [row.primary_evidence_id],
+    evidence_level: row.evidence_level,
+    confidence: row.confidence,
+    label: claimText
+  };
+}
+
+async function loadRoot(client: DbClient, entityId: string): Promise<EntityHeaderRow> {
+  const result = await client.query<EntityHeaderRow>("SELECT entity_id, display_name FROM entity_master WHERE entity_id = $1", [entityId]);
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Entity not found: ${entityId}`);
+  return row;
+}
+
+async function loadChainFactRows(client: DbClient, rootEntityId: string, maxDepth: number): Promise<ChainFactRow[]> {
+  const result = await client.query<ChainFactRow>(
+    `WITH RECURSIVE walk AS (
+       SELECT $1::text AS node_id, ARRAY[$1::text] AS path, 0 AS depth
+       UNION ALL
+       SELECT next_edge.upstream_id,
+              walk.path || next_edge.upstream_id,
+              walk.depth + 1
+       FROM walk
+       JOIN LATERAL (
+         SELECT CASE
+                  WHEN e.relation IN ('BUYS_FROM','USES_FOUNDRY') AND e.subject_id = walk.node_id THEN e.object_id
+                  WHEN e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id THEN e.subject_id
+                  WHEN e.relation = 'MANUFACTURES_AT' AND e.subject_id = walk.node_id THEN e.object_id
+                END AS upstream_id
+         FROM edges e
+         WHERE e.validity = 'current'
+           AND e.evidence_level >= 4
+           AND e.is_inferred = false
+           AND (
+             (e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id)
+             OR (e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id)
+           )
+       ) next_edge ON next_edge.upstream_id IS NOT NULL
+       WHERE walk.depth < $2
+         AND NOT next_edge.upstream_id = ANY(walk.path)
+     ),
+     chain_edges AS (
+       SELECT walk.depth + 1 AS depth,
+              e.edge_id, e.relation,
+              e.subject_id, s.display_name AS subject_name,
+              e.object_id, o.display_name AS object_name,
+              CASE
+                WHEN e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id THEN e.object_id
+                WHEN e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id THEN e.subject_id
+              END AS upstream_id,
+              CASE
+                WHEN e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id THEN o.display_name
+                WHEN e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id THEN s.display_name
+              END AS upstream_name,
+              e.component, e.component_id, e.evidence_level, e.confidence, e.primary_evidence_id,
+              c.claim_id, c.claim_text
+       FROM walk
+       JOIN edges e ON e.validity = 'current'
+        AND e.evidence_level >= 4
+        AND e.is_inferred = false
+        AND (
+          (e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT') AND e.subject_id = walk.node_id)
+          OR (e.relation = 'SUPPLIES_TO' AND e.object_id = walk.node_id)
+        )
+       JOIN entity_master s ON s.entity_id = e.subject_id
+       JOIN entity_master o ON o.entity_id = e.object_id
+       LEFT JOIN LATERAL (
+         SELECT claims.claim_id, claims.claim_text
+         FROM claims
+         WHERE claims.edge_id = e.edge_id
+           AND claims.status = 'active'
+         ORDER BY claims.evidence_level DESC, claims.confidence DESC, claims.updated_at DESC
+         LIMIT 1
+       ) c ON true
+       WHERE walk.depth < $2
+     )
+     SELECT depth, edge_id, relation, subject_id, subject_name, object_id, object_name,
+            upstream_id, upstream_name, component, component_id, evidence_level, confidence,
+            primary_evidence_id, claim_id, claim_text
+     FROM chain_edges
+     WHERE upstream_id IS NOT NULL
+     ORDER BY depth, subject_name, relation, object_name`,
+    [rootEntityId, maxDepth]
+  );
+  return result.rows;
+}
+
+function summarizeSegments(segments: readonly ChainViewSegmentModel[]): ChainViewModel["stats"] {
+  return {
+    fact_edges: segments.filter((segment) => segment.semantic_layer === "edge").length,
+    claims: segments.filter((segment) => segment.semantic_layer === "claim").length,
+    observations: segments.filter((segment) => segment.semantic_layer === "observation").length,
+    leads: segments.filter((segment) => segment.semantic_layer === "lead").length,
+    unknowns: segments.filter((segment) => segment.semantic_layer === "unknown").length
+  };
+}
+
+function clampDepth(value: number): number {
+  if (!Number.isInteger(value)) throw new Error(`Unsupported chain depth: ${value}`);
+  return Math.min(Math.max(value, 1), 5);
+}
+
+function requirePresent(value: string | null, field: string): string {
+  if (value === null) throw new Error(`${field} is required`);
+  return value;
+}

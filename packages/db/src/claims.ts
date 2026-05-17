@@ -24,6 +24,10 @@ export interface ClaimRow extends pg.QueryResultRow {
   updated_at: Date;
 }
 
+interface ClaimIdRow extends pg.QueryResultRow {
+  claim_id: string;
+}
+
 export interface NewClaimInput {
   claim_id?: string;
   claim_type: ClaimType;
@@ -38,6 +42,11 @@ export interface NewClaimInput {
   is_inferred: boolean;
   generated_by: string;
   last_verified_at?: string;
+}
+
+export interface UpsertClaimResult {
+  claim_id: string;
+  inserted: boolean;
 }
 
 export async function insertClaim(client: DbClient, input: NewClaimInput): Promise<{ claim_id: string }> {
@@ -65,6 +74,48 @@ export async function insertClaim(client: DbClient, input: NewClaimInput): Promi
     ]
   );
   return { claim_id: claimId };
+}
+
+export async function upsertClaim(client: DbClient, input: NewClaimInput): Promise<UpsertClaimResult> {
+  const claimId = input.claim_id ?? createId("CLM");
+  const existing = await client.query<ClaimIdRow>(`SELECT claim_id FROM claims WHERE claim_id = $1`, [claimId]);
+  await client.query(
+    `INSERT INTO claims (
+       claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id,
+       status, evidence_level, confidence, is_inferred, generated_by, last_verified_at
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13::timestamptz, now()))
+     ON CONFLICT (claim_id) DO UPDATE SET
+       claim_type = EXCLUDED.claim_type,
+       claim_text = EXCLUDED.claim_text,
+       subject_id = EXCLUDED.subject_id,
+       object_id = EXCLUDED.object_id,
+       component_id = EXCLUDED.component_id,
+       edge_id = EXCLUDED.edge_id,
+       status = EXCLUDED.status,
+       evidence_level = EXCLUDED.evidence_level,
+       confidence = EXCLUDED.confidence,
+       is_inferred = EXCLUDED.is_inferred,
+       generated_by = EXCLUDED.generated_by,
+       last_verified_at = EXCLUDED.last_verified_at,
+       updated_at = now()`,
+    [
+      claimId,
+      input.claim_type,
+      input.claim_text,
+      input.subject_id ?? null,
+      input.object_id ?? null,
+      input.component_id ?? null,
+      input.edge_id ?? null,
+      input.status ?? "active",
+      input.evidence_level,
+      input.confidence,
+      input.is_inferred,
+      input.generated_by,
+      input.last_verified_at ?? null
+    ]
+  );
+  return { claim_id: claimId, inserted: existing.rows[0] === undefined };
 }
 
 export async function linkClaimEvidence(client: DbClient, input: { claim_id: string; evidence_id: string; role: ClaimEvidenceRole }): Promise<void> {

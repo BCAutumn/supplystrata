@@ -6,6 +6,8 @@ export default defineConfig({
     alias: {
       "@supplystrata/core": resolve(__dirname, "packages/core/src/index.ts"),
       "@supplystrata/config": resolve(__dirname, "packages/config/src/index.ts"),
+      "@supplystrata/claim-builder": resolve(__dirname, "packages/claim-builder/src/index.ts"),
+      "@supplystrata/chain-view": resolve(__dirname, "packages/chain-view/src/index.ts"),
       "@supplystrata/db": resolve(__dirname, "packages/db/src/index.ts"),
       "@supplystrata/entity-import": resolve(__dirname, "packages/entity-import/src/index.ts"),
       "@supplystrata/entity-source": resolve(__dirname, "packages/entity-source/src/index.ts"),

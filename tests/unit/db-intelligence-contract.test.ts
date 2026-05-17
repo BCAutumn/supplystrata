@@ -12,6 +12,7 @@ import {
   insertClaim,
   insertLeadObservation,
   insertObservation,
+  upsertClaim,
   linkClaimEvidence,
   linkClaimUnknown,
   listChainSegments,
@@ -78,6 +79,29 @@ describe("db intelligence-network repositories", () => {
 
     expect(client.calls).toHaveLength(4);
     expect(client.calls.every((call) => call.sql.trimStart().startsWith("SELECT"))).toBe(true);
+  });
+
+  it("upserts claims idempotently for generated claim builders", async () => {
+    const client = new RecordingDbClient();
+
+    const claim = await upsertClaim(client, {
+      claim_id: "CLM-EDGE-TEST",
+      claim_type: "SUPPLY_RELATION_CLAIM",
+      claim_text: "NVIDIA publicly discloses that it buys memory from SK Hynix.",
+      subject_id: "ENT-NVIDIA",
+      object_id: "ENT-SK-HYNIX",
+      component_id: "COMP-MEMORY",
+      edge_id: "EDGE-TEST",
+      evidence_level: 5,
+      confidence: 0.93,
+      is_inferred: false,
+      generated_by: "unit-test"
+    });
+
+    expect(claim).toEqual({ claim_id: "CLM-EDGE-TEST", inserted: true });
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[0]?.sql).toContain("SELECT claim_id FROM claims");
+    expect(client.calls[1]?.sql).toContain("ON CONFLICT (claim_id) DO UPDATE");
   });
 
   it("inserts observations and leads as non-edge records", async () => {
