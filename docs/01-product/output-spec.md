@@ -8,19 +8,19 @@ MVP 阶段对外的"产品"就是几种**结构化卡片**和它们的 Markdown 
 
 ```ts
 interface Provenance {
-  source_type: SourceType;            // 见 glossary.md
-  source_name: string;                // e.g. "NVIDIA FY2025 Form 10-K"
-  source_url: string;                 // 必填
-  source_date: string;                // ISO date
-  fetched_at: string;                 // ISO datetime
-  evidence_text: string;              // 原文片段, >= 30 chars
-  evidence_locator?: string;          // page 12 / section 1A.Risk Factors
+  source_type: SourceType; // 见 glossary.md
+  source_name: string; // e.g. "NVIDIA FY2025 Form 10-K"
+  source_url: string; // 必填
+  source_date: string; // ISO date
+  fetched_at: string; // ISO datetime
+  evidence_text: string; // 原文片段, >= 30 chars
+  evidence_locator?: string; // page 12 / section 1A.Risk Factors
 }
 
 interface EvidenceRef {
-  evidence_id: string;                // EV-000123
+  evidence_id: string; // EV-000123
   evidence_level: 1 | 2 | 3 | 4 | 5;
-  confidence: number;                 // 0..1
+  confidence: number; // 0..1
   is_inferred: boolean;
   extraction_method: "rule" | "llm" | "manual" | "hybrid";
   last_verified_at: string;
@@ -38,9 +38,9 @@ interface EvidenceRef {
 
 ```ts
 interface CompanyCard {
-  entity_id: string;                  // ENT-000045
-  canonical_name: string;             // "NVIDIA Corporation"
-  aliases: string[];                  // 已知别名
+  entity_id: string; // ENT-000045
+  canonical_name: string; // "NVIDIA Corporation"
+  aliases: string[]; // 已知别名
   identifiers: {
     cik?: string;
     lei?: string;
@@ -49,23 +49,23 @@ interface CompanyCard {
   };
   generated_at: string;
 
-  directly_disclosed_upstream: SupplyEdge[];   // Level 4-5
-  inferred_upstream: SupplyEdge[];              // Level 1-3 (默认隐藏)
-  downstream_customers: SupplyEdge[];           // 反向边
+  directly_disclosed_upstream: SupplyEdge[]; // Level 4-5；BUYS_FROM / USES_FOUNDRY / MANUFACTURES_AT
+  directly_disclosed_downstream: SupplyEdge[]; // Level 4-5；SUPPLIES_TO 命名客户
+  inferred_upstream: SupplyEdge[]; // Level 1-3 (默认隐藏)
 
-  unknown_map: UnknownItem[];          // 必填，不能为空
-  recent_changes: ChangeRecord[];      // 最近 N 天内的变化
-  open_questions: string[];            // 研究员标记的待解决问题
+  unknown_map: UnknownItem[]; // 必填，不能为空
+  recent_changes: ChangeRecord[]; // 最近 N 天内的变化
+  open_questions: string[]; // 研究员标记的待解决问题
 }
 
 interface SupplyEdge {
   edge_id: string;
-  relation: RelationType;              // BUYS_FROM / USES_FOUNDRY ...
+  relation: RelationType; // BUYS_FROM / USES_FOUNDRY ...
   counterparty_id: string;
   counterparty_name: string;
-  component?: string;                  // "memory" / "wafer" / "PCB"
-  evidence: EvidenceRef[];             // 至少 1 条
-  primary_provenance: Provenance;      // 最强的那条原文证据
+  component?: string; // "memory" / "wafer" / "PCB"
+  evidence: EvidenceRef[]; // 至少 1 条
+  primary_provenance: Provenance; // 最强的那条原文证据
   validity: "current" | "historical" | "deprecated";
   effective_period?: { from?: string; to?: string };
 }
@@ -92,6 +92,12 @@ CIK: 1045810  |  Ticker: NVDA  |  LEI: ...
 
 ...
 
+## Directly disclosed downstream customers (Level 4-5)
+
+- SUPPLIES_TO (GPU) → Microsoft          [Level 5, conf 0.90]
+  Source: official SEC filing
+  Evidence: EV-000120
+
 ## Inferred upstream (Level 1-3) — hidden by default
 
 (use `--include-inferred` to show)
@@ -115,14 +121,14 @@ CIK: 1045810  |  Ticker: NVDA  |  LEI: ...
 
 ```ts
 interface ComponentCard {
-  component: string;                   // "HBM" / "advanced packaging (CoWoS)"
-  taxonomy_path: string[];             // ["semiconductor", "memory", "DRAM", "HBM"]
+  component: string; // "HBM" / "advanced packaging (CoWoS)"
+  taxonomy_path: string[]; // ["semiconductor", "memory", "DRAM", "HBM"]
   generated_at: string;
 
-  known_suppliers: SupplyEdge[];       // who supplies this component
-  known_consumers: SupplyEdge[];       // who buys this component
-  demand_drivers: string[];            // textual, must cite evidence
-  supply_constraints: string[];        // textual, must cite evidence
+  known_suppliers: SupplyEdge[]; // who supplies this component
+  known_consumers: SupplyEdge[]; // who buys this component
+  demand_drivers: string[]; // textual, must cite evidence
+  supply_constraints: string[]; // textual, must cite evidence
   public_price_signals: PriceSignal[]; // 例：TrendForce 公开新闻摘录
   related_macro_signals: MacroSignal[];
 
@@ -132,10 +138,10 @@ interface ComponentCard {
 interface PriceSignal {
   description: string;
   direction: "up" | "down" | "stable" | "mixed";
-  magnitude_text?: string;             // "+58~63% QoQ"
+  magnitude_text?: string; // "+58~63% QoQ"
   observation_window: string;
   source: Provenance;
-  is_full_database: false;             // MVP 阶段恒为 false：免费数据没有完整价格库
+  is_full_database: false; // MVP 阶段恒为 false：免费数据没有完整价格库
 }
 ```
 
@@ -146,7 +152,12 @@ interface PriceSignal {
 ```ts
 interface EvidenceCard {
   evidence_id: string;
-  edges: { edge_id: string; relation: string; subject: string; object: string }[];
+  edges: {
+    edge_id: string;
+    relation: string;
+    subject: string;
+    object: string;
+  }[];
   evidence_level: 1 | 2 | 3 | 4 | 5;
   confidence: number;
   is_inferred: boolean;
@@ -156,7 +167,7 @@ interface EvidenceCard {
   reviewer?: string;
   reviewed_at?: string;
   provenance: Provenance;
-  superseded_by?: string;              // 后续证据 ID
+  superseded_by?: string; // 后续证据 ID
   notes?: string;
 }
 ```
@@ -173,19 +184,19 @@ interface UnknownMap {
   generated_at: string;
   items: UnknownItem[];
   data_gap_summary: {
-    no_public_disclosure: string[];     // 法律/合同上就不公开
-    obtainable_but_paid: string[];      // 商业数据库才有
-    obtainable_with_effort: string[];   // 努力一下能拿到，待办
-    obtainable_inference: string[];     // 可以推断但精度不够
+    no_public_disclosure: string[]; // 法律/合同上就不公开
+    obtainable_but_paid: string[]; // 商业数据库才有
+    obtainable_with_effort: string[]; // 努力一下能拿到，待办
+    obtainable_inference: string[]; // 可以推断但精度不够
   };
 }
 
 interface UnknownItem {
-  question: string;                    // "What is NVIDIA's exact HBM allocation per CSP?"
-  why_unknown: string;                 // 为什么我们不知道
-  blocking_data_source?: string[];     // 拿到哪些源能解锁
+  question: string; // "What is NVIDIA's exact HBM allocation per CSP?"
+  why_unknown: string; // 为什么我们不知道
+  blocking_data_source?: string[]; // 拿到哪些源能解锁
   status: "open" | "in_research" | "resolved" | "abandoned";
-  proxies?: string[];                  // 不直接能知道，但可以从哪些代理变量推断
+  proxies?: string[]; // 不直接能知道，但可以从哪些代理变量推断
 }
 ```
 
@@ -232,7 +243,7 @@ interface ResearchReport {
 
 interface ReportSection {
   heading: string;
-  body_markdown: string;          // 任何陈述句必须 cite EV-xxx
+  body_markdown: string; // 任何陈述句必须 cite EV-xxx
   embedded_cards: (CompanyCard | ComponentCard | UnknownMap | ChangeRecord)[];
 }
 ```

@@ -112,6 +112,78 @@ describe("SEC official supply-chain rule extractor", () => {
     ]);
   });
 
+  it("extracts named major customer disclosures without relying on NVIDIA-specific logic", () => {
+    const candidates = extractFromSentence(
+      "Sales to Microsoft accounted for 18% of our total revenue from GPU products during fiscal 2026.",
+      "fixture",
+      { subjectSurface: "ENT-BROADCOM" },
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      subject_resolve: { surface: "ENT-BROADCOM" },
+      object_resolve: { surface: "Microsoft" },
+      relation: "SUPPLIES_TO",
+      component: "GPU",
+      component_id: "COMP-GPU",
+      component_specificity: "explicit",
+      extractor_id: "rule.sec.official-supply-chain",
+    });
+  });
+
+  it("keeps anonymous customer concentration out of company edges", () => {
+    const candidates = extractFromSentence(
+      "One customer accounted for 21% of total revenue in fiscal 2026.",
+      "fixture",
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("does not turn generic customer lists into SUPPLIES_TO edges", () => {
+    const candidates = extractFromSentence(
+      "Our cloud customers include Microsoft, Amazon, Alphabet, Meta and Oracle.",
+      "fixture",
+    );
+
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("extracts named purchase obligations and capacity reservations as supplier edges", () => {
+    const candidates = extractFromSentence(
+      "We have long-term wafer supply agreements and capacity reservations with TSMC for semiconductor wafers.",
+      "fixture",
+      { subjectSurface: "ENT-AMD" },
+    );
+
+    expect(
+      candidates.map(
+        (candidate) =>
+          `${candidate.relation}:${candidate.object_resolve.surface}:${candidate.component_id}`,
+      ),
+    ).toEqual(["USES_FOUNDRY:TSMC:COMP-WAFER", "BUYS_FROM:TSMC:COMP-WAFER"]);
+  });
+
+  it("extracts named single-source supplier risk but ignores anonymous supplier risk", () => {
+    const named = extractFromSentence(
+      "We depend on ASML as a sole supplier for lithography systems used in advanced semiconductor manufacturing.",
+      "fixture",
+      { subjectSurface: "ENT-INTEL" },
+    );
+    const anonymous = extractFromSentence(
+      "We depend on a limited number of suppliers for critical components.",
+      "fixture",
+      { subjectSurface: "ENT-INTEL" },
+    );
+
+    expect(named).toHaveLength(1);
+    expect(named[0]).toMatchObject({
+      relation: "BUYS_FROM",
+      object_resolve: { surface: "ASML" },
+    });
+    expect(anonymous).toHaveLength(0);
+  });
+
   it("runs against non-NVIDIA SEC disclosures using the document primary entity", async () => {
     const doc: NormalizedDocument = {
       doc_id: "DOC-AMD-FIXTURE",

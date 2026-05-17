@@ -13,13 +13,24 @@
 
 ### 1. Rule extractors（高优先级）
 
-当前代码里的第一版通用规则包是 `rule.sec.official-supply-chain`。它只依赖 SEC 官方披露契约：
+当前代码里的通用 SEC 规则包是 `rule.sec.official-supply-chain`。它只依赖 SEC 官方披露契约：
 
 - `doc.source_adapter_id === "sec-edgar"`（离线 fixture 可用 `sec-edgar-fixture`，按同一官方披露规则域处理）
 - `doc.document_type` 属于 `10-K` / `10-Q` / `8-K`
 - `doc.primary_entity_id` 存在
 
 subject 直接使用 `doc.primary_entity_id`，再交给 EntityResolver 解析。因此同一套规则可以用于 NVIDIA、AMD、Micron、Broadcom、Microsoft 等 SEC 文件，不允许把 NVIDIA 这类测试样例写死在业务逻辑里。
+
+当前规则族已覆盖：
+
+- foundry / wafer manufacturing：命名 foundry 才产 `USES_FOUNDRY`。
+- memory supplier：只有原文明确 `memory` / `DRAM` / `HBM` 时才产 `BUYS_FROM`，不会把普通 memory 升级成 HBM。
+- contract manufacturer：命名 Hon Hai / Wistron / Fabrinet 等，且出现 assembly/testing/packaging 语境才产边。
+- named major customer：命名客户 + revenue/sales/customer concentration 语境才产 `SUPPLIES_TO`。
+- named purchase obligation / capacity reservation：命名供应商 + purchase commitment / supply agreement / capacity reservation 语境才产边。
+- named single-source supplier risk：命名供应商 + sole/single-source 语境才产边。
+
+匿名客户集中度（例如 `one customer accounted for 21%`）和匿名供应商风险（例如 `limited number of suppliers`）暂不产 company edge；后续进入 observation / unknown 层。
 
 ```
 packages/relation-extractor/rule/

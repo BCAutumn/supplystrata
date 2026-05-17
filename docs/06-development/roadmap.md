@@ -131,7 +131,7 @@ Phase 1 出场。
 4. Unknown extractor prefix fail-fast（`inferExtractionMethod()` 已改为未知前缀直接抛错；scorer / graph-builder 均覆盖测试）。
 5. Exact citation offsets + evidence fingerprint。
 6. SourceRegistry + FetchRun + SourceHealth。
-7. Generic SEC rule pack（第一版 `rule.sec.official-supply-chain` 已去掉 NVIDIA gate；后续扩 major customer / purchase obligation 等规则族）。
+7. Generic SEC rule pack（第二版 `rule.sec.official-supply-chain` 已去掉 NVIDIA gate，并覆盖 foundry / memory supplier / contract manufacturer / 命名 major customer / 命名 purchase obligation / 命名 single-source risk；后续扩 inventory / backlog 等非边型 observation）。
 8. Apple Supplier List facility edges 提前到 v0.2 P0。
 9. SEC 10-Q / 8-K 接入，为 source monitor 提供动态文件。
 10. `cli changes` + ChangeRecord 完整化。

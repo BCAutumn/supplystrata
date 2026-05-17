@@ -81,6 +81,8 @@ interface WorkbenchModel {
   selected_company_id: string;
   chain_segments: ChainSegment[];
   edges: WorkbenchEdge[];
+  upstream_edges: WorkbenchEdge[];
+  downstream_edges: WorkbenchEdge[];
   evidences: WorkbenchEvidence[];
   unknown_items: WorkbenchUnknown[];
   sources: WorkbenchSourceHealth[];
@@ -148,4 +150,3 @@ show inferred edges
 - README 不再推荐直接使用该脚本。
 - 脚本可以保留为 fixture generator 或删除。
 - 工作台入口改为 `pnpm research-preview` 或等价命令。
-

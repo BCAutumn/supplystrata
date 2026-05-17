@@ -20,6 +20,54 @@ interface ExtractSentenceOptions {
   readonly extractorId?: string;
 }
 
+interface ComponentClassification {
+  readonly component: string;
+  readonly componentId?: string;
+  readonly specificity: CandidateRelation["component_specificity"];
+}
+
+interface CounterpartyPattern {
+  readonly surface: string;
+  readonly pattern: RegExp;
+}
+
+const CUSTOMER_COUNTERPARTIES: readonly CounterpartyPattern[] = [
+  { surface: "Microsoft", pattern: /\b(?:microsoft|azure)\b/i },
+  {
+    surface: "Amazon",
+    pattern: /\b(?:amazon|amazon\.com|aws|amazon web services)\b/i,
+  },
+  { surface: "Alphabet", pattern: /\b(?:alphabet|google|google cloud|gcp)\b/i },
+  { surface: "Meta", pattern: /\b(?:meta|meta platforms|facebook)\b/i },
+  { surface: "Oracle", pattern: /\b(?:oracle|oci|oracle cloud)\b/i },
+  { surface: "CoreWeave", pattern: /\bcoreweave\b/i },
+  { surface: "OpenAI", pattern: /\bopenai\b/i },
+  { surface: "Apple", pattern: /\bapple\b/i },
+  { surface: "Dell", pattern: /\b(?:dell|dell technologies)\b/i },
+  { surface: "HPE", pattern: /\b(?:hpe|hewlett packard enterprise)\b/i },
+  {
+    surface: "Supermicro",
+    pattern: /\b(?:supermicro|super micro computer)\b/i,
+  },
+];
+
+const SUPPLIER_COUNTERPARTIES: readonly CounterpartyPattern[] = [
+  {
+    surface: "TSMC",
+    pattern: /\b(?:tsmc|taiwan semiconductor manufacturing)\b/i,
+  },
+  { surface: "Samsung", pattern: /\bsamsung\b/i },
+  { surface: "SK hynix", pattern: /\bsk\s*hynix\b/i },
+  { surface: "Micron", pattern: /\bmicron\b/i },
+  { surface: "Intel", pattern: /\bintel\b/i },
+  { surface: "ASML", pattern: /\basml\b/i },
+  { surface: "Hon Hai", pattern: /\b(?:hon hai|foxconn)\b/i },
+  { surface: "Wistron", pattern: /\bwistron\b/i },
+  { surface: "Fabrinet", pattern: /\bfabrinet\b/i },
+  { surface: "Quanta", pattern: /\bquanta\b/i },
+  { surface: "Inventec", pattern: /\binventec\b/i },
+];
+
 export const secOfficialSupplyChainExtractor: RelationExtractor = {
   id: SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID,
   priority: 100,
@@ -70,82 +118,80 @@ export function extractFromSentence(
     /(tsmc|taiwan semiconductor manufacturing)/i.test(sentence)
   ) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "USES_FOUNDRY",
-        "TSMC",
-        sentence,
+        relation: "USES_FOUNDRY",
+        objectSurface: "TSMC",
+        citeText: sentence,
         locator,
-        "wafer",
-        "COMP-WAFER",
-        "explicit",
-      ),
+        component: {
+          component: "wafer",
+          componentId: "COMP-WAFER",
+          specificity: "explicit",
+        },
+      }),
     );
   }
   if (foundryListContext && /\bsamsung\b/i.test(sentence) && !memoryContext) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "USES_FOUNDRY",
-        "Samsung",
-        sentence,
+        relation: "USES_FOUNDRY",
+        objectSurface: "Samsung",
+        citeText: sentence,
         locator,
-        "wafer",
-        "COMP-WAFER",
-        "explicit",
-      ),
+        component: {
+          component: "wafer",
+          componentId: "COMP-WAFER",
+          specificity: "explicit",
+        },
+      }),
     );
   }
   if (memoryComponent !== undefined && /sk\s*hynix/i.test(sentence)) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "BUYS_FROM",
-        "SK hynix",
-        sentence,
+        relation: "BUYS_FROM",
+        objectSurface: "SK hynix",
+        citeText: sentence,
         locator,
-        memoryComponent.component,
-        memoryComponent.componentId,
-        memoryComponent.specificity,
-      ),
+        component: memoryComponent,
+      }),
     );
   }
   if (memoryComponent !== undefined && /\bmicron\b/i.test(sentence)) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "BUYS_FROM",
-        "Micron",
-        sentence,
+        relation: "BUYS_FROM",
+        objectSurface: "Micron",
+        citeText: sentence,
         locator,
-        memoryComponent.component,
-        memoryComponent.componentId,
-        memoryComponent.specificity,
-      ),
+        component: memoryComponent,
+      }),
     );
   }
   if (memoryComponent !== undefined && /\bsamsung\b/i.test(sentence)) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "BUYS_FROM",
-        "Samsung",
-        sentence,
+        relation: "BUYS_FROM",
+        objectSurface: "Samsung",
+        citeText: sentence,
         locator,
-        memoryComponent.component,
-        memoryComponent.componentId,
-        memoryComponent.specificity,
-      ),
+        component: memoryComponent,
+      }),
     );
   }
   if (
@@ -155,18 +201,20 @@ export function extractFromSentence(
     )
   ) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "BUYS_FROM",
-        "Hon Hai",
-        sentence,
+        relation: "BUYS_FROM",
+        objectSurface: "Hon Hai",
+        citeText: sentence,
         locator,
-        "manufacturing services",
-        "COMP-MANUFACTURING-SERVICES",
-        "explicit",
-      ),
+        component: {
+          component: "manufacturing services",
+          componentId: "COMP-MANUFACTURING-SERVICES",
+          specificity: "explicit",
+        },
+      }),
     );
   }
   if (
@@ -176,18 +224,20 @@ export function extractFromSentence(
     )
   ) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "BUYS_FROM",
-        "Wistron",
-        sentence,
+        relation: "BUYS_FROM",
+        objectSurface: "Wistron",
+        citeText: sentence,
         locator,
-        "manufacturing services",
-        "COMP-MANUFACTURING-SERVICES",
-        "explicit",
-      ),
+        component: {
+          component: "manufacturing services",
+          componentId: "COMP-MANUFACTURING-SERVICES",
+          specificity: "explicit",
+        },
+      }),
     );
   }
   if (
@@ -197,33 +247,89 @@ export function extractFromSentence(
     )
   ) {
     candidates.push(
-      buildCandidate(
+      buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
-        "BUYS_FROM",
-        "Fabrinet",
-        sentence,
+        relation: "BUYS_FROM",
+        objectSurface: "Fabrinet",
+        citeText: sentence,
         locator,
-        "manufacturing services",
-        "COMP-MANUFACTURING-SERVICES",
-        "explicit",
-      ),
+        component: {
+          component: "manufacturing services",
+          componentId: "COMP-MANUFACTURING-SERVICES",
+          specificity: "explicit",
+        },
+      }),
     );
   }
+  for (const counterparty of CUSTOMER_COUNTERPARTIES) {
+    if (
+      counterparty.pattern.test(sentence) &&
+      isNamedCustomerDisclosure(sentence)
+    ) {
+      const component = classifyProductComponent(sentence);
+      candidates.push(
+        buildCandidate({
+          subjectSurface,
+          documentType,
+          extractorId,
+          relation: "SUPPLIES_TO",
+          objectSurface: counterparty.surface,
+          citeText: sentence,
+          locator,
+          ...(component === undefined ? {} : { component }),
+          confidenceHint: 0.9,
+        }),
+      );
+    }
+  }
+  for (const counterparty of SUPPLIER_COUNTERPARTIES) {
+    if (!counterparty.pattern.test(sentence)) continue;
+    const commitmentComponent = classifySupplyCommitmentComponent(sentence);
+    if (isPurchaseObligationDisclosure(sentence)) {
+      candidates.push(
+        buildCandidate({
+          subjectSurface,
+          documentType,
+          extractorId,
+          relation: "BUYS_FROM",
+          objectSurface: counterparty.surface,
+          citeText: sentence,
+          locator,
+          ...(commitmentComponent === undefined
+            ? {}
+            : { component: commitmentComponent }),
+          confidenceHint: 0.89,
+        }),
+      );
+      continue;
+    }
+    if (isSingleSourceSupplierDisclosure(sentence)) {
+      candidates.push(
+        buildCandidate({
+          subjectSurface,
+          documentType,
+          extractorId,
+          relation: "BUYS_FROM",
+          objectSurface: counterparty.surface,
+          citeText: sentence,
+          locator,
+          ...(commitmentComponent === undefined
+            ? {}
+            : { component: commitmentComponent }),
+          confidenceHint: 0.86,
+        }),
+      );
+    }
+  }
 
-  return candidates;
-}
-
-interface MemoryComponentClassification {
-  readonly component: "memory" | "DRAM" | "HBM";
-  readonly componentId: "COMP-MEMORY" | "COMP-DRAM" | "COMP-HBM";
-  readonly specificity: "unspecified" | "explicit";
+  return uniqueCandidates(candidates);
 }
 
 function classifyMemoryComponent(
   sentence: string,
-): MemoryComponentClassification | undefined {
+): ComponentClassification | undefined {
   if (/\b(?:hbm(?:3e?|4)?|high[-\s]?bandwidth\s+memory)\b/i.test(sentence)) {
     return {
       component: "HBM",
@@ -249,38 +355,147 @@ function classifyMemoryComponent(
   return undefined;
 }
 
-function buildCandidate(
-  subjectSurface: string,
-  documentType: NormalizedDocument["document_type"],
-  extractorId: string,
-  relation: RelationType,
-  objectSurface: string,
-  citeText: string,
-  locator: string,
-  component: string,
-  componentId?: string,
-  componentSpecificity?: CandidateRelation["component_specificity"],
-): CandidateRelation {
+function classifyProductComponent(
+  sentence: string,
+): ComponentClassification | undefined {
+  const memory = classifyMemoryComponent(sentence);
+  if (memory !== undefined) return memory;
+  if (/\b(?:gpu|graphics processing units?|accelerators?)\b/i.test(sentence)) {
+    return {
+      component: "GPU",
+      componentId: "COMP-GPU",
+      specificity: "explicit",
+    };
+  }
+  if (/\b(?:ai servers?|gpu servers?|accelerated servers?)\b/i.test(sentence)) {
+    return {
+      component: "AI server",
+      componentId: "COMP-SERVER",
+      specificity: "explicit",
+    };
+  }
+  if (/\b(?:advanced packaging|cowos|2\.5d packaging)\b/i.test(sentence)) {
+    return {
+      component: "advanced packaging",
+      componentId: "COMP-ADVANCED-PACKAGING",
+      specificity: "explicit",
+    };
+  }
+  if (/\b(?:wafer|foundry|foundries|fabrication)\b/i.test(sentence)) {
+    return {
+      component: "wafer",
+      componentId: "COMP-WAFER",
+      specificity: "explicit",
+    };
+  }
+  return undefined;
+}
+
+function classifySupplyCommitmentComponent(
+  sentence: string,
+): ComponentClassification | undefined {
+  const product = classifyProductComponent(sentence);
+  if (product !== undefined) return product;
+  if (
+    /\b(?:assembly|testing|packaging|contract manufactur)\b/i.test(sentence)
+  ) {
+    return {
+      component: "manufacturing services",
+      componentId: "COMP-MANUFACTURING-SERVICES",
+      specificity: "explicit",
+    };
+  }
+  return undefined;
+}
+
+function isNamedCustomerDisclosure(sentence: string): boolean {
+  if (
+    /\b(?:accounted for|represented|contributed|comprised).{0,120}\b(?:revenue|net sales|sales)\b/i.test(
+      sentence,
+    )
+  ) {
+    return true;
+  }
+  return /\b(?:sales to|net sales to|revenue from|derive revenue from|derived revenue from)\b/i.test(
+    sentence,
+  );
+}
+
+function uniqueCandidates(
+  candidates: readonly CandidateRelation[],
+): CandidateRelation[] {
+  const seen = new Set<string>();
+  const unique: CandidateRelation[] = [];
+  for (const candidate of candidates) {
+    const key = [
+      candidate.subject_resolve.surface,
+      candidate.relation,
+      candidate.object_resolve.surface,
+      candidate.component_id ?? candidate.component ?? "",
+      candidate.cite_text,
+    ].join("\u0001");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(candidate);
+  }
+  return unique;
+}
+
+function isPurchaseObligationDisclosure(sentence: string): boolean {
+  return /\b(?:purchase obligations?|purchase commitments?|long[-\s]?term supply agreements?|wafer supply agreements?|capacity reservations?|prepayments?|take[-\s]?or[-\s]?pay)\b/i.test(
+    sentence,
+  );
+}
+
+function isSingleSourceSupplierDisclosure(sentence: string): boolean {
+  return /\b(?:sole source|single source|single-source|sole supplier|limited number of suppliers|limited suppliers)\b/i.test(
+    sentence,
+  );
+}
+
+interface CandidateBuildInput {
+  readonly subjectSurface: string;
+  readonly documentType: NormalizedDocument["document_type"];
+  readonly extractorId: string;
+  readonly relation: RelationType;
+  readonly objectSurface: string;
+  readonly citeText: string;
+  readonly locator: string;
+  readonly component?: ComponentClassification;
+  readonly confidenceHint?: number;
+}
+
+function buildCandidate(input: CandidateBuildInput): CandidateRelation {
   return {
     subject_resolve: {
-      surface: subjectSurface,
-      context: { nearby_text: citeText, document_type: documentType },
+      surface: input.subjectSurface,
+      context: {
+        nearby_text: input.citeText,
+        document_type: input.documentType,
+      },
     },
     object_resolve: {
-      surface: objectSurface,
-      context: { nearby_text: citeText, document_type: documentType },
+      surface: input.objectSurface,
+      context: {
+        nearby_text: input.citeText,
+        document_type: input.documentType,
+      },
     },
-    relation,
-    component,
-    ...(componentId === undefined ? {} : { component_id: componentId }),
-    ...(componentSpecificity === undefined
+    relation: input.relation,
+    ...(input.component === undefined
       ? {}
-      : { component_specificity: componentSpecificity }),
-    cite_text: citeText,
-    cite_locator: locator,
-    extractor_id: extractorId,
+      : { component: input.component.component }),
+    ...(input.component?.componentId === undefined
+      ? {}
+      : { component_id: input.component.componentId }),
+    ...(input.component?.specificity === undefined
+      ? {}
+      : { component_specificity: input.component.specificity }),
+    cite_text: input.citeText,
+    cite_locator: input.locator,
+    extractor_id: input.extractorId,
     raw_evidence_level_hint: 5,
-    raw_confidence_hint: 0.92,
+    raw_confidence_hint: input.confidenceHint ?? 0.92,
   };
 }
 

@@ -159,7 +159,7 @@ relation_candidate_hash
 
 当前的 NVIDIA 纵向切片是好样板，但下一步要变成可复用规则包，避免把半导体测试样例写成产品硬编码。
 
-状态：第一版已落地。`rule.sec.official-supply-chain` 现在只要求 `source_adapter_id = sec-edgar`（或离线 `sec-edgar-fixture`）且文档类型是 `10-K` / `10-Q` / `8-K`，subject 使用 `NormalizedDocument.primary_entity_id`，不再限定 NVIDIA。现有 foundry / memory supplier / contract manufacturer 规则被保留为通用 SEC 官方披露规则；NVIDIA 只作为 fixture 和 smoke path。
+状态：第二版已落地。`rule.sec.official-supply-chain` 现在只要求 `source_adapter_id = sec-edgar`（或离线 `sec-edgar-fixture`）且文档类型是 `10-K` / `10-Q` / `8-K`，subject 使用 `NormalizedDocument.primary_entity_id`，不再限定 NVIDIA。现有 foundry / memory supplier / contract manufacturer 规则被保留为通用 SEC 官方披露规则；新增命名 major customer、命名 purchase obligation / capacity reservation、命名 single-source supplier risk。匿名客户集中度与匿名供应商风险不会写入 company edge，等 observation / unknown schema 完整后再承接。
 
 目标规则包：
 
@@ -195,6 +195,8 @@ rule.supplier-list.facility
 
 - NVIDIA、AMD、Micron、Microsoft、Broadcom 至少能跑官方披露抽取。
 - NVIDIA 专用规则降级为 fixture，不再作为唯一业务逻辑入口。
+- 命名客户披露进入 `SUPPLIES_TO`，CompanyCard JSON/Markdown 分为 upstream 与 downstream，不把客户边混进上游。
+- 匿名 customer concentration / anonymous supplier risk 不生成边。
 - 任何 Level 5 边都必须能追到官方原文。
 
 ## P2：建立 monitoring layer
