@@ -7,7 +7,17 @@ import {
   runDefaultNvidiaSlice,
   runSecEdgarPipeline
 } from "@supplystrata/pipeline";
-import { isSupportedFormType, parseFormat, parseLanguage, parseLimit, parsePreviewFormat, withPool, write, writeJson } from "../cli-utils.js";
+import {
+  isSupportedFormType,
+  parseFormat,
+  parseGraphSyncMode,
+  parseLanguage,
+  parseLimit,
+  parsePreviewFormat,
+  withPool,
+  write,
+  writeJson
+} from "../cli-utils.js";
 import { renderAppleSuppliersPreview, renderPreview, renderResearchReport } from "../preview-render.js";
 
 export function registerPipelinePreviewCommands(program: Command): void {
@@ -17,11 +27,16 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .requiredOption("--cik <cik>", "SEC CIK")
     .option("--entity <entityId>", "primary entity id", "ENT-NVIDIA")
     .option("--types <types>", "comma separated filing types", "10-K")
+    .option("--graph-sync <mode>", "Neo4j materialized-view sync mode: defer or sync", "defer")
     .description("fetch latest matching SEC filing and run the vertical pipeline")
-    .action(async (options: { cik: string; entity: string; types: string }) => {
+    .action(async (options: { cik: string; entity: string; types: string; graphSync: string }) => {
       await withPool(async (pool) => {
         const formTypes = parseFormTypes(options.types);
-        const summary = await runSecEdgarPipeline(pool, { cik: options.cik, entityId: options.entity, formTypes });
+        const summary = await runSecEdgarPipeline(
+          pool,
+          { cik: options.cik, entityId: options.entity, formTypes },
+          { graphSyncMode: parseGraphSyncMode(options.graphSync) }
+        );
         writeJson(summary);
       });
     });
@@ -29,10 +44,11 @@ export function registerPipelinePreviewCommands(program: Command): void {
   const pipeline = program.command("pipeline").description("pipeline shortcuts");
   pipeline
     .command("nvidia")
+    .option("--graph-sync <mode>", "Neo4j materialized-view sync mode: defer or sync", "defer")
     .description("run SEC/NVIDIA 10-K vertical slice")
-    .action(async () => {
+    .action(async (options: { graphSync: string }) => {
       await withPool(async (pool) => {
-        const summary = await runDefaultNvidiaSlice(pool);
+        const summary = await runDefaultNvidiaSlice(pool, { graphSyncMode: parseGraphSyncMode(options.graphSync) });
         writeJson(summary);
       });
     });

@@ -33,9 +33,9 @@ supplystrata
 ├── admin
 │   └── seed
 ├── ingest
-│   └── sec-edgar --cik <cik> [--entity] [--types]
+│   └── sec-edgar --cik <cik> [--entity] [--types] [--graph-sync]
 ├── pipeline
-│   └── nvidia
+│   └── nvidia [--graph-sync]
 ├── preview
 │   ├── nvidia [--format]
 │   ├── apple-suppliers [--format] [--limit]
@@ -96,6 +96,29 @@ supplystrata preview apple-suppliers --format csv
 ```
 
 `--types` 支持逗号分隔的 `10-K,10-Q,20-F,8-K`。SEC adapter 内部也支持 `limit` 计划多份最近 8-K task，供后续 source monitor 调度层复用；当前 CLI preview 仍只消费第一个 task。
+
+### supplystrata pipeline / ingest
+
+数据库研究路径，用来把候选关系写入 Postgres truth store：
+
+```bash
+supplystrata pipeline nvidia --graph-sync defer
+supplystrata ingest sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K --graph-sync defer
+```
+
+`--graph-sync` 可选：
+
+```text
+defer  默认；只写 Postgres，不等待 Neo4j。适合研究工作台、桌面端嵌入和批处理。
+sync   写 Postgres 后尝试同步 Neo4j 当前态；Neo4j 不可用时 Postgres commit 仍然保留。
+```
+
+需要 Neo4j 当前态时，推荐研究任务结束后统一执行：
+
+```bash
+supplystrata graph rebuild
+supplystrata graph check --format json
+```
 
 ### supplystrata company `<ref>`
 

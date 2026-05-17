@@ -1,5 +1,6 @@
 import { createPool, type PendingEntityStatusFilter } from "@supplystrata/db";
 import type { ChangeTimelineScope } from "@supplystrata/db";
+import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import type { EntityLookupSource } from "@supplystrata/pipeline";
 import type { OutputFormat } from "@supplystrata/render";
 
@@ -49,6 +50,11 @@ export function parseSince(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw new Error(`Unsupported since date: ${value}`);
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00.000Z` : date.toISOString();
+}
+
+export function parseGraphSyncMode(value: string): GraphSyncMode {
+  if (value === "sync" || value === "defer") return value;
+  throw new Error(`Unsupported graph sync mode: ${value}`);
 }
 
 export function defaultSince(daysBack: number): string {

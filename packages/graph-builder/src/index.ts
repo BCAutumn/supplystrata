@@ -21,6 +21,12 @@ export interface GraphProjectionStats {
   edges: number;
 }
 
+export type GraphSyncMode = "sync" | "defer";
+
+export interface GraphBuilderOptions {
+  graphSyncMode?: GraphSyncMode;
+}
+
 export type GraphConsistencyCheck =
   | { status: "synced"; postgres: GraphProjectionStats; neo4j: GraphProjectionStats; recommendation: "none" }
   | { status: "out_of_sync"; postgres: GraphProjectionStats; neo4j: GraphProjectionStats; recommendation: "run_graph_rebuild" }
@@ -29,15 +35,23 @@ export type GraphConsistencyCheck =
 export class GraphBuilder {
   readonly #pool: pg.Pool;
   readonly #resolver: EntityResolver;
-  readonly #graph: GraphStore;
+  readonly #graph: GraphStore | null;
+  readonly #graphSyncMode: GraphSyncMode;
 
-  constructor(pool: pg.Pool, resolver: EntityResolver, graph: GraphStore = new Neo4jGraphStore()) {
+  constructor(pool: pg.Pool, resolver: EntityResolver, graphOrOptions: GraphStore | GraphBuilderOptions = {}, options: GraphBuilderOptions = {}) {
     this.#pool = pool;
     this.#resolver = resolver;
-    this.#graph = graph;
+    if (isGraphStore(graphOrOptions)) {
+      this.#graph = graphOrOptions;
+      this.#graphSyncMode = options.graphSyncMode ?? "sync";
+    } else {
+      this.#graphSyncMode = graphOrOptions.graphSyncMode ?? "sync";
+      this.#graph = this.#graphSyncMode === "defer" ? null : new Neo4jGraphStore();
+    }
   }
 
   async close(): Promise<void> {
+    if (this.#graph === null) return;
     await this.#graph.close();
   }
 
@@ -204,8 +218,9 @@ export class GraphBuilder {
   }
 
   async rebuild(): Promise<{ nodes: number; edges: number }> {
-    await this.#graph.ensureSchema();
-    await this.#graph.clear();
+    const graph = this.#requireGraph();
+    await graph.ensureSchema();
+    await graph.clear();
     const entities = await this.#pool.query<EntityRow>(
       `SELECT entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs
        FROM entity_master
@@ -213,11 +228,11 @@ export class GraphBuilder {
        ORDER BY entity_id`
     );
     for (const row of entities.rows) {
-      await this.#graph.upsertEntity(entityRecordFromRow(row));
+      await graph.upsertEntity(entityRecordFromRow(row));
     }
     const edges = await listCurrentEdges(this.#pool);
     for (const edge of edges) {
-      await this.#graph.upsertEdge({
+      await graph.upsertEdge({
         edge_id: edge.edge_id,
         subject_id: edge.subject_id,
         object_id: edge.object_id,
@@ -232,13 +247,13 @@ export class GraphBuilder {
         ...(edge.component_specificity === null ? {} : { component_specificity: edge.component_specificity })
       });
     }
-    return this.#graph.stats();
+    return graph.stats();
   }
 
   async checkConsistency(): Promise<GraphConsistencyCheck> {
     const postgres = await this.#postgresProjectionStats();
     try {
-      const neo4j = await this.#graph.stats();
+      const neo4j = await this.#requireGraph().stats();
       if (postgres.nodes === neo4j.nodes && postgres.edges === neo4j.edges) {
         return { status: "synced", postgres, neo4j, recommendation: "none" };
       }
@@ -249,6 +264,7 @@ export class GraphBuilder {
   }
 
   async #syncEdge(edgeId: string): Promise<void> {
+    const graph = this.#requireGraph();
     const result = await this.#pool.query<GraphEdgeRow>(
       `SELECT edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity, last_verified_at
        FROM edges
@@ -257,7 +273,7 @@ export class GraphBuilder {
     );
     const edge = result.rows[0];
     if (edge === undefined) throw new Error(`Edge not found after apply: ${edgeId}`);
-    await this.#graph.ensureSchema();
+    await graph.ensureSchema();
     const endpoints = await this.#pool.query<EntityRow>(
       `SELECT entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs
        FROM entity_master
@@ -265,9 +281,9 @@ export class GraphBuilder {
       [[edge.subject_id, edge.object_id]]
     );
     for (const row of endpoints.rows) {
-      await this.#graph.upsertEntity(entityRecordFromRow(row));
+      await graph.upsertEntity(entityRecordFromRow(row));
     }
-    await this.#graph.upsertEdge({
+    await graph.upsertEdge({
       edge_id: edge.edge_id,
       subject_id: edge.subject_id,
       object_id: edge.object_id,
@@ -284,6 +300,7 @@ export class GraphBuilder {
   }
 
   async #trySyncEdge(edgeId: string): Promise<ApplyResult["graph_sync"]> {
+    if (this.#graphSyncMode === "defer") return { status: "deferred" };
     try {
       await this.#syncEdge(edgeId);
       return { status: "synced" };
@@ -292,6 +309,11 @@ export class GraphBuilder {
       getLogger().warn({ stage: "graph-sync", edge_id: edgeId, err: errorMessage }, "Neo4j materialized view sync failed; Postgres truth was committed");
       return { status: "failed", error_message: errorMessage };
     }
+  }
+
+  #requireGraph(): GraphStore {
+    if (this.#graph !== null) return this.#graph;
+    throw new Error("Neo4j materialized-view sync is deferred for this GraphBuilder.");
   }
 
   async #postgresProjectionStats(): Promise<GraphProjectionStats> {
@@ -304,6 +326,10 @@ export class GraphBuilder {
     if (row === undefined) throw new Error("Postgres projection stats query returned no rows");
     return { nodes: row.nodes, edges: row.edges };
   }
+}
+
+function isGraphStore(value: GraphStore | GraphBuilderOptions): value is GraphStore {
+  return "close" in value && "ensureSchema" in value && "clear" in value && "upsertEntity" in value && "upsertEdge" in value && "stats" in value;
 }
 
 interface EdgeIdentityRow extends pg.QueryResultRow {

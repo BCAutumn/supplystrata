@@ -72,16 +72,26 @@ pnpm test:integration
 ## 5. 联网研究 smoke
 
 ```bash
+pnpm smoke:research
+```
+
+它只要求 Postgres 可连接，不要求 Neo4j。它会执行：
+
+1. `pnpm db:migrate`
+2. `pnpm cli admin seed`
+3. `pnpm cli pipeline nvidia --graph-sync defer`
+4. `pnpm cli claims build --format json`
+5. `pnpm cli workbench export --company nvidia --depth 3 --out reports/nvidia-workbench.json`
+
+通过后说明当前环境已经能从 SEC EDGAR 抓取 NVIDIA 10-K、解析公开披露、抽取供应链关系、评分证据、落 Postgres，并输出 research workbench JSON。Neo4j 物化图可以稍后用 `pnpm cli graph rebuild` 单独重建。
+
+如果要同时验证 Neo4j 物化图：
+
+```bash
 pnpm smoke:network
 ```
 
-它在本地 smoke 的基础上额外执行：
-
-1. `pnpm cli pipeline nvidia`
-2. `pnpm --silent cli company nvidia --format markdown`
-3. `pnpm --silent cli unknown-map nvidia --format markdown`
-
-通过后说明当前环境已经能从 SEC EDGAR 抓取 NVIDIA 10-K、解析公开披露、抽取供应链关系、评分证据、落 Postgres、重建 Neo4j，并输出 company card 与 unknown map。
+它会在研究链路基础上执行 `graph rebuild/check`，因此需要 Neo4j。
 
 ## 6. 发布前体检
 
@@ -101,7 +111,7 @@ pnpm --silent cli preview report nvidia --format markdown --lang zh
 pnpm --silent cli preview apple-suppliers --limit 10 --format markdown
 ```
 
-这条路径不会落库，也不会写 Neo4j，适合未来嵌入 TS 桌面端或 agent 产品。需要 review 队列、source health、changes timeline、Postgres truth store 或 Neo4j 物化图时，才需要连接数据库服务。
+这条路径不会落库，也不会写 Neo4j，适合未来嵌入 TS 桌面端或 agent 产品。需要 review 队列、source health、changes timeline 或 Postgres truth store 时，需要连接 Postgres；需要图数据库物化视图、`graph rebuild/check` 或 Neo4j Browser 探索时，才需要 Neo4j。
 
 ## 常见失败
 

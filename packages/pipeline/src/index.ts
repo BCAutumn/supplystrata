@@ -12,7 +12,7 @@ import {
 import { saveNormalizedDocument } from "@supplystrata/db";
 import { DbEntityResolver, SeedEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
-import { GraphBuilder } from "@supplystrata/graph-builder";
+import { GraphBuilder, type GraphSyncMode } from "@supplystrata/graph-builder";
 import { getLogger } from "@supplystrata/observability";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
@@ -51,11 +51,17 @@ export interface PipelineSummary {
   candidates: number;
   applied_edges: number;
   evidence_ids: string[];
+  graph_sync: {
+    synced: number;
+    deferred: number;
+    failed: number;
+  };
 }
 
 export interface NormalizedPipelineInput {
   normalized: NormalizedDocument;
   fetchedUrl?: string;
+  graphSyncMode?: GraphSyncMode;
 }
 
 export interface SupplyChainPreviewCandidate {
@@ -132,9 +138,13 @@ export interface ReviewEnqueueSummary {
   skipped: number;
 }
 
-export async function runSecEdgarPipeline(pool: pg.Pool, input: SecEdgarInput): Promise<PipelineSummary> {
+export async function runSecEdgarPipeline(pool: pg.Pool, input: SecEdgarInput, options: { graphSyncMode?: GraphSyncMode } = {}): Promise<PipelineSummary> {
   const { raw, normalized } = await fetchAndParseSecEdgar(input);
-  return runSupplyChainPipelineFromNormalized(pool, { normalized, fetchedUrl: raw.url });
+  return runSupplyChainPipelineFromNormalized(pool, {
+    normalized,
+    fetchedUrl: raw.url,
+    ...(options.graphSyncMode === undefined ? {} : { graphSyncMode: options.graphSyncMode })
+  });
 }
 
 export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input: NormalizedPipelineInput): Promise<PipelineSummary> {
@@ -144,8 +154,9 @@ export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input:
 
   const resolver = new DbEntityResolver(pool);
   const scorer = new DeterministicEvidenceScorer();
-  const graphBuilder = new GraphBuilder(pool, resolver);
+  const graphBuilder = new GraphBuilder(pool, resolver, { graphSyncMode: input.graphSyncMode ?? "defer" });
   const evidenceIds: string[] = [];
+  const graphSync = { synced: 0, deferred: 0, failed: 0 };
   let candidates = 0;
   let applied = 0;
 
@@ -172,6 +183,7 @@ export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input:
         };
         const result = await graphBuilder.apply(approved);
         evidenceIds.push(result.evidence_id);
+        graphSync[result.graph_sync.status] += 1;
         applied += 1;
       }
     }
@@ -185,7 +197,8 @@ export async function runSupplyChainPipelineFromNormalized(pool: pg.Pool, input:
     chunks: savedDocument.chunks.length,
     candidates,
     applied_edges: applied,
-    evidence_ids: evidenceIds
+    evidence_ids: evidenceIds,
+    graph_sync: graphSync
   };
 }
 
@@ -246,10 +259,10 @@ function resolvedPreviewFields(prefix: "subject" | "object", result: ResolveResu
   };
 }
 
-export async function runDefaultNvidiaSlice(pool: pg.Pool): Promise<PipelineSummary> {
+export async function runDefaultNvidiaSlice(pool: pg.Pool, options: { graphSyncMode?: GraphSyncMode } = {}): Promise<PipelineSummary> {
   const env = loadEnv();
   getLogger().info({ stage: "pipeline", llm_provider: env.LLM_PROVIDER }, "running default NVIDIA SEC slice");
-  return runSecEdgarPipeline(pool, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] });
+  return runSecEdgarPipeline(pool, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, options);
 }
 
 export async function previewDefaultNvidiaSlice(): Promise<SupplyChainPreview> {

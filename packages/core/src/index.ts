@@ -241,7 +241,7 @@ export interface ApplyResult {
   evidence_id: string;
   change_id: string;
   is_new_edge: boolean;
-  graph_sync: { status: "synced" } | { status: "failed"; error_message: string };
+  graph_sync: { status: "synced" } | { status: "deferred" } | { status: "failed"; error_message: string };
 }
 
 export interface ClaimRecord {
