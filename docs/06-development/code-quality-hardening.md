@@ -41,6 +41,7 @@
 [x] 普通 manual evidence 降级为 lead_only / cap 2，避免人工录入绕过 source authority。
 [x] 建立 Prettier 全仓格式化基线，并把 format:check 纳入 CI / release-check。
 [x] 新增 build-packages.mjs，workspace packages/apps 可输出 dist JS 与 d.ts，package exports 指向 dist，development condition 指向 src。
+[x] Vitest alias 改为从 `tsconfig.base.json` 自动读取，消除测试别名与 TypeScript paths 双维护。
 ```
 
 ## 下一批质量修复

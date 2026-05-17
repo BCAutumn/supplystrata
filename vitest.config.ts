@@ -1,51 +1,63 @@
-import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+
+interface TsconfigAliases {
+  baseUrl: string;
+  paths: Record<string, string[]>;
+}
+
+const rootDir = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@supplystrata/core": resolve(__dirname, "packages/core/src/index.ts"),
-      "@supplystrata/config": resolve(__dirname, "packages/config/src/index.ts"),
-      "@supplystrata/claim-builder": resolve(__dirname, "packages/claim-builder/src/index.ts"),
-      "@supplystrata/chain-view": resolve(__dirname, "packages/chain-view/src/index.ts"),
-      "@supplystrata/db": resolve(__dirname, "packages/db/src/index.ts"),
-      "@supplystrata/entity-import": resolve(__dirname, "packages/entity-import/src/index.ts"),
-      "@supplystrata/entity-source": resolve(__dirname, "packages/entity-source/src/index.ts"),
-      "@supplystrata/entity-resolver": resolve(__dirname, "packages/entity-resolver/src/index.ts"),
-      "@supplystrata/evidence-maintenance": resolve(__dirname, "packages/evidence-maintenance/src/index.ts"),
-      "@supplystrata/evidence-scorer": resolve(__dirname, "packages/evidence-scorer/src/index.ts"),
-      "@supplystrata/evidence-trace": resolve(__dirname, "packages/evidence-trace/src/index.ts"),
-      "@supplystrata/graph": resolve(__dirname, "packages/graph/src/index.ts"),
-      "@supplystrata/graph-builder": resolve(__dirname, "packages/graph-builder/src/index.ts"),
-      "@supplystrata/object-store": resolve(__dirname, "packages/object-store/src/index.ts"),
-      "@supplystrata/observation-store": resolve(__dirname, "packages/observation-store/src/index.ts"),
-      "@supplystrata/observability": resolve(__dirname, "packages/observability/src/index.ts"),
-      "@supplystrata/parsers-html": resolve(__dirname, "packages/parsers/html/src/index.ts"),
-      "@supplystrata/parsers-pdf": resolve(__dirname, "packages/parsers/pdf/src/index.ts"),
-      "@supplystrata/parsers-text": resolve(__dirname, "packages/parsers/text/src/index.ts"),
-      "@supplystrata/pipeline": resolve(__dirname, "packages/pipeline/src/index.ts"),
-      "@supplystrata/relation-extractor-rule": resolve(__dirname, "packages/relation-extractor/rule/src/index.ts"),
-      "@supplystrata/render": resolve(__dirname, "packages/render/src/index.ts"),
-      "@supplystrata/review-candidates": resolve(__dirname, "packages/review-candidates/src/index.ts"),
-      "@supplystrata/review-store": resolve(__dirname, "packages/review-store/src/index.ts"),
-      "@supplystrata/source-adapter-spec": resolve(__dirname, "packages/source-adapter-spec/src/index.ts"),
-      "@supplystrata/signal-extractor": resolve(__dirname, "packages/signal-extractor/src/index.ts"),
-      "@supplystrata/source-monitor": resolve(__dirname, "packages/source-monitor/src/index.ts"),
-      "@supplystrata/source-normalizers": resolve(__dirname, "packages/source-normalizers/src/index.ts"),
-      "@supplystrata/source-registry": resolve(__dirname, "packages/source-registry/src/index.ts"),
-      "@supplystrata/supplier-list": resolve(__dirname, "packages/supplier-list/src/index.ts"),
-      "@supplystrata/workbench-export": resolve(__dirname, "packages/workbench-export/src/index.ts"),
-      "@supplystrata/sources-apple-suppliers": resolve(__dirname, "packages/sources/apple-suppliers/src/index.ts"),
-      "@supplystrata/sources-asml-ir": resolve(__dirname, "packages/sources/asml-ir/src/index.ts"),
-      "@supplystrata/sources-companies-house": resolve(__dirname, "packages/sources/companies-house/src/index.ts"),
-      "@supplystrata/sources-opencorporates": resolve(__dirname, "packages/sources/opencorporates/src/index.ts"),
-      "@supplystrata/sources-samsung-ir": resolve(__dirname, "packages/sources/samsung-ir/src/index.ts"),
-      "@supplystrata/sources-sec-edgar": resolve(__dirname, "packages/sources/sec-edgar/src/index.ts"),
-      "@supplystrata/sources-skhynix-ir": resolve(__dirname, "packages/sources/skhynix-ir/src/index.ts"),
-      "@supplystrata/sources-tsmc-ir": resolve(__dirname, "packages/sources/tsmc-ir/src/index.ts")
-    }
+    alias: loadTsconfigAliases()
   },
   test: {
     environment: "node"
   }
 });
+
+function loadTsconfigAliases(): Record<string, string> {
+  const tsconfig = readTsconfigAliases(resolve(rootDir, "tsconfig.base.json"));
+  const aliases: Record<string, string> = {};
+  for (const [packageName, targets] of Object.entries(tsconfig.paths)) {
+    const firstTarget = targets[0];
+    if (firstTarget === undefined) throw new Error(`tsconfig path alias has no target: ${packageName}`);
+    aliases[packageName] = resolve(rootDir, tsconfig.baseUrl, firstTarget);
+  }
+  return aliases;
+}
+
+function readTsconfigAliases(path: string): TsconfigAliases {
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (!isRecord(parsed)) throw new Error("tsconfig.base.json must contain a JSON object.");
+  const compilerOptions = parsed["compilerOptions"];
+  if (!isRecord(compilerOptions)) throw new Error("tsconfig.base.json compilerOptions must be an object.");
+  const baseUrl = compilerOptions["baseUrl"];
+  if (typeof baseUrl !== "string") throw new Error("tsconfig.base.json compilerOptions.baseUrl must be a string.");
+  return {
+    baseUrl,
+    paths: parsePaths(compilerOptions["paths"])
+  };
+}
+
+function parsePaths(value: unknown): Record<string, string[]> {
+  if (!isRecord(value)) throw new Error("tsconfig.base.json compilerOptions.paths must be an object.");
+  const paths: Record<string, string[]> = {};
+  for (const [packageName, targets] of Object.entries(value)) {
+    if (!Array.isArray(targets)) throw new Error(`tsconfig path alias must be an array: ${packageName}`);
+    const parsedTargets: string[] = [];
+    for (const target of targets) {
+      if (typeof target !== "string") throw new Error(`tsconfig path alias target must be a string: ${packageName}`);
+      parsedTargets.push(target);
+    }
+    paths[packageName] = parsedTargets;
+  }
+  return paths;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
