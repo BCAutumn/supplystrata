@@ -5,7 +5,7 @@
 
 **当前阶段**：Phase 1 已完成，Phase 2 正在推进。NVIDIA SEC 10-K 纵向切片、Apple Supplier List review/apply 纵向链路、Postgres 真相存储、Neo4j 物化图、`graph check/rebuild`、CLI 输出、测试门禁和新 evidence trace/fingerprint 写入已经跑通或落地。
 
-这是 alpha/MVP 仓库，不是完整供应链数据库。当前 HTML 链路图只是静态研究预览，不是产品化前端；v0.2 计划把它迁移为 `apps/research-preview`，采用 TypeScript + Canvas 的本地研究工作台。
+SupplyStrata 正在把公开披露、供应商名单、实体注册信息和后续物流/贸易观测整理成一套**可审计、可追溯、可扩展的全球供应链证据图谱引擎**。当前 HTML 链路图是研究预览；v0.2 计划把它迁移为 `apps/research-preview`，采用 TypeScript + Canvas 的本地研究工作台。
 
 ---
 
@@ -49,15 +49,16 @@
 
 ---
 
-## 写在前面的若干客观提醒
+## 设计原则
 
-写在最前，避免在文档里被乐观情绪带偏。
+SupplyStrata 的目标不是堆更多爬虫，而是把公开信息变成可信的供应链研究基础设施。项目坚持几条原则：
 
-1. **6 周内做出完整供应链图谱是不现实的**。本仓库的 roadmap 改成阶段制（Phase 0-5），不承诺自然周。任何具体周数估计都是下限。
-2. **TS 单一语言栈在 XBRL / 科学 NLP 场景下是次优解**。我们仍然以 TS 为主栈，但保留 Python sidecar 的接口（详见 [ADR-001](./docs/10-decisions/ADR-001-language-choice.md)）。
-3. **免费数据有大量盲区**。CBP manifest confidentiality、客户匿名化（"Customer A"）、内部分配数据、合同价格等本质上拿不到。系统的重要产出之一是**未知地图**（unknown map），明确告诉用户哪里我们不知道。
-4. **LLM 抽取出的关系不能直接当事实**。LLM 只产候选；默认 `needs_review = true`，未经审核不得入图。即使 cite_text 校验通过，LLM 证据最高也只能到 `evidence_level = 4`，永远不能产生 Level 5。
-5. **ToS 与法律边界必须先于代码**。SEC EDGAR、UN Comtrade、NOAA、EIA、FRED 是明确允许的；ImportYeti / 部分商业网站是灰色的，**MVP 不做自动化抓取**，只做手工或半手工证据录入。详见 [docs/09-risks-compliance/](./docs/09-risks-compliance/)。
+1. **证据优先**。每条关系都要能追到来源、原文片段、抓取时间、证据等级和置信度。
+2. **图谱可重建**。Postgres 是 truth store，Neo4j 是物化视图；图坏了可以从证据库重建。
+3. **未知也要建模**。客户匿名化、合同价格、订单分配和隐藏物流路径会进入 unknown map，而不是被系统假装知道。
+4. **规则先行，LLM 兜底**。LLM 只产候选；默认 `needs_review = true`，未经审核不得入图。即使 cite_text 校验通过，LLM 证据最高也只能到 `evidence_level = 4`。
+5. **开源友好，可嵌入**。核心路径优先保持 TypeScript、CLI 和无数据库 preview 能力，方便后续嵌入桌面端、agent 产品或独立研究工作台。
+6. **ToS 与法律边界先于代码**。SEC EDGAR、UN Comtrade、NOAA、EIA、FRED 是明确允许的；ImportYeti / 部分商业网站是灰色的，只做手工或半手工证据录入。详见 [docs/09-risks-compliance/](./docs/09-risks-compliance/)。
 
 ---
 

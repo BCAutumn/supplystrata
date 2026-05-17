@@ -45,7 +45,7 @@ v0.2-alpha 必须满足：
 [x] `cli changes` 可输出最近变化
 [x] EntityResolver golden set >= 200 并进 CI
 [ ] research workbench 可打开本地 JSON，展示 chain/evidence/source health/changes
-[ ] README 明确当前不是完整供应链数据库
+[ ] README 明确项目定位、当前已落地能力和继续建设方向
 [ ] release-check 通过
 ```
 
@@ -74,5 +74,5 @@ v0.2 不是降低长期标准，而是允许中间版本诚实发布。
 [ ] LLM 抽取结果未经 review 入图
 [ ] inferred Level 1-3 默认显示为事实边
 [ ] ImportYeti / BOL 自动抓取代码进入仓库
-[ ] README 暗示项目已经是完整供应链数据库
+[ ] README 暗示项目已经覆盖完整全球供应链数据库
 ```
