@@ -99,6 +99,15 @@ describe("evidence scorer", () => {
     expect(score.needs_review).toBe(true);
     expect(score.rationale).toContain("relation_authority=lead_only");
   });
+
+  it("does not let generic manual evidence become high-confidence facts", async () => {
+    const candidate = { ...candidateWithText("Manual note says NVIDIA buys memory from SK hynix."), raw_evidence_level_hint: 5 as const };
+    const score = await new DeterministicEvidenceScorer().score(candidate, { ...doc, document_type: "manual", source_adapter_id: "manual" });
+    expect(score.evidence_level).toBe(1);
+    expect(score.needs_review).toBe(true);
+    expect(score.rationale).toContain("source=manual");
+    expect(score.rationale).toContain("relation_authority=lead_only");
+  });
 });
 
 function candidateWithText(citeText: string): CandidateRelation {

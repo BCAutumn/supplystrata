@@ -180,15 +180,15 @@ export const SOURCE_REGISTRY = [
     tier: "manual",
     name: "Manual Evidence",
     category: "manual",
-    evidence_level_cap: 5,
+    evidence_level_cap: 2,
     publisher_type: "manual",
-    relation_authority: "self_disclosure",
+    relation_authority: "lead_only",
     automation: "manual_only",
     status: "planned",
     requires_key: false,
     official_url: "manual://evidence",
     tos_url: "manual://evidence",
-    notes: "用于无法自动化或不应自动化的数据源；必须人工录入 cite_text 和 URL。"
+    notes: "人工录入本身不是原始来源；没有 underlying official source 时只能作为 lead，不能生成高等级事实边。"
   },
   {
     id: "import-yeti",

@@ -138,7 +138,7 @@ scorer 实现的判定流程：
    company_official + self_disclosure（公司 IR / 年报 / earnings）→ 4
    official_supplier_list + facility_claim（Apple Supplier List 等）→ 4
    government_registry + registry_fact（OpenCorporates / Companies House）→ 4
-   manual + lead_only（ImportYeti 手工摘录、线索源）→ 1-3
+   manual + lead_only（普通人工录入、ImportYeti 手工摘录、线索源）→ 1-3
 
 2. 看 relation_authority + relation_type：再得 relation_cap
    self_disclosure → 不额外降级
@@ -149,7 +149,7 @@ scorer 实现的判定流程：
 
 3. 看抽取方法 (extraction_method)：再得 method_cap
    rule → 不降级
-   manual → 不降级
+   manual → 不因抽取方式降级，但仍受 source authority 限制；普通 `source_adapter_id=manual` 只能作为 lead
    hybrid (rule + manual review) → 不降级
    llm → 上限 4
 

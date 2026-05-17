@@ -39,7 +39,7 @@
 | `usaspending`     | P2   | USAspending.gov                  | 美国联邦合同 / 拨款                          | 2-3                    | API                                   | 公开              | scoped      |
 | `eu-ted`          | P2   | EU TED                           | 欧洲公共采购                                 | 2-3                    | API                                   | 公开              | scoped      |
 | `gdelt`           | P2   | GDELT                            | 全球新闻事件                                 | 1-2 (线索)             | API/BQ                                | 公开              | scoped      |
-| `manual`          | P0   | 手动录入                         | 任何无法/不便自动化的证据                    | by case                | CLI 命令                              | n/a               | planned     |
+| `manual`          | P0   | 手动录入                         | 任何无法/不便自动化的线索                    | 1-2                    | CLI 命令                              | n/a               | planned     |
 | `import-yeti`     | -    | ImportYeti                       | 美国 BOL 搜索                                | 3                      | **不做自动抓取**；仅手工录入 + manual | ToS 严禁自动化    | not adapter |
 
 `status` 取值：
@@ -81,7 +81,7 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 | `apple-suppliers`                                   | `official_supplier_list` | `facility_claim`   | 4                  | 官方供应商/设施名单，必须经过 review/apply。                                        |
 | `opencorporates` / `companies-house`                | `government_registry`    | `registry_fact`    | 4                  | 可证明注册、控制、设施等实体事实；对 `BUYS_FROM` / `SUPPLIES_TO` 只能到低等级线索。 |
 | `seed-entities`                                     | `manual`                 | `registry_fact`    | 4                  | 只用于实体解析，不作为供应链关系证据。                                              |
-| `manual`                                            | `manual`                 | `self_disclosure`  | 5                  | reviewer 必须录入原始来源 URL 与 cite_text；等级由人工和 scorer 共同限制。          |
+| `manual`                                            | `manual`                 | `lead_only`        | 2                  | 人工录入本身不是原始来源；没有 underlying official source 时只能作为线索。          |
 | `import-yeti`                                       | `manual`                 | `lead_only`        | 3                  | 不做 adapter；手工摘录也只能作为低等级线索，默认需要 review。                       |
 
 未注册 adapter 一律按 `manual / lead_only / max_evidence_level=2` 处理；不能只因为 `document_type` 写成 `10-K` 或 `annual_report` 就获得高证据等级。新增高权威来源必须先进入 source registry。离线测试专用的 `sec-edgar-fixture` 显式映射到 `sec-edgar`。

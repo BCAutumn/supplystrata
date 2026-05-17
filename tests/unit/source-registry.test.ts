@@ -46,6 +46,11 @@ describe("source registry", () => {
       relation_authority: "lead_only",
       max_evidence_level: 3
     });
+    expect(sourceAuthorityFor({ source_adapter_id: "manual", document_type: "manual" })).toMatchObject({
+      publisher_type: "manual",
+      relation_authority: "lead_only",
+      max_evidence_level: 2
+    });
   });
 
   it("caps unregistered adapters as manual leads until they are explicitly registered", () => {
