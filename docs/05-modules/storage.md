@@ -1,13 +1,13 @@
 # Module: Storage — 存储层
 
-`packages/db` + `packages/graph` + `packages/object-store`。本文给出存储层的对外契约，避免业务模块直接 SQL / Cypher。
+`packages/db` + `packages/graph-store` + `packages/graph` + `packages/object-store`。本文给出存储层的对外契约，避免业务模块直接 SQL / Cypher。
 
 ## 三种存储
 
 | 存储           | 用途                                   | 真相级别           |
 | -------------- | -------------------------------------- | ------------------ |
 | PostgreSQL     | 元数据 / 证据 / 实体 / 队列 / 变更日志 | 单一真相           |
-| Neo4j          | 图谱当前态                             | 物化视图（可重建） |
+| GraphStore     | 图谱当前态                             | 物化视图（可重建） |
 | Object Storage | 原始字节 (PDF/HTML/JSON 等)            | 原始证据物理保存   |
 
 ## packages/db
@@ -79,30 +79,39 @@ export interface EvidenceRepo {
 - `pg.Pool` 由执行层显式创建并传入
 - max connections：默认 20
 
-## packages/graph
+## packages/graph-store
 
 ### 责任
 
-- Neo4j 客户端封装
-- 节点 / 关系 CRUD
-- 查询 helper
+- 定义图投影后端的稳定接口
+- 让 `graph-builder` 只依赖接口，不依赖 Neo4j driver
+- 允许宿主 app 提供自己的图后端 adapter
 
 ### 接口
 
 ```ts
-export interface Neo4jStore {
-  upsertNode(input: NodeUpsert): Promise<void>;
-  upsertEdge(input: EdgeUpsert): Promise<void>;
-  deleteEdge(edgeId: string): Promise<void>;
-  rebuild(stream: NodeOrEdgeStream): Promise<RebuildResult>;
-  query<T>(cypher: string, params: Record<string, unknown>): Promise<T[]>;
+export interface GraphStore {
+  close(): Promise<void>;
+  ensureSchema(): Promise<void>;
+  clear(): Promise<void>;
+  upsertEntity(entity: EntityRecord): Promise<void>;
+  upsertEdge(edge: GraphEdgeInput): Promise<void>;
+  stats(): Promise<GraphProjectionStats>;
 }
 ```
 
+## packages/graph
+
+### 责任
+
+- Neo4j GraphStore adapter
+- Neo4j schema / 节点 / 关系投影
+- Neo4j Browser 或路径查询相关 helper
+
 ### 约束
 
-- query 接口允许写 raw Cypher，但**只**在查询模块（非业务模块）使用
-- 任何 mutation 必须走 upsertNode / upsertEdge / deleteEdge / rebuild，不允许任意 Cypher
+- query helper 允许写 raw Cypher，但**只**在 Neo4j adapter / 查询模块使用
+- 任何 mutation 必须走 GraphStore 的 upsertEntity / upsertEdge / clear，不允许业务模块任意 Cypher
 - 与 Postgres 的不一致由 housekeeping 修复
 
 ## packages/object-store

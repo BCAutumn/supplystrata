@@ -13,24 +13,20 @@ import {
 import { listCurrentEdges } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
-import { Neo4jGraphStore, type GraphStore } from "@supplystrata/graph";
+import type { GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
 import { getLogger } from "@supplystrata/observability";
-
-export interface GraphProjectionStats {
-  nodes: number;
-  edges: number;
-}
 
 export type GraphSyncMode = "sync" | "defer";
 
 export interface GraphBuilderOptions {
   graphSyncMode?: GraphSyncMode;
+  graphStore?: GraphStore;
 }
 
 export type GraphConsistencyCheck =
-  | { status: "synced"; postgres: GraphProjectionStats; neo4j: GraphProjectionStats; recommendation: "none" }
-  | { status: "out_of_sync"; postgres: GraphProjectionStats; neo4j: GraphProjectionStats; recommendation: "run_graph_rebuild" }
-  | { status: "unreachable"; postgres: GraphProjectionStats; error_message: string; recommendation: "check_neo4j_then_rebuild" };
+  | { status: "synced"; postgres: GraphProjectionStats; graph: GraphProjectionStats; recommendation: "none" }
+  | { status: "out_of_sync"; postgres: GraphProjectionStats; graph: GraphProjectionStats; recommendation: "run_graph_rebuild" }
+  | { status: "unreachable"; postgres: GraphProjectionStats; error_message: string; recommendation: "check_graph_store_then_rebuild" };
 
 export class GraphBuilder {
   readonly #pool: pg.Pool;
@@ -45,8 +41,9 @@ export class GraphBuilder {
       this.#graph = graphOrOptions;
       this.#graphSyncMode = options.graphSyncMode ?? "sync";
     } else {
-      this.#graphSyncMode = graphOrOptions.graphSyncMode ?? "sync";
-      this.#graph = this.#graphSyncMode === "defer" ? null : new Neo4jGraphStore();
+      this.#graph = graphOrOptions.graphStore ?? null;
+      // 没有 GraphStore adapter 时，GraphBuilder 只维护 Postgres 真相存储；图投影由后续 rebuild/check 命令补齐。
+      this.#graphSyncMode = graphOrOptions.graphSyncMode ?? (this.#graph === null ? "defer" : "sync");
     }
   }
 
@@ -253,13 +250,13 @@ export class GraphBuilder {
   async checkConsistency(): Promise<GraphConsistencyCheck> {
     const postgres = await this.#postgresProjectionStats();
     try {
-      const neo4j = await this.#requireGraph().stats();
-      if (postgres.nodes === neo4j.nodes && postgres.edges === neo4j.edges) {
-        return { status: "synced", postgres, neo4j, recommendation: "none" };
+      const graph = await this.#requireGraph().stats();
+      if (postgres.nodes === graph.nodes && postgres.edges === graph.edges) {
+        return { status: "synced", postgres, graph, recommendation: "none" };
       }
-      return { status: "out_of_sync", postgres, neo4j, recommendation: "run_graph_rebuild" };
+      return { status: "out_of_sync", postgres, graph, recommendation: "run_graph_rebuild" };
     } catch (error) {
-      return { status: "unreachable", postgres, error_message: messageFromUnknown(error), recommendation: "check_neo4j_then_rebuild" };
+      return { status: "unreachable", postgres, error_message: messageFromUnknown(error), recommendation: "check_graph_store_then_rebuild" };
     }
   }
 
@@ -306,14 +303,14 @@ export class GraphBuilder {
       return { status: "synced" };
     } catch (error) {
       const errorMessage = messageFromUnknown(error);
-      getLogger().warn({ stage: "graph-sync", edge_id: edgeId, err: errorMessage }, "Neo4j materialized view sync failed; Postgres truth was committed");
+      getLogger().warn({ stage: "graph-sync", edge_id: edgeId, err: errorMessage }, "GraphStore projection sync failed; Postgres truth was committed");
       return { status: "failed", error_message: errorMessage };
     }
   }
 
   #requireGraph(): GraphStore {
     if (this.#graph !== null) return this.#graph;
-    throw new Error("Neo4j materialized-view sync is deferred for this GraphBuilder.");
+    throw new Error("No GraphStore adapter is configured for this GraphBuilder.");
   }
 
   async #postgresProjectionStats(): Promise<GraphProjectionStats> {

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { segmentFromLead, segmentFromObservation, segmentFromUnknown, segmentsFromFactRow, type ChainViewRoot } from "@supplystrata/chain-view";
+import {
+  segmentFromComponentUpstreamLead,
+  segmentFromLead,
+  segmentFromObservation,
+  segmentFromUnknown,
+  segmentsFromFactRow,
+  type ChainViewRoot
+} from "@supplystrata/chain-view";
+import { listComponentUpstreamLeads } from "@supplystrata/component-context";
 
 describe("chain-view", () => {
   it("keeps fact edges and claims as separate semantic segments", () => {
@@ -127,5 +135,36 @@ describe("chain-view", () => {
     expect(lead.confidence).toBe(0.25);
     expect(unknown.semantic_layer).toBe("unknown");
     expect(unknown.label).toContain("Private contracts");
+  });
+
+  it("creates component upstream lead segments without promoting them to fact edges", () => {
+    const row = {
+      depth: 1,
+      edge_id: "EDGE-3",
+      relation: "USES_FOUNDRY",
+      subject_id: "ENT-NVIDIA",
+      subject_name: "NVIDIA",
+      object_id: "ENT-TSMC",
+      object_name: "TSMC",
+      upstream_id: "ENT-TSMC",
+      upstream_name: "TSMC",
+      component: "wafer",
+      component_id: "COMP-WAFER",
+      evidence_level: 5,
+      confidence: 0.91,
+      primary_evidence_id: "EV-3",
+      claim_id: null,
+      claim_text: null
+    } satisfies Parameters<typeof segmentsFromFactRow>[0];
+    const lead = listComponentUpstreamLeads("COMP-WAFER", 1).find((item) => item.target_id === "COMP-EUV-LITHOGRAPHY");
+    if (lead === undefined) throw new Error("expected EUV component lead fixture");
+
+    const segment = segmentFromComponentUpstreamLead(lead, { row, sequence_index: 20 });
+
+    expect(segment.semantic_layer).toBe("lead");
+    expect(segment.evidence_level).toBeUndefined();
+    expect(segment.from).toMatchObject({ kind: "company", id: "ENT-TSMC" });
+    expect(segment.to).toMatchObject({ kind: "component", id: "COMP-EUV-LITHOGRAPHY" });
+    expect(segment.label).toContain("Trace advanced wafer production");
   });
 });

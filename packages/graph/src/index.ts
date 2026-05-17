@@ -1,30 +1,9 @@
 import neo4j, { type Driver } from "neo4j-driver";
 import { loadEnv } from "@supplystrata/config";
 import { RELATION_TYPES, type EntityRecord, type RelationType } from "@supplystrata/core";
+import type { GraphEdgeInput, GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
 
-export interface GraphEdgeInput {
-  edge_id: string;
-  subject_id: string;
-  object_id: string;
-  relation: RelationType;
-  component?: string;
-  component_id?: string;
-  component_specificity?: string;
-  evidence_level: number;
-  confidence: number;
-  is_inferred: boolean;
-  validity: string;
-  last_verified_at: string;
-}
-
-export interface GraphStore {
-  close(): Promise<void>;
-  ensureSchema(): Promise<void>;
-  clear(): Promise<void>;
-  upsertEntity(entity: EntityRecord): Promise<void>;
-  upsertEdge(edge: GraphEdgeInput): Promise<void>;
-  stats(): Promise<{ nodes: number; edges: number }>;
-}
+export type { GraphEdgeInput, GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
 
 export function createNeo4jDriver(): Driver {
   const env = loadEnv();
@@ -105,7 +84,7 @@ export class Neo4jGraphStore implements GraphStore {
     );
   }
 
-  async stats(): Promise<{ nodes: number; edges: number }> {
+  async stats(): Promise<GraphProjectionStats> {
     const session = this.#driver.session();
     try {
       const result = await session.run("MATCH (n) WITH count(n) AS nodes MATCH ()-[r]->() RETURN nodes, count(r) AS edges");
@@ -166,9 +145,10 @@ function labelsForKind(kind: EntityRecord["kind"]): string[] {
 
 function neoNumber(value: unknown): number {
   if (typeof value === "number") return value;
-  if (typeof value === "object" && value !== null && "toNumber" in value) {
-    const candidate = value as { toNumber(): number };
-    return candidate.toNumber();
-  }
+  if (hasToNumber(value)) return value.toNumber();
   return Number(value);
+}
+
+function hasToNumber(value: unknown): value is { toNumber(): number } {
+  return typeof value === "object" && value !== null && "toNumber" in value && typeof value.toNumber === "function";
 }

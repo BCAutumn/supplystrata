@@ -14,7 +14,7 @@
     "@supplystrata/db": "workspace:*",
     "@supplystrata/entity-resolver": "workspace:*",
     "@supplystrata/evidence-trace": "workspace:*",
-    "@supplystrata/graph": "workspace:*",
+    "@supplystrata/graph-store": "workspace:*",
     "@supplystrata/observability": "workspace:*",
     "pg": "~8.13.1"
   },

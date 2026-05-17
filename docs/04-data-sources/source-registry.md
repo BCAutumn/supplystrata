@@ -22,7 +22,9 @@
 | `opencorporates`        | P0   | OpenCorporates                                 | 全球公司实体 / 别名                          | 用于 entity-resolution | 官方 API + token（限速）              | 公开 + 注明来源   | preview     |
 | `companies-house`       | P0   | UK Companies House                             | 英国公司登记                                 | 用于 entity-resolution | 官方 API + key                        | OGL v3            | preview     |
 | `seed-entities`         | P0   | 项目内 curated seed CSV                        | 核心公司 / 高频供应商 / ticker / CIK / alias | 用于 entity-resolution | 手工维护 + 官方来源校验               | 仅存事实标识      | implemented |
+| `company-ir`            | P1   | 通用公司 IR 源位                               | 新公司 IR adapter 的规划占位                 | 4                      | 具体 adapter 必须单独实现             | 各公司 ToS        | planned     |
 | `dart-kr`               | P1   | 韩国 DART                                      | Samsung / SK Hynix 韩文披露                  | 4-5                    | API                                   | 公开              | scoped      |
+| `edinet`                | P1   | 日本 EDINET                                    | 日本上市公司监管披露                         | 4-5                    | API / 下载                            | 公开              | scoped      |
 | `un-comtrade`           | P1   | UN Comtrade                                    | 国家-商品贸易流（HS code）                   | 2-3                    | API（限速）                           | 注册 + 限速       | scoped      |
 | `census-trade`          | P1   | U.S. Census International Trade                | 美国进出口（月度）                           | 2-3                    | API                                   | 公开              | scoped      |
 | `usitc-dataweb`         | P1   | USITC DataWeb                                  | 美国官方贸易/关税                            | 2-3                    | API/CSV                               | 公开              | scoped      |
@@ -33,7 +35,7 @@
 | `iea-critical-minerals` | P1   | IEA Critical Minerals Data Explorer            | 关键矿物需求 / 供应情景                      | 2-3 (背景信号)         | CSV/API/下载（以官方可用方式为准）    | 公开              | scoped      |
 | `rmi-facilities`        | P1   | Responsible Minerals Initiative facility lists | 冶炼 / 精炼 / 处理设施候选                   | 2-3 (设施/原材料候选)  | CSV/XLSX/网页下载（需遵守来源条款）   | 公开 + 归因       | scoped      |
 | `eu-crma`               | P1   | EU Critical Raw Materials Act                  | 关键原材料政策 / 风险 / 战略项目背景         | 2-3 (政策背景信号)     | 官方网页 / PDF                        | 公开              | scoped      |
-| `osh`                   | P1   | Open Supply Hub                                | 全球生产设施                                 | 3-4                    | API                                   | 公开              | scoped      |
+| `osh`                   | P1   | Open Supply Hub                                | 全球生产设施                                 | 3                      | API                                   | 公开 + 归因       | scoped      |
 | `noaa-ais`              | P2   | NOAA AccessAIS / bulk                          | 美国水域 AIS 船舶                            | 2 (背景信号)           | 下载 / 区域选择                       | 公开              | scoped      |
 | `sam-gov`               | P2   | SAM.gov Contract Opportunities                 | 美国联邦采购机会                             | 2-3                    | API                                   | 公开              | scoped      |
 | `usaspending`           | P2   | USAspending.gov                                | 美国联邦合同 / 拨款                          | 2-3                    | API                                   | 公开              | scoped      |
@@ -51,6 +53,34 @@
 - `experimental`：试用中
 - `deprecated`：弃用
 - `rejected`：审视后明确不接
+
+代码中的权威清单在 `packages/source-registry`。文档表新增任何 source 后，代码 registry 也必须同步新增，否则 CLI、source monitor 与 scorer 看不到该来源。
+
+## Source Plan 边界
+
+`packages/source-plan` 是二级/三级链路寻找免费数据源的统一规划层。它读取：
+
+- `packages/component-context`：组件上游 lead，例如 `wafer -> silicon wafer / EUV / photoresist`
+- `packages/source-registry`：哪些免费源存在、证据上限、自动化策略和 ToS 状态
+
+输出只是一份计划，明确每个来源进入哪一层：
+
+| output layer  | 含义                                    | 例子                                  |
+| ------------- | --------------------------------------- | ------------------------------------- |
+| `edge`        | 只有官方披露/官方供应商名单能生成事实边 | SEC、DART、EDINET、Apple Supplier     |
+| `entity`      | 只做实体/设施/注册事实                  | OpenCorporates、Companies House       |
+| `observation` | 宏观、贸易、物流、能源、商品背景        | Comtrade、Census、NOAA AIS、USGS      |
+| `lead`        | 线索池，必须人工 review                 | SAM.gov、USAspending、GDELT、BOL 手工 |
+
+示例：
+
+```bash
+pnpm cli sources plan --component COMP-WAFER --format markdown
+pnpm cli sources plan --component COMP-MANUFACTURING-SERVICES --depth 3 --format json
+pnpm cli sources plan --component COMP-MANUFACTURING-SERVICES --entity ENT-APPLE --depth 3
+```
+
+这层设计是为了避免把免费宏观源直接污染事实图谱：Comtrade/AIS/EIA/USGS 这类数据可以支持研究判断，但默认只能进入 observation；ImportYeti/BOL 只能手工进入 lead。公司专属来源也不能被通用化，例如 `apple-suppliers` 只有在计划 Apple 链路（传入 `--entity ENT-APPLE`）时才会出现，避免二/三级链路被某个测试公司硬耦合。
 
 ## 各数据源的细节文档
 
@@ -74,15 +104,20 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 
 当前已落地的映射：
 
-| source_adapter_id                                   | publisher_type           | relation_authority | max_evidence_level | 证据边界                                                                            |
-| --------------------------------------------------- | ------------------------ | ------------------ | ------------------ | ----------------------------------------------------------------------------------- |
-| `sec-edgar`                                         | `regulator`              | `self_disclosure`  | 5                  | 监管披露中的公司自述可到 Level 5。                                                  |
-| `tsmc-ir` / `samsung-ir` / `skhynix-ir` / `asml-ir` | `company_official`       | `self_disclosure`  | 4                  | 公司官方材料可到 Level 4；除非未来建模为同等监管文件，否则不自动升 Level 5。        |
-| `apple-suppliers`                                   | `official_supplier_list` | `facility_claim`   | 4                  | 官方供应商/设施名单，必须经过 review/apply。                                        |
-| `opencorporates` / `companies-house`                | `government_registry`    | `registry_fact`    | 4                  | 可证明注册、控制、设施等实体事实；对 `BUYS_FROM` / `SUPPLIES_TO` 只能到低等级线索。 |
-| `seed-entities`                                     | `manual`                 | `registry_fact`    | 4                  | 只用于实体解析，不作为供应链关系证据。                                              |
-| `manual`                                            | `manual`                 | `lead_only`        | 2                  | 人工录入本身不是原始来源；没有 underlying official source 时只能作为线索。          |
-| `import-yeti`                                       | `manual`                 | `lead_only`        | 3                  | 不做 adapter；手工摘录也只能作为低等级线索，默认需要 review。                       |
+| source_adapter_id                                           | publisher_type             | relation_authority | max_evidence_level | 证据边界                                                                            |
+| ----------------------------------------------------------- | -------------------------- | ------------------ | ------------------ | ----------------------------------------------------------------------------------- |
+| `sec-edgar`                                                 | `regulator`                | `self_disclosure`  | 5                  | 监管披露中的公司自述可到 Level 5。                                                  |
+| `tsmc-ir` / `samsung-ir` / `skhynix-ir` / `asml-ir`         | `company_official`         | `self_disclosure`  | 4                  | 公司官方材料可到 Level 4；除非未来建模为同等监管文件，否则不自动升 Level 5。        |
+| `apple-suppliers`                                           | `official_supplier_list`   | `facility_claim`   | 4                  | 官方供应商/设施名单，必须经过 review/apply。                                        |
+| `opencorporates` / `companies-house`                        | `government_registry`      | `registry_fact`    | 4                  | 可证明注册、控制、设施等实体事实；对 `BUYS_FROM` / `SUPPLIES_TO` 只能到低等级线索。 |
+| `seed-entities`                                             | `manual`                   | `registry_fact`    | 4                  | 只用于实体解析，不作为供应链关系证据。                                              |
+| `manual`                                                    | `manual`                   | `lead_only`        | 2                  | 人工录入本身不是原始来源；没有 underlying official source 时只能作为线索。          |
+| `import-yeti`                                               | `manual`                   | `lead_only`        | 3                  | 不做 adapter；手工摘录也只能作为低等级线索，默认需要 review。                       |
+| `dart-kr` / `edinet`                                        | `regulator`                | `self_disclosure`  | 5                  | 同等监管披露可到 Level 5，但必须先实现 adapter 与 parser。                          |
+| `osh` / `rmi-facilities`                                    | `official_supplier_list`   | `facility_claim`   | 3                  | 第三方/行业设施列表默认是 facility candidate；交叉验证前不自动升事实边。            |
+| `un-comtrade` / `census-trade` / `usitc-dataweb`            | `macro_statistical_agency` | `macro_trend`      | 2                  | 国家/商品贸易流只能进入 observation。                                               |
+| `noaa-ais` / `eia` / `fred` / `worldbank-pink` / `usgs-mcs` | `macro_statistical_agency` | `macro_trend`      | 2                  | 物流、能源、商品和矿产数据只能作为背景观测。                                        |
+| `sam-gov` / `usaspending` / `eu-ted` / `gdelt`              | `regulator` 或 `news`      | `lead_only`        | 1-2                | 采购/新闻只能进入 lead/hypothesis queue。                                           |
 
 未注册 adapter 一律按 `manual / lead_only / max_evidence_level=2` 处理；不能只因为 `document_type` 写成 `10-K` 或 `annual_report` 就获得高证据等级。新增高权威来源必须先进入 source registry。离线测试专用的 `sec-edgar-fixture` 显式映射到 `sec-edgar`。
 

@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ApprovedCandidate, EntityRecord } from "@supplystrata/core";
 import { createPool, migrate } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
-import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph";
 import { GraphBuilder } from "@supplystrata/graph-builder";
+import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
 import { canConnectToIntegrationDatabase } from "./helpers.js";
 
 class StaticResolver implements EntityResolver {
@@ -19,7 +19,7 @@ class FailingGraphStore implements GraphStore {
   async close(): Promise<void> {}
 
   async ensureSchema(): Promise<void> {
-    throw new Error("simulated neo4j outage");
+    throw new Error("simulated graph store outage");
   }
 
   async clear(): Promise<void> {}
@@ -102,11 +102,11 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
     await pool.end();
   });
 
-  it("commits Postgres truth when Neo4j materialized-view sync fails", async () => {
+  it("commits Postgres truth when GraphStore projection sync fails", async () => {
     const builder = new GraphBuilder(pool, new StaticResolver(), new FailingGraphStore());
     const result = await builder.apply(approvedCandidate());
 
-    expect(result.graph_sync).toMatchObject({ status: "failed", error_message: "simulated neo4j outage" });
+    expect(result.graph_sync).toMatchObject({ status: "failed", error_message: "simulated graph store outage" });
     expect(result.edge_id).toMatch(/^EDGE-/);
     expect(result.evidence_id).toMatch(/^EV-/);
 
@@ -121,7 +121,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   it("reports graph projection sync status from Postgres and graph counts", async () => {
     const postgres = await currentPostgresProjection(pool);
     const syncedBuilder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore(postgres));
-    await expect(syncedBuilder.checkConsistency()).resolves.toMatchObject({ status: "synced", postgres, neo4j: postgres });
+    await expect(syncedBuilder.checkConsistency()).resolves.toMatchObject({ status: "synced", postgres, graph: postgres });
 
     const staleBuilder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: postgres.nodes, edges: postgres.edges + 1 }));
     await expect(staleBuilder.checkConsistency()).resolves.toMatchObject({ status: "out_of_sync", recommendation: "run_graph_rebuild" });

@@ -88,7 +88,7 @@ export function formatCliError(error: unknown): string {
   if (isConnectionRefused(error)) {
     return [
       "A local database service is not reachable.",
-      "DB-backed commands need Postgres; graph commands may also need Neo4j. Start the required service or set POSTGRES_URL / NEO4J_URI to a reachable endpoint, then retry.",
+      "DB-backed commands need Postgres; commands using the built-in Neo4j GraphStore adapter also need Neo4j. Start the required service or set POSTGRES_URL / NEO4J_URI to a reachable endpoint, then retry.",
       "DB-free preview commands remain available, for example: pnpm cli preview nvidia --format json"
     ].join("\n");
   }

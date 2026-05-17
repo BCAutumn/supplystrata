@@ -17,9 +17,6 @@ importers:
       csv-parse:
         specifier: ~5.6.0
         version: 5.6.0
-      neo4j-driver:
-        specifier: ~5.28.1
-        version: 5.28.3
       pg:
         specifier: ~8.13.1
         version: 8.13.3
@@ -84,6 +81,9 @@ importers:
       '@supplystrata/evidence-maintenance':
         specifier: workspace:*
         version: link:../../packages/evidence-maintenance
+      '@supplystrata/graph':
+        specifier: workspace:*
+        version: link:../../packages/graph
       '@supplystrata/graph-builder':
         specifier: workspace:*
         version: link:../../packages/graph-builder
@@ -102,6 +102,9 @@ importers:
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../../packages/source-monitor
+      '@supplystrata/source-plan':
+        specifier: workspace:*
+        version: link:../../packages/source-plan
       '@supplystrata/source-registry':
         specifier: workspace:*
         version: link:../../packages/source-registry
@@ -123,6 +126,9 @@ importers:
 
   packages/chain-view:
     dependencies:
+      '@supplystrata/component-context':
+        specifier: workspace:*
+        version: link:../component-context
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
@@ -144,6 +150,12 @@ importers:
       pg:
         specifier: ~8.13.1
         version: 8.13.3
+
+  packages/component-context:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/config:
     dependencies:
@@ -245,6 +257,9 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+      '@supplystrata/graph-store':
+        specifier: workspace:*
+        version: link:../graph-store
       neo4j-driver:
         specifier: ~5.28.1
         version: 5.28.3
@@ -263,15 +278,21 @@ importers:
       '@supplystrata/evidence-trace':
         specifier: workspace:*
         version: link:../evidence-trace
-      '@supplystrata/graph':
+      '@supplystrata/graph-store':
         specifier: workspace:*
-        version: link:../graph
+        version: link:../graph-store
       '@supplystrata/observability':
         specifier: workspace:*
         version: link:../observability
       pg:
         specifier: ~8.13.1
         version: 8.13.3
+
+  packages/graph-store:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/object-store:
     dependencies:
@@ -350,6 +371,9 @@ importers:
       '@supplystrata/graph-builder':
         specifier: workspace:*
         version: link:../graph-builder
+      '@supplystrata/graph-store':
+        specifier: workspace:*
+        version: link:../graph-store
       '@supplystrata/observability':
         specifier: workspace:*
         version: link:../observability
@@ -481,6 +505,15 @@ importers:
       '@supplystrata/parsers-text':
         specifier: workspace:*
         version: link:../parsers/text
+
+  packages/source-plan:
+    dependencies:
+      '@supplystrata/component-context':
+        specifier: workspace:*
+        version: link:../component-context
+      '@supplystrata/source-registry':
+        specifier: workspace:*
+        version: link:../source-registry
 
   packages/source-registry:
     dependencies:
@@ -657,6 +690,9 @@ importers:
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor
+      '@supplystrata/source-plan':
+        specifier: workspace:*
+        version: link:../source-plan
 
 packages:
 

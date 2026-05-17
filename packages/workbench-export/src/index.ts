@@ -12,6 +12,7 @@ import {
 } from "@supplystrata/db";
 import { buildCompanyChainView, type ChainViewModel, type ChainViewSegmentModel } from "@supplystrata/chain-view";
 import { listSourceHealthRows, type SourceHealthRow } from "@supplystrata/source-monitor";
+import { planSourcesForComponents, type SourcePlanItem } from "@supplystrata/source-plan";
 import { RELATION_TYPES, type EvidenceLevel, type RelationType } from "@supplystrata/core";
 
 export interface WorkbenchExportInput {
@@ -56,6 +57,7 @@ export interface WorkbenchModel {
   evidences: EvidenceDetailRow[];
   unknown_items: UnknownItemRow[];
   sources: SourceHealthRow[];
+  source_plan: SourcePlanItem[];
   changes: ChangeTimelineItem[];
 }
 
@@ -70,6 +72,11 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
   const evidences = await loadEvidences(client, evidenceIds);
   const unknownItems = await listUnknownItems(client, rootEntityId);
   const sources = (await listSourceHealthRows(client)).slice(0, input.sourceLimit ?? 50);
+  const sourcePlan = planSourcesForComponents({
+    component_ids: componentIdsFromSegments(chain.segments),
+    entity_ids: [rootEntityId],
+    maxTierDepth: input.depth ?? 2
+  });
   const changes = await listChangeTimeline(client, {
     since: input.since ?? defaultSince(30),
     limit: input.changeLimit ?? 50,
@@ -90,6 +97,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     evidences,
     unknown_items: unknownItems,
     sources,
+    source_plan: sourcePlan,
     changes
   };
 }
@@ -164,6 +172,10 @@ async function loadEvidences(client: DbClient, evidenceIds: readonly string[]): 
 
 function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+function componentIdsFromSegments(segments: readonly ChainViewSegmentModel[]): string[] {
+  return uniqueStrings(segments.flatMap((segment) => (segment.component_id === null ? [] : [segment.component_id])));
 }
 
 function defaultSince(daysBack: number): string {

@@ -1,4 +1,6 @@
 import type { Command } from "commander";
+import { Neo4jGraphStore } from "@supplystrata/graph";
+import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import {
   previewAppleSuppliers,
   previewDefaultNvidiaSlice,
@@ -27,16 +29,13 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .requiredOption("--cik <cik>", "SEC CIK")
     .option("--entity <entityId>", "primary entity id", "ENT-NVIDIA")
     .option("--types <types>", "comma separated filing types", "10-K")
-    .option("--graph-sync <mode>", "Neo4j materialized-view sync mode: defer or sync", "defer")
+    .option("--graph-sync <mode>", "GraphStore projection sync mode: defer or sync", "defer")
     .description("fetch latest matching SEC filing and run the vertical pipeline")
     .action(async (options: { cik: string; entity: string; types: string; graphSync: string }) => {
       await withPool(async (pool) => {
         const formTypes = parseFormTypes(options.types);
-        const summary = await runSecEdgarPipeline(
-          pool,
-          { cik: options.cik, entityId: options.entity, formTypes },
-          { graphSyncMode: parseGraphSyncMode(options.graphSync) }
-        );
+        const graphSyncMode = parseGraphSyncMode(options.graphSync);
+        const summary = await runSecEdgarPipeline(pool, { cik: options.cik, entityId: options.entity, formTypes }, graphOptions(graphSyncMode));
         writeJson(summary);
       });
     });
@@ -44,11 +43,12 @@ export function registerPipelinePreviewCommands(program: Command): void {
   const pipeline = program.command("pipeline").description("pipeline shortcuts");
   pipeline
     .command("nvidia")
-    .option("--graph-sync <mode>", "Neo4j materialized-view sync mode: defer or sync", "defer")
+    .option("--graph-sync <mode>", "GraphStore projection sync mode: defer or sync", "defer")
     .description("run SEC/NVIDIA 10-K vertical slice")
     .action(async (options: { graphSync: string }) => {
       await withPool(async (pool) => {
-        const summary = await runDefaultNvidiaSlice(pool, { graphSyncMode: parseGraphSyncMode(options.graphSync) });
+        const graphSyncMode = parseGraphSyncMode(options.graphSync);
+        const summary = await runDefaultNvidiaSlice(pool, graphOptions(graphSyncMode));
         writeJson(summary);
       });
     });
@@ -103,4 +103,9 @@ function parseFormTypes(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
     .split(",")
     .map((item) => item.trim())
     .filter(isSupportedFormType);
+}
+
+function graphOptions(graphSyncMode: GraphSyncMode): Parameters<typeof runDefaultNvidiaSlice>[1] {
+  if (graphSyncMode === "defer") return { graphSyncMode };
+  return { graphSyncMode, graphStore: new Neo4jGraphStore() };
 }

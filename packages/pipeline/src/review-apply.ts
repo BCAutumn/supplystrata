@@ -99,7 +99,7 @@ async function applySupplierListReviewCandidate(pool: pg.Pool, item: SupplierLis
   const doc = await loadReviewDocument(pool, item);
   if (doc.status === "blocked") return doc;
   const scored = await scoreSupplierListRelations(supplierRelation, facilityPreparation.facilityRelation, doc.document);
-  const builder = new GraphBuilder(pool, resolver);
+  const builder = new GraphBuilder(pool, resolver, { graphSyncMode: "defer" });
   try {
     const applyResults = await applySupplierListEdges(builder, scored, doc.docId, reviewer);
     const pendingResolved = await resolvePendingEntitySurface(pool, {

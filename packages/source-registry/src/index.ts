@@ -3,6 +3,18 @@ import type { DocumentType, EvidenceLevel } from "@supplystrata/core";
 export type SourceTier = "P0" | "P1" | "P2" | "manual";
 export type SourceStatus = "implemented" | "preview" | "planned" | "scoped" | "manual_only" | "rejected";
 export type AutomationPolicy = "allowed" | "semi_auto" | "manual_only";
+export type SourceCategory =
+  | "official_disclosure"
+  | "entity_resolution"
+  | "supplier_list"
+  | "facility"
+  | "trade"
+  | "commodity"
+  | "macro"
+  | "logistics"
+  | "procurement_news"
+  | "policy"
+  | "manual";
 export type PublisherType =
   | "regulator"
   | "company_official"
@@ -17,7 +29,7 @@ export interface SourceRegistryEntry {
   id: string;
   tier: SourceTier;
   name: string;
-  category: "official_disclosure" | "entity_resolution" | "supplier_list" | "trade" | "macro" | "logistics" | "procurement_news" | "manual";
+  category: SourceCategory;
   evidence_level_cap: EvidenceLevel;
   publisher_type: PublisherType;
   relation_authority: RelationAuthority;
@@ -176,6 +188,291 @@ export const SOURCE_REGISTRY = [
     notes: "项目内维护的核心公司和高频供应商事实标识；只用于实体解析，不作为关系证据。"
   },
   {
+    id: "company-ir",
+    tier: "P1",
+    name: "Company Investor Relations",
+    category: "official_disclosure",
+    evidence_level_cap: 4,
+    publisher_type: "company_official",
+    relation_authority: "self_disclosure",
+    automation: "semi_auto",
+    status: "planned",
+    requires_key: false,
+    official_url: "manual://company-ir-adapter-template",
+    tos_url: "manual://company-ir-adapter-template",
+    notes: "通用公司 IR 源位；真正抓取必须落到具体公司 adapter，不能用该占位 ID 直接 fetch。"
+  },
+  {
+    id: "dart-kr",
+    tier: "P1",
+    name: "Korea DART",
+    category: "official_disclosure",
+    evidence_level_cap: 5,
+    publisher_type: "regulator",
+    relation_authority: "self_disclosure",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: true,
+    official_url: "https://opendart.fss.or.kr/",
+    tos_url: "https://opendart.fss.or.kr/",
+    notes: "韩国监管披露；用于 Samsung / SK Hynix 等韩股公司交叉验证，韩文解析进入 P1。"
+  },
+  {
+    id: "edinet",
+    tier: "P1",
+    name: "Japan EDINET",
+    category: "official_disclosure",
+    evidence_level_cap: 5,
+    publisher_type: "regulator",
+    relation_authority: "self_disclosure",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://disclosure2.edinet-fsa.go.jp/",
+    tos_url: "https://disclosure2.edinet-fsa.go.jp/",
+    notes: "日本监管披露；用于日本设备、材料、电子制造节点的官方交叉验证。"
+  },
+  {
+    id: "un-comtrade",
+    tier: "P1",
+    name: "UN Comtrade",
+    category: "trade",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: true,
+    official_url: "https://comtradeplus.un.org/",
+    tos_url: "https://comtradeplus.un.org/",
+    notes: "国家/商品贸易流；只能进入 observation，不能直接生成公司级供应链边。"
+  },
+  {
+    id: "census-trade",
+    tier: "P1",
+    name: "U.S. Census International Trade",
+    category: "trade",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://www.census.gov/data/developers/data-sets/international-trade.html",
+    tos_url: "https://www.census.gov/data/developers/about/terms-of-service.html",
+    notes: "美国进出口观测；适合 HS code、运输方式和港口背景，不证明公司-公司关系。"
+  },
+  {
+    id: "usitc-dataweb",
+    tier: "P1",
+    name: "USITC DataWeb",
+    category: "trade",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://dataweb.usitc.gov/",
+    tos_url: "https://www.usitc.gov/",
+    notes: "美国官方贸易/关税数据；作为 trade observation，不直接入事实图。"
+  },
+  {
+    id: "eia",
+    tier: "P1",
+    name: "U.S. Energy Information Administration",
+    category: "macro",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: true,
+    official_url: "https://www.eia.gov/opendata/",
+    tos_url: "https://www.eia.gov/about/copyrights_reuse.php",
+    notes: "能源和电力观测；用于工厂、数据中心、冶炼链背景，不生成供应链事实边。"
+  },
+  {
+    id: "fred",
+    tier: "P1",
+    name: "FRED",
+    category: "macro",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: true,
+    official_url: "https://fred.stlouisfed.org/docs/api/fred/",
+    tos_url: "https://fred.stlouisfed.org/docs/api/terms_of_use.html",
+    notes: "宏观时间序列；只作为 observation 背景，不生成公司级边。"
+  },
+  {
+    id: "worldbank-pink",
+    tier: "P1",
+    name: "World Bank Pink Sheet",
+    category: "commodity",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://www.worldbank.org/en/research/commodity-markets",
+    tos_url: "https://www.worldbank.org/en/about/legal/terms-and-conditions",
+    notes: "公开商品价格；作为 commodity observation，不证明公司采购关系。"
+  },
+  {
+    id: "usgs-mcs",
+    tier: "P1",
+    name: "USGS Mineral Commodity Summaries",
+    category: "commodity",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://www.usgs.gov/centers/national-minerals-information-center/mineral-commodity-summaries",
+    tos_url: "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
+    notes: "矿产产量、储量和主要国家；只进入 commodity/material observation。"
+  },
+  {
+    id: "iea-critical-minerals",
+    tier: "P1",
+    name: "IEA Critical Minerals Data Explorer",
+    category: "commodity",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://www.iea.org/data-and-statistics/data-tools/critical-minerals-data-explorer",
+    tos_url: "https://www.iea.org/terms",
+    notes: "关键矿物供应/需求情景；只作长期材料约束 observation。"
+  },
+  {
+    id: "rmi-facilities",
+    tier: "P1",
+    name: "Responsible Minerals Initiative Facility Lists",
+    category: "facility",
+    evidence_level_cap: 3,
+    publisher_type: "official_supplier_list",
+    relation_authority: "facility_claim",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://www.responsiblemineralsinitiative.org/facilities-lists/",
+    tos_url: "https://www.responsiblemineralsinitiative.org/",
+    notes: "冶炼/精炼设施候选；必须和公司 responsible sourcing 报告交叉后才能升级。"
+  },
+  {
+    id: "eu-crma",
+    tier: "P1",
+    name: "EU Critical Raw Materials Act",
+    category: "policy",
+    evidence_level_cap: 2,
+    publisher_type: "regulator",
+    relation_authority: "macro_trend",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://single-market-economy.ec.europa.eu/sectors/raw-materials/areas-specific-interest/critical-raw-materials_en",
+    tos_url: "https://commission.europa.eu/legal-notice_en",
+    notes: "关键原材料政策与风险背景；作为 policy observation，不生成公司级供应链边。"
+  },
+  {
+    id: "osh",
+    tier: "P1",
+    name: "Open Supply Hub",
+    category: "facility",
+    evidence_level_cap: 3,
+    publisher_type: "official_supplier_list",
+    relation_authority: "facility_claim",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: true,
+    official_url: "https://opensupplyhub.org/",
+    tos_url: "https://info.opensupplyhub.org/terms-of-use",
+    notes: "全球设施候选与 contributor 声明；默认 observation/candidate，与官方供应商名单交叉后才升级。"
+  },
+  {
+    id: "noaa-ais",
+    tier: "P2",
+    name: "NOAA AccessAIS",
+    category: "logistics",
+    evidence_level_cap: 2,
+    publisher_type: "macro_statistical_agency",
+    relation_authority: "macro_trend",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://coast.noaa.gov/digitalcoast/tools/ais.html",
+    tos_url: "https://coast.noaa.gov/digitalcoast/tools/ais.html",
+    notes: "船舶/港口活动背景；不能证明货物归属或公司级运输关系。"
+  },
+  {
+    id: "sam-gov",
+    tier: "P2",
+    name: "SAM.gov Contract Opportunities",
+    category: "procurement_news",
+    evidence_level_cap: 2,
+    publisher_type: "regulator",
+    relation_authority: "lead_only",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: true,
+    official_url: "https://sam.gov/content/opportunities",
+    tos_url: "https://sam.gov/content/terms-of-use",
+    notes: "美国联邦采购机会；默认进入 lead/hypothesis queue。"
+  },
+  {
+    id: "usaspending",
+    tier: "P2",
+    name: "USAspending.gov",
+    category: "procurement_news",
+    evidence_level_cap: 2,
+    publisher_type: "regulator",
+    relation_authority: "lead_only",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://api.usaspending.gov/",
+    tos_url: "https://www.usaspending.gov/about",
+    notes: "美国联邦合同/拨款；只能作为采购线索或需求侧 observation。"
+  },
+  {
+    id: "eu-ted",
+    tier: "P2",
+    name: "EU TED",
+    category: "procurement_news",
+    evidence_level_cap: 2,
+    publisher_type: "regulator",
+    relation_authority: "lead_only",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://ted.europa.eu/",
+    tos_url: "https://ted.europa.eu/en/legal-notice",
+    notes: "欧洲公共采购；默认进入 lead，不直接写供应链事实边。"
+  },
+  {
+    id: "gdelt",
+    tier: "P2",
+    name: "GDELT",
+    category: "procurement_news",
+    evidence_level_cap: 1,
+    publisher_type: "news",
+    relation_authority: "lead_only",
+    automation: "allowed",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://www.gdeltproject.org/",
+    tos_url: "https://www.gdeltproject.org/",
+    notes: "新闻事件线索；只能进入 lead/hypothesis queue，不能直接升级事实边。"
+  },
+  {
     id: "manual",
     tier: "manual",
     name: "Manual Evidence",
@@ -219,6 +516,10 @@ export function listSources(): SourceRegistryEntry[] {
   return [...SOURCE_REGISTRY];
 }
 
+export function getSourceById(sourceAdapterId: string): SourceRegistryEntry | undefined {
+  return sourceById(sourceAdapterId);
+}
+
 // 来源权威矩阵的唯一入口：scorer 只能通过这里判断“这个来源最多能证明什么”。
 export function sourceAuthorityFor(input: { source_adapter_id: string; document_type: DocumentType }): SourceAuthority {
   const source = sourceById(input.source_adapter_id);
@@ -250,13 +551,22 @@ function fallbackAuthority(input: { source_adapter_id: string; document_type: Do
   };
 }
 
-export function sourceStatusSummary(): { total: number; implemented: number; preview: number; planned: number; manualOnly: number; requiresKey: number } {
+export function sourceStatusSummary(): {
+  total: number;
+  implemented: number;
+  preview: number;
+  planned: number;
+  scoped: number;
+  manualOnly: number;
+  requiresKey: number;
+} {
   const sources = listSources();
   return {
     total: sources.length,
     implemented: sources.filter((source) => source.status === "implemented").length,
     preview: sources.filter((source) => source.status === "preview").length,
     planned: sources.filter((source) => source.status === "planned").length,
+    scoped: sources.filter((source) => source.status === "scoped").length,
     manualOnly: sources.filter((source) => source.status === "manual_only").length,
     requiresKey: sources.filter((source) => source.requires_key).length
   };

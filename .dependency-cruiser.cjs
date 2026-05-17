@@ -26,6 +26,12 @@ module.exports = {
       to: { path: "^packages/(db|graph|graph-builder)/" }
     },
     {
+      name: "graph-builder-must-use-graph-store-interface",
+      severity: "error",
+      from: { path: "^packages/graph-builder/src" },
+      to: { path: "^packages/graph/src" }
+    },
+    {
       name: "apps-cli-uses-render-and-pipeline-not-sources-directly",
       severity: "warn",
       from: { path: "^apps/cli/src" },

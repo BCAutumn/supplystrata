@@ -1,5 +1,5 @@
 {
-  "name": "@supplystrata/graph",
+  "name": "@supplystrata/graph-store",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -10,10 +10,7 @@
     }
   },
   "dependencies": {
-    "@supplystrata/config": "workspace:*",
-    "@supplystrata/core": "workspace:*",
-    "@supplystrata/graph-store": "workspace:*",
-    "neo4j-driver": "~5.28.1"
+    "@supplystrata/core": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

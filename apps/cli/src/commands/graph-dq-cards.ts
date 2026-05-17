@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { runDataQualityChecks } from "@supplystrata/data-quality";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
+import { Neo4jGraphStore } from "@supplystrata/graph";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import { renderChain, renderCompany, renderComponent, renderEvidence, renderUnknownMap } from "@supplystrata/render";
 import { parseFormat, parseLimit, withPool, write, writeJson } from "../cli-utils.js";
@@ -11,11 +12,11 @@ export function registerGraphDqAndCardCommands(program: Command): void {
   const graph = program.command("graph").description("graph commands");
   graph
     .command("rebuild")
-    .description("rebuild Neo4j from Postgres")
+    .description("rebuild the configured graph projection from Postgres")
     .action(async () => {
       await withPool(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver);
+        const builder = new GraphBuilder(pool, resolver, new Neo4jGraphStore());
         try {
           const stats = await builder.rebuild();
           writeJson({ ok: true, ...stats });
@@ -27,11 +28,11 @@ export function registerGraphDqAndCardCommands(program: Command): void {
   graph
     .command("check")
     .option("--format <format>", "markdown or json", "markdown")
-    .description("compare Neo4j materialized view counts with Postgres truth")
+    .description("compare graph projection counts with Postgres truth")
     .action(async (options: { format: string }) => {
       await withPool(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver);
+        const builder = new GraphBuilder(pool, resolver, new Neo4jGraphStore());
         try {
           const check = await builder.checkConsistency();
           write(renderGraphCheck(check, parseFormat(options.format)));

@@ -10,6 +10,7 @@
     }
   },
   "dependencies": {
+    "@supplystrata/component-context": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
     "pg": "~8.13.1"

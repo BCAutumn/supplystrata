@@ -176,6 +176,8 @@ Phase 2 出场。
 - [x] `chain_views` / `chain_segments` schema
 - [x] `packages/chain-view`：输出带 `semantic_layer` 的 CompanyChainViewModel（edge/claim 第一版）
 - [x] `packages/chain-view`：接入 observation / lead / unknown context segment
+- [x] `packages/component-context`：从一级 fact edge 的 component 生成二三级上游研究 lead（不入事实图）
+- [x] `packages/source-plan`：把二三级 component lead 映射到免费/公开数据源计划，明确 edge / observation / lead / entity 输出层
 - [x] `packages/workbench-export`：导出研究工作台 JSON
 - [x] `apps/research-preview` 消费 ChainViewModel JSON（TypeScript + Canvas 第一版）
 - [ ] `dart-kr` adapter（Samsung / SK Hynix 韩文披露的英文版）

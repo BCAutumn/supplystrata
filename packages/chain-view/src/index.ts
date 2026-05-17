@@ -1,4 +1,5 @@
 import type pg from "pg";
+import { listComponentUpstreamLeads, type ComponentUpstreamLead } from "@supplystrata/component-context";
 import type { ChainEndpointKind, EvidenceLevel, RelationType, SemanticLayer } from "@supplystrata/core";
 import {
   listLeadObservationsByScope,
@@ -98,7 +99,7 @@ export async function buildCompanyChainView(client: DbClient, input: BuildCompan
   const maxDepth = clampDepth(input.depth ?? 2);
   const rows = await loadChainFactRows(client, rootEntityId, maxDepth);
   const factSegments = rows.flatMap((row, index) => segmentsFromFactRow(row, index));
-  const contextSegments = await loadContextSegments(client, { root: rootModel, rows, sequenceStart: factSegments.length });
+  const contextSegments = await loadContextSegments(client, { root: rootModel, rows, maxDepth, sequenceStart: factSegments.length });
   const segments = [...factSegments, ...contextSegments];
   return {
     schema_version: "1.0.0",
@@ -149,6 +150,23 @@ export function segmentFromLead(row: LeadObservationRow, input: { root: ChainVie
     evidence_ids: [],
     confidence: leadConfidence(row),
     label: `${row.title}: ${row.summary}`
+  };
+}
+
+export function segmentFromComponentUpstreamLead(lead: ComponentUpstreamLead, input: { row: ChainFactRow; sequence_index: number }): ChainViewSegmentModel {
+  return {
+    sequence_index: input.sequence_index,
+    depth: input.row.depth + lead.tier_depth,
+    semantic_layer: "lead",
+    from: { kind: "company", id: input.row.upstream_id, name: input.row.upstream_name },
+    to: { kind: lead.target_kind, id: lead.target_id, name: lead.target_name },
+    relation: "LEADS_TO",
+    component: lead.target_name,
+    component_id: lead.target_kind === "component" ? lead.target_id : input.row.component_id,
+    lead_id: lead.dependency_id,
+    evidence_ids: [],
+    confidence: lead.confidence,
+    label: componentLeadLabel(lead, input.row)
   };
 }
 
@@ -289,16 +307,21 @@ async function loadChainFactRows(client: DbClient, rootEntityId: string, maxDept
 
 async function loadContextSegments(
   client: DbClient,
-  input: { root: ChainViewRoot; rows: readonly ChainFactRow[]; sequenceStart: number }
+  input: { root: ChainViewRoot; rows: readonly ChainFactRow[]; maxDepth: number; sequenceStart: number }
 ): Promise<ChainViewSegmentModel[]> {
   const rootObservations = await listObservationsByScope(client, { scope_kind: "company", scope_id: input.root.id, limit: 10 });
   const componentObservations = await loadComponentObservations(client, input.rows);
+  const componentLeads = componentUpstreamLeadSegments(input.rows, input.maxDepth);
   const leads = await listLeadObservationsByScope(client, { scope_kind: "company", scope_id: input.root.id, status: "open", limit: 10 });
   const unknowns = await listUnknownItems(client, input.root.id);
   const segments: ChainViewSegmentModel[] = [];
   let sequenceIndex = input.sequenceStart;
   for (const observation of [...rootObservations, ...componentObservations]) {
     segments.push(segmentFromObservation(observation, { root: input.root, sequence_index: sequenceIndex }));
+    sequenceIndex += 1;
+  }
+  for (const lead of componentLeads) {
+    segments.push({ ...lead, sequence_index: sequenceIndex });
     sequenceIndex += 1;
   }
   for (const lead of leads) {
@@ -310,6 +333,33 @@ async function loadContextSegments(
     sequenceIndex += 1;
   }
   return segments;
+}
+
+function componentUpstreamLeadSegments(rows: readonly ChainFactRow[], maxDepth: number): ChainViewSegmentModel[] {
+  const segments: ChainViewSegmentModel[] = [];
+  let sequenceIndex = 0;
+  for (const row of rows) {
+    if (row.component_id === null) continue;
+    const remainingDepth = maxDepth - row.depth;
+    if (remainingDepth < 1) continue;
+    for (const lead of listComponentUpstreamLeads(row.component_id, remainingDepth)) {
+      segments.push(segmentFromComponentUpstreamLead(lead, { row, sequence_index: sequenceIndex }));
+      sequenceIndex += 1;
+    }
+  }
+  return dedupeComponentLeadSegments(segments);
+}
+
+function dedupeComponentLeadSegments(segments: readonly ChainViewSegmentModel[]): ChainViewSegmentModel[] {
+  const seen = new Set<string>();
+  const output: ChainViewSegmentModel[] = [];
+  for (const segment of segments) {
+    const key = `${segment.from.id}:${segment.lead_id ?? ""}:${segment.to.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push({ ...segment, sequence_index: output.length });
+  }
+  return output;
 }
 
 async function loadComponentObservations(client: DbClient, rows: readonly ChainFactRow[]): Promise<ObservationRow[]> {
@@ -351,4 +401,9 @@ function leadConfidence(row: LeadObservationRow): number {
   if (row.status === "in_review") return 0.5;
   if (row.status === "open") return 0.25;
   return 0;
+}
+
+function componentLeadLabel(lead: ComponentUpstreamLead, row: ChainFactRow): string {
+  const unknowns = lead.unknowns.length === 0 ? "" : ` Unknowns: ${lead.unknowns.join("; ")}.`;
+  return `${lead.title}. Trigger: ${row.upstream_name} is linked by ${row.relation} (${row.component ?? row.component_id ?? "component"}). ${lead.summary}${unknowns}`;
 }

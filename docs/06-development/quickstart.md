@@ -12,9 +12,9 @@
 - pnpm >= 9
 - Docker + Docker Compose v2（可选）
 - 可连接的 Postgres（持久化 pipeline / review / source monitor 需要）
-- Neo4j（可选，图谱物化视图需要）
+- GraphStore 后端（可选；仓库内置 Neo4j adapter，图谱物化视图需要）
 
-本仓库的 CLI 和数据源 adapter 都是 TypeScript。Docker 只用于一键启动本地 Postgres / Neo4j 测试环境，不是产品运行时的强依赖；嵌入其它 TS 桌面端或 agent 产品时，可以只调用无数据库 preview / adapter API，也可以连接宿主项目提供的 Postgres。
+本仓库的 CLI 和数据源 adapter 都是 TypeScript。Docker 只用于一键启动本地 Postgres / Neo4j 测试环境，不是产品运行时的强依赖；嵌入其它 TS 桌面端或 agent 产品时，可以只调用无数据库 preview / adapter API，也可以连接宿主项目提供的 Postgres，并按需实现自己的 GraphStore adapter。
 
 ## 1. 安装依赖
 
@@ -111,7 +111,7 @@ pnpm --silent cli preview report nvidia --format markdown --lang zh
 pnpm --silent cli preview apple-suppliers --limit 10 --format markdown
 ```
 
-这条路径不会落库，也不会写 Neo4j，适合未来嵌入 TS 桌面端或 agent 产品。需要 review 队列、source health、changes timeline 或 Postgres truth store 时，需要连接 Postgres；需要图数据库物化视图、`graph rebuild/check` 或 Neo4j Browser 探索时，才需要 Neo4j。
+这条路径不会落库，也不会写 GraphStore，适合未来嵌入 TS 桌面端或 agent 产品。需要 review 队列、source health、changes timeline 或 Postgres truth store 时，需要连接 Postgres；需要图数据库物化视图、`graph rebuild/check` 或 Neo4j Browser 探索时，才需要 Neo4j adapter。
 
 ## 常见失败
 

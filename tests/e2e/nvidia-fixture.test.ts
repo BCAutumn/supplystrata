@@ -3,9 +3,10 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RawDocument } from "@supplystrata/core";
+import { type EntityRecord, type RawDocument } from "@supplystrata/core";
 import { createPool, migrate, seedFromCsv } from "@supplystrata/db";
 import { GraphBuilder } from "@supplystrata/graph-builder";
+import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
 import { parseHtml } from "@supplystrata/parsers-html";
 import { runSupplyChainPipelineFromNormalized } from "@supplystrata/pipeline";
 import { renderCompany, renderUnknownMap } from "@supplystrata/render";
@@ -41,7 +42,8 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
     const summary = await runSupplyChainPipelineFromNormalized(pool, {
       normalized
     });
-    const builder = new GraphBuilder(pool, new DbEntityResolver(pool));
+    const graphStore = new CountingGraphStore();
+    const builder = new GraphBuilder(pool, new DbEntityResolver(pool), graphStore);
     try {
       const rebuildStats = await builder.rebuild();
       expect(rebuildStats.nodes).toBeGreaterThanOrEqual(59);
@@ -104,9 +106,22 @@ async function cleanupFixtureRows(client: pg.Pool): Promise<void> {
   for (const edgeId of reusableEdgesTouchedByFixture) {
     await promoteBestPrimaryEvidenceExcludingFixture(client, edgeId);
   }
+  await cleanupFixtureSourceMonitoringRows(client);
   await client.query("DELETE FROM evidence WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
   await client.query("DELETE FROM document_chunks WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
   await client.query("DELETE FROM documents WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
+}
+
+async function cleanupFixtureSourceMonitoringRows(client: pg.Pool): Promise<void> {
+  await client.query("DELETE FROM source_change_events WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
+  await client.query("DELETE FROM document_versions WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
+  await client.query(
+    `UPDATE source_items
+     SET latest_doc_id = NULL,
+         latest_bytes_sha256 = NULL,
+         latest_storage_key = NULL
+     WHERE latest_doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'`
+  );
 }
 
 async function listFixtureEvidenceEdgeIds(client: pg.Pool): Promise<string[]> {
@@ -150,10 +165,36 @@ async function promoteBestPrimaryEvidenceExcludingFixture(client: pg.Pool, edgeI
 }
 
 async function rebuildGraphQuietly(pool: pg.Pool): Promise<void> {
-  const builder = new GraphBuilder(pool, new DbEntityResolver(pool));
+  const builder = new GraphBuilder(pool, new DbEntityResolver(pool), new CountingGraphStore());
   try {
     await builder.rebuild();
   } finally {
     await builder.close();
+  }
+}
+
+class CountingGraphStore implements GraphStore {
+  readonly #nodes = new Set<string>();
+  readonly #edges = new Set<string>();
+
+  async close(): Promise<void> {}
+
+  async ensureSchema(): Promise<void> {}
+
+  async clear(): Promise<void> {
+    this.#nodes.clear();
+    this.#edges.clear();
+  }
+
+  async upsertEntity(entity: EntityRecord): Promise<void> {
+    this.#nodes.add(entity.entity_id);
+  }
+
+  async upsertEdge(edge: GraphEdgeInput): Promise<void> {
+    this.#edges.add(edge.edge_id);
+  }
+
+  async stats(): Promise<{ nodes: number; edges: number }> {
+    return { nodes: this.#nodes.size, edges: this.#edges.size };
   }
 }

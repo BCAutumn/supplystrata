@@ -1,5 +1,6 @@
 import type { OutputFormat } from "@supplystrata/render";
 import type { SourceHealthRow, SourcePolicyRow } from "@supplystrata/source-monitor";
+import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { SourceRegistryEntry } from "@supplystrata/source-registry";
 
 export function renderSourcesList(sources: SourceRegistryEntry[], format: OutputFormat): string {
@@ -40,6 +41,24 @@ export function renderDueSources(sources: SourcePolicyRow[], format: OutputForma
     lines.push(`- ${source.source_adapter_id}`);
     lines.push(`  Priority: ${source.priority}; cadence: ${formatMinutes(source.check_cadence_minutes)}; next: ${formatDate(source.next_check_at)}`);
     lines.push(`  Config: ${source.config_source}${source.notes === null ? "" : `; notes: ${source.notes}`}`);
+  }
+  return lines.join("\n");
+}
+
+export function renderSourcePlan(plan: SourcePlanItem[], format: OutputFormat): string {
+  if (format === "json") return JSON.stringify({ schema_version: "1.0.0", source_plan: plan }, null, 2);
+  const lines = ["# Source Plan", "", `Count: ${plan.length}`, ""];
+  for (const item of plan) {
+    lines.push(`- ${item.source_id} [${item.priority}] ${item.status}`);
+    lines.push(`  Name: ${item.source_name}`);
+    lines.push(`  Purpose: ${item.purpose}; output: ${item.expected_output_layer}; policy: ${item.relation_policy}`);
+    lines.push(`  Automation: ${item.automation}; key: ${item.requires_key ? "yes" : "no"}`);
+    lines.push(`  Parent components: ${item.parent_component_ids.join(", ")}`);
+    lines.push(`  Targets: ${item.target_ids.join(", ")}`);
+    lines.push(`  Triggers: ${item.trigger_dependency_ids.join(", ")}`);
+    for (const reason of item.reasons.slice(0, 3)) lines.push(`  Reason: ${reason}`);
+    if (item.reasons.length > 3) lines.push(`  More reasons: ${item.reasons.length - 3}`);
+    lines.push("");
   }
   return lines.join("\n");
 }

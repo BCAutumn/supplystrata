@@ -13,7 +13,8 @@
     "@supplystrata/chain-view": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
-    "@supplystrata/source-monitor": "workspace:*"
+    "@supplystrata/source-monitor": "workspace:*",
+    "@supplystrata/source-plan": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

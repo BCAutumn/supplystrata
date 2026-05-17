@@ -13,16 +13,23 @@ describe("source registry", () => {
     expect(ids.has("opencorporates")).toBe(true);
     expect(ids.has("companies-house")).toBe(true);
     expect(ids.has("seed-entities")).toBe(true);
+    expect(ids.has("dart-kr")).toBe(true);
+    expect(ids.has("edinet")).toBe(true);
+    expect(ids.has("osh")).toBe(true);
+    expect(ids.has("un-comtrade")).toBe(true);
+    expect(ids.has("noaa-ais")).toBe(true);
+    expect(ids.has("usgs-mcs")).toBe(true);
   });
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 11,
+      total: 30,
       implemented: 2,
       preview: 7,
-      planned: 1,
+      planned: 2,
+      scoped: 18,
       manualOnly: 1,
-      requiresKey: 2
+      requiresKey: 8
     });
   });
 
@@ -44,6 +51,14 @@ describe("source registry", () => {
     });
     expect(sourceAuthorityFor({ source_adapter_id: "import-yeti", document_type: "manual" })).toMatchObject({
       relation_authority: "lead_only",
+      max_evidence_level: 3
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "un-comtrade", document_type: "manual" })).toMatchObject({
+      relation_authority: "macro_trend",
+      max_evidence_level: 2
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "osh", document_type: "supplier_list" })).toMatchObject({
+      relation_authority: "facility_claim",
       max_evidence_level: 3
     });
     expect(sourceAuthorityFor({ source_adapter_id: "manual", document_type: "manual" })).toMatchObject({

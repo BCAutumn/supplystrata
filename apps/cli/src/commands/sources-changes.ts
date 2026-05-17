@@ -8,9 +8,10 @@ import {
   syncSourceHealthRegistry,
   syncSourcePolicyConfig
 } from "@supplystrata/source-monitor";
+import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
 import { defaultSince, parseChangeScope, parseFormat, parseLimit, parseSince, withPool, write, writeJson } from "../cli-utils.js";
-import { renderDueSources, renderSourceHealth, renderSourcesList } from "../source-render.js";
+import { renderDueSources, renderSourceHealth, renderSourcePlan, renderSourcesList } from "../source-render.js";
 
 export function registerSourcesAndChangesCommands(program: Command): void {
   const sources = program.command("sources").description("source registry commands");
@@ -39,6 +40,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
           `Implemented: ${summary.implemented}`,
           `Preview: ${summary.preview}`,
           `Planned: ${summary.planned}`,
+          `Scoped: ${summary.scoped}`,
           `Manual-only: ${summary.manualOnly}`,
           `Requires key: ${summary.requiresKey}`
         ].join("\n")
@@ -73,6 +75,19 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         const due = await listDueSourceChecks(pool, { limit: parseLimit(options.limit) });
         write(renderDueSources(due, parseFormat(options.format)));
       });
+    });
+  sources
+    .command("plan")
+    .requiredOption("--component <ids>", "component id or comma-separated component ids, e.g. COMP-WAFER,COMP-HBM")
+    .option("--entity <ids>", "optional entity id or comma-separated entity ids for company-specific sources")
+    .option("--depth <depth>", "max upstream catalog depth", "3")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("plan free/public data sources for component upstream research")
+    .action((options: { component: string; entity?: string; depth: string; format: string }) => {
+      const componentIds = parseComponentIds(options.component);
+      const entityIds = options.entity === undefined ? [] : parseComponentIds(options.entity);
+      const plan = planSourcesForComponents({ component_ids: componentIds, entity_ids: entityIds, maxTierDepth: parseLimit(options.depth) });
+      write(renderSourcePlan(plan, parseFormat(options.format)));
     });
 
   const sourcePolicy = sources.command("policy").description("source monitoring policy commands");
@@ -113,4 +128,13 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         write(await renderChanges(pool, input));
       });
     });
+}
+
+function parseComponentIds(value: string): string[] {
+  const ids = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (ids.length === 0) throw new Error("--component must include at least one component id");
+  return [...new Set(ids)].sort();
 }
