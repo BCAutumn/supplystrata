@@ -35,6 +35,9 @@ packages/db/src/
 ├── documents.ts               normalized document / chunks 写入
 ├── query.ts                   edge / evidence / unknown / entity 只读查询
 ├── changes.ts                 graph/source change timeline 查询
+├── claims.ts                  claim / claim_evidence / claim_unknowns 仓储
+├── observations.ts            observations / lead_observations 仓储
+├── chain-views.ts             chain_views / chain_segments 仓储
 ├── pending.ts                 pending entity 写入与查询
 └── index.ts                   稳定 re-export
 ```

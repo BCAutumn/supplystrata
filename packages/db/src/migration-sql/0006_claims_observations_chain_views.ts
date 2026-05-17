@@ -161,11 +161,11 @@ CREATE TABLE IF NOT EXISTS chain_segments (
   confidence REAL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
   attrs JSONB NOT NULL DEFAULT '{}'::jsonb,
   CHECK (
-    (semantic_layer = 'edge' AND edge_id IS NOT NULL)
-    OR (semantic_layer = 'claim' AND claim_id IS NOT NULL)
-    OR (semantic_layer = 'observation' AND observation_id IS NOT NULL)
-    OR (semantic_layer = 'lead' AND lead_id IS NOT NULL)
-    OR (semantic_layer = 'unknown' AND unknown_id IS NOT NULL)
+    (semantic_layer = 'edge' AND edge_id IS NOT NULL AND claim_id IS NULL AND observation_id IS NULL AND lead_id IS NULL AND unknown_id IS NULL)
+    OR (semantic_layer = 'claim' AND edge_id IS NULL AND claim_id IS NOT NULL AND observation_id IS NULL AND lead_id IS NULL AND unknown_id IS NULL)
+    OR (semantic_layer = 'observation' AND edge_id IS NULL AND claim_id IS NULL AND observation_id IS NOT NULL AND lead_id IS NULL AND unknown_id IS NULL)
+    OR (semantic_layer = 'lead' AND edge_id IS NULL AND claim_id IS NULL AND observation_id IS NULL AND lead_id IS NOT NULL AND unknown_id IS NULL)
+    OR (semantic_layer = 'unknown' AND edge_id IS NULL AND claim_id IS NULL AND observation_id IS NULL AND lead_id IS NULL AND unknown_id IS NOT NULL)
   )
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_chain_segments_order ON chain_segments(chain_id, sequence_index, segment_id);

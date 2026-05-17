@@ -311,6 +311,8 @@ unknown
 
 ### PR B：Core 类型与 DB 仓储
 
+状态：已落地。`packages/db` 新增 `claims.ts`、`observations.ts`、`chain-views.ts`，只提供 insert/list/get/link 等仓储函数，不做业务推断。
+
 新增类型：
 
 ```text
@@ -332,9 +334,10 @@ packages/db/src/chain-views.ts
 
 验收：
 
-- 仓储函数只做数据写入和读取，不做业务推断。
-- 单元测试覆盖 insert/list/get。
-- 不引入 `any` 或 `unknown as T`。
+- [x] 仓储函数只做数据写入和读取，不做业务推断。
+- [x] 单元测试覆盖 insert/list/get 的关键路径。
+- [x] 不引入 `any` 或 `unknown as T`。
+- [x] `chain_segments` 写入时只保留当前 `semantic_layer` 对应引用，防止 observation/lead 被误当事实边。
 
 ### PR C：claim-builder
 

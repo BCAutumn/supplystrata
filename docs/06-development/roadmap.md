@@ -167,6 +167,7 @@ Phase 2 出场。
 ### 任务
 
 - [x] `claims` / `claim_evidence` / `claim_unknowns` schema
+- [x] `packages/db` claim / observation / chain-view 仓储函数
 - [ ] `packages/claim-builder`：从 edge/evidence/unknown 生成可审计 claim
 - [x] `observations` / `lead_observations` schema
 - [x] `chain_views` / `chain_segments` schema
