@@ -91,18 +91,15 @@ queue: housekeeping       → daily 任务
 
 ## 速率控制
 
-每个 adapter 自带 token bucket：
+每个 adapter 必须声明 `rate_limit`，实际执行由 `@supplystrata/source-adapter-spec` 的统一 limiter 包装 `plan/fetch`。adapter 不能自己散落 `setTimeout`，否则 source monitor 并发调度时会出现声明限速和实际限速分叉。
 
 ```ts
-const limiter = createTokenBucket({
-  capacity: rate_limit.requests,
-  refillEverySec: rate_limit.per_seconds,
-});
-await limiter.acquire(1);
-const resp = await undici.request(url, ...);
+const adapter = createRateLimitedSourceAdapter(adapterBase);
 ```
 
-如果数据源在 429 / 503 时返回 retry-after，必须沿用。多 adapter 同时跑时各自独立 bucket，不共享。
+当前 limiter 采用按 adapter id 串行排队的平均间隔策略：`per_seconds / requests`。它比 burst token bucket 更保守，但更适合 alpha 阶段保护免费公开源。后续如果要支持 burst，应在同一个 limiter 里升级，不允许在 adapter 内各写各的。
+
+如果数据源在 429 / 503 时返回 retry-after，fetch helper 仍应沿用。多 adapter 同时跑时各自独立队列，不共享。
 
 ## Robots.txt 与 ToS 检查
 

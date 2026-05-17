@@ -11,6 +11,7 @@ import {
 } from "@supplystrata/review-candidates";
 import { decideReviewCandidate, enqueueReviewCandidates, getReviewCandidate } from "@supplystrata/review-store";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
+import { canConnectToIntegrationDatabase } from "./helpers.js";
 
 interface CountRow extends pg.QueryResultRow {
   count: string;
@@ -24,7 +25,9 @@ interface EdgeRow extends pg.QueryResultRow {
   evidence_level: number;
 }
 
-describe("review apply integration", () => {
+const hasDatabase = await canConnectToIntegrationDatabase();
+
+describe.skipIf(!hasDatabase)("review apply integration", () => {
   const pool = createPool();
 
   beforeAll(async () => {

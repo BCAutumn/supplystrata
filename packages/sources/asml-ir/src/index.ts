@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createId, fetchBytesWithTimeout, loadEnv } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface AsmlIrInput {
@@ -11,7 +11,7 @@ export interface AsmlIrInput {
   entityId: "ENT-ASML";
 }
 
-export const asmlIrAdapter: SourceAdapter<AsmlIrInput, Uint8Array> = {
+const asmlIrAdapterBase: SourceAdapter<AsmlIrInput, Uint8Array> = {
   id: "asml-ir",
   tier: "P0",
   description: "ASML official annual report website",
@@ -51,6 +51,8 @@ export const asmlIrAdapter: SourceAdapter<AsmlIrInput, Uint8Array> = {
     return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
 };
+
+export const asmlIrAdapter = createRateLimitedSourceAdapter(asmlIrAdapterBase);
 
 export function annualReportUrl(year: number): string {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new Error(`Invalid ASML annual report year: ${year}`);

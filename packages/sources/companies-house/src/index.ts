@@ -3,7 +3,7 @@ import { Buffer } from "node:buffer";
 import { createId, fetchBytesWithTimeout, loadEnv, requireEnvValue, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import { FsObjectStore } from "@supplystrata/object-store";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export interface CompaniesHouseSearchInput {
@@ -21,7 +21,7 @@ interface CompaniesHouseSearchItem {
   links_self?: string;
 }
 
-export const companiesHouseAdapter: SourceAdapter<CompaniesHouseSearchInput, Uint8Array> = {
+const companiesHouseAdapterBase: SourceAdapter<CompaniesHouseSearchInput, Uint8Array> = {
   id: "companies-house",
   tier: "P0",
   description: "UK Companies House official company search API for entity resolution",
@@ -64,6 +64,8 @@ export const companiesHouseAdapter: SourceAdapter<CompaniesHouseSearchInput, Uin
     return normalizeCompaniesHouseDocument(raw);
   }
 };
+
+export const companiesHouseAdapter = createRateLimitedSourceAdapter(companiesHouseAdapterBase);
 
 export function createCompaniesHouseAdapterContext(): AdapterContext {
   return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };

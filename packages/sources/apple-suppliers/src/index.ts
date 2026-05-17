@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { createId, fetchBytesWithTimeout, loadEnv, type NormalizedDocument } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
 import { parsePdf } from "@supplystrata/parsers-pdf";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { extractFixedWidthSupplierListCandidates, type SupplierListCandidate, type SupplierListParseConfig } from "@supplystrata/supplier-list";
 
 export interface AppleSuppliersInput {
@@ -21,7 +21,7 @@ export interface AppleSupplierPreview {
   candidates: AppleSupplierCandidate[];
 }
 
-export const appleSuppliersAdapter: SourceAdapter<AppleSuppliersInput, Uint8Array> = {
+const appleSuppliersAdapterBase: SourceAdapter<AppleSuppliersInput, Uint8Array> = {
   id: "apple-suppliers",
   tier: "P0",
   description: "Apple official Supplier List PDF",
@@ -70,6 +70,8 @@ export const appleSuppliersAdapter: SourceAdapter<AppleSuppliersInput, Uint8Arra
     });
   }
 };
+
+export const appleSuppliersAdapter = createRateLimitedSourceAdapter(appleSuppliersAdapterBase);
 
 export function appleSupplierListUrl(fiscalYear: 2022): string {
   if (fiscalYear !== 2022) throw new Error(`Unsupported Apple Supplier List fiscal year: ${fiscalYear}`);

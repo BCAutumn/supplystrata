@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createId, loadEnv, type FetchTask } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export type SecEdgarFormType = "10-K" | "10-Q" | "20-F" | "8-K";
@@ -24,7 +24,7 @@ interface SecSubmissionPayload {
   filings: { recent: SecRecentFilings };
 }
 
-export const secEdgarAdapter: SourceAdapter<SecEdgarInput, Uint8Array> = {
+const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
   id: "sec-edgar",
   tier: "P0",
   description: "SEC EDGAR official filings API",
@@ -87,6 +87,8 @@ export const secEdgarAdapter: SourceAdapter<SecEdgarInput, Uint8Array> = {
     return normalizeHtmlDocument({ raw, documentType });
   }
 };
+
+export const secEdgarAdapter = createRateLimitedSourceAdapter(secEdgarAdapterBase);
 
 export function normalizeCik(cik: string): string {
   const digits = cik.replace(/\D/g, "");

@@ -1,8 +1,11 @@
 import type pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createPool, migrate, seedFromCsv } from "@supplystrata/db";
+import { canConnectToIntegrationDatabase } from "./helpers.js";
 
-describe("component seed backfill", () => {
+const hasDatabase = await canConnectToIntegrationDatabase();
+
+describe.skipIf(!hasDatabase)("component seed backfill", () => {
   const pool = createPool();
 
   beforeAll(async () => {

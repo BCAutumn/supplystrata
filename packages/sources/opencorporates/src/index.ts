@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createId, fetchBytesWithTimeout, loadEnv, requireEnvValue, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import { FsObjectStore } from "@supplystrata/object-store";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export interface OpenCorporatesSearchInput {
@@ -28,7 +28,7 @@ interface OpenCorporatesCompany {
   alternative_names: string[];
 }
 
-export const openCorporatesAdapter: SourceAdapter<OpenCorporatesSearchInput, Uint8Array> = {
+const openCorporatesAdapterBase: SourceAdapter<OpenCorporatesSearchInput, Uint8Array> = {
   id: "opencorporates",
   tier: "P0",
   description: "OpenCorporates public company registry API for entity resolution",
@@ -71,6 +71,8 @@ export const openCorporatesAdapter: SourceAdapter<OpenCorporatesSearchInput, Uin
     return normalizeOpenCorporatesDocument(raw);
   }
 };
+
+export const openCorporatesAdapter = createRateLimitedSourceAdapter(openCorporatesAdapterBase);
 
 export function createOpenCorporatesAdapterContext(): AdapterContext {
   return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };

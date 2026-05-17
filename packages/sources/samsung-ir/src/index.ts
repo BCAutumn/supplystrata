@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createId, fetchBytesWithTimeout, loadEnv } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface SamsungIrInput {
@@ -11,7 +11,7 @@ export interface SamsungIrInput {
   entityId: "ENT-SAMSUNG-ELECTRONICS";
 }
 
-export const samsungIrAdapter: SourceAdapter<SamsungIrInput, Uint8Array> = {
+const samsungIrAdapterBase: SourceAdapter<SamsungIrInput, Uint8Array> = {
   id: "samsung-ir",
   tier: "P0",
   description: "Samsung Electronics official investor relations / newsroom disclosures",
@@ -51,6 +51,8 @@ export const samsungIrAdapter: SourceAdapter<SamsungIrInput, Uint8Array> = {
     return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
 };
+
+export const samsungIrAdapter = createRateLimitedSourceAdapter(samsungIrAdapterBase);
 
 export function officialDisclosureUrl(year: number): string {
   if (year !== 2025) return "https://news.samsung.com/global/";

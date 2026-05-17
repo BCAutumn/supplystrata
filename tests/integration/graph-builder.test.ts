@@ -5,6 +5,7 @@ import { createPool, migrate } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph";
 import { GraphBuilder } from "@supplystrata/graph-builder";
+import { canConnectToIntegrationDatabase } from "./helpers.js";
 
 class StaticResolver implements EntityResolver {
   async resolve(input: { surface: string }): ReturnType<EntityResolver["resolve"]> {
@@ -84,7 +85,9 @@ interface EvidenceTraceTestRow extends pg.QueryResultRow {
   relation_candidate_hash: string | null;
 }
 
-describe("GraphBuilder integration", () => {
+const hasDatabase = await canConnectToIntegrationDatabase();
+
+describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   const pool = createPool();
 
   beforeAll(async () => {

@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createId, fetchBytesWithTimeout, loadEnv, type FetchTask } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface TsmcIrInput {
@@ -11,7 +11,7 @@ export interface TsmcIrInput {
   entityId: "ENT-TSMC";
 }
 
-export const tsmcIrAdapter: SourceAdapter<TsmcIrInput, Uint8Array> = {
+const tsmcIrAdapterBase: SourceAdapter<TsmcIrInput, Uint8Array> = {
   id: "tsmc-ir",
   tier: "P0",
   description: "TSMC official investor relations annual report website",
@@ -51,6 +51,8 @@ export const tsmcIrAdapter: SourceAdapter<TsmcIrInput, Uint8Array> = {
     return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
 };
+
+export const tsmcIrAdapter = createRateLimitedSourceAdapter(tsmcIrAdapterBase);
 
 export function annualReportUrl(year: number): string {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new Error(`Invalid TSMC annual report year: ${year}`);

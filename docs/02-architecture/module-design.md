@@ -149,7 +149,7 @@ export interface DocumentChunk {
 - adapter **不直接**写入 Postgres / Neo4j；写入由 pipeline 统一处理
 - adapter **不直接**解析关系或写实体主表；实体消歧由 entity-resolver / review apply 阶段处理
 - adapter 的 `normalize()` 必须返回完整 `NormalizedDocument`。HTML / PDF / text 用 parser 包清洗切块；结构化 JSON 源也要生成可审计文本摘要和 chunks。
-- adapter **必须**遵守 `rate_limit` 自我限流（pipeline 也会强制）
+- adapter **必须**声明 `rate_limit`，并通过 `createRateLimitedSourceAdapter()` 导出统一限速后的实例；pipeline / source monitor 不再各自实现限速。
 
 ### 2. EntityResolver
 

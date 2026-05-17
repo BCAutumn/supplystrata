@@ -2,8 +2,11 @@ import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPool, migrate, seedFromCsv } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
+import { canConnectToIntegrationDatabase } from "./helpers.js";
 
-describe("DbEntityResolver", () => {
+const hasDatabase = await canConnectToIntegrationDatabase();
+
+describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
   const pool: pg.Pool = createPool();
 
   beforeAll(async () => {

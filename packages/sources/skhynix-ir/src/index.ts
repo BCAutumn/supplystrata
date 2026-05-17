@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createId, fetchBytesWithTimeout, loadEnv } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface SkHynixIrInput {
@@ -11,7 +11,7 @@ export interface SkHynixIrInput {
   entityId: "ENT-SKHYNIX";
 }
 
-export const skHynixIrAdapter: SourceAdapter<SkHynixIrInput, Uint8Array> = {
+const skHynixIrAdapterBase: SourceAdapter<SkHynixIrInput, Uint8Array> = {
   id: "skhynix-ir",
   tier: "P0",
   description: "SK hynix official investor relations / newsroom disclosures",
@@ -51,6 +51,8 @@ export const skHynixIrAdapter: SourceAdapter<SkHynixIrInput, Uint8Array> = {
     return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
 };
+
+export const skHynixIrAdapter = createRateLimitedSourceAdapter(skHynixIrAdapterBase);
 
 export function officialDisclosureUrl(year: number): string {
   if (year !== 2025) return "https://news.skhynix.com/";
