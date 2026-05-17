@@ -105,9 +105,21 @@ importers:
       '@supplystrata/source-registry':
         specifier: workspace:*
         version: link:../../packages/source-registry
+      '@supplystrata/workbench-export':
+        specifier: workspace:*
+        version: link:../../packages/workbench-export
       commander:
         specifier: ~12.1.0
         version: 12.1.0
+
+  apps/research-preview:
+    dependencies:
+      '@supplystrata/chain-view':
+        specifier: workspace:*
+        version: link:../../packages/chain-view
+      '@supplystrata/workbench-export':
+        specifier: workspace:*
+        version: link:../../packages/workbench-export
 
   packages/chain-view:
     dependencies:
@@ -630,6 +642,21 @@ importers:
         version: link:../../source-normalizers
 
   packages/supplier-list: {}
+
+  packages/workbench-export:
+    dependencies:
+      '@supplystrata/chain-view':
+        specifier: workspace:*
+        version: link:../chain-view
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      '@supplystrata/source-monitor':
+        specifier: workspace:*
+        version: link:../source-monitor
 
 packages:
 

@@ -48,6 +48,7 @@
       "@supplystrata/source-normalizers": ["packages/source-normalizers/src/index.ts"],
       "@supplystrata/source-registry": ["packages/source-registry/src/index.ts"],
       "@supplystrata/supplier-list": ["packages/supplier-list/src/index.ts"],
+      "@supplystrata/workbench-export": ["packages/workbench-export/src/index.ts"],
       "@supplystrata/sources-apple-suppliers": ["packages/sources/apple-suppliers/src/index.ts"],
       "@supplystrata/sources-asml-ir": ["packages/sources/asml-ir/src/index.ts"],
       "@supplystrata/sources-companies-house": ["packages/sources/companies-house/src/index.ts"],

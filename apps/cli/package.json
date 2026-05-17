@@ -20,6 +20,7 @@
     "@supplystrata/review-store": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/source-registry": "workspace:*",
+    "@supplystrata/workbench-export": "workspace:*",
     "commander": "~12.1.0"
   },
   "main": "./dist/main.js",

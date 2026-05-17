@@ -176,7 +176,8 @@ Phase 2 出场。
 - [x] `chain_views` / `chain_segments` schema
 - [x] `packages/chain-view`：输出带 `semantic_layer` 的 CompanyChainViewModel（edge/claim 第一版）
 - [x] `packages/chain-view`：接入 observation / lead / unknown context segment
-- [ ] `apps/research-preview` 消费 ChainViewModel JSON
+- [x] `packages/workbench-export`：导出研究工作台 JSON
+- [x] `apps/research-preview` 消费 ChainViewModel JSON（TypeScript + Canvas 第一版）
 - [ ] `dart-kr` adapter（Samsung / SK Hynix 韩文披露的英文版）
 - [ ] 扩展亚洲/欧洲 IR 的历史覆盖与非 MVP 公司（MVP 的 4 家 IR 已在 Phase 2 接入）
 - [ ] `un-comtrade` adapter → macro_signals 表
@@ -194,6 +195,7 @@ Phase 2 出场。
 
 - [ ] 报告里的事实性句子都有 `claim_id`，unsupported claim rate = 0
 - [x] ChainView 模型能同时展示 fact edge、observation、lead、unknown boundary
+- [x] 本地 research-preview 可以消费 workbench JSON 并展示 ChainView
 - [ ] Macro signals 在 ComponentCard 中已被引用
 - [ ] BOL 推断边总数 < 总边数 20%（避免被推断淹没）
 - [ ] API 集成测试通过

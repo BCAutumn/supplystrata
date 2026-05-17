@@ -1,0 +1,23 @@
+{
+  "name": "@supplystrata/workbench-export",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@supplystrata/chain-view": "workspace:*",
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "@supplystrata/source-monitor": "workspace:*"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
+}

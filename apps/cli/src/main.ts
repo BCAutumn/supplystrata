@@ -6,6 +6,7 @@ import { registerEntityAndReviewCommands } from "./commands/entity-review.js";
 import { registerGraphDqAndCardCommands } from "./commands/graph-dq-cards.js";
 import { registerPipelinePreviewCommands } from "./commands/pipeline-preview.js";
 import { registerSourcesAndChangesCommands } from "./commands/sources-changes.js";
+import { registerWorkbenchCommands } from "./commands/workbench.js";
 
 const program = new Command();
 
@@ -17,5 +18,6 @@ registerSourcesAndChangesCommands(program);
 registerEntityAndReviewCommands(program);
 registerGraphDqAndCardCommands(program);
 registerClaimCommands(program);
+registerWorkbenchCommands(program);
 
 await program.parseAsync(process.argv);

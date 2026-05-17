@@ -431,6 +431,8 @@ UNKNOWN_RESOLVED
 
 ### PR G：research-preview 数据接口
 
+状态：已落地第一版。`@supplystrata/workbench-export` 负责从 DB 组装工作台 JSON，`apps/cli workbench export` 负责导出文件，`apps/research-preview` 只读 JSON 并用 TypeScript + Canvas 渲染链路。
+
 先不做漂亮前端，先做 JSON 产物：
 
 ```text
@@ -439,8 +441,11 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 
 验收：
 
-- JSON 含 `companies / chain_segments / claims / evidences / unknown_items / sources / changes`。
-- `apps/research-preview` 只读这个 JSON。
+- [x] JSON 含 `companies / chain_segments / claims / evidences / unknown_items / sources / changes`。
+- [x] `apps/research-preview` 只读这个 JSON。
+- [x] Canvas 第一版能显示 fact edge、observation、lead、unknown boundary。
+- [ ] 公司切换仍需等多公司 export/fixture 完善后补。
+- [ ] Evidence Inspector 仍需从 primary evidence 扩到多 evidence / supersession chain。
 
 ### PR H：LLM Candidate Assistant
 
@@ -503,7 +508,7 @@ v0.2 仍然优先完成：
 [x] packages/chain-view 可以输出分层 ChainViewModel
 [x] CLI JSON 输出包含 semantic_layer
 [x] ChainViewModel 包含 observation / lead / unknown context segments
-[ ] research-preview 能消费 ChainViewModel
+[x] research-preview 能消费 ChainViewModel
 [x] observations/leads 不会进入 Neo4j fact edge
 [ ] LLM 仍然不能直接写 edge/claim
 ```

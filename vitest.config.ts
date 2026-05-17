@@ -34,6 +34,7 @@ export default defineConfig({
       "@supplystrata/source-normalizers": resolve(__dirname, "packages/source-normalizers/src/index.ts"),
       "@supplystrata/source-registry": resolve(__dirname, "packages/source-registry/src/index.ts"),
       "@supplystrata/supplier-list": resolve(__dirname, "packages/supplier-list/src/index.ts"),
+      "@supplystrata/workbench-export": resolve(__dirname, "packages/workbench-export/src/index.ts"),
       "@supplystrata/sources-apple-suppliers": resolve(__dirname, "packages/sources/apple-suppliers/src/index.ts"),
       "@supplystrata/sources-asml-ir": resolve(__dirname, "packages/sources/asml-ir/src/index.ts"),
       "@supplystrata/sources-companies-house": resolve(__dirname, "packages/sources/companies-house/src/index.ts"),

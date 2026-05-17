@@ -1,0 +1,13 @@
+{
+  "name": "@supplystrata/research-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "node -e \"console.log('Open apps/research-preview/index.html and load a workbench JSON export.')\""
+  },
+  "dependencies": {
+    "@supplystrata/chain-view": "workspace:*",
+    "@supplystrata/workbench-export": "workspace:*"
+  }
+}

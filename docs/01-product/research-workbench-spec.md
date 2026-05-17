@@ -2,6 +2,15 @@
 
 本文定义 `apps/research-preview`。它替代当前一次性的 `scripts/render-research-html.mjs`，但仍然是本地研究工作台，不是 SaaS 前端。
 
+当前第一版已经落地为本地静态工作台：
+
+```bash
+pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
+pnpm research-preview
+```
+
+然后打开 `apps/research-preview/index.html`，加载导出的 JSON。
+
 ## 决策
 
 v0.2 研究工作台采用：
@@ -70,6 +79,7 @@ apps/research-preview/
 ```
 
 React 不存在；DOM 只负责 shell 和 side panels，Canvas 负责图谱。
+当前前端只读本地 JSON 文件，不直连 Postgres / Neo4j，也不调用 CLI。
 
 ## 数据契约
 
@@ -108,7 +118,7 @@ unknown
 v0.2 必须支持：
 
 - 公司切换。
-- 点击边，右侧显示 Evidence Inspector。
+- 点击边或上下文 segment，右侧显示 Inspector。
 - 点击 unknown boundary，右侧显示 unknown item。
 - Source health 区块显示 last_success / last_failure / next_check_at。
 - Changes timeline 显示新增边、新证据、文档变化。
@@ -151,4 +161,4 @@ show inferred edges
 
 - README 不再推荐直接使用该脚本。
 - 脚本可以保留为 fixture generator 或删除。
-- 工作台入口改为 `pnpm research-preview` 或等价命令。
+- 工作台入口改为 `pnpm research-preview`，数据入口改为 `pnpm cli workbench export --company <company> --out <file>`。

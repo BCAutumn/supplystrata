@@ -55,6 +55,7 @@ supplystrata
 ├── component <name> [--format]
 ├── evidence <id> [--format]
 ├── chain <company> [--depth] [--format]
+├── workbench export --company <company> [--out]
 ├── unknown-map <company-query> [--format]
 ├── entity
 │   ├── lookup <query> [--source all|opencorporates|companies-house] [--jurisdiction] [--limit] [--format]
@@ -135,6 +136,19 @@ company     公司名、别名、ticker 或 entity_id
 返回 chain-first upstream view。它沿 Level 4-5 的 `BUYS_FROM` / `USES_FOUNDRY` / `SUPPLIES_TO` / `MANUFACTURES_AT` 边递归展开，默认不展示 Level 1-3 推断边。
 
 JSON 输出消费 `@supplystrata/chain-view` 的 `CompanyChainViewModel`，每段都有 `semantic_layer`。当前支持 `edge`、`claim`、`observation`、`lead`、`unknown` 分层；observation / lead / unknown 是上下文 segment，不带 `evidence_level`，不改变事实边语义，也不进入 Neo4j fact edge。
+
+### supplystrata workbench export
+
+```
+--company <query>       公司名、别名、ticker 或 entity_id
+--depth N               chain 展开深度，默认 2
+--since <date>          changes 时间线起点
+--change-limit N        changes 最大条数
+--source-limit N        source health 最大条数
+--out <path>            写入 JSON 文件；不传则输出到 stdout
+```
+
+导出 `apps/research-preview` 消费的本地 JSON。这个命令由 `@supplystrata/workbench-export` 组装数据，CLI 只负责参数解析和写文件。JSON 包含 `companies / chain_segments / edges / claims / evidences / unknown_items / sources / changes`，前端不得直连数据库补字段。
 
 ### supplystrata claims build
 

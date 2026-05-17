@@ -14,6 +14,7 @@
     "test:e2e": "vitest run tests/e2e",
     "smoke:local": "node scripts/smoke-local.mjs",
     "smoke:network": "node scripts/smoke-local.mjs --with-network",
+    "research-preview": "pnpm --filter @supplystrata/research-preview preview",
     "release:check": "node scripts/release-check.mjs",
     "type-check": "tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "eslint .",

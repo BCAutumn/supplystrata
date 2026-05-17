@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SupplyStrata Research Preview</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">SupplyStrata Research Workbench</p>
+        <h1 id="workbench-title">公开供应链情报网</h1>
+      </div>
+      <label class="file-control">
+        <span>Load workbench JSON</span>
+        <input id="report-file" type="file" accept="application/json,.json" />
+      </label>
+    </header>
+    <main class="workbench-shell">
+      <section class="canvas-section">
+        <div class="toolbar">
+          <div id="summary-strip" class="summary-strip"></div>
+        </div>
+        <canvas id="chain-canvas" width="1200" height="720"></canvas>
+      </section>
+      <aside class="side-panel">
+        <section id="inspector-panel" class="panel"></section>
+        <section id="unknown-panel" class="panel"></section>
+        <section id="source-health-panel" class="panel"></section>
+        <section id="changes-panel" class="panel"></section>
+      </aside>
+    </main>
+    <script type="module" src="./dist/main.js"></script>
+  </body>
+</html>
