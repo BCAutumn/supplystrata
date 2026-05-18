@@ -5,7 +5,7 @@ import { loadEnv } from "@supplystrata/config";
 import { createId, type NormalizedDocument } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
 import { parsePdf } from "@supplystrata/parsers-pdf";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
 import { extractFixedWidthSupplierListCandidates, type SupplierListCandidate, type SupplierListParseConfig } from "@supplystrata/supplier-list";
 
 export interface AppleSuppliersInput {

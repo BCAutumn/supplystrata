@@ -4,11 +4,12 @@ import {
   markGraphProjectionJobsSucceeded,
   recordGraphProjectionFailure,
   type DatabaseStore,
+  type DbTxClient,
   type GraphProjectionOperation
 } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import type { GraphStore } from "@supplystrata/graph-store";
-import { getLogger } from "@supplystrata/observability";
+import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import {
   checkGraphConsistency,
   rebuildGraphProjection,
@@ -66,6 +67,12 @@ export class GraphBuilder {
   }
 
   async apply(approved: ApprovedCandidate): Promise<ApplyResult> {
+    const committed = await this.#store.transaction((client) => this.applySqlInTransaction(client, approved));
+    const graphSync = await this.#trySyncEdge(committed.edge_id);
+    return { ...committed, graph_sync: graphSync };
+  }
+
+  async applySqlInTransaction(client: DbTxClient, approved: ApprovedCandidate): Promise<Omit<ApplyResult, "graph_sync">> {
     const subject = await this.#resolver.resolve(approved.candidate.subject_resolve);
     const object = await this.#resolver.resolve(approved.candidate.object_resolve);
     if (subject.status !== "resolved" || subject.entity_id === undefined) {
@@ -77,9 +84,7 @@ export class GraphBuilder {
     const subjectId = subject.entity_id;
     const objectId = object.entity_id;
 
-    const committed = await this.#store.transaction((client) => applyApprovedCandidateToSql(client, { approved, subject_id: subjectId, object_id: objectId }));
-    const graphSync = await this.#trySyncEdge(committed.edge_id);
-    return { ...committed, graph_sync: graphSync };
+    return applyApprovedCandidateToSql(client, { approved, subject_id: subjectId, object_id: objectId });
   }
 
   async deprecate(input: DeprecateEdgeRequest): Promise<DeprecateEdgeApplyResult> {
@@ -162,10 +167,4 @@ function isGraphStore(value: GraphStore | GraphBuilderOptions): value is GraphSt
     "removeEdge" in value &&
     "stats" in value
   );
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
 }

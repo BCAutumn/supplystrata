@@ -82,9 +82,13 @@ export interface DbClient {
   query<T>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
 }
 
+export interface DbTxClient extends DbClient {
+  readonly [dbTxClientBrand]: true;
+}
+
 export interface DatabaseStore extends DbClient {
   readonly adapter_id: string;
-  transaction<T>(fn: (client: DbClient) => Promise<T>): Promise<T>;
+  transaction<T>(fn: (client: DbTxClient) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
 ```
@@ -93,8 +97,9 @@ export interface DatabaseStore extends DbClient {
 
 约束：
 
-- pipeline / card-builder / source-monitor 只接收 `DbClient` 或 `DatabaseStore`；render 是纯 DTO formatter，不接收数据库客户端。
+- pipeline / card-builder / source-monitor 只接收 `DbClient`、`DbTxClient` 或 `DatabaseStore`；render 是纯 DTO formatter，不接收数据库客户端。
 - 需要事务的写入路径通过 `DatabaseStore.transaction()` 表达事务边界；业务模块不能手写 `BEGIN/COMMIT/ROLLBACK` 或直接获取底层连接。
+- 多表写入或依赖 `pg_advisory_xact_lock` 的函数必须要求 `DbTxClient`，让调用方必须通过 `DatabaseStore.transaction()` 进入。
 - 非 Postgres adapter 必须提供兼容当前 SQL contract 的实现；不允许在业务层加方言分支。
 
 ## packages/graph-store

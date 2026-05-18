@@ -38,6 +38,12 @@ module.exports = {
       to: { path: "^packages/(db|chain-view-builder|card-builder|component-context|graph|graph-builder)/|^node_modules/pg" }
     },
     {
+      name: "source-adapter-spec-must-stay-pure",
+      severity: "error",
+      from: { path: "^packages/source-adapter-spec/src" },
+      to: { path: "^packages/(config|object-store|source-adapter-runtime)/|^node_modules/(pino|pg)" }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },

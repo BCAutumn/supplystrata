@@ -20,8 +20,8 @@ export type { AppliedReviewEdgeResult, ReviewApplyBatchItem, ReviewApplyBatchSum
 export { isValidCandidate, runSupplyChainPipelineFromNormalized } from "./run.js";
 export { checkSecEdgarSource, runDefaultNvidiaSlice, runSecEdgarPipeline } from "./sec-edgar.js";
 export type { SourceCheckSummary } from "./source-check-runner.js";
-export { runDueSourceChecks } from "./source-checks.js";
-export type { DueSourceCheckRunItem, DueSourceCheckRunResult } from "./source-checks.js";
+export { listSourceCheckConnectorIds, runDueSourceChecks, runManualSourceCheck } from "./source-checks.js";
+export type { DueSourceCheckRunItem, DueSourceCheckRunResult, ManualSourceCheckInput } from "./source-checks.js";
 export type {
   AppleSuppliersPreview,
   NvidiaResearchReportPreview,

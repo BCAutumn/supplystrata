@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import type { NormalizedDocument } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db";
 import { persistDocumentObservations } from "@supplystrata/pipeline";
 
 interface QueryCall {
@@ -9,7 +9,8 @@ interface QueryCall {
   params: readonly unknown[];
 }
 
-class RecordingDbClient implements DbClient {
+class RecordingDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {

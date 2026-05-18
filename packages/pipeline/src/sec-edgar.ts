@@ -2,7 +2,7 @@ import { loadEnv } from "@supplystrata/config";
 import type { DatabaseStore } from "@supplystrata/db";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import type { GraphStore } from "@supplystrata/graph-store";
-import { getLogger } from "@supplystrata/observability";
+import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import { optionalConfigPositiveInteger, requireConfigString, requireConfigStringArray, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import { isSecEdgarFormType, type SecEdgarFormType, type SecEdgarInput } from "@supplystrata/sources-sec-edgar";
@@ -33,10 +33,12 @@ export async function runSecEdgarPipeline(
   try {
     fetched = await fetchAndParseSecEdgar(input);
   } catch (error) {
-    await recordSourceFailure(store, {
-      source_adapter_id: "sec-edgar",
-      error_message: messageFromUnknown(error),
-      caused_by: "pipeline.sec-edgar"
+    await store.transaction(async (client) => {
+      await recordSourceFailure(client, {
+        source_adapter_id: "sec-edgar",
+        error_message: messageFromUnknown(error),
+        caused_by: "pipeline.sec-edgar"
+      });
     });
     throw error;
   }
@@ -65,12 +67,6 @@ export async function checkSecEdgarSource(store: DatabaseStore, input: SecEdgarI
     context,
     options: { ...options, failureCausedBy: "source-check.sec-edgar" }
   });
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
 }
 
 function secEdgarInputFromTargetConfig(config: Record<string, unknown>): SecEdgarInput {

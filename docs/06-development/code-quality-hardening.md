@@ -19,7 +19,7 @@
 [x] 拆出 @supplystrata/config，集中 env schema、.env 显式加载和 required env 校验。
 [x] 拆出 @supplystrata/observability，core 不再初始化 pino logger。
 [x] @supplystrata/core 去除顶层 .env 读取、logger 初始化和 HTTP 抓取工具，恢复为纯领域包。
-[x] fetchBytesWithTimeout 移入 @supplystrata/source-adapter-spec，source 抓取超时和错误口径统一。
+[x] fetchBytesWithTimeout 移入 @supplystrata/source-adapter-runtime，source 抓取超时和错误口径统一；source-adapter-spec 只保留接口契约和纯校验。
 [x] 新增 defineHtmlSnapshotAdapter，TSMC / Samsung / SK hynix / ASML IR adapter 迁移到声明式工厂。
 [x] SEC EDGAR adapter 接入统一 fetchBytesWithTimeout，不再裸 fetch。
 [x] source monitor 的 health/due 查询函数保持只读；registry 写入改为显式 sync。
@@ -72,6 +72,14 @@
 [x] `packages/render` 降级为纯 formatter：移除 `DbClient`、`db`、`pg`、chain-view-builder 依赖，只接收稳定 DTO 后输出 Markdown / JSON。
 [x] CLI、E2E 与 card 命令改为显式 `card-builder load -> render formatter`，数据库读取与展示格式化不再混在一个包里。
 [x] dependency-cruiser 增加 `render-must-stay-pure`，CI 会阻止 render 重新依赖 DB、Graph、card-builder 或 `pg`。
+[x] 增加 `DbTxClient` 事务客户端类型；`recordDocumentObservation()` / `recordSourceFailure()` / `recordSourceDegraded()` 这类多表监控写入必须在 `DatabaseStore.transaction()` 内调用。
+[x] source monitor 对 source item observation 加事务级 advisory lock，避免并发检查同一个 item 时重复生成 `DOCUMENT_NEW`。
+[x] HTML snapshot adapter 在网络失败后读取缓存时会写入 `source_fetch_status=fallback` / `source_fetch_error`；source check runner 不再把缓存回退当成功文档观察，而是记录 `SOURCE_DEGRADED`。
+[x] Supplier List review/apply 的两条边、facility entity、pending entity resolution 和 review 状态改为同一个 outer transaction；第二条边失败时不会留下第一条边的半写入。
+[x] `DeterministicEvidenceScorer` 支持 reviewed scoring option；review apply 不再在调用方强行覆写 `needs_review=false`。
+[x] `sources check` 改为通过 `@supplystrata/source-connectors` registry 分发，CLI 不再硬编码只支持 `sec-edgar`；新增源只需要注册 connector。
+[x] 通用错误消息转换收口到 `@supplystrata/observability/messageFromUnknown`，graph-builder 与 pipeline 不再各自复制错误字符串处理逻辑。
+[x] 拆出 `@supplystrata/source-adapter-runtime`；`source-adapter-spec` 不再依赖 config / object-store / 网络抓取实现，并用 dependency-cruiser 固化纯契约边界。
 ```
 
 ## 下一批质量修复
@@ -80,6 +88,7 @@
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
 [ ] `apps/cli/src/cli-utils.ts` 仍承担较多 DB 生命周期、参数解析和输出工具职责；后续可以继续拆成 runtime / parse / io 三个小模块。
+[ ] `@supplystrata/source-adapter-runtime` 当前仍直接创建 `FsObjectStore` 并读取 `loadEnv()`；下一步可以继续把 object store / env 注入显式化，进一步支持宿主应用嵌入。
 ```
 
 ## 验收门槛

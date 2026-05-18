@@ -13,3 +13,9 @@ export function getLogger(): SupplyStrataLogger {
   defaultLogger ??= createLogger();
   return defaultLogger;
 }
+
+export function messageFromUnknown(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "unknown error";
+}

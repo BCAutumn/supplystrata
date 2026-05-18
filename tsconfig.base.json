@@ -48,6 +48,7 @@
       "@supplystrata/review-candidates": ["packages/review-candidates/src/index.ts"],
       "@supplystrata/review-store": ["packages/review-store/src/index.ts"],
       "@supplystrata/source-adapter-spec": ["packages/source-adapter-spec/src/index.ts"],
+      "@supplystrata/source-adapter-runtime": ["packages/source-adapter-runtime/src/index.ts"],
       "@supplystrata/source-connectors": ["packages/source-connectors/src/index.ts"],
       "@supplystrata/signal-extractor": ["packages/signal-extractor/src/index.ts"],
       "@supplystrata/source-monitor": ["packages/source-monitor/src/index.ts"],

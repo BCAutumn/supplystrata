@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { loadEnv } from "@supplystrata/config";
 import { createId, isSecFormType, secFormTypeOrDefault, type FetchTask, type SecFormType } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export type SecEdgarFormType = SecFormType;

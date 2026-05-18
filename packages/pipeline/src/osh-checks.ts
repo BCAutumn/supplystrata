@@ -1,5 +1,5 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
-import { getLogger } from "@supplystrata/observability";
+import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { storeObservation } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
@@ -64,11 +64,13 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
     }
     return summaries;
   } catch (error) {
-    await recordSourceFailure(store, {
-      source_adapter_id: oshAdapter.id,
-      check_target_id: options.checkTargetId,
-      error_message: messageFromUnknown(error),
-      caused_by: "source-check.osh"
+    await store.transaction(async (client) => {
+      await recordSourceFailure(client, {
+        source_adapter_id: oshAdapter.id,
+        check_target_id: options.checkTargetId,
+        error_message: messageFromUnknown(error),
+        caused_by: "source-check.osh"
+      });
     });
     throw error;
   }
@@ -139,10 +141,4 @@ function optionalConfigString(config: Record<string, unknown>, key: string, labe
   if (value === undefined) return undefined;
   if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${label} ${key} must be a non-empty string`);
   return value.trim();
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
 }

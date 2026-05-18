@@ -85,6 +85,7 @@ supplystrata/
 │   ├── graph/
 │   ├── object-store/
 │   ├── source-adapter-spec/
+│   ├── source-adapter-runtime/
 │   ├── parsers/
 │   │   ├── html/
 │   │   ├── pdf/
@@ -141,8 +142,9 @@ supplystrata/
 core            ← *
 db              ← pipeline / repos consumers only
 graph           ← graph-builder / render only
-object-store    ← sources / parsers (read) / pipeline
-source-adapter-spec ← sources/* / pipeline only
+object-store    ← sources / parsers (read) / pipeline / source-adapter-runtime
+source-adapter-spec ← sources/* / pipeline / source-adapter-runtime only
+source-adapter-runtime ← sources/* only
 parsers/*       ← sources/* / relation-extractor
 sources/*       ← pipeline only
 relation-extractor ← pipeline only

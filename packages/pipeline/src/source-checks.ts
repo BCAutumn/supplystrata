@@ -1,6 +1,12 @@
 import type { DatabaseStore } from "@supplystrata/db";
 import { listDueSourceChecks, type DueSourceCheckRow } from "@supplystrata/source-monitor";
-import { runSourceCheckConnector, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import {
+  connectorKey,
+  runSourceCheckConnector,
+  unsupportedSourceCheckTargetMessage,
+  type SourceCheckConnector,
+  type SourceCheckTargetRow
+} from "@supplystrata/source-connectors";
 import { censusTradeSourceCheckConnector } from "./census-trade-checks.js";
 import { officialIrSourceCheckConnectors } from "./official-ir-checks.js";
 import { oshSourceCheckConnector } from "./osh-checks.js";
@@ -21,6 +27,14 @@ export interface DueSourceCheckRunResult {
   due_targets: number;
   checked_targets: number;
   items: DueSourceCheckRunItem[];
+}
+
+export interface ManualSourceCheckInput {
+  source_adapter_id: string;
+  target_kind?: string;
+  target_config: Record<string, unknown>;
+  check_target_id?: string;
+  subject_entity_id?: string;
 }
 
 export async function runDueSourceChecks(store: DatabaseStore, input: { now?: string; limit?: number } = {}): Promise<DueSourceCheckRunResult> {
@@ -54,4 +68,33 @@ async function runDueSourceCheckTarget(store: DatabaseStore, target: DueSourceCh
     checked_documents: summaries.length,
     summaries
   };
+}
+
+export async function runManualSourceCheck(store: DatabaseStore, input: ManualSourceCheckInput): Promise<SourceCheckSummary[]> {
+  const target = manualSourceCheckTarget(input);
+  return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS);
+}
+
+export function listSourceCheckConnectorIds(): string[] {
+  return SOURCE_CHECK_CONNECTORS.map((connector) => connectorKey(connector)).sort();
+}
+
+function manualSourceCheckTarget(input: ManualSourceCheckInput): SourceCheckTargetRow {
+  const targetKind = input.target_kind ?? inferUniqueTargetKind(input.source_adapter_id);
+  return {
+    check_target_id: input.check_target_id ?? `manual:${input.source_adapter_id}:${targetKind}`,
+    source_adapter_id: input.source_adapter_id,
+    target_kind: targetKind,
+    target_config: input.target_config
+  };
+}
+
+function inferUniqueTargetKind(sourceAdapterId: string): string {
+  const matches = SOURCE_CHECK_CONNECTORS.filter((connector) => connector.source_adapter_id === sourceAdapterId);
+  const onlyMatch = matches[0];
+  if (matches.length === 1 && onlyMatch !== undefined) return onlyMatch.target_kind;
+  if (matches.length === 0) {
+    throw new Error(unsupportedSourceCheckTargetMessage({ source_adapter_id: sourceAdapterId, target_kind: "(unspecified)" }, SOURCE_CHECK_CONNECTORS));
+  }
+  throw new Error(`Source check target kind is required for ${sourceAdapterId}; supported: ${matches.map((item) => connectorKey(item)).join(", ")}`);
 }

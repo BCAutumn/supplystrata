@@ -1,5 +1,5 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
-import { getLogger } from "@supplystrata/observability";
+import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import { requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
@@ -66,11 +66,13 @@ async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTrad
     }
     return summaries;
   } catch (error) {
-    await recordSourceFailure(store, {
-      source_adapter_id: censusTradeAdapter.id,
-      check_target_id: options.checkTargetId,
-      error_message: messageFromUnknown(error),
-      caused_by: "source-check.census-trade"
+    await store.transaction(async (client) => {
+      await recordSourceFailure(client, {
+        source_adapter_id: censusTradeAdapter.id,
+        check_target_id: options.checkTargetId,
+        error_message: messageFromUnknown(error),
+        caused_by: "source-check.census-trade"
+      });
     });
     throw error;
   }
@@ -179,10 +181,4 @@ function monthEndDate(month: string): string {
   const monthIndex = Number(monthText);
   if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) throw new Error(`Invalid Census Trade month: ${month}`);
   return new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10);
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
 }

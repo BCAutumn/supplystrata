@@ -8,6 +8,12 @@ export interface DbClient {
   query<T extends pg.QueryResultRow>(sql: string, params?: readonly unknown[]): Promise<pg.QueryResult<T>>;
 }
 
+export const dbTxClientBrand = Symbol("supplystrata.db.tx");
+
+export interface DbTxClient extends DbClient {
+  readonly [dbTxClientBrand]: true;
+}
+
 export interface DbRow extends pg.QueryResultRow {}
 
 interface DbConnection extends DbClient {
@@ -16,7 +22,7 @@ interface DbConnection extends DbClient {
 
 export interface DatabaseStore extends DbClient {
   readonly adapter_id: string;
-  transaction<T>(fn: (client: DbClient) => Promise<T>): Promise<T>;
+  transaction<T>(fn: (client: DbTxClient) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
 
@@ -39,11 +45,17 @@ export class PostgresDatabaseStore implements DatabaseStore {
     return this.#pool.query<T>(sql, params === undefined ? undefined : [...params]);
   }
 
-  async transaction<T>(fn: (client: DbClient) => Promise<T>): Promise<T> {
+  async transaction<T>(fn: (client: DbTxClient) => Promise<T>): Promise<T> {
     const client = await this.#pool.connect();
+    const txClient: DbTxClient = {
+      [dbTxClientBrand]: true,
+      query(sql, params) {
+        return client.query(sql, params === undefined ? undefined : [...params]);
+      }
+    };
     try {
       await client.query("BEGIN");
-      const result = await fn(client);
+      const result = await fn(txClient);
       await client.query("COMMIT");
       return result;
     } catch (error) {

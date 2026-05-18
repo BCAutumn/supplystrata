@@ -524,7 +524,7 @@ importers:
 
   packages/signal-extractor: {}
 
-  packages/source-adapter-spec:
+  packages/source-adapter-runtime:
     dependencies:
       '@supplystrata/config':
         specifier: workspace:*
@@ -535,6 +535,15 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../object-store
+      '@supplystrata/source-adapter-spec':
+        specifier: workspace:*
+        version: link:../source-adapter-spec
+
+  packages/source-adapter-spec:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/source-connectors: {}
 
@@ -591,9 +600,9 @@ importers:
       '@supplystrata/parsers-pdf':
         specifier: workspace:*
         version: link:../../parsers/pdf
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/supplier-list':
         specifier: workspace:*
         version: link:../../supplier-list
@@ -609,9 +618,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -627,9 +636,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -648,9 +657,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -669,9 +678,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -687,9 +696,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -705,9 +714,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -723,9 +732,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -741,9 +750,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers
@@ -759,9 +768,9 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store
-      '@supplystrata/source-adapter-spec':
+      '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
-        version: link:../../source-adapter-spec
+        version: link:../../source-adapter-runtime
       '@supplystrata/source-normalizers':
         specifier: workspace:*
         version: link:../../source-normalizers

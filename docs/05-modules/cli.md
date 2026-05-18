@@ -234,20 +234,29 @@ supplystrata changes --source sec-edgar --attention-only
 ### supplystrata sources check
 
 ```
---source <adapter-id>   当前支持 sec-edgar
---cik <cik>             SEC CIK
---entity <entity-id>    primary entity id
---forms <forms>         逗号分隔：10-K,10-Q,20-F,8-K
---limit N               最多检查几份文件
+--source <adapter-id>       source registry / connector id，例如 sec-edgar、tsmc-ir、census-trade、osh
+--target-kind <kind>        可选；同一个 source 有多个 target kind 时必须指定
+--config <json>             直接传入 connector target_config
+--config-file <path>        从 JSON 文件读取 target_config
+--cik <cik>                 SEC 便捷字段；会写入 target_config.cik
+--entity <entity-id>        便捷字段；会写入 target_config.entity_id
+--forms <forms>             SEC 便捷字段；逗号分隔：10-K,10-Q,20-F,8-K
+--year <year>               IR / observation 便捷字段；会写入 target_config.year
+--query <query>             搜索型 connector 便捷字段；会写入 target_config.query
+--limit N                   最多检查几份文件 / 观测项
 --format markdown | json
 ```
 
-运行单个 source check：调用 adapter 的 `plan/fetch/normalize`，保存 normalized document，写入 `source_change_events`，并抽取 observation。若同一个 source item 的官方披露内容发生变化，还会记录客户集中、库存、backlog、capex、采购义务等语义 section diff，以及供应商、客户、foundry 候选关系新增/移除 diff。采购义务、产能预留、单一供应商风险会从普通 supplier relation diff 中分离出来。这个命令不自动 apply graph edge，适合 monitoring 调度或手工检查源是否变化。
+运行单个 source check：CLI 只把参数转换成 connector target config，然后交给 `@supplystrata/source-connectors` 注册表分发。具体源的 `plan/fetch/normalize`、文档保存、`source_change_events` 写入和 observation 抽取都在 pipeline connector 内完成。若同一个 source item 的官方披露内容发生变化，还会记录客户集中、库存、backlog、capex、采购义务等语义 section diff，以及供应商、客户、foundry 候选关系新增/移除 diff。采购义务、产能预留、单一供应商风险会从普通 supplier relation diff 中分离出来。这个命令不自动 apply graph edge，适合 monitoring 调度或手工检查源是否变化。
+
+新增免费/公开数据源时，应新增 connector 并注册；不要在 CLI 中继续写 `if source_adapter_id === ...`。如果同一个 source 只有一个 connector，`--target-kind` 可以省略；如果一个 source 有多个 target kind，必须显式传入以避免误跑。
 
 示例：
 
 ```bash
 supplystrata sources check --source sec-edgar --cik 0001045810 --entity ENT-NVIDIA --forms 10-Q,8-K --limit 3
+supplystrata sources check --source tsmc-ir --config '{"entity_id":"ENT-TSMC","year":2025}'
+supplystrata sources check --source osh --target-kind facility-search --config '{"query":"Foxconn","scope_id":"ENT-FOXCONN","limit":10}'
 ```
 
 ### supplystrata sources run-due
@@ -257,7 +266,7 @@ supplystrata sources check --source sec-edgar --cik 0001045810 --entity ENT-NVID
 --format markdown | json
 ```
 
-执行 `source_check_targets` 中已经到期的目标。它读取 `sources policy sync` 写入的外部配置，通过 `@supplystrata/source-connectors` 找到对应 connector，再逐个运行 adapter 的 `plan/fetch/normalize`，然后记录 source event 与 observation。当前可执行目标类型包括 `sec-edgar / sec-company-filings`，以及 TSMC、Samsung、SK hynix、ASML 官方 IR 的 `official-html-disclosure`。后续 DART、EDINET、公司供应商名单等源只需要新增 connector，不需要改 CLI 调度入口或 run-due 主循环。
+执行 `source_check_targets` 中已经到期的目标。它读取 `sources policy sync` 写入的外部配置，通过 `@supplystrata/source-connectors` 找到对应 connector，再逐个运行 adapter 的 `plan/fetch/normalize`，然后记录 source event 与 observation。当前可执行目标类型包括 `sec-edgar / sec-company-filings`、TSMC / Samsung / SK hynix / ASML 官方 IR 的 `official-html-disclosure`、`census-trade / trade-flow-observation` 和 `osh / facility-search`。后续 DART、EDINET、公司供应商名单等源只需要新增 connector，不需要改 CLI 调度入口或 run-due 主循环。
 
 示例：
 

@@ -32,6 +32,7 @@ supplystrata/
 │   ├── graph/                              # Neo4j GraphStore adapter
 │   ├── object-store/                       # 抽象的对象存储（本地FS / MinIO）
 │   ├── source-adapter-spec/                # SourceAdapter 接口契约
+│   ├── source-adapter-runtime/             # source adapter 限速、fetch、缓存与 snapshot 工厂
 │   ├── source-connectors/                  # source check target runner 注册与配置校验
 │   ├── parsers/
 │   │   ├── html/
@@ -94,7 +95,7 @@ render ← apps/cli / 后续 API 消费；只把 DTO 渲染成 Markdown 或 JSON
 **禁止反向依赖**。例如 `core` 不能依赖 `db`、`sources/*` 不能直接依赖 `graph`。`graph-builder` 只能依赖 `graph-store` 接口，不能依赖具体 Neo4j adapter。
 CI 里加 dependency-cruiser 校验。
 
-`core` 必须保持纯净：不得读取 `.env`、不得实例化 logger、不得封装网络请求、不得访问文件系统。配置读取放在 `@supplystrata/config`；日志放在 `@supplystrata/observability`；source 抓取工具放在 `@supplystrata/source-adapter-spec` 的 adapter 工具层。
+`core` 必须保持纯净：不得读取 `.env`、不得实例化 logger、不得封装网络请求、不得访问文件系统。配置读取放在 `@supplystrata/config`；日志放在 `@supplystrata/observability`；source 抓取工具放在 `@supplystrata/source-adapter-runtime` 的 adapter 运行时层。
 
 `db` 的包入口只做稳定 re-export，内部按职责拆分：`client` 负责 `DatabaseStore` 接口、Postgres adapter 与 migration 调用，`seed` 负责 CSV seed 与必要的数据回填，`documents` 负责 normalized document / chunk / review queue 写入，`pending` 负责待解析实体，`query` 负责边、证据、unknown map 的只读查询。新增仓储函数必须优先落在对应职责文件中，避免重新膨胀成单文件数据库工具箱。
 
@@ -102,7 +103,7 @@ CI 里加 dependency-cruiser 校验。
 
 `source-plan` 是二/三级链路扩源的边界：它把 `component-context` 里的上游 lead 映射到 `source-registry` 里的免费/公开数据源，并标明 `edge / observation / lead / entity` 输出层与自动化策略。它不抓取、不解析、不写 Postgres，也不允许把 Comtrade/AIS/能源/新闻这类弱源升级成事实边。
 
-`source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验和 unsupported target 错误。具体源例如 SEC EDGAR 在 pipeline 侧提供 connector 实现；`run-due` 只走 connector registry，不在调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
+`source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验和 unsupported target 错误。具体源例如 SEC EDGAR 在 pipeline 侧提供 connector 实现；`sources check` 和 `run-due` 都只走 connector registry，不在 CLI 或调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
 
 `relation-extractor/rule` 的 counterparty / component 识别模式放在 `patterns.ts`。新增公司、组件、制造服务供应商时优先扩展模式数据；只有新增一种抽取语义时才修改主抽取流程。
 
@@ -182,8 +183,8 @@ export interface DocumentChunk {
 - adapter **不直接**写入 Postgres / Neo4j；写入由 pipeline 统一处理
 - adapter **不直接**解析关系或写实体主表；实体消歧由 entity-resolver / review apply 阶段处理
 - adapter 的 `normalize()` 必须返回完整 `NormalizedDocument`。HTML / PDF / text 用 parser 包清洗切块；结构化 JSON 源也要生成可审计文本摘要和 chunks。
-- adapter **必须**声明 `rate_limit`，并通过 `createRateLimitedSourceAdapter()` 导出统一限速后的实例；pipeline / source monitor 不再各自实现限速。
-- HTML snapshot 类数据源优先使用 `defineHtmlSnapshotAdapter()`，避免每个 IR/官网源重复实现 fetch、缓存回退、对象存储落盘和 `RawDocument` 组装。单个 adapter 只声明 URL 计划、source metadata、storage prefix 和 normalize 策略。
+- adapter **必须**声明 `rate_limit`，并通过 `@supplystrata/source-adapter-runtime` 的 `createRateLimitedSourceAdapter()` 导出统一限速后的实例；pipeline / source monitor 不再各自实现限速。
+- HTML snapshot 类数据源优先使用 `@supplystrata/source-adapter-runtime` 的 `defineHtmlSnapshotAdapter()`，避免每个 IR/官网源重复实现 fetch、缓存回退、对象存储落盘和 `RawDocument` 组装。单个 adapter 只声明 URL 计划、source metadata、storage prefix 和 normalize 策略。
 
 ### 2. EntityResolver
 
@@ -265,7 +266,11 @@ export interface CandidateRelation {
 
 ```ts
 export interface EvidenceScorer {
-  score(candidate: CandidateRelation, doc: NormalizedDocument): Promise<ScoringResult>;
+  score(candidate: CandidateRelation, doc: NormalizedDocument, options?: EvidenceScoringOptions): Promise<ScoringResult>;
+}
+
+export interface EvidenceScoringOptions {
+  reviewed?: { reviewer: string; reviewed_at: string };
 }
 
 export interface ScoringResult {
@@ -280,6 +285,7 @@ export interface ScoringResult {
 约束：
 
 - LLM 抽取的候选默认 `needs_review = true`
+- 调用方不能手动覆盖 scorer 输出的 `needs_review`；人工审核路径必须通过 `EvidenceScoringOptions.reviewed` 交给 scorer 自己清除 review 标记。
 - 评级公式必须可重现（输入相同输出相同），不允许引入时间因素
 
 ### 5. GraphBuilder
@@ -287,6 +293,7 @@ export interface ScoringResult {
 ```ts
 export interface GraphBuilder {
   apply(approved: ApprovedCandidate): Promise<ApplyResult>;
+  applySqlInTransaction(client: DbTxClient, approved: ApprovedCandidate): Promise<Omit<ApplyResult, "graph_sync">>;
   deprecate(edgeId: string, reason: string, evidence: Provenance): Promise<void>;
   rebuild(): Promise<{ nodes: number; edges: number }>;
 }
@@ -310,6 +317,7 @@ export interface ApplyResult {
 
 - 图谱中**不允许物理删除**边；只能 `validity = "deprecated"` + 写 ChangeRecord
 - 对相同 `subject + object + relation + component` 的多条 evidence，应当聚合到同一条 edge
+- `GraphBuilder.apply()` 适合单条候选；需要把多条 reviewed edge 和 review 状态作为一个原子操作提交时，业务层必须在外层事务里调用 `applySqlInTransaction()`，提交后图投影走 deferred/outbox。
 
 ### 6. ObjectStore
 

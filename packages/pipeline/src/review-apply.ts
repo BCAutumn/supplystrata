@@ -1,6 +1,6 @@
 import { upsertSemanticChangeClaimDraft } from "@supplystrata/claim-builder";
 import { type ApplyResult, type ApprovedCandidate, type RelationType } from "@supplystrata/core";
-import { loadDocument, recordPendingEntity, type DatabaseStore, type DbClient, type DocumentWithChunks } from "@supplystrata/db";
+import { loadDocument, recordPendingEntity, type DatabaseStore, type DbClient, type DbTxClient, type DocumentWithChunks } from "@supplystrata/db";
 import {
   applyEntitySourceReviewCandidate,
   ensureSupplierListFacilityEntity,
@@ -26,7 +26,7 @@ import {
   markReviewCandidateBlocked,
   type ReviewQueueItem
 } from "@supplystrata/review-store";
-import { getLogger } from "@supplystrata/observability";
+import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { locateCandidateCitation } from "./citation-location.js";
 
 export interface AppliedReviewEdgeResult extends ApplyResult {
@@ -101,28 +101,32 @@ async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueu
 }
 
 async function applySupplierListReviewCandidate(store: DatabaseStore, item: SupplierListReviewItem, reviewer: string): Promise<ReviewApplyResult> {
-  const reviewId = item.review_id;
-  const supplierRelation = supplierListReviewToSupplierRelation(item.candidate);
-  const resolver = new DbEntityResolver(store);
-  const entityResolution = await resolveSupplierListEntities(store, item, resolver, supplierRelation);
-  if (entityResolution.status === "blocked") return entityResolution;
+  return store.transaction(async (client) => {
+    const reviewId = item.review_id;
+    const supplierRelation = supplierListReviewToSupplierRelation(item.candidate);
+    const resolver = new DbEntityResolver(client);
+    const entityResolution = await resolveSupplierListEntities(client, item, resolver, supplierRelation);
+    if (entityResolution.status === "blocked") return entityResolution;
 
-  const facilityPreparation = await prepareSupplierListFacility(store, item, resolver, reviewer);
-  if (facilityPreparation.status === "blocked") return facilityPreparation;
-  const doc = await loadReviewDocument(store, item);
-  if (doc.status === "blocked") return doc;
-  const scored = await scoreSupplierListRelations(supplierRelation, facilityPreparation.facilityRelation, doc.document);
-  const citationChunks = locateSupplierListCitations(doc.document, scored);
-  if (citationChunks.status === "blocked") return blockReviewCandidate(store, reviewId, citationChunks.reason);
-  const builder = new GraphBuilder(store, resolver, { graphSyncMode: "defer" });
-  try {
-    const applyResults = await applySupplierListEdges(builder, scored, doc.docId, citationChunks, reviewer);
-    const pendingResolved = await resolvePendingEntitySurface(store, {
+    const facilityPreparation = await prepareSupplierListFacility(client, item, resolver, reviewer);
+    if (facilityPreparation.status === "blocked") return facilityPreparation;
+    const doc = await loadReviewDocument(client, item);
+    if (doc.status === "blocked") return doc;
+    const reviewedAt = new Date().toISOString();
+    const scored = await scoreSupplierListRelations(supplierRelation, facilityPreparation.facilityRelation, doc.document, {
+      reviewer,
+      reviewed_at: reviewedAt
+    });
+    const citationChunks = locateSupplierListCitations(doc.document, scored);
+    if (citationChunks.status === "blocked") return blockReviewCandidate(client, reviewId, citationChunks.reason);
+    const builder = new GraphBuilder(store, resolver, { graphSyncMode: "defer" });
+    const applyResults = await applySupplierListEdges(client, builder, scored, doc.docId, citationChunks, { reviewer, reviewed_at: reviewedAt });
+    const pendingResolved = await resolvePendingEntitySurface(client, {
       surface: supplierRelation.object_resolve.surface,
       entityId: entityResolution.supplier_entity_id,
       reviewer
     });
-    await markReviewCandidateApplied(store, { reviewId, reason: `applied edges ${applyResults.map((result) => result.edge_id).join(", ")}` });
+    await markReviewCandidateApplied(client, { reviewId, reason: `applied edges ${applyResults.map((result) => result.edge_id).join(", ")}` });
     return {
       status: "applied",
       review_id: reviewId,
@@ -130,9 +134,7 @@ async function applySupplierListReviewCandidate(store: DatabaseStore, item: Supp
       pending_entities_resolved: pendingResolved,
       facility_import: facilityPreparation.facilityImport
     };
-  } finally {
-    await builder.close();
-  }
+  });
 }
 
 type SupplierEntityResolution = { status: "ready"; supplier_entity_id: string } | Extract<ReviewApplyResult, { status: "blocked" }>;
@@ -217,16 +219,17 @@ interface SupplierListCitationChunks {
 async function scoreSupplierListRelations(
   supplierRelation: ReturnType<typeof supplierListReviewToSupplierRelation>,
   facilityRelation: ReturnType<typeof supplierListReviewToFacilityRelation>,
-  doc: DocumentWithChunks
+  doc: DocumentWithChunks,
+  reviewed: { reviewer: string; reviewed_at: string }
 ): Promise<ScoredSupplierListRelations> {
   const scorer = new DeterministicEvidenceScorer();
-  const supplierScoring = await scorer.score(supplierRelation, doc);
-  const facilityScoring = await scorer.score(facilityRelation, doc);
+  const supplierScoring = await scorer.score(supplierRelation, doc, { reviewed });
+  const facilityScoring = await scorer.score(facilityRelation, doc, { reviewed });
   return {
     supplierRelation,
     facilityRelation,
-    supplierScoring: { ...supplierScoring, needs_review: false },
-    facilityScoring: { ...facilityScoring, needs_review: false }
+    supplierScoring,
+    facilityScoring
   };
 }
 
@@ -250,27 +253,35 @@ function locateSupplierListCitations(
 }
 
 async function applySupplierListEdges(
+  client: DbTxClient,
   builder: GraphBuilder,
   scored: ScoredSupplierListRelations,
   docId: string,
   citationChunks: SupplierListCitationChunks,
-  reviewer: string
+  reviewed: { reviewer: string; reviewed_at: string }
 ): Promise<[AppliedReviewEdgeResult, AppliedReviewEdgeResult]> {
-  const reviewedAt = new Date().toISOString();
-  const supplierApply = await applyReviewedRelation(builder, {
-    candidate: scored.supplierRelation,
-    scoring: scored.supplierScoring,
-    approved_by: { reviewer, reviewed_at: reviewedAt },
-    doc_id: docId,
-    chunk_id: citationChunks.supplierChunkId
-  });
-  const facilityApply = await applyReviewedRelation(builder, {
-    candidate: scored.facilityRelation,
-    scoring: scored.facilityScoring,
-    approved_by: { reviewer, reviewed_at: reviewedAt },
-    doc_id: docId,
-    chunk_id: citationChunks.facilityChunkId
-  });
+  const supplierApply = await applyReviewedRelation(
+    builder,
+    {
+      candidate: scored.supplierRelation,
+      scoring: scored.supplierScoring,
+      approved_by: reviewed,
+      doc_id: docId,
+      chunk_id: citationChunks.supplierChunkId
+    },
+    client
+  );
+  const facilityApply = await applyReviewedRelation(
+    builder,
+    {
+      candidate: scored.facilityRelation,
+      scoring: scored.facilityScoring,
+      approved_by: reviewed,
+      doc_id: docId,
+      chunk_id: citationChunks.facilityChunkId
+    },
+    client
+  );
   return [
     { ...supplierApply, role: "supplier_relation", relation: scored.supplierRelation.relation },
     { ...facilityApply, role: "facility_relation", relation: scored.facilityRelation.relation }
@@ -311,12 +322,7 @@ export async function applyApprovedReviewCandidates(store: DatabaseStore, input:
   };
 }
 
-async function applyReviewedRelation(builder: GraphBuilder, approved: ApprovedCandidate): Promise<ApplyResult> {
-  return builder.apply(approved);
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
+async function applyReviewedRelation(builder: GraphBuilder, approved: ApprovedCandidate, client: DbTxClient): Promise<ApplyResult> {
+  const committed = await builder.applySqlInTransaction(client, approved);
+  return { ...committed, graph_sync: { status: "deferred" } };
 }

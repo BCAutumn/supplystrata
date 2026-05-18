@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
 import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export interface OshFacilitySearchInput {

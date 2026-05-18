@@ -10,9 +10,7 @@
     }
   },
   "dependencies": {
-    "@supplystrata/config": "workspace:*",
-    "@supplystrata/core": "workspace:*",
-    "@supplystrata/object-store": "workspace:*"
+    "@supplystrata/core": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

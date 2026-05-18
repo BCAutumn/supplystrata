@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient, DbTxClient } from "@supplystrata/db";
 import { listSources, type SourceRegistryEntry } from "@supplystrata/source-registry";
 
 export type SourceDocumentChangeType = "DOCUMENT_NEW" | "DOCUMENT_UNCHANGED" | "DOCUMENT_CHANGED";
@@ -107,6 +107,16 @@ export interface SourceFailureInput {
   caused_by?: string;
 }
 
+export interface SourceDegradedInput {
+  source_adapter_id: string;
+  error_message: string;
+  degraded_at?: string;
+  task_id?: string;
+  url?: string;
+  check_target_id?: string;
+  caused_by?: string;
+}
+
 export interface DocumentObservationResult {
   source_item_id: string;
   event_id: string;
@@ -183,15 +193,17 @@ export async function listDueSourceChecks(client: DbClient, input: { now?: strin
   return result.rows;
 }
 
-export async function recordDocumentObservation(client: DbClient, input: DocumentObservationInput): Promise<DocumentObservationResult> {
+export async function recordDocumentObservation(client: DbTxClient, input: DocumentObservationInput): Promise<DocumentObservationResult> {
   const observedAt = input.observed_at ?? new Date().toISOString();
   const itemKey = input.item_key ?? input.source_url;
   const sourceItemId = sourceItemIdFor(input.source_adapter_id, itemKey);
   const healthBeforeSuccess = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
+  await lockSourceItemObservation(client, sourceItemId);
   const existing = await client.query<SourceItemRow>(
     `SELECT source_item_id, latest_doc_id, latest_bytes_sha256, latest_storage_key
      FROM source_items
-     WHERE source_adapter_id = $1 AND item_key = $2`,
+     WHERE source_adapter_id = $1 AND item_key = $2
+     FOR UPDATE`,
     [input.source_adapter_id, itemKey]
   );
   const previous = existing.rows[0];
@@ -304,7 +316,7 @@ export async function recordDocumentObservation(client: DbClient, input: Documen
   };
 }
 
-export async function recordSourceFailure(client: DbClient, input: SourceFailureInput): Promise<{ event_id: string }> {
+export async function recordSourceFailure(client: DbTxClient, input: SourceFailureInput): Promise<{ event_id: string }> {
   const failedAt = input.failed_at ?? new Date().toISOString();
   const healthBeforeFailure = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
   const eventId = `SEV-${randomUUID()}`;
@@ -350,6 +362,53 @@ export async function recordSourceFailure(client: DbClient, input: SourceFailure
   return { event_id: eventId };
 }
 
+export async function recordSourceDegraded(client: DbTxClient, input: SourceDegradedInput): Promise<{ event_id: string }> {
+  const degradedAt = input.degraded_at ?? new Date().toISOString();
+  const healthBeforeFailure = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
+  const eventId = `SEV-${randomUUID()}`;
+  await client.query(
+    `INSERT INTO source_change_events (event_id, event_type, source_adapter_id, before, after, detected_at, caused_by)
+     VALUES ($1,'SOURCE_DEGRADED',$2,$3,$4,$5,$6)`,
+    [
+      eventId,
+      input.source_adapter_id,
+      {
+        failure_count: healthBeforeFailure.failure_count,
+        last_failure_at: healthBeforeFailure.last_failure_at?.toISOString() ?? null,
+        last_error_message: healthBeforeFailure.last_error_message
+      },
+      {
+        error_message: input.error_message,
+        task_id: input.task_id,
+        url: input.url,
+        used_cache_fallback: true
+      },
+      degradedAt,
+      input.caused_by ?? "source-monitor"
+    ]
+  );
+  await client.query(
+    `UPDATE source_health
+     SET last_checked_at = $2,
+         last_failure_at = $2,
+         failure_count = failure_count + 1,
+         last_error_message = $3,
+         updated_at = now()
+     WHERE source_adapter_id = $1`,
+    [input.source_adapter_id, degradedAt, input.error_message]
+  );
+  if (input.check_target_id !== undefined) {
+    await updateSourceCheckTargetNextCheck(client, {
+      checkTargetId: input.check_target_id,
+      sourceAdapterId: input.source_adapter_id,
+      baseTime: degradedAt
+    });
+  } else {
+    await updateSourcePolicyNextCheck(client, { sourceAdapterId: input.source_adapter_id, baseTime: degradedAt });
+  }
+  return { event_id: eventId };
+}
+
 export function parseSourcePolicyConfig(text: string): SourcePolicyConfig {
   const parsed = JSON.parse(text) as unknown;
   if (!isRecord(parsed)) throw new Error("source policy config must be an object");
@@ -373,6 +432,10 @@ export function classifyDocumentChange(previousSha256: string | null, nextSha256
 
 function sourceItemIdFor(sourceAdapterId: string, itemKey: string): string {
   return `SRCITEM-${createHash("sha256").update(`${sourceAdapterId}\n${itemKey}`).digest("hex").slice(0, 24)}`;
+}
+
+async function lockSourceItemObservation(client: DbTxClient, sourceItemId: string): Promise<void> {
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [sourceItemId]);
 }
 
 async function upsertSourceHealth(client: DbClient, source: SourceRegistryEntry): Promise<void> {

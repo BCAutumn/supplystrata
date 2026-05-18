@@ -40,6 +40,8 @@ export const unComtradeAdapter: SourceAdapter<...> = {
 HTML snapshot 类来源（公司 IR、年报网页、新闻稿网页）优先用 `defineHtmlSnapshotAdapter()`：
 
 ```ts
+import { defineHtmlSnapshotAdapter } from "@supplystrata/source-adapter-runtime";
+
 export const companyIrAdapter = defineHtmlSnapshotAdapter<CompanyIrInput>({
   id: "company-ir",
   tier: "P0",

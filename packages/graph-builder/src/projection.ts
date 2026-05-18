@@ -8,6 +8,7 @@ import {
   type DatabaseStore
 } from "@supplystrata/db";
 import type { GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
+import { messageFromUnknown } from "@supplystrata/observability";
 
 export type GraphConsistencyCheck =
   | { status: "synced"; postgres: GraphProjectionStats; graph: GraphProjectionStats; recommendation: "none" }
@@ -178,10 +179,4 @@ function entityRecordFromRow(row: EntityRow): EntityRecord {
     attrs: row.attrs,
     ...(row.primary_country === null ? {} : { primary_country: row.primary_country })
   };
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
 }

@@ -14,7 +14,7 @@
     "@supplystrata/core": "workspace:*",
     "@supplystrata/object-store": "workspace:*",
     "@supplystrata/source-normalizers": "workspace:*",
-    "@supplystrata/source-adapter-spec": "workspace:*"
+    "@supplystrata/source-adapter-runtime": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

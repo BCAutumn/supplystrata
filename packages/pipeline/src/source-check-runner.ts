@@ -1,6 +1,6 @@
 import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
-import { getLogger } from "@supplystrata/observability";
-import { recordSourceFailure, type SourceDocumentChangeType } from "@supplystrata/source-monitor";
+import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { recordSourceDegraded, recordSourceFailure, type SourceDocumentChangeType } from "@supplystrata/source-monitor";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import type { FetchTask, RawDocument } from "@supplystrata/core";
 import { persistDocumentObservations } from "./document-observations.js";
@@ -36,6 +36,19 @@ export async function runSourceAdapterCheck<TInput>(
   try {
     for await (const task of input.adapter.plan(input.adapterInput, input.context)) {
       const raw = await fetchSourceTask(input.adapter, task, input.context);
+      if (raw.metadata["source_fetch_status"] === "fallback") {
+        await store.transaction(async (client) => {
+          await recordSourceDegraded(client, {
+            source_adapter_id: input.adapter.id,
+            error_message: sourceFetchErrorMessage(raw),
+            task_id: task.task_id,
+            url: task.url,
+            ...(input.options.checkTargetId === undefined ? {} : { check_target_id: input.options.checkTargetId }),
+            caused_by: input.options.failureCausedBy
+          });
+        });
+        continue;
+      }
       const normalized = await input.adapter.normalize(raw, input.context);
       const { saved, observation } = await store.transaction(async (client) => {
         const savedDocument = await saveNormalizedDocumentTx(client, normalized);
@@ -59,11 +72,13 @@ export async function runSourceAdapterCheck<TInput>(
     }
     return summaries;
   } catch (error) {
-    await recordSourceFailure(store, {
-      source_adapter_id: input.adapter.id,
-      error_message: messageFromUnknown(error),
-      ...(input.options.checkTargetId === undefined ? {} : { check_target_id: input.options.checkTargetId }),
-      caused_by: input.options.failureCausedBy
+    await store.transaction(async (client) => {
+      await recordSourceFailure(client, {
+        source_adapter_id: input.adapter.id,
+        error_message: messageFromUnknown(error),
+        ...(input.options.checkTargetId === undefined ? {} : { check_target_id: input.options.checkTargetId }),
+        caused_by: input.options.failureCausedBy
+      });
     });
     throw error;
   }
@@ -74,8 +89,7 @@ async function fetchSourceTask<TInput>(adapter: SourceAdapter<TInput, Uint8Array
   return adapter.fetch(task, context);
 }
 
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "unknown error";
+function sourceFetchErrorMessage(raw: RawDocument<Uint8Array>): string {
+  const value = raw.metadata["source_fetch_error"];
+  return typeof value === "string" ? value : "source fetch used cached fallback";
 }

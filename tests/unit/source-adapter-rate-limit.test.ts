@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRateLimitedSourceAdapter, SourceRateLimiter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
+import { createRateLimitedSourceAdapter, SourceRateLimiter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
 
 describe("source adapter rate limiter", () => {
   it("serializes concurrent fetches using adapter rate_limit", async () => {

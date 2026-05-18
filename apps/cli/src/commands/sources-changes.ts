@@ -1,7 +1,13 @@
 import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
 import { listChangeTimeline } from "@supplystrata/db";
-import { checkSecEdgarSource, runDueSourceChecks, type DueSourceCheckRunResult, type SourceCheckSummary } from "@supplystrata/pipeline";
+import {
+  listSourceCheckConnectorIds,
+  runDueSourceChecks,
+  runManualSourceCheck,
+  type DueSourceCheckRunResult,
+  type SourceCheckSummary
+} from "@supplystrata/pipeline";
 import { renderChangeTimelineItems } from "@supplystrata/render";
 import {
   listDueSourceChecks,
@@ -12,7 +18,7 @@ import {
 } from "@supplystrata/source-monitor";
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
-import { defaultSince, isSupportedFormType, parseChangeScope, parseFormat, parseLimit, parseSince, withDatabase, write, writeJson } from "../cli-utils.js";
+import { defaultSince, parseChangeScope, parseFormat, parseLimit, parseSince, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderDueSources, renderSourceHealth, renderSourcePlan, renderSourcesList } from "../source-render.js";
 
 export function registerSourcesAndChangesCommands(program: Command): void {
@@ -95,30 +101,53 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     });
   sources
     .command("check")
-    .requiredOption("--source <sourceAdapterId>", "implemented source adapter id; currently sec-edgar")
-    .option("--cik <cik>", "SEC CIK when --source sec-edgar")
-    .option("--entity <entityId>", "primary entity id when --source sec-edgar")
-    .option("--forms <forms>", "comma-separated SEC forms, e.g. 10-K,10-Q,8-K", "10-K")
-    .option("--limit <count>", "max documents to check", "1")
+    .requiredOption("--source <sourceAdapterId>", `source adapter id; supported connectors: ${listSourceCheckConnectorIds().join(", ")}`)
+    .option("--target-kind <kind>", "source check target kind; inferred when the source has exactly one connector")
+    .option("--config <json>", "JSON object passed to the source check connector")
+    .option("--config-file <path>", "JSON file object passed to the source check connector")
+    .option("--cik <cik>", "convenience config field for SEC CIK")
+    .option("--entity <entityId>", "convenience config field for primary entity_id")
+    .option("--forms <forms>", "convenience config field for SEC form_types, e.g. 10-K,10-Q,8-K")
+    .option("--year <year>", "convenience config field for official IR year")
+    .option("--query <query>", "convenience config field for source checks that search by query")
+    .option("--limit <count>", "convenience config field for connector limit")
     .option("--format <format>", "markdown or json", "markdown")
     .description("run one configured source check and record source monitor events")
-    .action(async (options: { source: string; cik?: string; entity?: string; forms: string; limit: string; format: string }) => {
-      await withDatabase(async (pool) => {
-        if (options.source !== "sec-edgar") throw new Error(`Unsupported source check adapter: ${options.source}`);
-        if (options.cik === undefined || options.entity === undefined) throw new Error("--cik and --entity are required for sec-edgar source checks");
-        const summaries = await checkSecEdgarSource(pool, {
-          cik: options.cik,
-          entityId: options.entity,
-          formTypes: parseSecForms(options.forms),
-          limit: parseLimit(options.limit)
+    .action(
+      async (options: {
+        source: string;
+        targetKind?: string;
+        config?: string;
+        configFile?: string;
+        cik?: string;
+        entity?: string;
+        forms?: string;
+        year?: string;
+        query?: string;
+        limit?: string;
+        format: string;
+      }) => {
+        await withDatabase(async (pool) => {
+          const targetConfig = await buildManualSourceCheckConfig(options);
+          const summaries = await runManualSourceCheck(pool, {
+            source_adapter_id: options.source,
+            ...(options.targetKind === undefined ? {} : { target_kind: options.targetKind }),
+            target_config: targetConfig
+          });
+          if (parseFormat(options.format) === "json") {
+            writeJson({
+              schema_version: "1.0.0",
+              source_adapter_id: options.source,
+              target_kind: options.targetKind ?? null,
+              checked: summaries.length,
+              summaries
+            });
+            return;
+          }
+          write(renderSourceCheckSummary(options.source, summaries));
         });
-        if (parseFormat(options.format) === "json") {
-          writeJson({ schema_version: "1.0.0", source_adapter_id: options.source, checked: summaries.length, summaries });
-          return;
-        }
-        write(renderSourceCheckSummary(options.source, summaries));
-      });
-    });
+      }
+    );
   sources
     .command("plan")
     .requiredOption("--component <ids>", "component id or comma-separated component ids, e.g. COMP-WAFER,COMP-HBM")
@@ -182,20 +211,6 @@ function parseComponentIds(value: string): string[] {
   return [...new Set(ids)].sort();
 }
 
-function parseSecForms(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
-  const rawForms = value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  if (rawForms.length === 0) throw new Error("--forms must include at least one SEC form");
-  const forms: ("10-K" | "10-Q" | "20-F" | "8-K")[] = [];
-  for (const form of rawForms) {
-    if (!isSupportedFormType(form)) throw new Error(`Unsupported SEC form: ${form}`);
-    forms.push(form);
-  }
-  return [...new Set(forms)];
-}
-
 function renderSourceCheckSummary(sourceAdapterId: string, summaries: readonly SourceCheckSummary[]): string {
   const lines = [`# Source Check: ${sourceAdapterId}`, "", `Documents checked: ${summaries.length}`];
   for (const item of summaries) {
@@ -209,6 +224,44 @@ function renderSourceCheckSummary(sourceAdapterId: string, summaries: readonly S
     lines.push(`  URL: ${item.source_url}`);
   }
   return lines.join("\n");
+}
+
+async function buildManualSourceCheckConfig(options: {
+  config?: string;
+  configFile?: string;
+  cik?: string;
+  entity?: string;
+  forms?: string;
+  year?: string;
+  query?: string;
+  limit?: string;
+}): Promise<Record<string, unknown>> {
+  const config = {
+    ...(options.configFile === undefined ? {} : parseJsonObject(await readFile(options.configFile, "utf8"), "--config-file")),
+    ...(options.config === undefined ? {} : parseJsonObject(options.config, "--config"))
+  };
+  if (options.cik !== undefined) config["cik"] = options.cik;
+  if (options.entity !== undefined) config["entity_id"] = options.entity;
+  if (options.forms !== undefined) config["form_types"] = parseCommaSeparated(options.forms);
+  if (options.year !== undefined) config["year"] = parseLimit(options.year);
+  if (options.query !== undefined) config["query"] = options.query;
+  if (options.limit !== undefined) config["limit"] = parseLimit(options.limit);
+  return config;
+}
+
+function parseJsonObject(text: string, label: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(text);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(`${label} must be a JSON object`);
+  return parsed as Record<string, unknown>;
+}
+
+function parseCommaSeparated(value: string): string[] {
+  const items = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (items.length === 0) throw new Error("comma-separated value must include at least one item");
+  return [...new Set(items)];
 }
 
 function renderDueSourceCheckRun(result: DueSourceCheckRunResult): string {

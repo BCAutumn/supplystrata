@@ -190,7 +190,7 @@ rule.supplier-list.facility
 
 系统要从“一次性抓取”升级成“知道何时变化、何处失败、哪些边受影响”的监控系统。
 
-状态：第一层已落地。`source_health` / `source_policies` / `source_items` / `document_versions` / `source_change_events` / `fetch_runs` 已进入 schema；`@supplystrata/source-monitor` 负责同步 registry、同步外部 cadence 配置、输出 source health/due list、计算 `DOCUMENT_NEW` / `DOCUMENT_UNCHANGED` / `DOCUMENT_CHANGED`，并记录 `SOURCE_FAILED` / `SOURCE_RECOVERED`。`recordDocumentObservation()` 已接入真实 pipeline 的 `saveNormalizedDocument` 后置路径。
+状态：第一层已落地。`source_health` / `source_policies` / `source_items` / `document_versions` / `source_change_events` / `fetch_runs` 已进入 schema；`@supplystrata/source-monitor` 负责同步 registry、同步外部 cadence 配置、输出 source health/due list、计算 `DOCUMENT_NEW` / `DOCUMENT_UNCHANGED` / `DOCUMENT_CHANGED`，并记录 `SOURCE_FAILED` / `SOURCE_DEGRADED` / `SOURCE_RECOVERED`。`recordDocumentObservation()` 已接入真实 pipeline 的 `saveNormalizedDocument` 后置路径，并要求在 `DbTxClient` 内运行；source item 变化判断会对 item key 加事务级 advisory lock，避免并发检查把同一 URL 误记两次 `DOCUMENT_NEW`。
 
 目标数据模型：
 

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type pg from "pg";
-import type { DbClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
 import {
   classifyDocumentChange,
   listDueSourceChecks,
   listSourceHealthRows,
   parseSourcePolicyConfig,
   recordDocumentObservation,
+  recordSourceDegraded,
   recordSourceFailure
 } from "@supplystrata/source-monitor";
 
@@ -119,6 +120,23 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_change_events") && call.sql.includes("SOURCE_RECOVERED"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("failure_count = 0"))).toBe(true);
   });
+
+  it("records cached fallback as degraded instead of success", async () => {
+    const client = new SourceMonitorDbClient({ failureCount: 0 });
+
+    const result = await recordSourceDegraded(client, {
+      source_adapter_id: "tsmc-ir",
+      error_message: "TSMC IR fetch timed out after 12000ms",
+      degraded_at: "2026-05-17T02:00:00.000Z",
+      task_id: "TASK-CACHED",
+      url: "https://investor.tsmc.com/example"
+    });
+
+    expect(result.event_id).toMatch(/^SEV-/);
+    expect(client.calls.some((call) => call.sql.includes("SOURCE_DEGRADED"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("last_failure_at = $2"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("last_success_at = $2"))).toBe(false);
+  });
 });
 
 interface QueryCall {
@@ -126,7 +144,8 @@ interface QueryCall {
   params: readonly unknown[];
 }
 
-class SourceMonitorDbClient implements DbClient {
+class SourceMonitorDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
   readonly #failureCount: number;
   readonly #lastErrorMessage: string | null;

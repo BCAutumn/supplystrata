@@ -1,5 +1,5 @@
 {
-  "name": "@supplystrata/sources-samsung-ir",
+  "name": "@supplystrata/source-adapter-runtime",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -13,8 +13,7 @@
     "@supplystrata/config": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/object-store": "workspace:*",
-    "@supplystrata/source-normalizers": "workspace:*",
-    "@supplystrata/source-adapter-runtime": "workspace:*"
+    "@supplystrata/source-adapter-spec": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

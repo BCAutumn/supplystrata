@@ -1,5 +1,5 @@
 import { loadEnv } from "@supplystrata/config";
-import { defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-spec";
+import { defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface SamsungIrInput {

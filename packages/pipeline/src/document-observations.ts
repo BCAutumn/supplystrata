@@ -1,5 +1,5 @@
 import type { NormalizedDocument } from "@supplystrata/core";
-import { loadDocument, recordSemanticChange, type DbClient, type SemanticChangeInput } from "@supplystrata/db";
+import { loadDocument, recordSemanticChange, type DbClient, type DbTxClient, type SemanticChangeInput } from "@supplystrata/db";
 import {
   extractDisclosureObservations,
   extractSemanticSections,
@@ -21,7 +21,7 @@ export interface PersistDocumentObservationOptions {
 }
 
 export async function recordSavedDocumentObservation(
-  client: DbClient,
+  client: DbTxClient,
   normalized: NormalizedDocument,
   docId: string,
   options: PersistDocumentObservationOptions = {}
@@ -39,7 +39,7 @@ export async function recordSavedDocumentObservation(
 }
 
 export async function persistDocumentObservations(
-  client: DbClient,
+  client: DbTxClient,
   normalized: NormalizedDocument,
   docId: string,
   options: PersistDocumentObservationOptions = {}

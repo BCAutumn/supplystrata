@@ -2,11 +2,18 @@ import { inferExtractionMethod, type CandidateRelation, type EvidenceLevel, type
 import { sourceAuthorityFor, type RelationAuthority, type SourceAuthority } from "@supplystrata/source-registry";
 
 export interface EvidenceScorer {
-  score(candidate: CandidateRelation, doc: NormalizedDocument): Promise<ScoringResult>;
+  score(candidate: CandidateRelation, doc: NormalizedDocument, options?: EvidenceScoringOptions): Promise<ScoringResult>;
+}
+
+export interface EvidenceScoringOptions {
+  reviewed?: {
+    reviewer: string;
+    reviewed_at: string;
+  };
 }
 
 export class DeterministicEvidenceScorer implements EvidenceScorer {
-  async score(candidate: CandidateRelation, doc: NormalizedDocument): Promise<ScoringResult> {
+  async score(candidate: CandidateRelation, doc: NormalizedDocument, options: EvidenceScoringOptions = {}): Promise<ScoringResult> {
     const method = inferExtractionMethod(candidate.extractor_id);
     const sourceAuthority = sourceAuthorityFor({ source_adapter_id: doc.source_adapter_id, document_type: doc.document_type });
     const sourceCap = sourceAuthority.max_evidence_level;
@@ -26,12 +33,13 @@ export class DeterministicEvidenceScorer implements EvidenceScorer {
     const uncapped = base + factors.reduce((sum, item) => sum + item.value, 0);
     const cap = evidenceLevel === 5 ? 0.95 : 0.9;
     const confidence = Math.max(0, Math.min(cap, uncapped));
+    const baseNeedsReview = method === "llm" || evidenceLevel <= 3 || sourceRequiresReview(sourceAuthority);
     return {
       evidence_level: evidenceLevel,
       confidence,
       is_inferred: evidenceLevel <= 3,
-      needs_review: method === "llm" || evidenceLevel <= 3 || sourceRequiresReview(sourceAuthority),
-      rationale: `source=${sourceAuthority.source_adapter_id}; publisher=${sourceAuthority.publisher_type}; relation_authority=${sourceAuthority.relation_authority}; source_cap=${sourceCap}; relation_cap=${relationCap}; method_cap=${methodCap}; modal=${modal}`,
+      needs_review: options.reviewed === undefined ? baseNeedsReview : false,
+      rationale: `source=${sourceAuthority.source_adapter_id}; publisher=${sourceAuthority.publisher_type}; relation_authority=${sourceAuthority.relation_authority}; source_cap=${sourceCap}; relation_cap=${relationCap}; method_cap=${methodCap}; modal=${modal}${options.reviewed === undefined ? "" : `; reviewed_by=${options.reviewed.reviewer}`}`,
       confidence_breakdown: { base, factors, cap, final: confidence }
     };
   }

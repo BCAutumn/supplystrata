@@ -92,7 +92,7 @@ queue: housekeeping       → daily 任务
 
 ## 速率控制
 
-每个 adapter 必须声明 `rate_limit`，实际执行由 `@supplystrata/source-adapter-spec` 的统一 limiter 包装 `plan/fetch`。adapter 不能自己散落 `setTimeout`，否则 source monitor 并发调度时会出现声明限速和实际限速分叉。
+每个 adapter 必须声明 `rate_limit`，实际执行由 `@supplystrata/source-adapter-runtime` 的统一 limiter 包装 `plan/fetch`。adapter 不能自己散落 `setTimeout`，否则 source monitor 并发调度时会出现声明限速和实际限速分叉。`@supplystrata/source-adapter-spec` 只保留接口契约和纯校验，不能依赖配置、对象存储或网络运行时。
 
 ```ts
 const adapter = createRateLimitedSourceAdapter(adapterBase);
