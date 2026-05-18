@@ -86,7 +86,7 @@ Phase 1 出场。
 - [x] `packages/sources/company-ir/{samsung-ir,skhynix-ir,asml-ir}`（已接入无库预览链路；Samsung 官网当前网络可用性不稳定，已做可解释降级）
 - [x] `packages/render`：CompanyCard / EvidenceCard / UnknownMap markdown + json
 - [x] `packages/render`：ComponentCard markdown + json
-- [ ] `packages/graph-builder`：deprecate
+- [x] `packages/graph-builder`：deprecate
 - [x] `apps/cli`：`company / component / chain / evidence / unknown-map / changes`
 - [ ] `apps/cli`：`search`
 - [x] `apps/cli`：`ingest sec-edgar / pipeline nvidia / graph rebuild`
@@ -172,6 +172,7 @@ Phase 2 出场。
 - [x] `apps/cli claims build`：幂等构建 claim 层
 - [x] `observations` / `lead_observations` schema
 - [x] `packages/observation-store`：observation / lead 幂等写入边界
+- [x] `packages/observation-extractor`：从 SEC / official annual report 抽取 inventory、backlog、capex、customer concentration、procurement commitment 等 observation draft；不生成事实边
 - [x] `packages/render`：ComponentCard JSON/Markdown 带 `related_observations`
 - [x] `chain_views` / `chain_segments` schema
 - [x] `packages/chain-view`：输出带 `semantic_layer` 的 CompanyChainViewModel（edge/claim 第一版）
@@ -180,6 +181,7 @@ Phase 2 出场。
 - [x] `packages/source-plan`：把二三级 component lead 映射到免费/公开数据源计划，明确 edge / observation / lead / entity 输出层
 - [x] `packages/workbench-export`：导出研究工作台 JSON
 - [x] `apps/research-preview` 消费 ChainViewModel JSON（TypeScript + Canvas 第一版）
+- [x] pipeline 写入官方披露 observation，并让 ChainView / workbench 展示这些观测层 context
 - [ ] `dart-kr` adapter（Samsung / SK Hynix 韩文披露的英文版）
 - [ ] 扩展亚洲/欧洲 IR 的历史覆盖与非 MVP 公司（MVP 的 4 家 IR 已在 Phase 2 接入）
 - [ ] `un-comtrade` adapter → macro_signals 表

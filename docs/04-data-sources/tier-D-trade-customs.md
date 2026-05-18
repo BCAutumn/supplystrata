@@ -58,8 +58,10 @@ interface TradeFlowSignal {
 
 ### 接入
 
-- 公开 API（无 key 也能用，建议加 key）
+- 公开 API；当前实现要求配置免费 `CENSUS_API_KEY`，避免无 key 限制和运行时行为漂移。
 - JSON
+- `@supplystrata/sources-census-trade` 已接入第一版 `imports/hs` 与 `exports/hs` 月度数据；`source_check_targets.target_kind = trade-flow-observation` 会写入 `TRADE_FLOW_OBSERVATION`。
+- API key 只在抓取请求中附加，不写入 `source_url` / document provenance。
 
 ### 与 Comtrade 区别
 
@@ -71,6 +73,7 @@ interface TradeFlowSignal {
 
 - Macro signal 同上
 - 港口级数据 + AIS（Tier E）可作为 logistics 背景
+- 禁止直接从 Census Trade 生成公司级 `BUYS_FROM` / `SUPPLIES_TO` 边；它只能支持组件、国家、港口或路线层面的观测。
 
 ## D.3 USITC DataWeb (`usitc-dataweb`)
 

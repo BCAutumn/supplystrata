@@ -38,11 +38,11 @@
 - `CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md` 已存在。
 - GitHub Actions CI 已配置 type-check、unit、integration、lint、dependency boundary。
 - GitHub Actions CI 已配置 fixture e2e。
-- `pnpm release:check` 已配置本地发布前体检：ignore rules、secret scan、type-check、unit、integration、e2e、lint、dep-check、smoke:local、dq run、graph check。
+- `pnpm release:check` 已配置本地发布前体检：ignore rules、secret scan、type-check、unit、integration、e2e、lint、dep-check 和无数据库 smoke；需要本地 truth store / GraphStore 时使用 `pnpm release:check --with-db` 额外跑 `dq run` 与 `graph check`。
 - GitHub issue / PR templates 已配置数据边界提醒。
 - `pnpm type-check`、`pnpm test:unit`、`pnpm test:integration`、`pnpm lint`、`pnpm dep-check` 可运行。
 - `pnpm test:e2e` 可运行，不访问 SEC 外网。
-- `pnpm smoke:local` / `pnpm smoke:network` 可运行。
+- `pnpm smoke:local` 可在无 Docker/无 DB 环境运行；`pnpm smoke:local --with-db` / `pnpm smoke:network` 用于持久化链路自检。
 - `pnpm cli dq run` 可检查 Postgres truth 的核心数据质量。
 - 本地 Postgres / Neo4j 路径可运行。
 - `graph check` / `graph rebuild` 能验证并恢复 Neo4j 物化视图。

@@ -54,6 +54,10 @@ SPA 路由框架
 │   - Unknown boundary   │ - source URL + fetched_at       │
 │                        │ - inferred 状态                 │
 │                        ├─────────────────────────────────┤
+│                        │ Draft Claims                    │
+│                        │ - reviewed semantic changes     │
+│                        │ - non-active research drafts    │
+│                        ├─────────────────────────────────┤
 │                        │ Unknown Map                     │
 ├────────────────────────┴─────────────────────────────────┤
 │ Source Health · Changes Timeline · Review Queue Stats    │
@@ -100,12 +104,15 @@ interface WorkbenchModel {
   edges: WorkbenchEdge[];
   upstream_edges: WorkbenchEdge[];
   downstream_edges: WorkbenchEdge[];
+  draft_claims: WorkbenchClaim[];
   evidences: WorkbenchEvidence[];
   unknown_items: WorkbenchUnknown[];
   sources: WorkbenchSourceHealth[];
   changes: WorkbenchChange[];
 }
 ```
+
+`evidences` 必须包含 ChainView 事实边上的全部 evidence，而不只是 `primary_evidence_id`。如果旧 evidence 已经被 `superseded_by` 指向新 evidence，工作台仍要保留它，让研究员能看到证据链如何演化。
 
 `chain_segments.semantic_layer` 必须保留：
 
@@ -120,6 +127,8 @@ unknown
 前端不得把 observation 画成事实边。
 `claim` 只作为可读结论或标签展示，不得被前端当成一条新的供应链关系。
 
+`draft_claims` 是单独区块，不属于 `chain_segments`。它来自已确认的 `semantic_change` review candidate，状态必须是 `draft`，并且导出时按当前研究公司 scope 过滤。前端只能把它展示为研究草稿，不能画进 fact edge lane，也不能把它计入 active claims。
+
 ## 交互
 
 v0.2 必须支持：
@@ -127,6 +136,7 @@ v0.2 必须支持：
 - 公司切换。
 - 点击边或上下文 segment，右侧显示 Inspector。
 - 点击 unknown boundary，右侧显示 unknown item。
+- Draft Claims 区块显示已确认但未升级为事实边的 claim 草稿。
 - Source health 区块显示 last_success / last_failure / next_check_at。
 - Changes timeline 显示新增边、新证据、文档变化。
 
@@ -152,6 +162,9 @@ thin grey line
 
 orange boundary
   unknown / confidential / unverified segment
+
+draft claim panel
+  reviewed semantic-change research draft; never a fact edge
 ```
 
 默认隐藏 Level 1-3，按钮文案使用：
@@ -174,7 +187,7 @@ show inferred edges
 
 最初的 `reports/latest-nvidia-research.html` 是一次性报告页：它从 `preview report` JSON 生成，形态上更像“把 NVIDIA 研究结果排版出来”。它不读取 Postgres truth store，不消费 `ChainViewModel`，也不承载 source health、change timeline 和 claim/evidence 的长期契约。
 
-`apps/research-preview` 是研究工作台：它从 `workbench export` JSON 读取 `chain_segments / claims / evidences / unknown_items / sources / changes`，用 Canvas 画事实边、观测、线索和未知边界。它的目标不是只展示 NVIDIA，而是未来输入 Apple、Tesla、Microsoft、SpaceX 等任意研究对象时，都沿用同一个数据契约和交互模型。
+`apps/research-preview` 是研究工作台：它从 `workbench export` JSON 读取 `chain_segments / claims / draft_claims / evidences / unknown_items / sources / changes`，用 Canvas 画事实边、观测、线索和未知边界，并用侧栏展示已确认语义变化产生的 claim 草稿。它的目标不是只展示 NVIDIA，而是未来输入 Apple、Tesla、Microsoft、SpaceX 等任意研究对象时，都沿用同一个数据契约和交互模型。
 
 因此两者的核心区别是：
 

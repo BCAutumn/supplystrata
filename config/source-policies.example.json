@@ -18,11 +18,160 @@
       "notes": "Apple Supplier List 更新频率低，默认每周检查足够。"
     },
     {
+      "source_adapter_id": "tsmc-ir",
+      "enabled": true,
+      "check_cadence_minutes": 10080,
+      "jitter_minutes": 240,
+      "priority": 40,
+      "notes": "公司官方 IR 页用于二级链路的官方披露监控；只进入 document observation / semantic diff，不自动写事实边。"
+    },
+    {
+      "source_adapter_id": "samsung-ir",
+      "enabled": true,
+      "check_cadence_minutes": 10080,
+      "jitter_minutes": 240,
+      "priority": 40,
+      "notes": "公司官方 IR 页用于 Memory / Foundry 供应侧披露监控。"
+    },
+    {
+      "source_adapter_id": "skhynix-ir",
+      "enabled": true,
+      "check_cadence_minutes": 10080,
+      "jitter_minutes": 240,
+      "priority": 40,
+      "notes": "公司官方 IR 页用于 HBM/DRAM 供应侧披露监控。"
+    },
+    {
+      "source_adapter_id": "asml-ir",
+      "enabled": true,
+      "check_cadence_minutes": 10080,
+      "jitter_minutes": 240,
+      "priority": 40,
+      "notes": "公司官方 IR 页用于半导体设备链路披露监控。"
+    },
+    {
+      "source_adapter_id": "census-trade",
+      "enabled": false,
+      "check_cadence_minutes": 43200,
+      "jitter_minutes": 1440,
+      "priority": 120,
+      "notes": "Census Trade 需要免费 API key；只写 trade flow observation，不生成公司级事实边。"
+    },
+    {
+      "source_adapter_id": "osh",
+      "enabled": false,
+      "check_cadence_minutes": 10080,
+      "jitter_minutes": 1440,
+      "priority": 110,
+      "notes": "Open Supply Hub 需要 API token；只写 facility profile observation，不自动生成供应关系。"
+    },
+    {
       "source_adapter_id": "import-yeti",
       "enabled": false,
       "check_cadence_minutes": 10080,
       "priority": 900,
       "notes": "ToS 灰色来源，只允许手工摘录，不进行自动检查。"
+    }
+  ],
+  "check_targets": [
+    {
+      "check_target_id": "sec-edgar:nvidia",
+      "source_adapter_id": "sec-edgar",
+      "target_kind": "sec-company-filings",
+      "enabled": true,
+      "priority": 10,
+      "subject_entity_id": "ENT-NVIDIA",
+      "target_config": {
+        "cik": "0001045810",
+        "entity_id": "ENT-NVIDIA",
+        "form_types": ["10-K", "10-Q", "8-K"],
+        "limit": 3
+      },
+      "notes": "示例目标；真实部署时把这里换成你要监控的上市公司。"
+    },
+    {
+      "check_target_id": "tsmc-ir:annual-report",
+      "source_adapter_id": "tsmc-ir",
+      "target_kind": "official-html-disclosure",
+      "enabled": true,
+      "priority": 40,
+      "subject_entity_id": "ENT-TSMC",
+      "target_config": {
+        "entity_id": "ENT-TSMC",
+        "year": 2025
+      },
+      "notes": "二级 foundry 链路官方披露监控；不会自动生成 NVIDIA -> TSMC 事实边。"
+    },
+    {
+      "check_target_id": "samsung-ir:fy-results",
+      "source_adapter_id": "samsung-ir",
+      "target_kind": "official-html-disclosure",
+      "enabled": true,
+      "priority": 40,
+      "subject_entity_id": "ENT-SAMSUNG-ELECTRONICS",
+      "target_config": {
+        "entity_id": "ENT-SAMSUNG-ELECTRONICS",
+        "year": 2025
+      },
+      "notes": "Memory / Foundry 官方披露监控；只进入 observation 和 semantic review。"
+    },
+    {
+      "check_target_id": "skhynix-ir:fy-results",
+      "source_adapter_id": "skhynix-ir",
+      "target_kind": "official-html-disclosure",
+      "enabled": true,
+      "priority": 40,
+      "subject_entity_id": "ENT-SKHYNIX",
+      "target_config": {
+        "entity_id": "ENT-SKHYNIX",
+        "year": 2025
+      },
+      "notes": "HBM/DRAM 官方披露监控；只进入 observation 和 semantic review。"
+    },
+    {
+      "check_target_id": "asml-ir:annual-report",
+      "source_adapter_id": "asml-ir",
+      "target_kind": "official-html-disclosure",
+      "enabled": true,
+      "priority": 40,
+      "subject_entity_id": "ENT-ASML",
+      "target_config": {
+        "entity_id": "ENT-ASML",
+        "year": 2025
+      },
+      "notes": "半导体设备链路官方披露监控；只进入 observation 和 semantic review。"
+    },
+    {
+      "check_target_id": "census-trade:memory-imports",
+      "source_adapter_id": "census-trade",
+      "target_kind": "trade-flow-observation",
+      "enabled": false,
+      "priority": 120,
+      "subject_entity_id": null,
+      "target_config": {
+        "direction": "imports",
+        "time": "2025-12",
+        "commodity_code": "854232",
+        "component_id": "COMP-MEMORY",
+        "scope_kind": "component",
+        "scope_id": "COMP-MEMORY"
+      },
+      "notes": "示例 HS code 观测；打开前先配置 CENSUS_API_KEY。宏观贸易流只能作为背景观测。"
+    },
+    {
+      "check_target_id": "osh:memory-facilities",
+      "source_adapter_id": "osh",
+      "target_kind": "facility-search",
+      "enabled": false,
+      "priority": 110,
+      "subject_entity_id": null,
+      "target_config": {
+        "query": "memory semiconductor",
+        "country_code": "TW",
+        "page_size": 25,
+        "scope_id": "COMP-MEMORY"
+      },
+      "notes": "示例设施候选搜索；打开前先配置 OSH_API_TOKEN。结果只进入 FACILITY_PROFILE_OBSERVATION。"
     }
   ]
 }

@@ -15,6 +15,8 @@
 - 公开 API：`/facilities/`、`/contributors/`、`/api/...`
 - 需要 API key（免费注册）
 - 数据可下载，遵守归因
+- 当前实现：`@supplystrata/sources-osh` 支持 facility search，`source_check_targets.target_kind = facility-search` 会保存 `facility_dataset` 文档并写入 `FACILITY_PROFILE_OBSERVATION`。
+- `OSH_API_TOKEN` 只作为请求 header 使用，不写入 `source_url` / provenance。
 
 ### 字段映射
 
@@ -32,6 +34,7 @@
 - OSH 提供"哪个品牌/组织报告了哪个设施"，但**不一定**等同于"该品牌的供应商在该设施制造该品牌的产品"
 - MVP 阶段：只用 OSH 做"facility 存在 + 大致地理 + 行业分类"，**不**自动生成 BUYS_FROM
 - 唯一例外：Apple Supplier List 与 OSH 同时确认的供应商-设施 → 生成 MANUFACTURES_AT (evidence_level 4)
+- 当前 preview connector 不会自动执行这个升级；升级必须走后续交叉验证和 review/apply。
 
 ### 已知盲区
 

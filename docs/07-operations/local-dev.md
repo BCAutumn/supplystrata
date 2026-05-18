@@ -30,7 +30,7 @@ pnpm install
 docker compose up -d postgres neo4j
 # 第一次启动等 ~10s
 
-pnpm smoke:local
+pnpm smoke:local --with-db
 ```
 
 ## 无 Docker 预览
@@ -116,7 +116,7 @@ pnpm cli ingest sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K
 pnpm cli pipeline nvidia --graph-sync sync
 ```
 
-这个设计是为了未来嵌入 TS 桌面端或 agent 产品：宿主只需要提供 Postgres 或等价的 truth store，即可跑研究链路和 workbench export；Neo4j 可以作为可选的图查询加速层。
+这个设计是为了未来嵌入 TS 桌面端或 agent 产品：宿主只需要提供 `DatabaseStore`（内置实现是 Postgres，也可以由宿主包装自己的兼容 SQL truth store），即可跑研究链路和 workbench export；Neo4j 可以作为可选的图查询加速层。
 
 ### 测试
 
@@ -129,7 +129,8 @@ pnpm test:e2e
 pnpm type-check
 pnpm lint
 pnpm dep-check
-pnpm smoke:local                   # 本地 DB + seed + graph 同步
+pnpm smoke:local                   # 无数据库 CLI smoke
+pnpm smoke:local --with-db         # 本地 DB + seed + graph 同步
 pnpm smoke:network                 # 额外跑 SEC/NVIDIA 联网研究切片
 ```
 

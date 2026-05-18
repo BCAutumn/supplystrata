@@ -1,14 +1,16 @@
 import type pg from "pg";
-import type { EvidenceLevel, RelationType } from "@supplystrata/core";
-
-interface DbClient {
-  query<T extends pg.QueryResultRow>(sql: string, params?: readonly unknown[]): Promise<pg.QueryResult<T>>;
-}
+import { createId, type EvidenceLevel, type RelationType } from "@supplystrata/core";
+import type { DbClient } from "./client.js";
 
 export type ChangeTimelineScope =
   | { kind: "company"; id: string }
   | { kind: "entity"; id: string }
   | { kind: "edge"; id: string }
+  | { kind: "claim"; id: string }
+  | { kind: "observation"; id: string }
+  | { kind: "lead"; id: string }
+  | { kind: "unknown"; id: string }
+  | { kind: "review"; id: string }
   | { kind: "source"; id: string };
 
 export interface ChangeTimelineInput {
@@ -22,7 +24,7 @@ export interface ChangeTimelineInput {
 
 export interface ChangeTimelineItem {
   event_id: string;
-  event_family: "graph" | "source";
+  event_family: "graph" | "source" | "semantic";
   event_type: string;
   occurred_at: string;
   scope_kind?: string;
@@ -43,6 +45,16 @@ export interface ChangeTimelineItem {
   requires_attention: boolean;
   before?: Record<string, unknown>;
   after?: Record<string, unknown>;
+}
+
+export interface SemanticChangeInput {
+  scope_kind: string;
+  scope_id: string;
+  change_type: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  evidence_ids?: readonly string[];
+  caused_by: string;
 }
 
 interface GraphChangeRow extends pg.QueryResultRow {
@@ -90,6 +102,16 @@ export async function listChangeTimeline(client: DbClient, input: ChangeTimeline
   return items.slice(0, input.limit);
 }
 
+export async function recordSemanticChange(client: DbClient, input: SemanticChangeInput): Promise<{ change_id: string }> {
+  const changeId = createId("CHG");
+  await client.query(
+    `INSERT INTO change_records (change_id, scope_kind, scope_id, change_type, before, after, evidence_ids, caused_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [changeId, input.scope_kind, input.scope_id, input.change_type, input.before ?? null, input.after ?? null, [...(input.evidence_ids ?? [])], input.caused_by]
+  );
+  return { change_id: changeId };
+}
+
 async function listGraphChangeRows(client: DbClient, input: ChangeTimelineInput): Promise<GraphChangeRow[]> {
   const params: unknown[] = [input.since];
   const predicates = ["cr.detected_at >= $1::timestamptz"];
@@ -110,7 +132,7 @@ async function listGraphChangeRows(client: DbClient, input: ChangeTimelineInput)
             cr.caused_by,
             ev.evidence_id,
             ev.evidence_level,
-            d.source_adapter_id,
+            COALESCE(d.source_adapter_id, cr.after->>'source_adapter_id', cr.before->>'source_adapter_id') AS source_adapter_id,
             d.doc_id,
             COALESCE(ev.edge_id, CASE WHEN cr.scope_kind = 'edge' THEN cr.scope_id ELSE NULL END) AS edge_id,
             ed.subject_id,
@@ -166,7 +188,7 @@ async function listSourceChangeRows(client: DbClient, input: ChangeTimelineInput
 function graphChangeRowToItem(row: GraphChangeRow): ChangeTimelineItem {
   const item: ChangeTimelineItem = {
     event_id: row.change_id,
-    event_family: "graph",
+    event_family: eventFamilyForGraphRow(row.scope_kind),
     event_type: normalizeGraphChangeType(row.change_type),
     occurred_at: row.detected_at.toISOString(),
     scope_kind: row.scope_kind,
@@ -249,13 +271,28 @@ function withOptionalChangeFields(
 function normalizeGraphChangeType(changeType: string): string {
   if (changeType === "new_edge") return "EDGE_ADDED";
   if (changeType === "edge_evidence_added") return "EVIDENCE_ADDED";
+  if (changeType === "evidence_superseded") return "EVIDENCE_SUPERSEDED";
   if (changeType === "entity_source_import") return "ENTITY_IMPORTED";
   if (changeType === "facility_source_import") return "FACILITY_IMPORTED";
   return changeType.toUpperCase();
 }
 
+function eventFamilyForGraphRow(scopeKind: string): ChangeTimelineItem["event_family"] {
+  if (
+    scopeKind === "claim" ||
+    scopeKind === "observation" ||
+    scopeKind === "lead" ||
+    scopeKind === "unknown" ||
+    scopeKind === "review" ||
+    scopeKind === "source"
+  ) {
+    return "semantic";
+  }
+  return "graph";
+}
+
 function graphChangeRequiresAttention(changeType: string): boolean {
-  return /deprecated|conflict|failed|blocked/i.test(changeType);
+  return /changed|removed|deprecated|conflict|failed|blocked|rejected|superseded/i.test(changeType);
 }
 
 function sourceChangeRequiresAttention(eventType: string): boolean {
@@ -266,5 +303,8 @@ function matchesChangeScope(item: ChangeTimelineItem, scope: ChangeTimelineScope
   if (scope === undefined) return true;
   if (scope.kind === "source") return item.source_adapter_id === scope.id;
   if (scope.kind === "edge") return item.edge_id === scope.id || (item.scope_kind === "edge" && item.scope_id === scope.id);
+  if (scope.kind === "claim" || scope.kind === "observation" || scope.kind === "lead" || scope.kind === "unknown" || scope.kind === "review") {
+    return item.scope_kind === scope.kind && item.scope_id === scope.id;
+  }
   return item.scope_id === scope.id || item.subject_id === scope.id || item.object_id === scope.id;
 }

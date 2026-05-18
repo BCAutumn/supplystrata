@@ -16,7 +16,7 @@ import {
   parseLanguage,
   parseLimit,
   parsePreviewFormat,
-  withPool,
+  withDatabase,
   write,
   writeJson
 } from "../cli-utils.js";
@@ -32,7 +32,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .option("--graph-sync <mode>", "GraphStore projection sync mode: defer or sync", "defer")
     .description("fetch latest matching SEC filing and run the vertical pipeline")
     .action(async (options: { cik: string; entity: string; types: string; graphSync: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const formTypes = parseFormTypes(options.types);
         const graphSyncMode = parseGraphSyncMode(options.graphSync);
         const summary = await runSecEdgarPipeline(pool, { cik: options.cik, entityId: options.entity, formTypes }, graphOptions(graphSyncMode));
@@ -46,7 +46,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .option("--graph-sync <mode>", "GraphStore projection sync mode: defer or sync", "defer")
     .description("run SEC/NVIDIA 10-K vertical slice")
     .action(async (options: { graphSync: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const graphSyncMode = parseGraphSyncMode(options.graphSync);
         const summary = await runDefaultNvidiaSlice(pool, graphOptions(graphSyncMode));
         writeJson(summary);

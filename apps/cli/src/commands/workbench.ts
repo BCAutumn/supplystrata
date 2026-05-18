@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import type { Command } from "commander";
 import { buildWorkbenchModel } from "@supplystrata/workbench-export";
-import { parseLimit, parseSince, withPool, writeJson } from "../cli-utils.js";
+import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerWorkbenchCommands(program: Command): void {
   const workbench = program.command("workbench").description("local research workbench commands");
@@ -15,7 +15,7 @@ export function registerWorkbenchCommands(program: Command): void {
     .option("--out <path>", "write JSON to a file instead of stdout")
     .description("export a JSON model consumed by apps/research-preview")
     .action(async (options: { company: string; depth: string; since?: string; changeLimit: string; sourceLimit: string; out?: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const model = await buildWorkbenchModel(pool, {
           company: options.company,
           depth: parseLimit(options.depth),

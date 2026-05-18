@@ -1,8 +1,8 @@
 import type pg from "pg";
+import type { DbClient } from "@supplystrata/db";
 import { listUnknownItems, resolveEntityId } from "@supplystrata/db";
 import type { EvidenceLevel, RelationType } from "@supplystrata/core";
-
-type OutputFormat = "markdown" | "json";
+import type { OutputFormat } from "./types.js";
 
 interface CompanyEdgeRow extends pg.QueryResultRow {
   edge_id: string;
@@ -27,14 +27,16 @@ interface CompanyHeaderRow extends pg.QueryResultRow {
   display_name: string;
 }
 
-export async function renderCompany(pool: pg.Pool, query: string, format: OutputFormat): Promise<string> {
-  const entityId = await resolveEntityId(pool, query);
-  const headerResult = await pool.query<CompanyHeaderRow>("SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1", [entityId]);
+export async function renderCompany(client: DbClient, query: string, format: OutputFormat): Promise<string> {
+  const entityId = await resolveEntityId(client, query);
+  const headerResult = await client.query<CompanyHeaderRow>("SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1", [
+    entityId
+  ]);
   const header = headerResult.rows[0];
   if (header === undefined) throw new Error(`Entity not found: ${entityId}`);
-  const upstreamEdges = await loadCompanyEdges(pool, entityId, "upstream");
-  const downstreamEdges = await loadCompanyEdges(pool, entityId, "downstream");
-  const unknownItems = await listUnknownItems(pool, entityId);
+  const upstreamEdges = await loadCompanyEdges(client, entityId, "upstream");
+  const downstreamEdges = await loadCompanyEdges(client, entityId, "downstream");
+  const unknownItems = await listUnknownItems(client, entityId);
 
   if (format === "json") {
     return JSON.stringify(
@@ -79,9 +81,9 @@ function appendCompanyEdges(lines: string[], edges: readonly CompanyEdgeRow[]): 
   }
 }
 
-async function loadCompanyEdges(pool: pg.Pool, entityId: string, direction: "upstream" | "downstream"): Promise<CompanyEdgeRow[]> {
+async function loadCompanyEdges(client: DbClient, entityId: string, direction: "upstream" | "downstream"): Promise<CompanyEdgeRow[]> {
   const relationFilter = direction === "upstream" ? "e.relation IN ('BUYS_FROM','USES_FOUNDRY','MANUFACTURES_AT')" : "e.relation = 'SUPPLIES_TO'";
-  const result = await pool.query<CompanyEdgeRow>(
+  const result = await client.query<CompanyEdgeRow>(
     `SELECT e.edge_id, e.relation, e.component, e.component_id, e.component_specificity,
             e.object_id AS counterparty_id,
             o.display_name AS counterparty_name,

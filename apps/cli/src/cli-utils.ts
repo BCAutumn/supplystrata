@@ -1,4 +1,4 @@
-import { createPool, type PendingEntityStatusFilter } from "@supplystrata/db";
+import { createDatabaseStore, type DatabaseStore, type PendingEntityStatusFilter } from "@supplystrata/db";
 import type { ChangeTimelineScope } from "@supplystrata/db";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import type { EntityLookupSource } from "@supplystrata/pipeline";
@@ -6,12 +6,12 @@ import type { OutputFormat } from "@supplystrata/render";
 
 export type PreviewFormat = OutputFormat | "csv";
 
-export async function withPool<T>(fn: (pool: ReturnType<typeof createPool>) => Promise<T>): Promise<T> {
-  const pool = createPool();
+export async function withDatabase<T>(fn: (store: DatabaseStore) => Promise<T>): Promise<T> {
+  const store = createDatabaseStore();
   try {
-    return await fn(pool);
+    return await fn(store);
   } finally {
-    await pool.end();
+    await store.close();
   }
 }
 
@@ -88,7 +88,7 @@ export function formatCliError(error: unknown): string {
   if (isConnectionRefused(error)) {
     return [
       "A local database service is not reachable.",
-      "DB-backed commands need Postgres; commands using the built-in Neo4j GraphStore adapter also need Neo4j. Start the required service or set POSTGRES_URL / NEO4J_URI to a reachable endpoint, then retry.",
+      "DB-backed commands need a configured SQL truth store. The built-in adapter is Postgres via POSTGRES_URL; graph sync commands using the built-in Neo4j GraphStore adapter also need NEO4J_URI.",
       "DB-free preview commands remain available, for example: pnpm cli preview nvidia --format json"
     ].join("\n");
   }

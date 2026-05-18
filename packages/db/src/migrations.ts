@@ -5,6 +5,8 @@ import { migration0003SourceMonitoringSql } from "./migration-sql/0003_source_mo
 import { migration0004ReviewQualitySql } from "./migration-sql/0004_review_quality.js";
 import { migration0005RemoveLegacyReviewQueueSql } from "./migration-sql/0005_remove_legacy_review_queue.js";
 import { migration0006ClaimsObservationsChainViewsSql } from "./migration-sql/0006_claims_observations_chain_views.js";
+import { migration0007SourceCheckTargetsSql } from "./migration-sql/0007_source_check_targets.js";
+import { migration0008ClaimDraftsSql } from "./migration-sql/0008_claim_drafts.js";
 
 interface Migration {
   readonly id: string;
@@ -42,6 +44,16 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0006_claims_observations_chain_views",
     description: "Create claim, observation, lead, and chain-view contract tables.",
     sql: migration0006ClaimsObservationsChainViewsSql
+  },
+  {
+    id: "0007_source_check_targets",
+    description: "Create configurable source check targets for scheduled monitoring.",
+    sql: migration0007SourceCheckTargetsSql
+  },
+  {
+    id: "0008_claim_drafts",
+    description: "Allow reviewed semantic changes to create non-active claim drafts.",
+    sql: migration0008ClaimDraftsSql
   }
 ];
 

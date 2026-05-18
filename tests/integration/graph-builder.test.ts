@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ApprovedCandidate, EntityRecord } from "@supplystrata/core";
-import { createPool, migrate } from "@supplystrata/db";
+import { createDatabaseStore, migrate, type DbClient } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
@@ -28,6 +28,8 @@ class FailingGraphStore implements GraphStore {
 
   async upsertEdge(_edge: GraphEdgeInput): Promise<void> {}
 
+  async removeEdge(_edgeId: string): Promise<void> {}
+
   async stats(): Promise<{ nodes: number; edges: number }> {
     return { nodes: 0, edges: 0 };
   }
@@ -49,6 +51,8 @@ class StatsGraphStore implements GraphStore {
   async upsertEntity(_entity: EntityRecord): Promise<void> {}
 
   async upsertEdge(_edge: GraphEdgeInput): Promise<void> {}
+
+  async removeEdge(_edgeId: string): Promise<void> {}
 
   async stats(): Promise<{ nodes: number; edges: number }> {
     return this.#stats;
@@ -88,7 +92,7 @@ interface EvidenceTraceTestRow extends pg.QueryResultRow {
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
-  const pool = createPool();
+  const pool = createDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);
@@ -99,7 +103,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
 
   afterAll(async () => {
     await cleanupIntegrationRows(pool);
-    await pool.end();
+    await pool.close();
   });
 
   it("commits Postgres truth when GraphStore projection sync fails", async () => {
@@ -214,7 +218,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   });
 });
 
-async function seedIntegrationEntities(client: pg.Pool): Promise<void> {
+async function seedIntegrationEntities(client: DbClient): Promise<void> {
   await client.query(
     `INSERT INTO entity_master (entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs)
      VALUES
@@ -246,7 +250,7 @@ async function seedIntegrationEntities(client: pg.Pool): Promise<void> {
   );
 }
 
-async function seedIntegrationComponents(client: pg.Pool): Promise<void> {
+async function seedIntegrationComponents(client: DbClient): Promise<void> {
   await client.query(
     `INSERT INTO components (component_id, name, taxonomy_path, aliases)
      VALUES ('COMP-ITEST-MEMORY','memory',ARRAY['integration','memory'],ARRAY['memory'])
@@ -257,7 +261,7 @@ async function seedIntegrationComponents(client: pg.Pool): Promise<void> {
   );
 }
 
-async function cleanupIntegrationRows(client: pg.Pool): Promise<void> {
+async function cleanupIntegrationRows(client: DbClient): Promise<void> {
   await client.query(
     "DELETE FROM change_records WHERE scope_id IN (SELECT edge_id FROM edges WHERE subject_id = 'ENT-ITEST-BUYER' OR object_id = 'ENT-ITEST-SUPPLIER')"
   );
@@ -270,7 +274,7 @@ async function cleanupIntegrationRows(client: pg.Pool): Promise<void> {
   await client.query("DELETE FROM components WHERE component_id = 'COMP-ITEST-MEMORY'");
 }
 
-async function currentPostgresProjection(client: pg.Pool): Promise<{ nodes: number; edges: number }> {
+async function currentPostgresProjection(client: DbClient): Promise<{ nodes: number; edges: number }> {
   const result = await client.query<ProjectionStatsRow>(
     `SELECT
        (SELECT count(*)::int FROM entity_master WHERE status = 'active') AS nodes,

@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const rootDir = process.cwd();
 const checks = [];
+const withDb = process.argv.includes("--with-db");
 
 function addCheck(name, ok, detail = "") {
   checks.push({ name, ok, detail });
@@ -51,13 +52,18 @@ async function main() {
   await runNamedCommand("e2e fixture tests", ["test:e2e"]);
   await runNamedCommand("lint", ["lint"]);
   await runNamedCommand("dependency boundaries", ["dep-check"]);
-  await runNamedCommand("local smoke", ["smoke:local"]);
+  await runNamedCommand("local smoke", withDb ? ["smoke:local", "--with-db"] : ["smoke:local"]);
 
-  const dq = parseJson(runPnpm(["--silent", "cli", "dq", "run", "--format", "json"], { capture: true }), "dq run");
-  addCheck("data quality", dq.ok === true, `errors=${dq.counts?.error ?? "?"}, warnings=${dq.counts?.warn ?? "?"}`);
+  if (withDb) {
+    const dq = parseJson(runPnpm(["--silent", "cli", "dq", "run", "--format", "json"], { capture: true }), "dq run");
+    addCheck("data quality", dq.ok === true, `errors=${dq.counts?.error ?? "?"}, warnings=${dq.counts?.warn ?? "?"}`);
 
-  const graph = parseJson(runPnpm(["--silent", "cli", "graph", "check", "--format", "json"], { capture: true }), "graph check");
-  addCheck("graph consistency", graph.ok === true, graph.check?.status ?? "unknown");
+    const graph = parseJson(runPnpm(["--silent", "cli", "graph", "check", "--format", "json"], { capture: true }), "graph check");
+    addCheck("graph consistency", graph.ok === true, graph.check?.status ?? "unknown");
+  } else {
+    addCheck("data quality", true, "skipped; pass --with-db to require a SQL truth store");
+    addCheck("graph consistency", true, "skipped; pass --with-db to require a GraphStore");
+  }
 
   const failed = checks.filter((check) => !check.ok);
   if (failed.length > 0) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEntitySourceReviewCandidate,
+  buildSemanticChangeReviewCandidate,
   buildSupplierListReviewCandidate,
   supplierListFacilityDisplayName,
   supplierListFacilityEntityId,
@@ -180,5 +181,49 @@ describe("review candidates", () => {
     });
     expect(candidate.review_id).toContain("REV-ENTITY");
     expect(candidate.payload.proposed_entity_id).toContain("ENT-OC");
+  });
+
+  it("converts semantic relation changes into review-only candidates", () => {
+    const candidate = buildSemanticChangeReviewCandidate({
+      changeType: "PURCHASE_OBLIGATION_CHANGED",
+      sourceItemId: "SRCITEM-sec-edgar-nvidia",
+      sourceUrl: "https://www.sec.gov/Archives/fixture/nvidia-10q.htm",
+      snapshot: {
+        doc_id: "DOC-NVIDIA-10Q",
+        source_adapter_id: "sec-edgar",
+        relation: "BUYS_FROM",
+        semantic_relation_kind: "purchase_obligation",
+        subject_surface: "nvidia",
+        object_surface: "tsmc",
+        component_id: "COMP-WAFER",
+        component: "wafer",
+        component_specificity: "explicit",
+        cite_text: "We have purchase obligations with TSMC for wafer capacity.",
+        cite_locator: "Item 2",
+        fingerprint: "we have purchase obligations with tsmc for wafer capacity",
+        extractor_id: "rule.sec.official-supply-chain"
+      }
+    });
+
+    expect(candidate).toMatchObject({
+      kind: "semantic_change",
+      title: "PURCHASE_OBLIGATION_CHANGED: nvidia -> tsmc",
+      payload: {
+        change_type: "PURCHASE_OBLIGATION_CHANGED",
+        semantic_relation_kind: "purchase_obligation",
+        relation: "BUYS_FROM",
+        subject_surface: "nvidia",
+        object_surface: "tsmc",
+        component_id: "COMP-WAFER"
+      },
+      evidence: {
+        doc_id: "DOC-NVIDIA-10Q",
+        source_adapter_id: "sec-edgar",
+        source_locator: "Item 2",
+        source_row_text: "We have purchase obligations with TSMC for wafer capacity."
+      }
+    });
+    expect(candidate.review_id).toContain("REV-SEMANTIC");
+    expect(candidate.needs_review).toBe(true);
   });
 });

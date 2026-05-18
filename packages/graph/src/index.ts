@@ -84,6 +84,10 @@ export class Neo4jGraphStore implements GraphStore {
     );
   }
 
+  async removeEdge(edgeId: string): Promise<void> {
+    await this.#write("MATCH ()-[r { edge_id: $edge_id }]->() DELETE r", { edge_id: edgeId });
+  }
+
   async stats(): Promise<GraphProjectionStats> {
     const session = this.#driver.session();
     try {

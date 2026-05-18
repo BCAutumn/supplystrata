@@ -31,7 +31,19 @@ export const RELATION_TYPES = [
 
 export type RelationType = (typeof RELATION_TYPES)[number];
 
-export const DOCUMENT_TYPES = ["10-K", "10-Q", "20-F", "8-K", "company_facts", "company_registry", "annual_report", "supplier_list", "manual"] as const;
+export const DOCUMENT_TYPES = [
+  "10-K",
+  "10-Q",
+  "20-F",
+  "8-K",
+  "company_facts",
+  "company_registry",
+  "annual_report",
+  "supplier_list",
+  "facility_dataset",
+  "trade_dataset",
+  "manual"
+] as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
@@ -63,7 +75,8 @@ export const OBSERVATION_TYPES = [
   "BACKLOG_OBSERVATION",
   "CUSTOMER_CONCENTRATION_OBSERVATION",
   "POLICY_OBSERVATION",
-  "PROCUREMENT_OBSERVATION"
+  "PROCUREMENT_OBSERVATION",
+  "FACILITY_PROFILE_OBSERVATION"
 ] as const;
 
 export type ObservationType = (typeof OBSERVATION_TYPES)[number];
@@ -252,7 +265,8 @@ export interface ClaimRecord {
   object_id?: string;
   component_id?: string;
   edge_id?: string;
-  status: "active" | "superseded" | "rejected";
+  review_id?: string;
+  status: "draft" | "active" | "superseded" | "rejected";
   evidence_level: EvidenceLevel;
   confidence: number;
   is_inferred: boolean;

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { normalizeAlias, type NormalizedDocument } from "@supplystrata/core";
-import { createPool, migrate, saveNormalizedDocument } from "@supplystrata/db";
+import { createDatabaseStore, migrate, saveNormalizedDocument, type DbClient } from "@supplystrata/db";
 import { applyApprovedReviewCandidate } from "@supplystrata/pipeline";
 import { buildSupplierListReviewCandidate, supplierListFacilityDisplayName, supplierListFacilityEntityId } from "@supplystrata/review-candidates";
 import { decideReviewCandidate, enqueueReviewCandidates, getReviewCandidate } from "@supplystrata/review-store";
@@ -24,7 +24,7 @@ interface EdgeRow extends pg.QueryResultRow {
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("review apply integration", () => {
-  const pool = createPool();
+  const pool = createDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);
@@ -35,7 +35,7 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
 
   afterAll(async () => {
     await cleanupRows(pool);
-    await pool.end();
+    await pool.close();
   });
 
   it("applies one approved supplier-list row into supplier and facility edges", async () => {
@@ -102,7 +102,7 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
   });
 });
 
-async function seedReviewApplyEntities(client: pg.Pool): Promise<void> {
+async function seedReviewApplyEntities(client: DbClient): Promise<void> {
   await client.query(
     `INSERT INTO entity_master (entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs)
      VALUES
@@ -114,7 +114,7 @@ async function seedReviewApplyEntities(client: pg.Pool): Promise<void> {
   await insertAlias(client, "ENT-ITEST-SUPPLIER", "Integration Supplier");
 }
 
-async function insertAlias(client: pg.Pool, entityId: string, alias: string): Promise<void> {
+async function insertAlias(client: DbClient, entityId: string, alias: string): Promise<void> {
   await client.query(
     `INSERT INTO entity_alias (alias_id, entity_id, alias, alias_norm, language, alias_kind, source_type, added_by, status)
      VALUES ($1,$2,$3,$4,'en','official','integration','integration','active')
@@ -178,7 +178,7 @@ function supplierRowText(): string {
   return "Integration Supplier                 Penang                                     Malaysia";
 }
 
-async function cleanupRows(client: pg.Pool): Promise<void> {
+async function cleanupRows(client: DbClient): Promise<void> {
   const reviewCandidate = buildSupplierListReviewCandidate({
     candidate: supplierListCandidate(),
     docId: "DOC-ITEST-APPLE-SUPPLIER",

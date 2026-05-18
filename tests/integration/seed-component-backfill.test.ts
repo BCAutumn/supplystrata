@@ -1,12 +1,12 @@
 import type pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createPool, migrate, seedFromCsv } from "@supplystrata/db";
+import { createDatabaseStore, migrate, seedFromCsv, type DbClient } from "@supplystrata/db";
 import { canConnectToIntegrationDatabase } from "./helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("component seed backfill", () => {
-  const pool = createPool();
+  const pool = createDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);
@@ -20,7 +20,7 @@ describe.skipIf(!hasDatabase)("component seed backfill", () => {
 
   afterAll(async () => {
     await cleanupRows(pool);
-    await pool.end();
+    await pool.close();
   });
 
   it("demotes legacy HBM edges when the primary evidence only says memory", async () => {
@@ -57,7 +57,7 @@ describe.skipIf(!hasDatabase)("component seed backfill", () => {
   });
 });
 
-async function insertLegacyHbmEdge(client: pg.Pool): Promise<void> {
+async function insertLegacyHbmEdge(client: DbClient): Promise<void> {
   await client.query(
     `INSERT INTO entity_master (entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs)
      VALUES
@@ -94,7 +94,7 @@ async function insertLegacyHbmEdge(client: pg.Pool): Promise<void> {
   await client.query("UPDATE edges SET primary_evidence_id = 'EV-ITEST-LEGACY-HBM' WHERE edge_id = 'EDGE-ITEST-LEGACY-HBM'");
 }
 
-async function cleanupRows(client: pg.Pool): Promise<void> {
+async function cleanupRows(client: DbClient): Promise<void> {
   await client.query("DELETE FROM edges WHERE edge_id = 'EDGE-ITEST-LEGACY-HBM'");
   await client.query("DELETE FROM edges WHERE edge_id = 'EDGE-ITEST-MEMORY-TARGET'");
   await client.query("DELETE FROM evidence WHERE evidence_id = 'EV-ITEST-LEGACY-HBM'");

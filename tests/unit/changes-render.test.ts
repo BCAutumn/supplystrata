@@ -14,6 +14,7 @@ describe("changes renderer", () => {
     expect(markdown).toContain("EDGE_ADDED EDGE-1");
     expect(markdown).toContain("NVIDIA -BUYS_FROM (memory)-> SK Hynix.");
     expect(markdown).toContain("Evidence: EV-1 [Level 5]");
+    expect(markdown).toContain("OBSERVATION_ADDED OBS-1");
   });
 
   it("renders JSON with schema version", () => {
@@ -23,7 +24,7 @@ describe("changes renderer", () => {
     };
 
     expect(json.schema_version).toBe("1.0.0");
-    expect(json.changes).toHaveLength(2);
+    expect(json.changes).toHaveLength(3);
     expect(json.changes[0]?.event_type).toBe("DOCUMENT_CHANGED");
   });
 });
@@ -59,6 +60,16 @@ function changes(): ChangeTimelineItem[] {
       source_adapter_id: "sec-edgar",
       doc_id: "DOC-2",
       caused_by: "review",
+      requires_attention: false
+    },
+    {
+      event_id: "CHG-OBS-1",
+      event_family: "semantic",
+      event_type: "OBSERVATION_ADDED",
+      occurred_at: "2026-05-17T00:10:00.000Z",
+      scope_kind: "observation",
+      scope_id: "OBS-1",
+      caused_by: "observation-store",
       requires_attention: false
     }
   ];

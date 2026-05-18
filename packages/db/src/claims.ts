@@ -2,7 +2,7 @@ import type pg from "pg";
 import { createId, type ClaimType, type EvidenceLevel } from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
-export type ClaimStatus = "active" | "superseded" | "rejected";
+export type ClaimStatus = "draft" | "active" | "superseded" | "rejected";
 export type ClaimEvidenceRole = "primary" | "supporting" | "contradicting" | "context";
 export type ClaimUnknownRole = "boundary" | "blocking" | "context";
 
@@ -14,6 +14,7 @@ export interface ClaimRow extends pg.QueryResultRow {
   object_id: string | null;
   component_id: string | null;
   edge_id: string | null;
+  review_id: string | null;
   status: ClaimStatus;
   evidence_level: EvidenceLevel;
   confidence: number;
@@ -36,6 +37,7 @@ export interface NewClaimInput {
   object_id?: string;
   component_id?: string;
   edge_id?: string;
+  review_id?: string;
   status?: ClaimStatus;
   evidence_level: EvidenceLevel;
   confidence: number;
@@ -53,10 +55,10 @@ export async function insertClaim(client: DbClient, input: NewClaimInput): Promi
   const claimId = input.claim_id ?? createId("CLM");
   await client.query(
     `INSERT INTO claims (
-       claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id,
+       claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id, review_id,
        status, evidence_level, confidence, is_inferred, generated_by, last_verified_at
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13::timestamptz, now()))`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE($14::timestamptz, now()))`,
     [
       claimId,
       input.claim_type,
@@ -65,6 +67,7 @@ export async function insertClaim(client: DbClient, input: NewClaimInput): Promi
       input.object_id ?? null,
       input.component_id ?? null,
       input.edge_id ?? null,
+      input.review_id ?? null,
       input.status ?? "active",
       input.evidence_level,
       input.confidence,
@@ -81,10 +84,10 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
   const existing = await client.query<ClaimIdRow>(`SELECT claim_id FROM claims WHERE claim_id = $1`, [claimId]);
   await client.query(
     `INSERT INTO claims (
-       claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id,
+       claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id, review_id,
        status, evidence_level, confidence, is_inferred, generated_by, last_verified_at
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13::timestamptz, now()))
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE($14::timestamptz, now()))
      ON CONFLICT (claim_id) DO UPDATE SET
        claim_type = EXCLUDED.claim_type,
        claim_text = EXCLUDED.claim_text,
@@ -92,6 +95,7 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
        object_id = EXCLUDED.object_id,
        component_id = EXCLUDED.component_id,
        edge_id = EXCLUDED.edge_id,
+       review_id = EXCLUDED.review_id,
        status = EXCLUDED.status,
        evidence_level = EXCLUDED.evidence_level,
        confidence = EXCLUDED.confidence,
@@ -107,6 +111,7 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
       input.object_id ?? null,
       input.component_id ?? null,
       input.edge_id ?? null,
+      input.review_id ?? null,
       input.status ?? "active",
       input.evidence_level,
       input.confidence,
@@ -138,7 +143,7 @@ export async function linkClaimUnknown(client: DbClient, input: { claim_id: stri
 
 export async function getClaim(client: DbClient, claimId: string): Promise<ClaimRow | undefined> {
   const result = await client.query<ClaimRow>(
-    `SELECT claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id,
+    `SELECT claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id, review_id,
             status, evidence_level, confidence, is_inferred, generated_by, last_verified_at, created_at, updated_at
      FROM claims
      WHERE claim_id = $1`,
@@ -153,13 +158,30 @@ export async function listClaimsByScope(client: DbClient, input: { scope: ClaimS
   const limit = input.limit ?? 50;
   const statusPredicate = input.includeInactive === true ? "true" : "status = 'active'";
   const result = await client.query<ClaimRow>(
-    `SELECT claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id,
+    `SELECT claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id, review_id,
             status, evidence_level, confidence, is_inferred, generated_by, last_verified_at, created_at, updated_at
      FROM claims
      WHERE ${scopePredicate(input.scope)} AND ${statusPredicate}
      ORDER BY evidence_level DESC, confidence DESC, updated_at DESC, claim_id
      LIMIT $2`,
     [input.scope.id, limit]
+  );
+  return result.rows;
+}
+
+export async function listDraftClaims(client: DbClient, input: { scope?: ClaimScope; limit?: number } = {}): Promise<ClaimRow[]> {
+  const limit = input.limit ?? 50;
+  const scopeSql = input.scope === undefined ? "" : ` AND ${scopePredicate(input.scope)}`;
+  const params = input.scope === undefined ? [limit] : [input.scope.id, limit];
+  const result = await client.query<ClaimRow>(
+    `SELECT claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id, review_id,
+            status, evidence_level, confidence, is_inferred, generated_by, last_verified_at, created_at, updated_at
+     FROM claims
+     WHERE status = 'draft'
+       ${scopeSql}
+     ORDER BY updated_at DESC, confidence DESC, claim_id
+     LIMIT $${params.length}`,
+    params
   );
   return result.rows;
 }

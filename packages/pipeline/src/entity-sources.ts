@@ -1,4 +1,4 @@
-import type pg from "pg";
+import type { DatabaseStore } from "@supplystrata/db";
 import type { EntitySourceLookupResult } from "@supplystrata/entity-source";
 import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
@@ -51,7 +51,7 @@ export async function lookupEntitySourceCandidates(input: EntityLookupInput): Pr
   return { query, results };
 }
 
-export async function enqueueEntitySourceReviewCandidates(pool: pg.Pool, input: EntityLookupInput): Promise<EntityReviewEnqueueSummary> {
+export async function enqueueEntitySourceReviewCandidates(store: DatabaseStore, input: EntityLookupInput): Promise<EntityReviewEnqueueSummary> {
   const lookup = await lookupEntitySourceCandidates(input);
   const errors = lookup.results
     .filter((result): result is EntitySourceLookupResult & { error_message: string } => result.error_message !== undefined)
@@ -59,7 +59,7 @@ export async function enqueueEntitySourceReviewCandidates(pool: pg.Pool, input: 
   const candidates = lookup.results.flatMap((result) =>
     result.candidates.map((candidate) => buildEntitySourceReviewCandidate({ surface: lookup.query, candidate }))
   );
-  const result = await enqueueReviewCandidates(pool, candidates);
+  const result = await enqueueReviewCandidates(store, candidates);
   return {
     query: lookup.query,
     candidates: candidates.length,

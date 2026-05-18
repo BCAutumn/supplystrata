@@ -256,11 +256,12 @@ export const SOURCE_REGISTRY = [
     publisher_type: "macro_statistical_agency",
     relation_authority: "macro_trend",
     automation: "allowed",
-    status: "scoped",
-    requires_key: false,
+    status: "preview",
+    implemented_package: "@supplystrata/sources-census-trade",
+    requires_key: true,
     official_url: "https://www.census.gov/data/developers/data-sets/international-trade.html",
     tos_url: "https://www.census.gov/data/developers/about/terms-of-service.html",
-    notes: "美国进出口观测；适合 HS code、运输方式和港口背景，不证明公司-公司关系。"
+    notes: "美国进出口观测；需要免费 Census API key；只写 TRADE_FLOW_OBSERVATION，不证明公司-公司关系。"
   },
   {
     id: "usitc-dataweb",
@@ -391,11 +392,12 @@ export const SOURCE_REGISTRY = [
     publisher_type: "official_supplier_list",
     relation_authority: "facility_claim",
     automation: "allowed",
-    status: "scoped",
+    status: "preview",
+    implemented_package: "@supplystrata/sources-osh",
     requires_key: true,
     official_url: "https://opensupplyhub.org/",
     tos_url: "https://info.opensupplyhub.org/terms-of-use",
-    notes: "全球设施候选与 contributor 声明；默认 observation/candidate，与官方供应商名单交叉后才升级。"
+    notes: "全球设施候选与 contributor 声明；需要 OSH API token；只写 FACILITY_PROFILE_OBSERVATION，与官方供应商名单交叉后才升级。"
   },
   {
     id: "noaa-ais",

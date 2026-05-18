@@ -21,14 +21,14 @@
 - `document_versions`
 - `source_change_events`
 - `fetch_runs` schema
-- `DOCUMENT_NEW / DOCUMENT_CHANGED / DOCUMENT_UNCHANGED`
-
-还缺：
-
-- edge-level change events。
-- evidence supersession timeline。
+- `DOCUMENT_NEW / DOCUMENT_CHANGED / DOCUMENT_UNCHANGED / SOURCE_FAILED / SOURCE_RECOVERED`
 - `cli changes` 第一版已落地，能合并输出 `change_records` 和 `source_change_events`。
+- edge/evidence 写入事件：`EDGE_ADDED`、`EVIDENCE_ADDED`、`EVIDENCE_SUPERSEDED`。
+- 语义级写入事件第一版：`CLAIM_ADDED / CLAIM_UPDATED`、`OBSERVATION_ADDED / OBSERVATION_UPDATED`、`LEAD_ADDED / LEAD_UPDATED`、`REVIEW_APPROVED / REVIEW_REJECTED / REVIEW_APPLIED / REVIEW_BLOCKED`、`UNKNOWN_ADDED / UNKNOWN_UPDATED / UNKNOWN_RESOLVED`。
 - research workbench changes timeline。
+- 官方披露 section fingerprint diff：客户集中、库存、backlog、capex、采购义务等段落级事件。
+- 官方披露 relation fingerprint diff：供应商、客户、foundry 新增/移除，以及采购义务、产能预留、单一供应商风险变化。
+- 高价值 relation semantic change 会进入 `review_candidates(kind='semantic_change')`，供研究员确认；确认后只是 acknowledge，不自动写事实边。
 
 ## ChangeRecord 事件类型
 
@@ -49,8 +49,23 @@ REVIEW_APPLIED
 SOURCE_FAILED
 SOURCE_RECOVERED
 UNKNOWN_ADDED
+UNKNOWN_UPDATED
 UNKNOWN_RESOLVED
+CLAIM_ADDED
+CLAIM_UPDATED
+OBSERVATION_ADDED
+OBSERVATION_UPDATED
+LEAD_ADDED
+LEAD_UPDATED
 ```
+
+当前事件族：
+
+| event_family | 来源表                 | 含义                                          |
+| ------------ | ---------------------- | --------------------------------------------- |
+| source       | `source_change_events` | 文档抓取、版本变化、源健康                    |
+| graph        | `change_records`       | edge / evidence 事实图谱变化                  |
+| semantic     | `change_records`       | claim / observation / lead / review / unknown |
 
 事件必须带：
 
@@ -105,11 +120,17 @@ supplystrata changes --format json
 
 - `graph-builder.apply()` 创建新 edge。（已落地）
 - `graph-builder.apply()` 给现有 edge 增加 evidence。（已落地）
-- `graph-builder.deprecate()`。
-- `review approve / reject / apply`。
+- `graph-builder.apply()` 标记旧 evidence 被新 evidence 覆盖。（已落地）
+- `claim-builder` 创建或更新 claim。（已落地）
+- `observation-store` 创建或更新 observation / lead。（已落地）
+- `review-store` approve / reject / apply / block。（已落地）
+- unknown add / resolve。（已落地）
+- `graph-builder.deprecate()`。（已落地）
 - Apple Supplier List import / apply。（facility import 和 apply 已落地）
 - source monitor 记录文档变化。（已落地到 `source_change_events`）
-- unknown add / resolve。
+- 官方披露文档的语义 section fingerprint 变化：客户集中、库存、backlog、capex、采购义务。（已落地）
+- 官方披露规则候选关系 fingerprint 变化：供应商、客户、foundry 新增/移除；采购义务、产能预留、单一供应商风险专门拆分。（已落地；只写 semantic change，不自动写 fact edge）
+- relation semantic change 入 review queue。（已落地；`review apply` 对这类候选会生成 `CLAIM_DRAFT_ADDED / CLAIM_DRAFT_UPDATED`，但不产生 edge/evidence）
 
 不允许：
 

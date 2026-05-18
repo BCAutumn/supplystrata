@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { buildEdgeClaimsFromCurrentEdges } from "@supplystrata/claim-builder";
-import { parseFormat, parseLimit, withPool, write, writeJson } from "../cli-utils.js";
+import { parseFormat, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
 
 export function registerClaimCommands(program: Command): void {
   const claims = program.command("claims").description("claim layer commands");
@@ -13,7 +13,7 @@ export function registerClaimCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("build active claims from current non-inferred fact edges")
     .action(async (options: { minLevel: string; limit: string; generatedBy: string; format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const summary = await buildEdgeClaimsFromCurrentEdges(pool, {
           min_evidence_level: parseMinEvidenceLevel(options.minLevel),
           limit: parseLimit(options.limit),

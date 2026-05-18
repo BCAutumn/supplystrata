@@ -35,6 +35,7 @@ export async function listCurrentEdges(client: DbClient): Promise<EdgeRow[]> {
 export interface EvidenceDetailRow extends pg.QueryResultRow {
   evidence_id: string;
   edge_id: string | null;
+  superseded_by: string | null;
   cite_text: string;
   cite_locator: string | null;
   cite_start_char: number | null;
@@ -74,6 +75,28 @@ export async function getEvidence(client: DbClient, evidenceId: string): Promise
   return result.rows[0];
 }
 
+export async function listEvidenceForEdges(client: DbClient, edgeIds: readonly string[]): Promise<EvidenceDetailRow[]> {
+  if (edgeIds.length === 0) return [];
+  const result = await client.query<EvidenceDetailRow>(
+    `SELECT ev.*, d.source_url, d.source_date, d.fetched_at, d.source_adapter_id, d.document_type,
+            s.display_name AS subject_name, o.display_name AS object_name, ed.relation
+     FROM evidence ev
+     JOIN documents d ON d.doc_id = ev.doc_id
+     LEFT JOIN edges ed ON ed.edge_id = ev.edge_id
+     LEFT JOIN entity_master s ON s.entity_id = ed.subject_id
+     LEFT JOIN entity_master o ON o.entity_id = ed.object_id
+     WHERE ev.edge_id = ANY($1::text[])
+     ORDER BY ev.edge_id,
+              CASE WHEN ev.superseded_by IS NULL THEN 0 ELSE 1 END,
+              ev.evidence_level DESC,
+              ev.confidence DESC,
+              ev.created_at DESC,
+              ev.evidence_id`,
+    [[...edgeIds]]
+  );
+  return result.rows;
+}
+
 export interface UnknownItemRow extends pg.QueryResultRow {
   unknown_id: string;
   question: string;
@@ -96,6 +119,13 @@ export async function listUnknownItems(client: DbClient, scopeId: string): Promi
 
 export async function resolveEntityId(client: DbClient, input: string): Promise<string> {
   const normalized = normalizeAlias(input);
+  const entityId = await tryResolveEntityId(client, input);
+  if (entityId !== undefined) return entityId;
+  throw new Error(`Cannot resolve entity: ${input}`);
+}
+
+export async function tryResolveEntityId(client: DbClient, input: string): Promise<string | undefined> {
+  const normalized = normalizeAlias(input);
   const entityResult = await client.query<{ entity_id: string } & pg.QueryResultRow>(
     `SELECT entity_id FROM entity_master
      WHERE lower(entity_id) = $1 OR lower(display_name) = $1 OR lower(canonical_name) = $1
@@ -107,6 +137,5 @@ export async function resolveEntityId(client: DbClient, input: string): Promise<
     normalized
   ]);
   const alias = aliasResult.rows[0];
-  if (alias === undefined) throw new Error(`Cannot resolve entity: ${input}`);
-  return alias.entity_id;
+  return alias?.entity_id;
 }

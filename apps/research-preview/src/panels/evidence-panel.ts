@@ -10,16 +10,11 @@ export function renderEvidencePanel(container: HTMLElement, model: WorkbenchMode
     container.innerHTML = `<h2>Inspector</h2><p class="muted">Click a fact edge, observation, lead, or unknown boundary on the canvas.</p>`;
     return;
   }
-  const evidence = segment.evidence_ids.length === 0 ? null : model.evidences.find((item) => item.evidence_id === segment.evidence_ids[0]);
+  const evidences = evidencesForSegment(model, segment);
   const evidenceHtml =
-    evidence === null || evidence === undefined
-      ? `<p class="muted">No primary evidence attached to this context segment.</p>`
-      : `<dl>
-          <dt>Evidence</dt><dd>${escapeHtml(evidence.evidence_id)} · Level ${evidence.evidence_level}</dd>
-          <dt>Source</dt><dd><a href="${escapeAttribute(evidence.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(evidence.source_adapter_id)}</a></dd>
-          <dt>Locator</dt><dd>${escapeHtml(evidence.cite_locator ?? "(not recorded)")}</dd>
-          <dt>Cite</dt><dd>${escapeHtml(evidence.cite_text)}</dd>
-        </dl>`;
+    evidences.length === 0
+      ? `<p class="muted">No evidence attached to this context segment.</p>`
+      : evidences.map((evidence, index) => renderEvidenceItem(evidence, index === 0)).join("");
   container.innerHTML = `<h2>${escapeHtml(segment.semantic_layer)} segment</h2>
     <dl>
       <dt>Relation</dt><dd>${escapeHtml(segment.relation)}</dd>
@@ -29,6 +24,32 @@ export function renderEvidencePanel(container: HTMLElement, model: WorkbenchMode
       <dt>Label</dt><dd>${escapeHtml(segment.label)}</dd>
     </dl>
     ${evidenceHtml}`;
+}
+
+function evidencesForSegment(model: WorkbenchModel, segment: ChainViewSegmentModel): WorkbenchModel["evidences"] {
+  const explicitIds = new Set(segment.evidence_ids);
+  const byEdge = segment.edge_id === undefined ? [] : model.evidences.filter((item) => item.edge_id === segment.edge_id);
+  const explicit = model.evidences.filter((item) => explicitIds.has(item.evidence_id));
+  const byId = new Map<string, WorkbenchModel["evidences"][number]>();
+  for (const item of [...byEdge, ...explicit]) byId.set(item.evidence_id, item);
+  return [...byId.values()].sort(compareEvidence);
+}
+
+function compareEvidence(left: WorkbenchModel["evidences"][number], right: WorkbenchModel["evidences"][number]): number {
+  const activeOrder = Number(left.superseded_by !== null) - Number(right.superseded_by !== null);
+  if (activeOrder !== 0) return activeOrder;
+  return right.evidence_level - left.evidence_level || right.confidence - left.confidence || left.evidence_id.localeCompare(right.evidence_id);
+}
+
+function renderEvidenceItem(evidence: WorkbenchModel["evidences"][number], primary: boolean): string {
+  const state = evidence.superseded_by === null ? "active" : `superseded by ${evidence.superseded_by}`;
+  return `<dl>
+    <dt>Evidence</dt><dd>${escapeHtml(evidence.evidence_id)} · Level ${evidence.evidence_level}${primary ? " · primary view" : ""}</dd>
+    <dt>Status</dt><dd>${escapeHtml(state)}</dd>
+    <dt>Source</dt><dd><a href="${escapeAttribute(evidence.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(evidence.source_adapter_id)}</a></dd>
+    <dt>Locator</dt><dd>${escapeHtml(evidence.cite_locator ?? "(not recorded)")}</dd>
+    <dt>Cite</dt><dd>${escapeHtml(evidence.cite_text)}</dd>
+  </dl>`;
 }
 
 function escapeHtml(value: string): string {

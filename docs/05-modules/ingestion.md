@@ -55,6 +55,7 @@
 - source adapter 负责 `plan → fetch → normalize` 的源内闭环。
 - parser 包负责通用 HTML / PDF / text 清洗与切块。
 - pipeline 只负责保存、抽取、评分、review/apply 编排；不得绕过 adapter 自行解析源文档。
+- `packages/pipeline/src/document-observations.ts` 负责 normalized document 入库后的 source-monitor 记录与官方披露观测入库；pipeline 主流程不得直接调用 source-monitor / observation-store 的低层写入函数。
 
 这样 source monitor 后续可以独立调度 `plan/fetch/normalize`，并确信拿到的是完整 normalized document，而不是需要 pipeline 再补解析的半成品。
 

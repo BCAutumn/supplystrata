@@ -12,6 +12,7 @@
   "dependencies": {
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
+    "@supplystrata/review-candidates": "workspace:*",
     "pg": "~8.13.1"
   },
   "main": "./dist/index.js",

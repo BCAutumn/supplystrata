@@ -40,6 +40,25 @@ export interface SourcePolicyRow extends pg.QueryResultRow {
   notes: string | null;
 }
 
+export interface DueSourceCheckRow extends pg.QueryResultRow {
+  check_target_id: string;
+  source_adapter_id: string;
+  target_kind: string;
+  subject_entity_id: string | null;
+  target_config: Record<string, unknown>;
+  target_enabled: boolean;
+  target_priority: number;
+  target_config_source: string;
+  target_notes: string | null;
+  policy_enabled: boolean;
+  check_cadence_minutes: number;
+  jitter_minutes: number;
+  policy_priority: number;
+  policy_config_source: string;
+  next_check_at: Date | null;
+  policy_notes: string | null;
+}
+
 export interface SourcePolicyInput {
   source_adapter_id: string;
   enabled: boolean;
@@ -49,9 +68,21 @@ export interface SourcePolicyInput {
   notes?: string;
 }
 
+export interface SourceCheckTargetInput {
+  check_target_id: string;
+  source_adapter_id: string;
+  target_kind: string;
+  enabled: boolean;
+  priority?: number;
+  subject_entity_id?: string;
+  target_config: Record<string, unknown>;
+  notes?: string;
+}
+
 export interface SourcePolicyConfig {
   schema_version: "1.0.0";
   policies: SourcePolicyInput[];
+  check_targets: SourceCheckTargetInput[];
 }
 
 export interface DocumentObservationInput {
@@ -62,6 +93,17 @@ export interface DocumentObservationInput {
   storage_key: string;
   observed_at?: string;
   item_key?: string;
+  check_target_id?: string;
+  caused_by?: string;
+}
+
+export interface SourceFailureInput {
+  source_adapter_id: string;
+  error_message: string;
+  failed_at?: string;
+  task_id?: string;
+  url?: string;
+  check_target_id?: string;
   caused_by?: string;
 }
 
@@ -69,6 +111,8 @@ export interface DocumentObservationResult {
   source_item_id: string;
   event_id: string;
   change_type: SourceDocumentChangeType;
+  previous_doc_id: string | null;
+  previous_bytes_sha256: string | null;
 }
 
 interface SourceItemRow extends pg.QueryResultRow {
@@ -76,6 +120,12 @@ interface SourceItemRow extends pg.QueryResultRow {
   latest_doc_id: string | null;
   latest_bytes_sha256: string | null;
   latest_storage_key: string | null;
+}
+
+interface SourceHealthStateRow extends pg.QueryResultRow {
+  failure_count: number;
+  last_failure_at: Date | null;
+  last_error_message: string | null;
 }
 
 export async function syncSourceHealthRegistry(client: DbClient): Promise<{ upserted: number }> {
@@ -106,17 +156,27 @@ export async function syncSourcePolicyConfig(client: DbClient, input: { config: 
   for (const policy of input.config.policies) {
     await upsertSourcePolicy(client, policy, input.configSource);
   }
-  return { upserted: input.config.policies.length };
+  for (const target of input.config.check_targets) {
+    await upsertSourceCheckTarget(client, target, input.configSource);
+  }
+  return { upserted: input.config.policies.length + input.config.check_targets.length };
 }
 
-export async function listDueSourceChecks(client: DbClient, input: { now?: string; limit?: number } = {}): Promise<SourcePolicyRow[]> {
+export async function listDueSourceChecks(client: DbClient, input: { now?: string; limit?: number } = {}): Promise<DueSourceCheckRow[]> {
   const now = input.now ?? new Date().toISOString();
   const limit = input.limit ?? 50;
-  const result = await client.query<SourcePolicyRow>(
-    `SELECT source_adapter_id, enabled, check_cadence_minutes, jitter_minutes, priority, config_source, next_check_at, notes
-     FROM source_policies
-     WHERE enabled = true AND (next_check_at IS NULL OR next_check_at <= $1::timestamptz)
-     ORDER BY priority, next_check_at NULLS FIRST, source_adapter_id
+  const result = await client.query<DueSourceCheckRow>(
+    `SELECT t.check_target_id, t.source_adapter_id, t.target_kind, t.subject_entity_id, t.target_config,
+            t.enabled AS target_enabled, t.priority AS target_priority, t.config_source AS target_config_source, t.notes AS target_notes,
+            p.enabled AS policy_enabled, p.check_cadence_minutes, p.jitter_minutes, p.priority AS policy_priority,
+            p.config_source AS policy_config_source, COALESCE(t.next_check_at, p.next_check_at) AS next_check_at,
+            p.notes AS policy_notes
+     FROM source_check_targets t
+     JOIN source_policies p ON p.source_adapter_id = t.source_adapter_id
+     WHERE t.enabled = true
+       AND p.enabled = true
+       AND (COALESCE(t.next_check_at, p.next_check_at) IS NULL OR COALESCE(t.next_check_at, p.next_check_at) <= $1::timestamptz)
+     ORDER BY p.priority, t.priority, COALESCE(t.next_check_at, p.next_check_at) NULLS FIRST, t.check_target_id
      LIMIT $2`,
     [now, limit]
   );
@@ -127,8 +187,7 @@ export async function recordDocumentObservation(client: DbClient, input: Documen
   const observedAt = input.observed_at ?? new Date().toISOString();
   const itemKey = input.item_key ?? input.source_url;
   const sourceItemId = sourceItemIdFor(input.source_adapter_id, itemKey);
-  const source = listSources().find((entry) => entry.id === input.source_adapter_id);
-  if (source !== undefined) await upsertSourceHealth(client, source);
+  const healthBeforeSuccess = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
   const existing = await client.query<SourceItemRow>(
     `SELECT source_item_id, latest_doc_id, latest_bytes_sha256, latest_storage_key
      FROM source_items
@@ -193,6 +252,29 @@ export async function recordDocumentObservation(client: DbClient, input: Documen
       input.caused_by ?? "source-monitor"
     ]
   );
+  if (healthBeforeSuccess.failure_count > 0) {
+    await client.query(
+      `INSERT INTO source_change_events (event_id, event_type, source_adapter_id, source_item_id, doc_id, before, after, detected_at, caused_by)
+       VALUES ($1,'SOURCE_RECOVERED',$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        `SEV-${randomUUID()}`,
+        input.source_adapter_id,
+        sourceItemId,
+        input.doc_id,
+        {
+          failure_count: healthBeforeSuccess.failure_count,
+          last_failure_at: healthBeforeSuccess.last_failure_at?.toISOString() ?? null,
+          last_error_message: healthBeforeSuccess.last_error_message
+        },
+        {
+          doc_id: input.doc_id,
+          bytes_sha256: input.bytes_sha256
+        },
+        observedAt,
+        input.caused_by ?? "source-monitor"
+      ]
+    );
+  }
   await client.query(
     `UPDATE source_health
      SET last_checked_at = $2,
@@ -204,14 +286,68 @@ export async function recordDocumentObservation(client: DbClient, input: Documen
      WHERE source_adapter_id = $1`,
     [input.source_adapter_id, observedAt, changeType]
   );
+  if (input.check_target_id !== undefined) {
+    await updateSourceCheckTargetNextCheck(client, {
+      checkTargetId: input.check_target_id,
+      sourceAdapterId: input.source_adapter_id,
+      baseTime: observedAt
+    });
+  } else {
+    await updateSourcePolicyNextCheck(client, { sourceAdapterId: input.source_adapter_id, baseTime: observedAt });
+  }
+  return {
+    source_item_id: sourceItemId,
+    event_id: eventId,
+    change_type: changeType,
+    previous_doc_id: previous?.latest_doc_id ?? null,
+    previous_bytes_sha256: previous?.latest_bytes_sha256 ?? null
+  };
+}
+
+export async function recordSourceFailure(client: DbClient, input: SourceFailureInput): Promise<{ event_id: string }> {
+  const failedAt = input.failed_at ?? new Date().toISOString();
+  const healthBeforeFailure = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
+  const eventId = `SEV-${randomUUID()}`;
   await client.query(
-    `UPDATE source_policies
-     SET next_check_at = $2::timestamptz + (check_cadence_minutes || ' minutes')::interval,
+    `INSERT INTO source_change_events (event_id, event_type, source_adapter_id, before, after, detected_at, caused_by)
+     VALUES ($1,'SOURCE_FAILED',$2,$3,$4,$5,$6)`,
+    [
+      eventId,
+      input.source_adapter_id,
+      {
+        failure_count: healthBeforeFailure.failure_count,
+        last_failure_at: healthBeforeFailure.last_failure_at?.toISOString() ?? null,
+        last_error_message: healthBeforeFailure.last_error_message
+      },
+      {
+        error_message: input.error_message,
+        task_id: input.task_id,
+        url: input.url
+      },
+      failedAt,
+      input.caused_by ?? "source-monitor"
+    ]
+  );
+  await client.query(
+    `UPDATE source_health
+     SET last_checked_at = $2,
+         last_failure_at = $2,
+         failure_count = failure_count + 1,
+         last_error_message = $3,
          updated_at = now()
      WHERE source_adapter_id = $1`,
-    [input.source_adapter_id, observedAt]
+    [input.source_adapter_id, failedAt, input.error_message]
   );
-  return { source_item_id: sourceItemId, event_id: eventId, change_type: changeType };
+  if (input.check_target_id !== undefined) {
+    await updateSourceCheckTargetNextCheck(client, {
+      checkTargetId: input.check_target_id,
+      sourceAdapterId: input.source_adapter_id,
+      baseTime: failedAt
+    });
+  } else {
+    await updateSourcePolicyNextCheck(client, { sourceAdapterId: input.source_adapter_id, baseTime: failedAt });
+  }
+  return { event_id: eventId };
 }
 
 export function parseSourcePolicyConfig(text: string): SourcePolicyConfig {
@@ -220,9 +356,12 @@ export function parseSourcePolicyConfig(text: string): SourcePolicyConfig {
   if (parsed["schema_version"] !== "1.0.0") throw new Error("source policy config schema_version must be 1.0.0");
   const policies = parsed["policies"];
   if (!Array.isArray(policies)) throw new Error("source policy config policies must be an array");
+  const checkTargets = parsed["check_targets"];
+  if (!Array.isArray(checkTargets)) throw new Error("source policy config check_targets must be an array");
   return {
     schema_version: "1.0.0",
-    policies: policies.map(parseSourcePolicyInput)
+    policies: policies.map(parseSourcePolicyInput),
+    check_targets: checkTargets.map(parseSourceCheckTargetInput)
   };
 }
 
@@ -251,6 +390,19 @@ async function upsertSourceHealth(client: DbClient, source: SourceRegistryEntry)
        updated_at = now()`,
     [source.id, source.tier, source.category, source.status, source.automation, source.tos_url, source.official_url, source.requires_key]
   );
+}
+
+async function ensureRegisteredSourceHealth(client: DbClient, sourceAdapterId: string): Promise<SourceHealthStateRow> {
+  const source = listSources().find((entry) => entry.id === sourceAdapterId);
+  if (source === undefined) throw new Error(`Unknown source_adapter_id: ${sourceAdapterId}`);
+  await upsertSourceHealth(client, source);
+  const result = await client.query<SourceHealthStateRow>(
+    `SELECT failure_count, last_failure_at, last_error_message
+     FROM source_health
+     WHERE source_adapter_id = $1`,
+    [sourceAdapterId]
+  );
+  return result.rows[0] ?? { failure_count: 0, last_failure_at: null, last_error_message: null };
 }
 
 async function upsertDefaultSourcePolicy(client: DbClient, source: SourceRegistryEntry): Promise<void> {
@@ -284,6 +436,57 @@ async function upsertSourcePolicy(client: DbClient, policy: SourcePolicyInput, c
       configSource,
       policy.notes ?? null
     ]
+  );
+}
+
+async function upsertSourceCheckTarget(client: DbClient, target: SourceCheckTargetInput, configSource: string): Promise<void> {
+  await client.query(
+    `INSERT INTO source_check_targets (check_target_id, source_adapter_id, target_kind, subject_entity_id, enabled, priority, target_config, config_source, notes, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,now())
+     ON CONFLICT (check_target_id) DO UPDATE SET
+       source_adapter_id = EXCLUDED.source_adapter_id,
+       target_kind = EXCLUDED.target_kind,
+       subject_entity_id = EXCLUDED.subject_entity_id,
+       enabled = EXCLUDED.enabled,
+       priority = EXCLUDED.priority,
+       target_config = EXCLUDED.target_config,
+       config_source = EXCLUDED.config_source,
+       notes = EXCLUDED.notes,
+       updated_at = now()`,
+    [
+      target.check_target_id,
+      target.source_adapter_id,
+      target.target_kind,
+      target.subject_entity_id ?? null,
+      target.enabled,
+      target.priority ?? 100,
+      JSON.stringify(target.target_config),
+      configSource,
+      target.notes ?? null
+    ]
+  );
+}
+
+async function updateSourcePolicyNextCheck(client: DbClient, input: { sourceAdapterId: string; baseTime: string }): Promise<void> {
+  await client.query(
+    `UPDATE source_policies
+     SET next_check_at = $2::timestamptz + (check_cadence_minutes || ' minutes')::interval,
+         updated_at = now()
+     WHERE source_adapter_id = $1`,
+    [input.sourceAdapterId, input.baseTime]
+  );
+}
+
+async function updateSourceCheckTargetNextCheck(client: DbClient, input: { checkTargetId: string; sourceAdapterId: string; baseTime: string }): Promise<void> {
+  await client.query(
+    `UPDATE source_check_targets t
+     SET next_check_at = $3::timestamptz + (p.check_cadence_minutes || ' minutes')::interval,
+         updated_at = now()
+     FROM source_policies p
+     WHERE t.check_target_id = $1
+       AND t.source_adapter_id = $2
+       AND p.source_adapter_id = t.source_adapter_id`,
+    [input.checkTargetId, input.sourceAdapterId, input.baseTime]
   );
 }
 
@@ -335,6 +538,28 @@ function parseSourcePolicyInput(value: unknown): SourcePolicyInput {
   };
 }
 
+function parseSourceCheckTargetInput(value: unknown): SourceCheckTargetInput {
+  if (!isRecord(value)) throw new Error("source check target entry must be an object");
+  const checkTargetId = requireString(value, "check_target_id");
+  const sourceAdapterId = requireString(value, "source_adapter_id");
+  const targetKind = requireString(value, "target_kind");
+  const enabled = requireBoolean(value, "enabled");
+  const priority = optionalNonNegativeInteger(value, "priority");
+  const subjectEntityId = optionalString(value, "subject_entity_id");
+  const targetConfig = requireRecord(value, "target_config");
+  const notes = optionalString(value, "notes");
+  return {
+    check_target_id: checkTargetId,
+    source_adapter_id: sourceAdapterId,
+    target_kind: targetKind,
+    enabled,
+    target_config: targetConfig,
+    ...(priority === undefined ? {} : { priority }),
+    ...(subjectEntityId === undefined ? {} : { subject_entity_id: subjectEntityId }),
+    ...(notes === undefined ? {} : { notes })
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -348,6 +573,12 @@ function requireString(value: Record<string, unknown>, key: string): string {
 function requireBoolean(value: Record<string, unknown>, key: string): boolean {
   const item = value[key];
   if (typeof item !== "boolean") throw new Error(`source policy ${key} must be a boolean`);
+  return item;
+}
+
+function requireRecord(value: Record<string, unknown>, key: string): Record<string, unknown> {
+  const item = value[key];
+  if (!isRecord(item)) throw new Error(`source policy ${key} must be an object`);
   return item;
 }
 

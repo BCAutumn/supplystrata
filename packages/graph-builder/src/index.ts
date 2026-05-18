@@ -10,7 +10,7 @@ import {
   type EvidenceLevel,
   type RelationType
 } from "@supplystrata/core";
-import { listCurrentEdges } from "@supplystrata/db";
+import { deprecateEdge, listCurrentEdges, recordSemanticChange, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
@@ -28,14 +28,27 @@ export type GraphConsistencyCheck =
   | { status: "out_of_sync"; postgres: GraphProjectionStats; graph: GraphProjectionStats; recommendation: "run_graph_rebuild" }
   | { status: "unreachable"; postgres: GraphProjectionStats; error_message: string; recommendation: "check_graph_store_then_rebuild" };
 
+export interface DeprecateEdgeRequest {
+  edge_id: string;
+  reason: string;
+  superseded_by_edge_id?: string;
+  reviewer: string;
+}
+
+export interface DeprecateEdgeApplyResult {
+  edge_id: string;
+  primary_evidence_id?: string;
+  graph_sync: ApplyResult["graph_sync"];
+}
+
 export class GraphBuilder {
-  readonly #pool: pg.Pool;
+  readonly #store: DatabaseStore;
   readonly #resolver: EntityResolver;
   readonly #graph: GraphStore | null;
   readonly #graphSyncMode: GraphSyncMode;
 
-  constructor(pool: pg.Pool, resolver: EntityResolver, graphOrOptions: GraphStore | GraphBuilderOptions = {}, options: GraphBuilderOptions = {}) {
-    this.#pool = pool;
+  constructor(store: DatabaseStore, resolver: EntityResolver, graphOrOptions: GraphStore | GraphBuilderOptions = {}, options: GraphBuilderOptions = {}) {
+    this.#store = store;
     this.#resolver = resolver;
     if (isGraphStore(graphOrOptions)) {
       this.#graph = graphOrOptions;
@@ -61,11 +74,10 @@ export class GraphBuilder {
     if (object.status !== "resolved" || object.entity_id === undefined) {
       throw new Error(`Cannot resolve object: ${approved.candidate.object_resolve.surface}`);
     }
+    const subjectId = subject.entity_id;
+    const objectId = object.entity_id;
 
-    const client = await this.#pool.connect();
-    let committed: Omit<ApplyResult, "graph_sync"> | undefined;
-    try {
-      await client.query("BEGIN");
+    const committed = await this.#store.transaction<Omit<ApplyResult, "graph_sync">>(async (client) => {
       const component = await resolveComponentReference(client, approved.candidate);
       const existing = await client.query<EdgeIdentityRow>(
         `SELECT edge_id, evidence_level, confidence
@@ -78,7 +90,7 @@ export class GraphBuilder {
            AND COALESCE(effective_from, DATE '1900-01-01') = DATE '1900-01-01'
            AND COALESCE(effective_to, DATE '2999-12-31') = DATE '2999-12-31'
          LIMIT 1`,
-        [subject.entity_id, object.entity_id, approved.candidate.relation, component.component_id, component.component]
+        [subjectId, objectId, approved.candidate.relation, component.component_id, component.component]
       );
 
       const edgeId = existing.rows[0]?.edge_id ?? createId("EDGE");
@@ -95,8 +107,8 @@ export class GraphBuilder {
         source_snapshot_sha256: traceInput.source_snapshot_sha256,
         document_metadata: traceInput.document_metadata,
         identity: {
-          subject_id: subject.entity_id,
-          object_id: object.entity_id,
+          subject_id: subjectId,
+          object_id: objectId,
           relation: approved.candidate.relation,
           component
         },
@@ -109,8 +121,8 @@ export class GraphBuilder {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'current')`,
           [
             edgeId,
-            subject.entity_id,
-            object.entity_id,
+            subjectId,
+            objectId,
             approved.candidate.relation,
             component.component,
             component.component_id,
@@ -172,16 +184,32 @@ export class GraphBuilder {
         ]
       );
 
-      await client.query(
+      const superseded = await client.query<{ evidence_id: string } & pg.QueryResultRow>(
         `UPDATE evidence
          SET superseded_by = $2
          WHERE edge_id = $1
            AND doc_id = $3
            AND COALESCE(extractor_id, '') = COALESCE($4, '')
            AND evidence_id <> $2
-           AND superseded_by IS NULL`,
+           AND superseded_by IS NULL
+         RETURNING evidence_id`,
         [edgeId, evidenceId, approved.doc_id, approved.candidate.extractor_id]
       );
+      if (superseded.rows.length > 0) {
+        await recordSemanticChange(client, {
+          scope_kind: "edge",
+          scope_id: edgeId,
+          change_type: "evidence_superseded",
+          before: {
+            superseded_evidence_ids: superseded.rows.map((row) => row.evidence_id)
+          },
+          after: {
+            superseded_by: evidenceId
+          },
+          evidence_ids: [evidenceId, ...superseded.rows.map((row) => row.evidence_id)],
+          caused_by: "review"
+        });
+      }
 
       await client.query(
         `WITH best_evidence AS (
@@ -202,15 +230,22 @@ export class GraphBuilder {
          VALUES ($1,'edge',$2,$3,NULL,$4,ARRAY[$5],'review')`,
         [changeId, edgeId, isNewEdge ? "new_edge" : "edge_evidence_added", { edge_id: edgeId }, evidenceId]
       );
-      await client.query("COMMIT");
-      committed = { edge_id: edgeId, evidence_id: evidenceId, change_id: changeId, is_new_edge: isNewEdge };
-    } catch (error) {
-      await rollbackQuietly(client);
-      throw error;
-    } finally {
-      client.release();
-    }
+      return { edge_id: edgeId, evidence_id: evidenceId, change_id: changeId, is_new_edge: isNewEdge };
+    });
     const graphSync = await this.#trySyncEdge(committed.edge_id);
+    return { ...committed, graph_sync: graphSync };
+  }
+
+  async deprecate(input: DeprecateEdgeRequest): Promise<DeprecateEdgeApplyResult> {
+    const committed = await this.#store.transaction(async (client) =>
+      deprecateEdge(client, {
+        edge_id: input.edge_id,
+        reason: input.reason,
+        caused_by: input.reviewer,
+        ...(input.superseded_by_edge_id === undefined ? {} : { superseded_by_edge_id: input.superseded_by_edge_id })
+      })
+    );
+    const graphSync = await this.#tryRemoveEdge(committed.edge_id);
     return { ...committed, graph_sync: graphSync };
   }
 
@@ -218,7 +253,7 @@ export class GraphBuilder {
     const graph = this.#requireGraph();
     await graph.ensureSchema();
     await graph.clear();
-    const entities = await this.#pool.query<EntityRow>(
+    const entities = await this.#store.query<EntityRow>(
       `SELECT entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs
        FROM entity_master
        WHERE status = 'active'
@@ -227,7 +262,7 @@ export class GraphBuilder {
     for (const row of entities.rows) {
       await graph.upsertEntity(entityRecordFromRow(row));
     }
-    const edges = await listCurrentEdges(this.#pool);
+    const edges = await listCurrentEdges(this.#store);
     for (const edge of edges) {
       await graph.upsertEdge({
         edge_id: edge.edge_id,
@@ -262,7 +297,7 @@ export class GraphBuilder {
 
   async #syncEdge(edgeId: string): Promise<void> {
     const graph = this.#requireGraph();
-    const result = await this.#pool.query<GraphEdgeRow>(
+    const result = await this.#store.query<GraphEdgeRow>(
       `SELECT edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity, last_verified_at
        FROM edges
        WHERE edge_id = $1`,
@@ -271,7 +306,7 @@ export class GraphBuilder {
     const edge = result.rows[0];
     if (edge === undefined) throw new Error(`Edge not found after apply: ${edgeId}`);
     await graph.ensureSchema();
-    const endpoints = await this.#pool.query<EntityRow>(
+    const endpoints = await this.#store.query<EntityRow>(
       `SELECT entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs
        FROM entity_master
        WHERE entity_id = ANY($1)`,
@@ -308,13 +343,25 @@ export class GraphBuilder {
     }
   }
 
+  async #tryRemoveEdge(edgeId: string): Promise<ApplyResult["graph_sync"]> {
+    if (this.#graphSyncMode === "defer") return { status: "deferred" };
+    try {
+      await this.#requireGraph().removeEdge(edgeId);
+      return { status: "synced" };
+    } catch (error) {
+      const errorMessage = messageFromUnknown(error);
+      getLogger().warn({ stage: "graph-remove-edge", edge_id: edgeId, err: errorMessage }, "GraphStore projection remove failed; Postgres truth was committed");
+      return { status: "failed", error_message: errorMessage };
+    }
+  }
+
   #requireGraph(): GraphStore {
     if (this.#graph !== null) return this.#graph;
     throw new Error("No GraphStore adapter is configured for this GraphBuilder.");
   }
 
   async #postgresProjectionStats(): Promise<GraphProjectionStats> {
-    const result = await this.#pool.query<ProjectionStatsRow>(
+    const result = await this.#store.query<ProjectionStatsRow>(
       `SELECT
          (SELECT count(*)::int FROM entity_master WHERE status = 'active') AS nodes,
          (SELECT count(*)::int FROM edges WHERE validity = 'current') AS edges`
@@ -326,7 +373,15 @@ export class GraphBuilder {
 }
 
 function isGraphStore(value: GraphStore | GraphBuilderOptions): value is GraphStore {
-  return "close" in value && "ensureSchema" in value && "clear" in value && "upsertEntity" in value && "upsertEdge" in value && "stats" in value;
+  return (
+    "close" in value &&
+    "ensureSchema" in value &&
+    "clear" in value &&
+    "upsertEntity" in value &&
+    "upsertEdge" in value &&
+    "removeEdge" in value &&
+    "stats" in value
+  );
 }
 
 interface EdgeIdentityRow extends pg.QueryResultRow {
@@ -389,7 +444,7 @@ interface LoadedEvidenceTraceInput {
   chunk_text?: string;
 }
 
-async function resolveComponentReference(client: pg.PoolClient, candidate: CandidateRelation): Promise<ComponentReference> {
+async function resolveComponentReference(client: DbClient, candidate: CandidateRelation): Promise<ComponentReference> {
   if (candidate.component === undefined && candidate.component_id === undefined) {
     return { component: null, component_id: null, component_specificity: null };
   }
@@ -424,7 +479,7 @@ async function resolveComponentReference(client: pg.PoolClient, candidate: Candi
   };
 }
 
-async function loadEvidenceTraceInput(client: pg.PoolClient, approved: ApprovedCandidate): Promise<LoadedEvidenceTraceInput> {
+async function loadEvidenceTraceInput(client: DbClient, approved: ApprovedCandidate): Promise<LoadedEvidenceTraceInput> {
   const document = await client.query<EvidenceDocumentRow>("SELECT bytes_sha256, metadata FROM documents WHERE doc_id = $1", [approved.doc_id]);
   const doc = document.rows[0];
   if (doc === undefined) throw new Error(`Document not found for evidence trace: ${approved.doc_id}`);
@@ -445,14 +500,6 @@ interface ProjectionStatsRow extends pg.QueryResultRow {
 
 function maxLevel(left: EvidenceLevel | undefined, right: EvidenceLevel): EvidenceLevel {
   return Math.max(left ?? 1, right) as EvidenceLevel;
-}
-
-async function rollbackQuietly(client: pg.PoolClient): Promise<void> {
-  try {
-    await client.query("ROLLBACK");
-  } catch (error) {
-    getLogger().error({ stage: "postgres-rollback", err: messageFromUnknown(error) }, "rollback failed after graph apply error");
-  }
 }
 
 function messageFromUnknown(error: unknown): string {

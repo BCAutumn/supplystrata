@@ -4,18 +4,18 @@
 
 ## 三种存储
 
-| 存储           | 用途                                   | 真相级别           |
-| -------------- | -------------------------------------- | ------------------ |
-| PostgreSQL     | 元数据 / 证据 / 实体 / 队列 / 变更日志 | 单一真相           |
-| GraphStore     | 图谱当前态                             | 物化视图（可重建） |
-| Object Storage | 原始字节 (PDF/HTML/JSON 等)            | 原始证据物理保存   |
+| 存储            | 用途                                   | 真相级别           |
+| --------------- | -------------------------------------- | ------------------ |
+| SQL Truth Store | 元数据 / 证据 / 实体 / 队列 / 变更日志 | 单一真相           |
+| GraphStore      | 图谱当前态                             | 物化视图（可重建） |
+| Object Storage  | 原始字节 (PDF/HTML/JSON 等)            | 原始证据物理保存   |
 
 ## packages/db
 
 ### 责任
 
 - migration 管理
-- Postgres 连接池与事务入口
+- `DatabaseStore` 接口与内置 `PostgresDatabaseStore`
 - 按职责拆分的仓储/查询函数
 - 对外只暴露稳定 re-export，避免业务层直接拼散乱 SQL
 
@@ -23,7 +23,7 @@
 
 ```
 packages/db/src/
-├── client.ts                  Postgres pool / migrate 入口
+├── client.ts                  DatabaseStore 接口 / Postgres adapter / migrate 入口
 ├── migrations.ts              schema_migrations + 版本顺序
 ├── migration-sql/
 │   ├── 0001_entity_core.ts
@@ -73,11 +73,29 @@ export interface EvidenceRepo {
 - `schema_migrations` 记录已执行版本
 - 当前不做 down migration；需要回滚时开前向修复迁移
 
-### 连接池
+### DatabaseStore 契约
 
-- pgbouncer 不做（MVP 单机够用）
-- `pg.Pool` 由执行层显式创建并传入
-- max connections：默认 20
+`DatabaseStore` 是 truth store 的运行边界。业务执行层只依赖：
+
+```ts
+export interface DbClient {
+  query<T>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+}
+
+export interface DatabaseStore extends DbClient {
+  readonly adapter_id: string;
+  transaction<T>(fn: (client: DbClient) => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+}
+```
+
+当前内置 adapter 是 `PostgresDatabaseStore`，继续使用项目现有 Postgres SQL、事务和迁移。这个抽象的目的不是假装所有 SQL 方言已经可用，而是让 TS 桌面端 / agent 宿主可以注入自己的 truth store 生命周期，并避免 CLI / pipeline / graph-builder 直接绑死 `pg.Pool`。
+
+约束：
+
+- pipeline / render / source-monitor 只接收 `DbClient` 或 `DatabaseStore`。
+- 需要事务的写入路径通过 `DatabaseStore.transaction()` 表达事务边界；业务模块不能手写 `BEGIN/COMMIT/ROLLBACK` 或直接获取底层连接。
+- 非 Postgres adapter 必须提供兼容当前 SQL contract 的实现；不允许在业务层加方言分支。
 
 ## packages/graph-store
 

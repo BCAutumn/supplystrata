@@ -147,6 +147,9 @@ importers:
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../db
+      '@supplystrata/review-candidates':
+        specifier: workspace:*
+        version: link:../review-candidates
       pg:
         specifier: ~8.13.1
         version: 8.13.3
@@ -309,6 +312,12 @@ importers:
         specifier: ~9.5.0
         version: 9.5.0
 
+  packages/observation-extractor:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/observation-store:
     dependencies:
       '@supplystrata/core':
@@ -347,6 +356,9 @@ importers:
 
   packages/pipeline:
     dependencies:
+      '@supplystrata/claim-builder':
+        specifier: workspace:*
+        version: link:../claim-builder
       '@supplystrata/config':
         specifier: workspace:*
         version: link:../config
@@ -377,6 +389,12 @@ importers:
       '@supplystrata/observability':
         specifier: workspace:*
         version: link:../observability
+      '@supplystrata/observation-extractor':
+        specifier: workspace:*
+        version: link:../observation-extractor
+      '@supplystrata/observation-store':
+        specifier: workspace:*
+        version: link:../observation-store
       '@supplystrata/relation-extractor-rule':
         specifier: workspace:*
         version: link:../relation-extractor/rule
@@ -392,6 +410,9 @@ importers:
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../source-adapter-spec
+      '@supplystrata/source-connectors':
+        specifier: workspace:*
+        version: link:../source-connectors
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor
@@ -401,12 +422,18 @@ importers:
       '@supplystrata/sources-asml-ir':
         specifier: workspace:*
         version: link:../sources/asml-ir
+      '@supplystrata/sources-census-trade':
+        specifier: workspace:*
+        version: link:../sources/census-trade
       '@supplystrata/sources-companies-house':
         specifier: workspace:*
         version: link:../sources/companies-house
       '@supplystrata/sources-opencorporates':
         specifier: workspace:*
         version: link:../sources/opencorporates
+      '@supplystrata/sources-osh':
+        specifier: workspace:*
+        version: link:../sources/osh
       '@supplystrata/sources-samsung-ir':
         specifier: workspace:*
         version: link:../sources/samsung-ir
@@ -481,6 +508,8 @@ importers:
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../object-store
+
+  packages/source-connectors: {}
 
   packages/source-monitor:
     dependencies:
@@ -560,6 +589,24 @@ importers:
         specifier: workspace:*
         version: link:../../source-normalizers
 
+  packages/sources/census-trade:
+    dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@supplystrata/object-store':
+        specifier: workspace:*
+        version: link:../../object-store
+      '@supplystrata/source-adapter-spec':
+        specifier: workspace:*
+        version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
+
   packages/sources/companies-house:
     dependencies:
       '@supplystrata/config':
@@ -592,6 +639,24 @@ importers:
       '@supplystrata/entity-source':
         specifier: workspace:*
         version: link:../../entity-source
+      '@supplystrata/object-store':
+        specifier: workspace:*
+        version: link:../../object-store
+      '@supplystrata/source-adapter-spec':
+        specifier: workspace:*
+        version: link:../../source-adapter-spec
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
+
+  packages/sources/osh:
+    dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../../core
       '@supplystrata/object-store':
         specifier: workspace:*
         version: link:../../object-store

@@ -99,7 +99,15 @@ pnpm smoke:network
 pnpm release:check
 ```
 
-它会跑本地发布前门禁：ignore rules、secret scan、type-check、unit、integration、fixture e2e、lint、dependency boundary、`smoke:local`、`dq run` 和 `graph check`。它不访问 SEC 外网。
+它会跑本地发布前门禁：ignore rules、secret scan、type-check、unit、integration、fixture e2e、lint、dependency boundary 和无数据库 `smoke:local`。默认不要求 Docker、Postgres 或 Neo4j。
+
+如果你要把本地 truth store / GraphStore 也纳入发布前体检：
+
+```bash
+pnpm release:check --with-db
+```
+
+这个模式会额外要求可连接的 SQL truth store 和 GraphStore，并运行 `dq run` / `graph check`。
 
 ## 不启动 Docker 时能看什么
 

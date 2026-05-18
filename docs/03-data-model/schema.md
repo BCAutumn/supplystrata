@@ -257,6 +257,20 @@ CREATE TABLE source_policies (
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE source_check_targets (
+  check_target_id   TEXT PRIMARY KEY,
+  source_adapter_id TEXT NOT NULL,
+  target_kind       TEXT NOT NULL,
+  subject_entity_id TEXT,
+  enabled           BOOLEAN NOT NULL DEFAULT true,
+  priority          INT NOT NULL DEFAULT 100,
+  next_check_at     TIMESTAMPTZ,
+  target_config     JSONB NOT NULL DEFAULT '{}'::jsonb,
+  config_source     TEXT NOT NULL DEFAULT 'default',
+  notes             TEXT,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE source_items (
   source_item_id       TEXT PRIMARY KEY,
   source_adapter_id    TEXT NOT NULL,
@@ -310,7 +324,7 @@ CREATE TABLE fetch_runs (
 );
 ```
 
-这组表是 source monitoring / change detection 的底座。`source_health` 同步静态 registry；`source_policies` 保存外部可配置检查 cadence；`source_items` 表示一个可重复观察的 URL/API item；`document_versions` 保存每次内容版本；`source_change_events` 记录新文档、未变化和内容变化事件；`fetch_runs` 记录抓取尝试本身。
+这组表是 source monitoring / change detection 的底座。`source_health` 同步静态 registry；`source_policies` 保存外部可配置检查 cadence；`source_check_targets` 保存具体要检查的公司/源目标，例如 `sec-edgar:nvidia`；`source_items` 表示一个可重复观察的 URL/API item；`document_versions` 保存每次内容版本；`source_change_events` 记录新文档、未变化和内容变化事件；`fetch_runs` 记录抓取尝试本身。
 
 ### 10. unknown_items
 
@@ -421,13 +435,15 @@ chain_segments
 
 约束：
 
-- `claims` 只能引用 `edges` / `evidence` / `unknown_items`，不能自己成为新事实来源。
+- `claims` 只能引用 `edges` / `evidence` / `unknown_items` / `review_candidates`，不能自己成为新事实来源。
 - `@supplystrata/claim-builder` 第一版只扫描 `current`、非 inferred、`evidence_level >= 4` 且有 `primary_evidence_id` 的事实边，并用确定性 `claim_id` 幂等 upsert；它不做抽取、不提高证据等级、不写 Neo4j。
+- `status='draft'` 只用于已确认的语义变化草稿，例如 `semantic_change` review apply 生成的 `CLM-REVIEW-*`；draft 不进入 active claim 查询，也不能被前端画成事实边。
 - `observations` 不能被 graph-builder 直接物化成 Neo4j fact edge。
 - `@supplystrata/observation-store` 第一版只做幂等写入和输入边界校验；它不调用 graph-builder，不把 observation/lead 升级为边。
 - `lead_observations` 必须进入 review 或研究队列，默认不进图谱。
 - `chain_segments.semantic_layer` 必须保留 `edge / claim / observation / lead / unknown`，供 CLI、API 和研究工作台统一消费。
 - `@supplystrata/chain-view` 第一版已经能把上游 fact edge、active claim、company/component observations、open leads 和 unknown items 组装成前端可消费的 `CompanyChainViewModel`；observation / lead / unknown 是 context segment，不带 `evidence_level`，不改事实边语义。
+- `@supplystrata/workbench-export` 会把当前研究公司 scope 内 `status='draft'` 的 claim 作为 `draft_claims` 独立输出；draft claim 不进入 ChainView 主链路。
 
 ## Neo4j 模型
 

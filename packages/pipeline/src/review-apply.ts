@@ -1,6 +1,6 @@
-import type pg from "pg";
+import { upsertSemanticChangeClaimDraft } from "@supplystrata/claim-builder";
 import { type ApplyResult, type ApprovedCandidate, type RelationType } from "@supplystrata/core";
-import { loadDocument, recordPendingEntity, type DocumentWithChunks } from "@supplystrata/db";
+import { loadDocument, recordPendingEntity, type DatabaseStore, type DbClient, type DocumentWithChunks } from "@supplystrata/db";
 import {
   applyEntitySourceReviewCandidate,
   ensureSupplierListFacilityEntity,
@@ -13,6 +13,7 @@ import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import {
   isEntitySourceReviewCandidate,
+  isSemanticChangeReviewCandidate,
   isSupplierListReviewCandidate,
   supplierListReviewToFacilityRelation,
   supplierListReviewToSupplierRelation,
@@ -41,6 +42,7 @@ export type ReviewApplyResult =
       facility_import: Extract<FacilityImportResult, { status: "applied" }>;
     }
   | { status: "entity_applied"; review_id: string; import_result: Extract<EntityImportResult, { status: "applied" }> }
+  | { status: "acknowledged"; review_id: string; kind: "semantic_change"; claim_id: string; reason: string }
   | { status: "blocked"; review_id: string; reason: string; pending_id?: string };
 
 export type ReviewApplyBatchItem = ReviewApplyResult | { status: "error"; review_id: string; reason: string };
@@ -51,6 +53,7 @@ export interface ReviewApplyBatchSummary {
   applied: number;
   applied_edges: number;
   entity_applied: number;
+  acknowledged: number;
   blocked: number;
   errors: number;
   results: ReviewApplyBatchItem[];
@@ -58,18 +61,27 @@ export interface ReviewApplyBatchSummary {
 
 type SupplierListReviewItem = ReviewQueueItem & { candidate: SupplierListReviewCandidate };
 
-export async function applyApprovedReviewCandidate(pool: pg.Pool, reviewId: string, reviewer: string): Promise<ReviewApplyResult> {
-  const item = await getReviewCandidate(pool, reviewId);
+export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewId: string, reviewer: string): Promise<ReviewApplyResult> {
+  const item = await getReviewCandidate(store, reviewId);
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
   if (!canApplyReviewStatus(item.status))
     return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };
   if (isEntitySourceReviewCandidate(item.candidate)) {
-    return applyEntityReviewCandidate(pool, item, reviewer);
+    return applyEntityReviewCandidate(store, item, reviewer);
   }
   if (isSupplierListReviewCandidate(item.candidate)) {
-    return applySupplierListReviewCandidate(pool, { ...item, candidate: item.candidate }, reviewer);
+    return applySupplierListReviewCandidate(store, { ...item, candidate: item.candidate }, reviewer);
   }
-  return blockReviewCandidate(pool, reviewId, `unsupported review candidate kind: ${item.kind}`);
+  if (isSemanticChangeReviewCandidate(item.candidate)) {
+    const draft = await upsertSemanticChangeClaimDraft(store, item.candidate, {
+      ...(item.reviewed_at === undefined ? {} : { reviewed_at: item.reviewed_at }),
+      caused_by: reviewer
+    });
+    const reason = `acknowledged semantic change review candidate and created draft claim ${draft.claim_id}; no graph edge is applied by design`;
+    await markReviewCandidateApplied(store, { reviewId: item.review_id, reason });
+    return { status: "acknowledged", review_id: item.review_id, kind: "semantic_change", claim_id: draft.claim_id, reason };
+  }
+  return blockReviewCandidate(store, reviewId, `unsupported review candidate kind: ${item.kind}`);
 }
 
 function canApplyReviewStatus(status: ReviewQueueItem["status"]): boolean {
@@ -77,37 +89,37 @@ function canApplyReviewStatus(status: ReviewQueueItem["status"]): boolean {
   return status === "approved" || status === "blocked";
 }
 
-async function applyEntityReviewCandidate(pool: pg.Pool, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
+async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
   if (!isEntitySourceReviewCandidate(item.candidate)) {
-    return blockReviewCandidate(pool, item.review_id, `unsupported entity review candidate kind: ${item.kind}`);
+    return blockReviewCandidate(store, item.review_id, `unsupported entity review candidate kind: ${item.kind}`);
   }
-  const importResult = await applyEntitySourceReviewCandidate(pool, item.candidate, reviewer);
-  if (importResult.status === "blocked") return blockReviewCandidate(pool, item.review_id, importResult.reason);
-  await markReviewCandidateApplied(pool, { reviewId: item.review_id, reason: `imported entity ${importResult.entity_id}` });
+  const importResult = await applyEntitySourceReviewCandidate(store, item.candidate, reviewer);
+  if (importResult.status === "blocked") return blockReviewCandidate(store, item.review_id, importResult.reason);
+  await markReviewCandidateApplied(store, { reviewId: item.review_id, reason: `imported entity ${importResult.entity_id}` });
   return { status: "entity_applied", review_id: item.review_id, import_result: importResult };
 }
 
-async function applySupplierListReviewCandidate(pool: pg.Pool, item: SupplierListReviewItem, reviewer: string): Promise<ReviewApplyResult> {
+async function applySupplierListReviewCandidate(store: DatabaseStore, item: SupplierListReviewItem, reviewer: string): Promise<ReviewApplyResult> {
   const reviewId = item.review_id;
   const supplierRelation = supplierListReviewToSupplierRelation(item.candidate);
-  const resolver = new DbEntityResolver(pool);
-  const entityResolution = await resolveSupplierListEntities(pool, item, resolver, supplierRelation);
+  const resolver = new DbEntityResolver(store);
+  const entityResolution = await resolveSupplierListEntities(store, item, resolver, supplierRelation);
   if (entityResolution.status === "blocked") return entityResolution;
 
-  const facilityPreparation = await prepareSupplierListFacility(pool, item, resolver, reviewer);
+  const facilityPreparation = await prepareSupplierListFacility(store, item, resolver, reviewer);
   if (facilityPreparation.status === "blocked") return facilityPreparation;
-  const doc = await loadReviewDocument(pool, item);
+  const doc = await loadReviewDocument(store, item);
   if (doc.status === "blocked") return doc;
   const scored = await scoreSupplierListRelations(supplierRelation, facilityPreparation.facilityRelation, doc.document);
-  const builder = new GraphBuilder(pool, resolver, { graphSyncMode: "defer" });
+  const builder = new GraphBuilder(store, resolver, { graphSyncMode: "defer" });
   try {
     const applyResults = await applySupplierListEdges(builder, scored, doc.docId, reviewer);
-    const pendingResolved = await resolvePendingEntitySurface(pool, {
+    const pendingResolved = await resolvePendingEntitySurface(store, {
       surface: supplierRelation.object_resolve.surface,
       entityId: entityResolution.supplier_entity_id,
       reviewer
     });
-    await markReviewCandidateApplied(pool, { reviewId, reason: `applied edges ${applyResults.map((result) => result.edge_id).join(", ")}` });
+    await markReviewCandidateApplied(store, { reviewId, reason: `applied edges ${applyResults.map((result) => result.edge_id).join(", ")}` });
     return {
       status: "applied",
       review_id: reviewId,
@@ -123,19 +135,19 @@ async function applySupplierListReviewCandidate(pool: pg.Pool, item: SupplierLis
 type SupplierEntityResolution = { status: "ready"; supplier_entity_id: string } | Extract<ReviewApplyResult, { status: "blocked" }>;
 
 async function resolveSupplierListEntities(
-  pool: pg.Pool,
+  client: DbClient,
   item: SupplierListReviewItem,
   resolver: DbEntityResolver,
   supplierRelation: ReturnType<typeof supplierListReviewToSupplierRelation>
 ): Promise<SupplierEntityResolution> {
   const buyerResolution = await resolver.resolve(supplierRelation.subject_resolve);
   if (buyerResolution.status !== "resolved" || buyerResolution.entity_id === undefined) {
-    return blockReviewCandidate(pool, item.review_id, `cannot resolve buyer: ${supplierRelation.subject_resolve.surface}`);
+    return blockReviewCandidate(client, item.review_id, `cannot resolve buyer: ${supplierRelation.subject_resolve.surface}`);
   }
 
   const supplierResolution = await resolver.resolve(supplierRelation.object_resolve);
   if (supplierResolution.status !== "resolved" || supplierResolution.entity_id === undefined) {
-    const pending = await recordPendingEntity(pool, {
+    const pending = await recordPendingEntity(client, {
       surface: supplierRelation.object_resolve.surface,
       context: {
         review_id: item.review_id,
@@ -144,7 +156,7 @@ async function resolveSupplierListEntities(
         country_or_region: item.candidate.payload.country_or_region
       }
     });
-    return blockReviewCandidate(pool, item.review_id, `cannot resolve supplier: ${supplierRelation.object_resolve.surface}`, pending.pending_id);
+    return blockReviewCandidate(client, item.review_id, `cannot resolve supplier: ${supplierRelation.object_resolve.surface}`, pending.pending_id);
   }
   return { status: "ready", supplier_entity_id: supplierResolution.entity_id };
 }
@@ -158,13 +170,13 @@ type FacilityPreparation =
   | Extract<ReviewApplyResult, { status: "blocked" }>;
 
 async function prepareSupplierListFacility(
-  pool: pg.Pool,
+  client: DbClient,
   item: SupplierListReviewItem,
   resolver: DbEntityResolver,
   reviewer: string
 ): Promise<FacilityPreparation> {
-  const facilityImport = await ensureSupplierListFacilityEntity(pool, item.candidate, reviewer);
-  if (facilityImport.status === "blocked") return blockReviewCandidate(pool, item.review_id, facilityImport.reason);
+  const facilityImport = await ensureSupplierListFacilityEntity(client, item.candidate, reviewer);
+  if (facilityImport.status === "blocked") return blockReviewCandidate(client, item.review_id, facilityImport.reason);
 
   const facilityRelation = supplierListReviewToFacilityRelation(item.candidate, facilityImport.display_name);
   const facilityResolution = await resolver.resolve(facilityRelation.object_resolve);
@@ -173,17 +185,17 @@ async function prepareSupplierListFacility(
       { review_id: item.review_id, facility_entity_id: facilityImport.entity_id },
       "facility entity was imported but could not be resolved by its canonical alias"
     );
-    return blockReviewCandidate(pool, item.review_id, `cannot resolve facility: ${facilityRelation.object_resolve.surface}`);
+    return blockReviewCandidate(client, item.review_id, `cannot resolve facility: ${facilityRelation.object_resolve.surface}`);
   }
   return { status: "ready", facilityImport, facilityRelation };
 }
 
 type LoadedReviewDocument = { status: "ready"; docId: string; document: DocumentWithChunks } | Extract<ReviewApplyResult, { status: "blocked" }>;
 
-async function loadReviewDocument(pool: pg.Pool, item: SupplierListReviewItem): Promise<LoadedReviewDocument> {
+async function loadReviewDocument(client: DbClient, item: SupplierListReviewItem): Promise<LoadedReviewDocument> {
   const docId = item.candidate.evidence.doc_id;
-  if (docId === undefined) return blockReviewCandidate(pool, item.review_id, "supplier-list review candidate is missing doc_id");
-  return { status: "ready", docId, document: await loadDocument(pool, docId) };
+  if (docId === undefined) return blockReviewCandidate(client, item.review_id, "supplier-list review candidate is missing doc_id");
+  return { status: "ready", docId, document: await loadDocument(client, docId) };
 }
 
 interface ScoredSupplierListRelations {
@@ -235,21 +247,21 @@ async function applySupplierListEdges(
 }
 
 async function blockReviewCandidate(
-  pool: pg.Pool,
+  client: DbClient,
   reviewId: string,
   reason: string,
   pendingId?: string
 ): Promise<Extract<ReviewApplyResult, { status: "blocked" }>> {
-  await markReviewCandidateBlocked(pool, { reviewId, reason });
+  await markReviewCandidateBlocked(client, { reviewId, reason });
   return { status: "blocked", review_id: reviewId, reason, ...(pendingId === undefined ? {} : { pending_id: pendingId }) };
 }
 
-export async function applyApprovedReviewCandidates(pool: pg.Pool, input: { reviewer: string; limit: number }): Promise<ReviewApplyBatchSummary> {
-  const items = await listApprovedReviewCandidates(pool, { limit: input.limit });
+export async function applyApprovedReviewCandidates(store: DatabaseStore, input: { reviewer: string; limit: number }): Promise<ReviewApplyBatchSummary> {
+  const items = await listApprovedReviewCandidates(store, { limit: input.limit });
   const results: ReviewApplyBatchItem[] = [];
   for (const item of items) {
     try {
-      results.push(await applyApprovedReviewCandidate(pool, item.review_id, input.reviewer));
+      results.push(await applyApprovedReviewCandidate(store, item.review_id, input.reviewer));
     } catch (error) {
       results.push({ status: "error", review_id: item.review_id, reason: messageFromUnknown(error) });
     }
@@ -261,6 +273,7 @@ export async function applyApprovedReviewCandidates(pool: pg.Pool, input: { revi
     applied: appliedItems.length,
     applied_edges: appliedItems.reduce((sum, item) => sum + item.apply_results.length, 0),
     entity_applied: results.filter((item) => item.status === "entity_applied").length,
+    acknowledged: results.filter((item) => item.status === "acknowledged").length,
     blocked: results.filter((item) => item.status === "blocked").length,
     errors: results.filter((item) => item.status === "error").length,
     results

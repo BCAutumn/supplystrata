@@ -112,7 +112,7 @@ pnpm smoke:local
 pnpm smoke:network
 ```
 
-`smoke:local` 不访问外网，只验证 migration、seed、Neo4j rebuild 和 graph check。`smoke:network` 额外跑 SEC/NVIDIA 联网切片，并断言 company 输出包含 evidence、unknown map 至少 5 项。
+`smoke:local` 默认不访问外网，也不要求数据库；它验证 CLI 根命令、preview 命令和 review 命令可启动，适合作为开源贡献者的轻量 smoke。`smoke:local --with-db` 才验证 migration、seed、Neo4j rebuild 和 graph check。`smoke:network` 额外跑 SEC/NVIDIA 联网切片，并断言 company 输出包含 evidence、unknown map 至少 5 项。
 
 这两个脚本不是 CI 的完整 e2e 替代品；正式 e2e 仍应使用 fixture，避免把 SEC 网络可用性变成合并门禁。
 

@@ -1,4 +1,4 @@
-import { isEntitySourceReviewCandidate, isSupplierListReviewCandidate } from "@supplystrata/review-candidates";
+import { isEntitySourceReviewCandidate, isSemanticChangeReviewCandidate, isSupplierListReviewCandidate } from "@supplystrata/review-candidates";
 import type { ReviewApplyBatchSummary } from "@supplystrata/pipeline";
 import type { ReviewQueueItem } from "@supplystrata/review-store";
 import type { OutputFormat } from "@supplystrata/render";
@@ -20,6 +20,7 @@ export function renderReviewItemOrEmpty(item: ReviewQueueItem | undefined, forma
   ];
   if (isSupplierListReviewCandidate(candidate)) appendSupplierListCandidate(lines, candidate);
   if (isEntitySourceReviewCandidate(candidate)) appendEntitySourceCandidate(lines, candidate);
+  if (isSemanticChangeReviewCandidate(candidate)) appendSemanticChangeCandidate(lines, candidate);
   lines.push("", "## Review Note", "", candidate.review_reason);
   if (item.reviewer !== undefined) lines.push("", `Reviewer: ${item.reviewer}`);
   if (item.decision_reason !== undefined) lines.push(`Decision reason: ${item.decision_reason}`);
@@ -36,6 +37,7 @@ export function renderReviewApplyBatch(summary: ReviewApplyBatchSummary, format:
     `Applied review items: ${summary.applied}`,
     `Applied edges: ${summary.applied_edges}`,
     `Imported entities: ${summary.entity_applied}`,
+    `Acknowledged semantic changes: ${summary.acknowledged}`,
     `Blocked: ${summary.blocked}`,
     `Errors: ${summary.errors}`
   ];
@@ -46,10 +48,31 @@ export function renderReviewApplyBatch(summary: ReviewApplyBatchSummary, format:
         const edges = result.apply_results.map((item) => `${item.role}:${item.edge_id}/${item.relation}/${item.graph_sync.status}`).join(", ");
         lines.push(`- ${result.review_id}: applied ${result.apply_results.length} edges (${edges}); facility ${result.facility_import.entity_id}`);
       } else if (result.status === "entity_applied") lines.push(`- ${result.review_id}: imported entity ${result.import_result.entity_id}`);
+      else if (result.status === "acknowledged") lines.push(`- ${result.review_id}: acknowledged ${result.kind}; draft ${result.claim_id}`);
       else lines.push(`- ${result.review_id}: ${result.status} - ${result.reason}`);
     }
   }
   return lines.join("\n");
+}
+
+function appendSemanticChangeCandidate(lines: string[], candidate: Extract<ReviewQueueItem["candidate"], { kind: "semantic_change" }>): void {
+  lines.push(
+    "",
+    "## Semantic Change",
+    "",
+    `- Change: ${candidate.payload.change_type}`,
+    `- Kind: ${candidate.payload.semantic_relation_kind}`,
+    `- Relation: ${candidate.payload.subject_surface} -${candidate.payload.relation}-> ${candidate.payload.object_surface}`,
+    `- Component: ${candidate.payload.component ?? candidate.payload.component_id ?? "unknown"}`,
+    "",
+    "## Evidence Context",
+    "",
+    `Source: ${candidate.evidence.source_adapter_id}`,
+    `URL: ${candidate.evidence.source_url}`,
+    `Locator: ${candidate.evidence.source_locator}`,
+    `Text: ${candidate.evidence.source_row_text}`,
+    `Fingerprint: ${candidate.payload.fingerprint}`
+  );
 }
 
 function appendSupplierListCandidate(lines: string[], candidate: Extract<ReviewQueueItem["candidate"], { kind: "supplier_list_row" }>): void {

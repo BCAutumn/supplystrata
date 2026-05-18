@@ -3,6 +3,7 @@ import { createInitialState, selectSegment, type WorkbenchState } from "./app-st
 import { createChainCanvas } from "./canvas/chain-canvas.js";
 import { loadWorkbenchModelFromFile, loadWorkbenchModelFromUrl } from "./data/load-report.js";
 import { renderChangesTimeline } from "./panels/changes-timeline.js";
+import { renderDraftClaimsPanel } from "./panels/draft-claims-panel.js";
 import { renderEvidencePanel } from "./panels/evidence-panel.js";
 import { renderSourceHealthPanel } from "./panels/source-health-panel.js";
 import { renderUnknownPanel } from "./panels/unknown-panel.js";
@@ -15,6 +16,7 @@ const title = requireElement("workbench-title", HTMLHeadingElement);
 const loadStatus = requireElement("load-status", HTMLParagraphElement);
 const summary = requireElement("summary-strip", HTMLDivElement);
 const inspectorPanel = requireElement("inspector-panel", HTMLElement);
+const draftClaimsPanel = requireElement("draft-claims-panel", HTMLElement);
 const unknownPanel = requireElement("unknown-panel", HTMLElement);
 const sourceHealthPanel = requireElement("source-health-panel", HTMLElement);
 const changesPanel = requireElement("changes-panel", HTMLElement);
@@ -75,6 +77,7 @@ function render(): void {
     summary.innerHTML = [
       metric("Fact edges", model.chain.stats.fact_edges),
       metric("Claims", model.chain.stats.claims),
+      metric("Draft claims", model.draft_claims.length),
       metric("Observations", model.chain.stats.observations),
       metric("Leads", model.chain.stats.leads),
       metric("Unknowns", model.chain.stats.unknowns)
@@ -94,6 +97,7 @@ function render(): void {
     }
   }
   renderEvidencePanel(inspectorPanel, model, segment);
+  renderDraftClaimsPanel(draftClaimsPanel, model);
   renderUnknownPanel(unknownPanel, model);
   renderSourceHealthPanel(sourceHealthPanel, model);
   renderChangesTimeline(changesPanel, model);

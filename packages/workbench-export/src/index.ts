@@ -2,6 +2,8 @@ import {
   getClaim,
   getEvidence,
   listChangeTimeline,
+  listDraftClaims,
+  listEvidenceForEdges,
   listUnknownItems,
   resolveEntityId,
   type ChangeTimelineItem,
@@ -21,6 +23,7 @@ export interface WorkbenchExportInput {
   since?: string;
   changeLimit?: number;
   sourceLimit?: number;
+  draftClaimLimit?: number;
 }
 
 export interface WorkbenchCompanyNode {
@@ -54,6 +57,7 @@ export interface WorkbenchModel {
   upstream_edges: WorkbenchEdge[];
   downstream_edges: WorkbenchEdge[];
   claims: ClaimRow[];
+  draft_claims: ClaimRow[];
   evidences: EvidenceDetailRow[];
   unknown_items: UnknownItemRow[];
   sources: SourceHealthRow[];
@@ -66,10 +70,12 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
   const chain = await buildCompanyChainView(client, { query: rootEntityId, depth: input.depth ?? 2, generated_by: "workbench-export.v1" });
   const edgeSegments = chain.segments.filter(isEdgeSegment);
   const edges = edgeSegments.map(workbenchEdgeFromSegment);
+  const edgeIds = uniqueStrings(edgeSegments.map((segment) => segment.edge_id));
   const claimIds = uniqueStrings(chain.segments.flatMap((segment) => (segment.claim_id === undefined ? [] : [segment.claim_id])));
   const evidenceIds = uniqueStrings(chain.segments.flatMap((segment) => segment.evidence_ids));
   const claims = await loadClaims(client, claimIds);
-  const evidences = await loadEvidences(client, evidenceIds);
+  const draftClaims = await listDraftClaims(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.draftClaimLimit ?? 25 });
+  const evidences = await loadWorkbenchEvidences(client, { evidenceIds, edgeIds });
   const unknownItems = await listUnknownItems(client, rootEntityId);
   const sources = (await listSourceHealthRows(client)).slice(0, input.sourceLimit ?? 50);
   const sourcePlan = planSourcesForComponents({
@@ -94,6 +100,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     upstream_edges: edges,
     downstream_edges: [],
     claims,
+    draft_claims: draftClaims,
     evidences,
     unknown_items: unknownItems,
     sources,
@@ -168,6 +175,27 @@ async function loadEvidences(client: DbClient, evidenceIds: readonly string[]): 
     if (evidence !== undefined) evidences.push(evidence);
   }
   return evidences;
+}
+
+async function loadWorkbenchEvidences(client: DbClient, input: { evidenceIds: readonly string[]; edgeIds: readonly string[] }): Promise<EvidenceDetailRow[]> {
+  const byId = new Map<string, EvidenceDetailRow>();
+  for (const evidence of await listEvidenceForEdges(client, input.edgeIds)) {
+    byId.set(evidence.evidence_id, evidence);
+  }
+  for (const evidence of await loadEvidences(client, input.evidenceIds)) {
+    byId.set(evidence.evidence_id, evidence);
+  }
+  return [...byId.values()].sort(compareWorkbenchEvidence);
+}
+
+function compareWorkbenchEvidence(left: EvidenceDetailRow, right: EvidenceDetailRow): number {
+  const leftEdge = left.edge_id ?? "";
+  const rightEdge = right.edge_id ?? "";
+  const edgeOrder = leftEdge.localeCompare(rightEdge);
+  if (edgeOrder !== 0) return edgeOrder;
+  const activeOrder = Number(left.superseded_by !== null) - Number(right.superseded_by !== null);
+  if (activeOrder !== 0) return activeOrder;
+  return right.evidence_level - left.evidence_level || right.confidence - left.confidence || left.evidence_id.localeCompare(right.evidence_id);
 }
 
 function uniqueStrings(values: readonly string[]): string[] {

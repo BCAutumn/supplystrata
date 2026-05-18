@@ -1,11 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse } from "csv-parse/sync";
-import pg from "pg";
 import { normalizeAlias, type AliasRecord, type EntityKind, type EntityRecord } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
-
-const { Pool } = pg;
+import type { DatabaseStore, DbClient } from "./client.js";
 
 interface EntityCsvRow {
   entity_id: string;
@@ -38,21 +35,12 @@ interface ComponentCsvRow {
   aliases: string;
 }
 
-export async function seedFromCsv(client: DbClient, rootDir = process.cwd()): Promise<{ entities: number; aliases: number; components: number }> {
-  if (client instanceof Pool) {
-    const lockedClient = await client.connect();
-    let lockAcquired = false;
-    try {
-      // seed 会写大量 deterministic id；并行测试 worker 同时 seed 时必须整段串行。
-      await lockedClient.query("SELECT pg_advisory_lock(hashtextextended('supplystrata:seed', 0))");
-      lockAcquired = true;
-      return await seedFromCsvLocked(lockedClient, rootDir);
-    } finally {
-      if (lockAcquired) await lockedClient.query("SELECT pg_advisory_unlock(hashtextextended('supplystrata:seed', 0))");
-      lockedClient.release();
-    }
-  }
-  return await seedFromCsvLocked(client, rootDir);
+export async function seedFromCsv(store: DatabaseStore, rootDir = process.cwd()): Promise<{ entities: number; aliases: number; components: number }> {
+  return store.transaction(async (client) => {
+    // seed 会写大量 deterministic id；事务级锁让并行测试 worker 串行执行同一批基础数据。
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('supplystrata:seed', 0))");
+    return seedFromCsvLocked(client, rootDir);
+  });
 }
 
 async function seedFromCsvLocked(client: DbClient, rootDir: string): Promise<{ entities: number; aliases: number; components: number }> {

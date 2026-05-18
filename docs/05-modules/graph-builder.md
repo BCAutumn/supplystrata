@@ -100,15 +100,13 @@ pnpm --silent cli db backfill-evidence-trace --limit 1000
 deprecate(edge_id, reason, evidence): {
   Postgres:
     UPDATE edges SET validity = "deprecated", deprecated_reason = ?, superseded_by_edge_id = ?
-    INSERT into change_records ('edge_supersession', edge_id, evidence_ids)
+    INSERT into change_records ('edge_deprecated', edge_id, evidence_ids)
   GraphStore:
     MATCH ()-[r {edge_id: ?}]->() DELETE r       # 真删图谱里的边（保持当前态干净）
-    OR
-    SET r.validity = "deprecated"                # 二选一；MVP 选删除
 }
 ```
 
-MVP 选择"图投影中删除 deprecated 边"以保持当前态可读性。Postgres 永远保留历史。
+MVP 选择"图投影中删除 deprecated 边"以保持当前态可读性。Postgres 永远保留历史，并通过 ChangeRecord 暴露 `EDGE_DEPRECATED`。
 
 ## Rebuild
 

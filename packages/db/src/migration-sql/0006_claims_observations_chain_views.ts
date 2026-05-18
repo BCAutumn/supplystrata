@@ -15,21 +15,23 @@ CREATE TABLE IF NOT EXISTS claims (
   object_id TEXT REFERENCES entity_master(entity_id),
   component_id TEXT REFERENCES components(component_id),
   edge_id TEXT REFERENCES edges(edge_id),
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','superseded','rejected')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('draft','active','superseded','rejected')),
   evidence_level SMALLINT NOT NULL CHECK (evidence_level BETWEEN 1 AND 5),
   confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
   is_inferred BOOLEAN NOT NULL,
   generated_by TEXT NOT NULL,
+  review_id TEXT REFERENCES review_candidates(review_id),
   last_verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (edge_id IS NOT NULL OR subject_id IS NOT NULL OR object_id IS NOT NULL OR component_id IS NOT NULL)
+  CHECK (edge_id IS NOT NULL OR subject_id IS NOT NULL OR object_id IS NOT NULL OR component_id IS NOT NULL OR review_id IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_claims_edge ON claims(edge_id);
 CREATE INDEX IF NOT EXISTS idx_claims_subject ON claims(subject_id);
 CREATE INDEX IF NOT EXISTS idx_claims_object ON claims(object_id);
 CREATE INDEX IF NOT EXISTS idx_claims_component ON claims(component_id);
 CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
+CREATE INDEX IF NOT EXISTS idx_claims_review ON claims(review_id) WHERE review_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS claim_evidence (
   claim_id TEXT NOT NULL REFERENCES claims(claim_id) ON DELETE CASCADE,

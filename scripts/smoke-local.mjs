@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const withNetwork = process.argv.includes("--with-network");
+const withDb = withNetwork || process.argv.includes("--with-db");
 
 function runPnpm(args, options = {}) {
   const capture = options.capture === true;
@@ -40,7 +41,29 @@ function assert(condition, message) {
 
 console.log(`SupplyStrata smoke (${withNetwork ? "network" : "local"})`);
 
-// 本地 smoke 只验证可重复的基础链路；联网 smoke 额外抓 SEC 并生成 NVIDIA 研究输出。
+if (!withDb) {
+  const rootHelp = runPnpm(["--silent", "cli", "--help"], { capture: true });
+  const previewHelp = runPnpm(["--silent", "cli", "preview", "--help"], { capture: true });
+  const reviewHelp = runPnpm(["--silent", "cli", "review", "--help"], { capture: true });
+  assert(rootHelp.includes("Usage:"), "CLI 根命令 help 缺少 Usage");
+  assert(previewHelp.includes("sec-edgar"), "preview help 缺少 sec-edgar 命令");
+  assert(reviewHelp.includes("apply-approved"), "review help 缺少 apply-approved 命令");
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        mode: "local",
+        db: false,
+        checked: ["cli --help", "cli preview --help", "cli review --help"]
+      },
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
+// DB smoke 验证本地 truth store + GraphStore 链路；联网 smoke 额外抓 SEC 并生成 NVIDIA 研究输出。
 runPnpm(["db:migrate"]);
 runPnpm(["cli", "admin", "seed"]);
 

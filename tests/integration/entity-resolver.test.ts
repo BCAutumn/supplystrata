@@ -1,13 +1,12 @@
-import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPool, migrate, seedFromCsv } from "@supplystrata/db";
+import { createDatabaseStore, migrate, seedFromCsv, type DatabaseStore } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { canConnectToIntegrationDatabase } from "./helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
-  const pool: pg.Pool = createPool();
+  const pool: DatabaseStore = createDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);
@@ -15,7 +14,7 @@ describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
   });
 
   afterAll(async () => {
-    await pool.end();
+    await pool.close();
   });
 
   it("resolves exact official aliases and identifiers from the seeded database", async () => {

@@ -22,11 +22,12 @@
 - `multi-tier-chain-logistics-plan.md`：`edge / observation / lead / unknown` 四层模型。
 - `packages/observation-store`：统一写入 observations / leads。
 - `packages/chain-view`：运行时输出 edge / claim / observation / lead / unknown 分层 ChainViewModel。
+- 语义级 changes 第一版：claim / observation / lead 写入路径会产生确定性的 `change_records`；官方披露文档变化会产生固定 section fingerprint diff；官方披露关系候选会产生 relation fingerprint diff，并进入 review queue。
 
 仍缺：
 
-- 语义级 change event：`EDGE_DEPRECATED`、`UNKNOWN_RESOLVED`、`SUPPLIER_RELATION_ADDED` 等。
-- `apps/research-preview`：真正的本地研究工作台。
+- 语义变化确认后自动生成 claim 草稿的工作流。
+- 更深层二级/三级免费源 adapter，把 relation/observation/lead 填到 ChainView。
 
 ## 2. 目标形态
 
@@ -74,12 +75,20 @@ packages/claim-builder
 packages/observation-store
   统一写入 trade/energy/commodity/port/procurement/lead observations。
 
+packages/source-connectors
+  统一注册 source check target runner；只做 target 分发和配置校验，不抓源、不写库。
+  已把 SEC EDGAR、TSMC/Samsung/SK hynix/ASML 官方 IR、Census Trade、Open Supply Hub source check 接入 connector registry；后续 DART、EDINET、Comtrade、RMI 等免费源通过新增 connector 接入，不再改 pipeline 调度分支。
+
+packages/pipeline
+  只做纵向链路编排；已拆成 run / source-documents / previews / apple-suppliers / document-observations，避免新增免费源时继续膨胀入口文件。
+
 packages/chain-view
   把 edges、claims、observations、leads、unknowns 组装成 ChainViewModel。
   第一版已落地 company chain：输出 edge/claim/observation/lead/unknown 分层 segment。
 
 packages/render
   只负责把 CompanyCard / ComponentCard / ChainViewModel 渲染成 CLI JSON/Markdown。
+  已拆成 company / component / chain / evidence / changes / pending / unknown 等小模块；index 只做稳定 re-export，避免渲染层重新变成总控文件。
 
 apps/research-preview
   只消费 JSON；不直连 Postgres / Neo4j。
@@ -109,6 +118,7 @@ CREATE TABLE claims (
   object_id TEXT REFERENCES entity_master(entity_id),
   component_id TEXT REFERENCES components(component_id),
   edge_id TEXT REFERENCES edges(edge_id),
+  review_id TEXT REFERENCES review_candidates(review_id),
   status TEXT NOT NULL,
   evidence_level SMALLINT NOT NULL CHECK (evidence_level BETWEEN 1 AND 5),
   confidence REAL NOT NULL,
@@ -140,6 +150,7 @@ CREATE TABLE claim_unknowns (
 - `claims.evidence_level` 不能高于关联 evidence 的最高可用等级。
 - claim 不允许自己“发明”事实；它只能聚合 edge/evidence/unknown。
 - `claims build` 使用确定性 `CLM-EDGE-*` id，重复运行只更新同一条 claim，不产生重复结论。
+- `semantic_change` review apply 只能生成 `status='draft'` 的 claim；draft claim 是研究草稿，不进入 active fact claim 查询，也不写 graph edge。
 - unsupported claim rate 必须等于 0。
 
 ### 4.2 Observation Layer
@@ -237,7 +248,7 @@ UNVERIFIED_FACILITY_SIGNAL
 
 `chain_segments` 是中期最关键的前后端契约。它让同一条链可以同时包含事实边、观测、线索和未知边界。
 
-运行时模型第一版由 `@supplystrata/chain-view` 生成：它不直接写库，先把 current、非 inferred、Level >= 4 的 upstream fact edges 组装成 `ChainViewModel`，并把同一条边上的 active claim 作为独立 `semantic_layer=claim` segment 暴露给前端。同时，company scope observation、链路涉及的 component observation、open lead 和 unknown item 会作为 `observation` / `lead` / `unknown` context segment 输出。这样 Canvas 工作台可以同时画事实边、可读结论、观测、线索和未知边界，但不会把 observation 或 lead 当成事实来源。
+运行时模型第一版由 `@supplystrata/chain-view` 生成：它不直接写库，先把 current、非 inferred、Level >= 4 的 upstream fact edges 组装成 `ChainViewModel`，并把同一条边上的 active claim 作为独立 `semantic_layer=claim` segment 暴露给前端。同时，company scope observation、链路涉及的 component observation、open lead 和 unknown item 会作为 `observation` / `lead` / `unknown` context segment 输出。这样 Canvas 工作台可以同时画事实边、可读结论、观测、线索和未知边界，但不会把 observation 或 lead 当成事实来源。`status='draft'` 的 claim 不进入 ChainView；它由 `workbench-export` 按当前研究公司 scope 过滤后作为 `draft_claims` 独立字段输出，供侧栏展示研究草稿。
 
 ```sql
 CREATE TABLE chain_views (
@@ -410,24 +421,71 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 
 ### PR F：语义级 changes
 
-在 `graph-builder`、`claim-builder`、`observation-store` 中写更明确的 change type：
+状态：已落地第一版。先不用 LLM，也不做自由文本报告 diff；只在结构化写入路径、固定官方披露 section fingerprint、官方披露 relation fingerprint 中记录确定性事件。`recordSemanticChange()` 统一写 `change_records`，`claim-builder` 负责 claim 事件，`observation-store` 负责 observation / lead 事件，`review-store` 负责 review 决策事件，unknown 仓储负责 unknown add/resolve 事件，timeline 通过 `event_family=semantic` 暴露给 CLI 和工作台。
+
+已支持：
 
 ```text
-EDGE_ADDED
-EDGE_UPDATED
-EVIDENCE_ADDED
 CLAIM_ADDED
 CLAIM_UPDATED
 OBSERVATION_ADDED
+OBSERVATION_UPDATED
 LEAD_ADDED
+LEAD_UPDATED
+REVIEW_APPROVED
+REVIEW_REJECTED
+REVIEW_APPLIED
+REVIEW_BLOCKED
 UNKNOWN_ADDED
+UNKNOWN_UPDATED
 UNKNOWN_RESOLVED
 ```
 
+已落地第一版：
+
+```text
+SUPPLIER_RELATION_ADDED
+SUPPLIER_RELATION_REMOVED
+CUSTOMER_RELATION_ADDED
+CUSTOMER_RELATION_REMOVED
+FOUNDRY_RELATION_ADDED
+FOUNDRY_RELATION_REMOVED
+PURCHASE_OBLIGATION_ADDED
+PURCHASE_OBLIGATION_CHANGED
+PURCHASE_OBLIGATION_REMOVED
+CAPACITY_RESERVATION_ADDED
+CAPACITY_RESERVATION_CHANGED
+CAPACITY_RESERVATION_REMOVED
+SINGLE_SOURCE_RISK_ADDED
+SINGLE_SOURCE_RISK_CHANGED
+SINGLE_SOURCE_RISK_REMOVED
+CUSTOMER_CONCENTRATION_CHANGED
+INVENTORY_CHANGED
+BACKLOG_CHANGED
+CAPEX_CHANGED
+PROCUREMENT_CHANGED
+*_SECTION_ADDED
+*_SECTION_REMOVED
+```
+
+已接入 review queue 和 draft claim：relation-level semantic diff 会生成 `semantic_change` 候选。研究员可以 approve / reject；`review apply` 对这类候选只做 acknowledge，并生成 `CLM-REVIEW-*` draft claim，不生成事实边。这条边界很重要：relation semantic diff 是“披露变化提醒”，不是已审计事实边。
+
+仍待补齐：让工作台单独展示 draft claim，并提供“升级为事实边候选”的显式入口；如果要升级为 edge/evidence，仍必须走实体解析、scoring 和 GraphBuilder 的严格路径。
+
 验收：
 
-- `cli changes` 能区分 graph/source/claim/observation/lead/unknown。
-- Workbench timeline 不需要猜 event 类型。
+- [x] `cli changes` 能区分 graph/source/semantic。
+- [x] claim / observation / lead 能按 scope 查询 timeline。
+- [x] review approve / reject / apply / block 写入 semantic changes。
+- [x] unknown add / update / resolve 写入 semantic changes。
+- [x] evidence superseded 写入 graph changes。
+- [x] edge deprecated 写入 graph changes，并从 GraphStore 当前态投影删除。
+- [x] Workbench timeline 不需要靠字符串猜 claim/observation/lead 事件类型。
+- [x] 官方披露 section fingerprint diff 补齐明确事件；当前只覆盖客户集中、库存、backlog、capex、采购义务，避免用 AI 报告段落做不可复现 diff。
+- [x] 官方披露 relation fingerprint diff 补齐供应商、客户、foundry 新增/移除事件；当前仍保持 observation/semantic 层，不自动写 fact edge。
+- [x] 采购义务、产能预留、单一供应商风险从普通 supplier relation diff 中分离为专门语义事件。
+- [x] relation semantic diff 自动入 `review_candidates(kind='semantic_change')`，且确认后只 acknowledge，不绕过 fact edge 写入规则。
+- [x] 已确认的 `semantic_change` 生成 `status='draft'` 的 claim 草稿；active fact claim 查询不会混入这些草稿。
 
 ### PR G：research-preview 数据接口
 
@@ -441,11 +499,12 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 
 验收：
 
-- [x] JSON 含 `companies / chain_segments / claims / evidences / unknown_items / sources / changes`。
+- [x] JSON 含 `companies / chain_segments / claims / draft_claims / evidences / unknown_items / sources / changes`。
 - [x] `apps/research-preview` 只读这个 JSON。
 - [x] Canvas 第一版能显示 fact edge、observation、lead、unknown boundary。
+- [x] research-preview 侧栏能展示 `draft_claims`，不把草稿画进 fact edge lane。
+- [x] Evidence Inspector 从只看 primary evidence 扩到多 evidence / supersession chain。
 - [ ] 公司切换仍需等多公司 export/fixture 完善后补。
-- [ ] Evidence Inspector 仍需从 primary evidence 扩到多 evidence / supersession chain。
 
 ### PR H：LLM Candidate Assistant
 
@@ -510,5 +569,7 @@ v0.2 仍然优先完成：
 [x] ChainViewModel 包含 observation / lead / unknown context segments
 [x] research-preview 能消费 ChainViewModel
 [x] observations/leads 不会进入 Neo4j fact edge
-[ ] LLM 仍然不能直接写 edge/claim
+[x] claim / observation / lead 写入路径产生语义级 changes
+[x] review / unknown 写入路径产生语义级 changes
+[x] LLM 仍然不能直接写 edge/claim
 ```

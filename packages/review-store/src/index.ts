@@ -1,5 +1,5 @@
 import type pg from "pg";
-import type { DbClient } from "@supplystrata/db";
+import { recordSemanticChange, type DbClient } from "@supplystrata/db";
 import { isReviewCandidate, type ReviewCandidate, type ReviewCandidateKind, type ReviewCandidateStatus } from "@supplystrata/review-candidates";
 
 export interface ReviewQueueItem {
@@ -126,25 +126,65 @@ export async function decideReviewCandidate(
   );
   const item = rowToReviewItem(result.rows[0]);
   if (item === undefined) throw new Error(`Review candidate not found: ${input.reviewId}`);
+  await recordSemanticChange(client, {
+    scope_kind: "review",
+    scope_id: item.review_id,
+    change_type: input.decision === "approved" ? "REVIEW_APPROVED" : "REVIEW_REJECTED",
+    after: {
+      kind: item.kind,
+      status: item.status,
+      reviewer: input.reviewer,
+      reason: input.reason
+    },
+    caused_by: input.reviewer
+  });
   return item;
 }
 
 export async function markReviewCandidateApplied(client: DbClient, input: { reviewId: string; reason: string }): Promise<void> {
-  await client.query(
+  const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'applied', decision_reason = $2, updated_at = now()
-     WHERE review_id = $1`,
+     WHERE review_id = $1
+     RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
     [input.reviewId, input.reason]
   );
+  const item = rowToReviewItem(result.rows[0]);
+  if (item === undefined) throw new Error(`Review candidate not found: ${input.reviewId}`);
+  await recordSemanticChange(client, {
+    scope_kind: "review",
+    scope_id: item.review_id,
+    change_type: "REVIEW_APPLIED",
+    after: {
+      kind: item.kind,
+      status: item.status,
+      reason: input.reason
+    },
+    caused_by: item.reviewer ?? "review-store"
+  });
 }
 
 export async function markReviewCandidateBlocked(client: DbClient, input: { reviewId: string; reason: string }): Promise<void> {
-  await client.query(
+  const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'blocked', decision_reason = $2, updated_at = now()
-     WHERE review_id = $1`,
+     WHERE review_id = $1
+     RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
     [input.reviewId, input.reason]
   );
+  const item = rowToReviewItem(result.rows[0]);
+  if (item === undefined) throw new Error(`Review candidate not found: ${input.reviewId}`);
+  await recordSemanticChange(client, {
+    scope_kind: "review",
+    scope_id: item.review_id,
+    change_type: "REVIEW_BLOCKED",
+    after: {
+      kind: item.kind,
+      status: item.status,
+      reason: input.reason
+    },
+    caused_by: item.reviewer ?? "review-store"
+  });
 }
 
 function rowToReviewItem(row: ReviewCandidateRow | undefined): ReviewQueueItem | undefined {

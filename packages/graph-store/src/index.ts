@@ -26,5 +26,6 @@ export interface GraphStore {
   clear(): Promise<void>;
   upsertEntity(entity: EntityRecord): Promise<void>;
   upsertEdge(edge: GraphEdgeInput): Promise<void>;
+  removeEdge(edgeId: string): Promise<void>;
   stats(): Promise<GraphProjectionStats>;
 }

@@ -2,6 +2,7 @@ import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import type { DbClient } from "@supplystrata/db";
 import {
+  deprecateEdge,
   insertChainSegment,
   insertChainSegments,
   insertChainView,
@@ -12,7 +13,10 @@ import {
   insertClaim,
   insertLeadObservation,
   insertObservation,
+  recordSemanticChange,
+  resolveUnknownItem,
   upsertClaim,
+  upsertUnknownItem,
   linkClaimEvidence,
   linkClaimUnknown,
   listChainSegments,
@@ -37,6 +41,44 @@ class RecordingDbClient implements DbClient {
       oid: 0,
       fields: [],
       rows: []
+    };
+  }
+}
+
+class UnknownResolveDbClient extends RecordingDbClient {
+  override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    return {
+      command: "MOCK",
+      rowCount: 1,
+      oid: 0,
+      fields: [],
+      rows: sql.includes("RETURNING unknown_id") ? ([{ unknown_id: "UNK-TEST" }] as unknown as T[]) : []
+    };
+  }
+}
+
+class EdgeDeprecationDbClient extends RecordingDbClient {
+  override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    return {
+      command: "MOCK",
+      rowCount: sql.includes("UPDATE edges") ? 1 : 0,
+      oid: 0,
+      fields: [],
+      rows: sql.includes("RETURNING edge_id")
+        ? ([
+            {
+              edge_id: "EDGE-TEST",
+              subject_id: "ENT-NVIDIA",
+              object_id: "ENT-SK-HYNIX",
+              relation: "BUYS_FROM",
+              component: "memory",
+              component_id: "COMP-MEMORY",
+              primary_evidence_id: "EV-TEST"
+            }
+          ] as unknown as T[])
+        : []
     };
   }
 }
@@ -135,6 +177,68 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[0]?.sql).toContain("INSERT INTO observations");
     expect(client.calls[1]?.sql).toContain("INSERT INTO lead_observations");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("records semantic changes without touching fact edges", async () => {
+    const client = new RecordingDbClient();
+
+    const change = await recordSemanticChange(client, {
+      scope_kind: "observation",
+      scope_id: "OBS-TEST",
+      change_type: "OBSERVATION_ADDED",
+      after: { observation_type: "TRADE_FLOW_OBSERVATION" },
+      caused_by: "unit-test"
+    });
+
+    expect(change.change_id).toMatch(/^CHG-/);
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0]?.sql).toContain("INSERT INTO change_records");
+    expect(client.calls[0]?.params).toContain("OBSERVATION_ADDED");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("deprecates edges through a soft-delete change record", async () => {
+    const client = new EdgeDeprecationDbClient();
+
+    const result = await deprecateEdge(client, {
+      edge_id: "EDGE-TEST",
+      reason: "superseded by reviewed memory edge",
+      superseded_by_edge_id: "EDGE-MEMORY",
+      caused_by: "unit-test"
+    });
+
+    expect(result).toEqual({ edge_id: "EDGE-TEST", primary_evidence_id: "EV-TEST" });
+    expect(client.calls[0]?.sql).toContain("UPDATE edges");
+    expect(client.calls[0]?.sql).toContain("validity = 'deprecated'");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("edge_deprecated"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("DELETE FROM edges"))).toBe(false);
+  });
+
+  it("upserts and resolves unknown items through semantic changes", async () => {
+    const upsertClient = new RecordingDbClient();
+
+    const unknown = await upsertUnknownItem(upsertClient, {
+      unknown_id: "UNK-TEST",
+      scope_kind: "company",
+      scope_id: "ENT-NVIDIA",
+      question: "Which exact HBM allocation is public?",
+      why_unknown: "Official filings disclose memory suppliers but not customer-specific allocation.",
+      blocking_data_sources: ["supplier allocation tables"],
+      proxies: ["supplier capex"],
+      created_by: "unit-test"
+    });
+
+    expect(unknown).toEqual({ unknown_id: "UNK-TEST", inserted: true });
+    expect(upsertClient.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(true);
+    expect(upsertClient.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("UNKNOWN_ADDED"))).toBe(true);
+    expect(upsertClient.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+
+    const resolveClient = new UnknownResolveDbClient();
+    await resolveUnknownItem(resolveClient, { unknown_id: "UNK-TEST", resolved_evidence_ids: ["EV-TEST"], reviewer: "unit-test" });
+
+    expect(resolveClient.calls[0]?.sql).toContain("UPDATE unknown_items");
+    expect(resolveClient.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("UNKNOWN_RESOLVED"))).toBe(true);
+    expect(resolveClient.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
   it("keeps observation and lead scope queries read-only", async () => {

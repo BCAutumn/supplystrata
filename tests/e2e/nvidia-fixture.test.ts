@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type EntityRecord, type RawDocument } from "@supplystrata/core";
-import { createPool, migrate, seedFromCsv } from "@supplystrata/db";
+import { createDatabaseStore, migrate, seedFromCsv, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
 import { parseHtml } from "@supplystrata/parsers-html";
@@ -16,7 +16,7 @@ import { canConnectToIntegrationDatabase } from "../integration/helpers.js";
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
-  const pool = createPool();
+  const pool = createDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);
@@ -27,7 +27,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
   afterAll(async () => {
     await cleanupFixtureRows(pool);
     await rebuildGraphQuietly(pool);
-    await pool.end();
+    await pool.close();
   });
 
   it("runs parser, rule extraction, scoring, graph apply, render, and unknown map without network", async () => {
@@ -90,7 +90,7 @@ async function loadFixtureRawDocument(): Promise<RawDocument<Uint8Array>> {
   };
 }
 
-async function cleanupFixtureRows(client: pg.Pool): Promise<void> {
+async function cleanupFixtureRows(client: DbClient): Promise<void> {
   const touchedEdgeIds = await listFixtureEvidenceEdgeIds(client);
   const fixtureEvidenceIds = await listFixtureEvidenceIds(client);
   const edgesWithNonFixtureEvidence = await listEdgesWithNonFixtureEvidence(client, touchedEdgeIds);
@@ -112,7 +112,7 @@ async function cleanupFixtureRows(client: pg.Pool): Promise<void> {
   await client.query("DELETE FROM documents WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
 }
 
-async function cleanupFixtureSourceMonitoringRows(client: pg.Pool): Promise<void> {
+async function cleanupFixtureSourceMonitoringRows(client: DbClient): Promise<void> {
   await client.query("DELETE FROM source_change_events WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
   await client.query("DELETE FROM document_versions WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
   await client.query(
@@ -124,21 +124,21 @@ async function cleanupFixtureSourceMonitoringRows(client: pg.Pool): Promise<void
   );
 }
 
-async function listFixtureEvidenceEdgeIds(client: pg.Pool): Promise<string[]> {
+async function listFixtureEvidenceEdgeIds(client: DbClient): Promise<string[]> {
   const result = await client.query<{ edge_id: string | null } & pg.QueryResultRow>(
     "SELECT DISTINCT edge_id FROM evidence WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'"
   );
   return result.rows.map((row) => row.edge_id).filter((edgeId): edgeId is string => edgeId !== null);
 }
 
-async function listFixtureEvidenceIds(client: pg.Pool): Promise<string[]> {
+async function listFixtureEvidenceIds(client: DbClient): Promise<string[]> {
   const result = await client.query<{ evidence_id: string } & pg.QueryResultRow>(
     "SELECT evidence_id FROM evidence WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'"
   );
   return result.rows.map((row) => row.evidence_id);
 }
 
-async function listEdgesWithNonFixtureEvidence(client: pg.Pool, edgeIds: readonly string[]): Promise<Set<string>> {
+async function listEdgesWithNonFixtureEvidence(client: DbClient, edgeIds: readonly string[]): Promise<Set<string>> {
   if (edgeIds.length === 0) return new Set();
   const result = await client.query<{ edge_id: string } & pg.QueryResultRow>(
     "SELECT DISTINCT edge_id FROM evidence WHERE edge_id = ANY($1::text[]) AND doc_id <> 'DOC-E2E-NVIDIA-10K-FIXTURE'",
@@ -147,7 +147,7 @@ async function listEdgesWithNonFixtureEvidence(client: pg.Pool, edgeIds: readonl
   return new Set(result.rows.map((row) => row.edge_id));
 }
 
-async function promoteBestPrimaryEvidenceExcludingFixture(client: pg.Pool, edgeId: string): Promise<void> {
+async function promoteBestPrimaryEvidenceExcludingFixture(client: DbClient, edgeId: string): Promise<void> {
   await client.query(
     `WITH best_evidence AS (
        SELECT evidence_id
@@ -164,7 +164,7 @@ async function promoteBestPrimaryEvidenceExcludingFixture(client: pg.Pool, edgeI
   );
 }
 
-async function rebuildGraphQuietly(pool: pg.Pool): Promise<void> {
+async function rebuildGraphQuietly(pool: DatabaseStore): Promise<void> {
   const builder = new GraphBuilder(pool, new DbEntityResolver(pool), new CountingGraphStore());
   try {
     await builder.rebuild();
@@ -192,6 +192,10 @@ class CountingGraphStore implements GraphStore {
 
   async upsertEdge(edge: GraphEdgeInput): Promise<void> {
     this.#edges.add(edge.edge_id);
+  }
+
+  async removeEdge(edgeId: string): Promise<void> {
+    this.#edges.delete(edgeId);
   }
 
   async stats(): Promise<{ nodes: number; edges: number }> {

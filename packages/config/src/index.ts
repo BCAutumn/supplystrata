@@ -14,6 +14,8 @@ export const envSchema = z.object({
   DEEPSEEK_API_KEY: z.string().optional(),
   OPEN_CORPORATES_API_TOKEN: z.string().optional(),
   COMPANIES_HOUSE_API_KEY: z.string().optional(),
+  CENSUS_API_KEY: z.string().optional(),
+  OSH_API_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info")
 });
 

@@ -1,14 +1,14 @@
 import type { Command } from "commander";
 import { migrate, seedFromCsv } from "@supplystrata/db";
 import { backfillEvidenceTrace } from "@supplystrata/evidence-maintenance";
-import { parseLimit, withPool, writeJson } from "../cli-utils.js";
+import { parseLimit, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerDbAndAdminCommands(program: Command): void {
   const db = program.command("db").description("database commands");
   db.command("migrate")
     .description("run SQL migrations")
     .action(async () => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         await migrate(pool);
         writeJson({ ok: true, migrated: true });
       });
@@ -17,7 +17,7 @@ export function registerDbAndAdminCommands(program: Command): void {
     .option("--limit <count>", "max evidence rows to backfill", "1000")
     .description("backfill evidence citation offsets and fingerprints")
     .action(async (options: { limit: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const summary = await backfillEvidenceTrace(pool, { limit: parseLimit(options.limit) });
         writeJson({ ok: true, ...summary });
       });
@@ -28,7 +28,7 @@ export function registerDbAndAdminCommands(program: Command): void {
     .command("seed")
     .description("load seed CSV files")
     .action(async () => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const result = await seedFromCsv(pool);
         writeJson({ ok: true, ...result });
       });

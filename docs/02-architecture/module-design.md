@@ -25,13 +25,14 @@ supplystrata/
 │   ├── core/                               # 纯领域类型 / IDs / 领域纯函数
 │   ├── config/                             # 环境变量 schema / .env 显式加载
 │   ├── observability/                      # Logger 接口与 pino 默认实现
-│   ├── db/                                 # Postgres schema / migration / documents / query repositories
+│   ├── db/                                 # DatabaseStore 接口 + Postgres adapter + query repositories
 │   ├── component-context/                  # 组件上游研究 catalog；只产 lead，不产事实边
 │   ├── source-plan/                        # 二/三级链路的免费数据源规划；只产计划，不抓取/落库
 │   ├── graph-store/                        # GraphStore 接口；图投影后端的稳定边界
 │   ├── graph/                              # Neo4j GraphStore adapter
 │   ├── object-store/                       # 抽象的对象存储（本地FS / MinIO）
 │   ├── source-adapter-spec/                # SourceAdapter 接口契约
+│   ├── source-connectors/                  # source check target runner 注册与配置校验
 │   ├── parsers/
 │   │   ├── html/
 │   │   ├── pdf/
@@ -45,6 +46,8 @@ supplystrata/
 │   │   └── corroborator/
 │   ├── evidence-scorer/
 │   ├── signal-extractor/                   # 官方披露 signal 抽取；不写图、不评级
+│   ├── observation-extractor/              # 官方披露 observation 草稿；不写图、不产事实边
+│   ├── observation-store/                  # observation / lead 幂等写入边界
 │   ├── graph-builder/
 │   ├── llm-bridge/
 │   ├── pipeline/                           # 编排；Phase 3 起再接 pg-boss 队列
@@ -70,14 +73,17 @@ supplystrata/
 core   ← 几乎所有 package（纯类型/纯函数，无顶层 IO 副作用）
 config ← 需要读取环境变量的基础设施包显式消费
 observability ← pipeline / graph-builder 等执行层显式消费
-db     ← 仅 pipeline / repos 消费方
+db     ← 仅 pipeline / repos 消费方；执行层依赖 DatabaseStore，不直接依赖 pg.Pool
 graph-store ← graph-builder / pipeline 消费；只包含接口，不绑定 Neo4j
 graph  ← CLI graph 命令消费；当前内置 Neo4j adapter
 parsers/* ← sources/* 与 relation-extractor 消费
 sources/* ← pipeline 消费
 relation-extractor ← pipeline 消费
 signal-extractor ← pipeline / preview 消费；只产出官方披露 signal，不写入事实图
+observation-extractor ← pipeline 消费；只产官方披露 observation draft，不写库、不写图
+observation-store ← pipeline / 后续 source monitor 消费；只写 observations / lead_observations
 source-plan ← CLI / 后续 workbench 消费；读取 source-registry + component-context，只输出 source plan
+source-connectors ← pipeline 消费；集中注册 source check target runner，不抓源、不写库
 entity-resolver  ← pipeline / sources / extractor / graph-builder 消费
 evidence-scorer  ← graph-builder 消费
 llm-bridge ← relation-extractor/llm + entity-resolver 消费
@@ -89,11 +95,13 @@ CI 里加 dependency-cruiser 校验。
 
 `core` 必须保持纯净：不得读取 `.env`、不得实例化 logger、不得封装网络请求、不得访问文件系统。配置读取放在 `@supplystrata/config`；日志放在 `@supplystrata/observability`；source 抓取工具放在 `@supplystrata/source-adapter-spec` 的 adapter 工具层。
 
-`db` 的包入口只做稳定 re-export，内部按职责拆分：`client` 负责连接与 migration 调用，`seed` 负责 CSV seed 与必要的数据回填，`documents` 负责 normalized document / chunk / review queue 写入，`pending` 负责待解析实体，`query` 负责边、证据、unknown map 的只读查询。新增仓储函数必须优先落在对应职责文件中，避免重新膨胀成单文件数据库工具箱。
+`db` 的包入口只做稳定 re-export，内部按职责拆分：`client` 负责 `DatabaseStore` 接口、Postgres adapter 与 migration 调用，`seed` 负责 CSV seed 与必要的数据回填，`documents` 负责 normalized document / chunk / review queue 写入，`pending` 负责待解析实体，`query` 负责边、证据、unknown map 的只读查询。新增仓储函数必须优先落在对应职责文件中，避免重新膨胀成单文件数据库工具箱。
 
-`pipeline` 只做编排：抓取、标准化、调用 extractor/scorer/resolver/builder、记录 source observation。官方披露 signal 抽取放在 `@supplystrata/signal-extractor`，供应链事实关系抽取放在 `relation-extractor`。pipeline 不直接维护公司名单、组件名单或行业启发式。
+`pipeline` 只做编排：抓取、标准化、调用 extractor/scorer/resolver/builder、记录 source observation，并把官方披露 observation draft 交给 `observation-store` 幂等写入。内部按职责拆分：`run.ts` 处理 normalized document 到事实边的纵向链路，`source-documents.ts` 处理 adapter plan/fetch/normalize 的第一条任务，`previews.ts` 处理无数据库预览，`apple-suppliers.ts` 处理 Apple Supplier List review enqueue，`document-observations.ts` 处理文档监控和 observation 入库。官方披露 signal 抽取放在 `@supplystrata/signal-extractor`，供应链事实关系抽取放在 `relation-extractor`，官方披露观测抽取放在 `@supplystrata/observation-extractor`。pipeline 不直接维护公司名单、组件名单或行业启发式。
 
 `source-plan` 是二/三级链路扩源的边界：它把 `component-context` 里的上游 lead 映射到 `source-registry` 里的免费/公开数据源，并标明 `edge / observation / lead / entity` 输出层与自动化策略。它不抓取、不解析、不写 Postgres，也不允许把 Comtrade/AIS/能源/新闻这类弱源升级成事实边。
+
+`source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验和 unsupported target 错误。具体源例如 SEC EDGAR 在 pipeline 侧提供 connector 实现；`run-due` 只走 connector registry，不在调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
 
 `relation-extractor/rule` 的 counterparty / component 识别模式放在 `patterns.ts`。新增公司、组件、制造服务供应商时优先扩展模式数据；只有新增一种抽取语义时才修改主抽取流程。
 

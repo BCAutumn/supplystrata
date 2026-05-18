@@ -57,7 +57,37 @@ export interface EntitySourceReviewCandidate {
   review_reason: string;
 }
 
-export type ReviewCandidate = SupplierListReviewCandidate | EntitySourceReviewCandidate;
+export interface SemanticChangeReviewPayload {
+  change_type: string;
+  semantic_relation_kind: string;
+  source_item_id: string;
+  doc_id: string;
+  source_adapter_id: string;
+  relation: RelationType;
+  subject_surface: string;
+  object_surface: string;
+  cite_text: string;
+  cite_locator: string;
+  fingerprint: string;
+  extractor_id: string;
+  component_id?: string;
+  component?: string;
+  component_specificity?: CandidateRelation["component_specificity"];
+}
+
+export interface SemanticChangeReviewCandidate {
+  review_id: string;
+  candidate_key: string;
+  kind: "semantic_change";
+  title: string;
+  payload: SemanticChangeReviewPayload;
+  evidence: ReviewEvidenceContext;
+  confidence: number;
+  needs_review: true;
+  review_reason: string;
+}
+
+export type ReviewCandidate = SupplierListReviewCandidate | EntitySourceReviewCandidate | SemanticChangeReviewCandidate;
 
 export function buildSupplierListReviewCandidate(input: {
   candidate: SupplierListCandidate;
@@ -124,10 +154,78 @@ export function buildEntitySourceReviewCandidate(input: { surface: string; candi
   };
 }
 
+export function buildSemanticChangeReviewCandidate(input: {
+  changeType: string;
+  sourceItemId: string;
+  sourceUrl: string;
+  snapshot: SemanticChangeReviewPayloadSnapshot;
+}): SemanticChangeReviewCandidate {
+  const candidateKey = stableSemanticChangeCandidateKey(input);
+  return {
+    review_id: stableSemanticChangeReviewId(input, candidateKey),
+    candidate_key: candidateKey,
+    kind: "semantic_change",
+    title: `${input.changeType}: ${input.snapshot.subject_surface} -> ${input.snapshot.object_surface}`,
+    payload: {
+      change_type: input.changeType,
+      semantic_relation_kind: input.snapshot.semantic_relation_kind,
+      source_item_id: input.sourceItemId,
+      doc_id: input.snapshot.doc_id,
+      source_adapter_id: input.snapshot.source_adapter_id,
+      relation: input.snapshot.relation,
+      subject_surface: input.snapshot.subject_surface,
+      object_surface: input.snapshot.object_surface,
+      cite_text: input.snapshot.cite_text,
+      cite_locator: input.snapshot.cite_locator,
+      fingerprint: input.snapshot.fingerprint,
+      extractor_id: input.snapshot.extractor_id,
+      ...(input.snapshot.component_id === undefined ? {} : { component_id: input.snapshot.component_id }),
+      ...(input.snapshot.component === undefined ? {} : { component: input.snapshot.component }),
+      ...(input.snapshot.component_specificity === undefined ? {} : { component_specificity: input.snapshot.component_specificity })
+    },
+    evidence: {
+      doc_id: input.snapshot.doc_id,
+      source_url: input.sourceUrl,
+      source_adapter_id: input.snapshot.source_adapter_id,
+      source_locator: input.snapshot.cite_locator,
+      source_row_text: input.snapshot.cite_text,
+      normalized_record_text: [
+        input.changeType,
+        input.snapshot.semantic_relation_kind,
+        input.snapshot.subject_surface,
+        input.snapshot.relation,
+        input.snapshot.object_surface,
+        input.snapshot.component ?? input.snapshot.component_id ?? ""
+      ]
+        .join(" | ")
+        .trim()
+    },
+    confidence: confidenceForSemanticChange(input.changeType),
+    needs_review: true,
+    review_reason: "官方披露的关系语义发生变化。该候选只代表“值得研究员复核的变化”，不会自动写入事实图谱；确认后用于后续 claim / 研究摘要。"
+  };
+}
+
+export interface SemanticChangeReviewPayloadSnapshot {
+  doc_id: string;
+  source_adapter_id: string;
+  relation: RelationType;
+  semantic_relation_kind: string;
+  subject_surface: string;
+  object_surface: string;
+  cite_text: string;
+  cite_locator: string;
+  fingerprint: string;
+  extractor_id: string;
+  component_id?: string;
+  component?: string;
+  component_specificity?: CandidateRelation["component_specificity"];
+}
+
 export function isReviewCandidate(value: unknown): value is ReviewCandidate {
   if (typeof value !== "object" || value === null || !("kind" in value)) return false;
   const kind = (value as { kind: unknown }).kind;
-  return kind === "supplier_list_row" || kind === "entity_source_candidate";
+  return kind === "supplier_list_row" || kind === "entity_source_candidate" || kind === "semantic_change";
 }
 
 export function isSupplierListReviewCandidate(candidate: ReviewCandidate): candidate is SupplierListReviewCandidate {
@@ -136,6 +234,10 @@ export function isSupplierListReviewCandidate(candidate: ReviewCandidate): candi
 
 export function isEntitySourceReviewCandidate(candidate: ReviewCandidate): candidate is EntitySourceReviewCandidate {
   return candidate.kind === "entity_source_candidate";
+}
+
+export function isSemanticChangeReviewCandidate(candidate: ReviewCandidate): candidate is SemanticChangeReviewCandidate {
+  return candidate.kind === "semantic_change";
 }
 
 export function supplierListReviewToSupplierRelation(candidate: SupplierListReviewCandidate): CandidateRelation {
@@ -264,6 +366,47 @@ function stableEntitySourceReviewId(candidate: EntitySourceCandidate, candidateK
     .slice(0, 56);
   const digest = createHash("sha256").update(candidateKey).digest("hex").slice(0, 16);
   return `REV-ENTITY-${readable}-${digest}`;
+}
+
+function stableSemanticChangeCandidateKey(input: {
+  changeType: string;
+  sourceItemId: string;
+  sourceUrl: string;
+  snapshot: SemanticChangeReviewPayloadSnapshot;
+}): string {
+  return [
+    "semantic-change",
+    input.changeType,
+    input.sourceItemId,
+    input.sourceUrl,
+    input.snapshot.doc_id,
+    input.snapshot.semantic_relation_kind,
+    input.snapshot.relation,
+    input.snapshot.subject_surface,
+    input.snapshot.object_surface,
+    input.snapshot.component_id ?? "",
+    input.snapshot.component ?? "",
+    input.snapshot.component_specificity ?? "",
+    input.snapshot.fingerprint
+  ].join("|");
+}
+
+function stableSemanticChangeReviewId(input: { changeType: string; snapshot: SemanticChangeReviewPayloadSnapshot }, candidateKey: string): string {
+  const readable = [input.changeType, input.snapshot.subject_surface, input.snapshot.object_surface]
+    .join("|")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 56);
+  const digest = createHash("sha256").update(candidateKey).digest("hex").slice(0, 16);
+  return `REV-SEMANTIC-${readable}-${digest}`;
+}
+
+function confidenceForSemanticChange(changeType: string): number {
+  if (changeType.includes("REMOVED")) return 0.7;
+  if (changeType.includes("CHANGED")) return 0.82;
+  return 0.86;
 }
 
 function proposedEntityId(candidate: EntitySourceCandidate): string {

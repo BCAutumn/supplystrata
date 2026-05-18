@@ -9,7 +9,7 @@ import {
 } from "@supplystrata/pipeline";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
 import { decideReviewCandidate, getReviewCandidate, nextReviewCandidate, reviewStats } from "@supplystrata/review-store";
-import { parseEntityLookupSource, parseFormat, parseLimit, parsePendingEntityStatus, withPool, write, writeJson } from "../cli-utils.js";
+import { parseEntityLookupSource, parseFormat, parseLimit, parsePendingEntityStatus, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderEntityLookup } from "../entity-render.js";
 import { renderReviewApplyBatch, renderReviewItemOrEmpty } from "../review-render.js";
 
@@ -46,7 +46,7 @@ function registerEntityCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("list pending entity surfaces")
     .action(async (options: { status: string; limit: string; format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         write(
           await renderPendingEntities(pool, {
             status: parsePendingEntityStatus(options.status),
@@ -62,7 +62,7 @@ function registerEntityCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("show one pending entity with context")
     .action(async (pendingId: string, options: { format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         write(await renderPendingEntity(pool, pendingId, parseFormat(options.format)));
       });
     });
@@ -75,7 +75,7 @@ function registerEntityCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("lookup external registry candidates for one pending entity")
     .action(async (pendingId: string, options: { source: string; jurisdiction?: string; limit: string; format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const pending = await getPendingEntity(pool, pendingId);
         if (pending === undefined) throw new Error(`Pending entity not found: ${pendingId}`);
         const result = await lookupEntitySourceCandidates({
@@ -96,7 +96,7 @@ function registerReviewCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("summarize review queue status")
     .action(async (options: { format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const stats = await reviewStats(pool);
         if (parseFormat(options.format) === "json") writeJson({ schema_version: "1.0.0", stats });
         else
@@ -119,7 +119,7 @@ function registerReviewCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("show next pending review candidate")
     .action(async (options: { format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const item = await nextReviewCandidate(pool);
         write(renderReviewItemOrEmpty(item, parseFormat(options.format)));
       });
@@ -130,7 +130,7 @@ function registerReviewCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("show one review candidate")
     .action(async (reviewId: string, options: { format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const item = await getReviewCandidate(pool, reviewId);
         write(renderReviewItemOrEmpty(item, parseFormat(options.format)));
       });
@@ -142,7 +142,7 @@ function registerReviewCommands(program: Command): void {
     .option("--reason <reason>", "decision reason")
     .description("mark a review candidate approved")
     .action(async (reviewId: string, options: { reviewer: string; reason?: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const item = await decideReviewCandidate(pool, {
           reviewId,
           decision: "approved",
@@ -159,7 +159,7 @@ function registerReviewCommands(program: Command): void {
     .requiredOption("--reason <reason>", "decision reason")
     .description("mark a review candidate rejected")
     .action(async (reviewId: string, options: { reviewer: string; reason: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const item = await decideReviewCandidate(pool, { reviewId, decision: "rejected", reviewer: options.reviewer, reason: options.reason });
         writeJson({ ok: true, review_id: item.review_id, status: item.status });
       });
@@ -170,9 +170,9 @@ function registerReviewCommands(program: Command): void {
     .requiredOption("--reviewer <name>", "reviewer name")
     .description("apply an approved review candidate to the graph when it resolves cleanly")
     .action(async (reviewId: string, options: { reviewer: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const result = await applyApprovedReviewCandidate(pool, reviewId, options.reviewer);
-        writeJson({ ok: result.status === "applied" || result.status === "entity_applied", ...result });
+        writeJson({ ok: result.status === "applied" || result.status === "entity_applied" || result.status === "acknowledged", ...result });
       });
     });
   review
@@ -182,7 +182,7 @@ function registerReviewCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("apply already-approved review candidates without approving pending ones")
     .action(async (options: { reviewer: string; limit: string; format: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const summary = await applyApprovedReviewCandidates(pool, { reviewer: options.reviewer, limit: parseLimit(options.limit) });
         write(renderReviewApplyBatch(summary, parseFormat(options.format)));
       });
@@ -193,7 +193,7 @@ function registerReviewCommands(program: Command): void {
     .command("apple-suppliers")
     .description("enqueue Apple Supplier List candidates for human review")
     .action(async () => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const summary = await enqueueAppleSupplierReviewCandidates(pool);
         writeJson({ ok: true, ...summary });
       });
@@ -206,7 +206,7 @@ function registerReviewCommands(program: Command): void {
     .option("--limit <count>", "max results per source", "5")
     .description("enqueue external entity source candidates for review/import")
     .action(async (query: string, options: { source: string; jurisdiction?: string; limit: string }) => {
-      await withPool(async (pool) => {
+      await withDatabase(async (pool) => {
         const summary = await enqueueEntitySourceReviewCandidates(pool, {
           query,
           source: parseEntityLookupSource(options.source),

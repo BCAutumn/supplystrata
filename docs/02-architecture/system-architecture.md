@@ -111,11 +111,11 @@ candidate → review (optional) → approved → graph
 即使后续 schema 改了、解析器改了，也能从原文重新抽取。
 这是可重现性与审计的物理基础。
 
-### 6. Postgres 是真相存储；GraphStore 是查询缓存
+### 6. DatabaseStore 是真相存储；GraphStore 是查询缓存
 
-如果图投影后端数据丢了，必须能从 Postgres 全量重建。
+如果图投影后端数据丢了，必须能从 DatabaseStore 全量重建。
 反过来不行。
-所有"证据 / 文档 / 实体 / 别名 / 变更"都在 Postgres 里。GraphStore 里只是"图谱当前状态的物化视图"。
+所有"证据 / 文档 / 实体 / 别名 / 变更"都在 truth store 里。当前内置 `DatabaseStore` adapter 是 Postgres；GraphStore 里只是"图谱当前状态的物化视图"。
 
 当前内置 GraphStore adapter 是 Neo4j，适合本地图探索和路径查询。嵌入其它 TS 桌面端或 agent 产品时，可以由宿主提供自己的 GraphStore adapter；pipeline 不直接依赖 Neo4j。
 

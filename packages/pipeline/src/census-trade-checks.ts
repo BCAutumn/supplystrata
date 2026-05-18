@@ -1,0 +1,185 @@
+import { saveNormalizedDocument, type DatabaseStore } from "@supplystrata/db";
+import { getLogger } from "@supplystrata/observability";
+import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
+import { recordSourceFailure } from "@supplystrata/source-monitor";
+import { requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import {
+  censusTradeAdapter,
+  createCensusTradeAdapterContext,
+  isCensusTradeDirection,
+  parseCensusTradeRows,
+  type CensusTradeDirection,
+  type CensusTradeInput,
+  type CensusTradeRow
+} from "@supplystrata/sources-census-trade";
+import { recordSavedDocumentObservation } from "./document-observations.js";
+import type { SourceCheckSummary } from "./source-check-runner.js";
+
+export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
+  source_adapter_id: "census-trade",
+  target_kind: "trade-flow-observation",
+  run(store, target) {
+    return runCensusTradeSourceCheck(store, censusTradeInputFromConfig(target.target_config), {
+      checkTargetId: target.check_target_id,
+      targetConfig: target.target_config
+    });
+  }
+};
+
+interface CensusTradeCheckOptions {
+  checkTargetId: string;
+  targetConfig: Record<string, unknown>;
+}
+
+async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTradeInput, options: CensusTradeCheckOptions): Promise<SourceCheckSummary[]> {
+  const context = createCensusTradeAdapterContext();
+  const summaries: SourceCheckSummary[] = [];
+  try {
+    for await (const task of censusTradeAdapter.plan(input, context)) {
+      getLogger().info({ stage: "source-check", adapter: censusTradeAdapter.id, task_id: task.task_id }, "checking Census trade source task");
+      const raw = await censusTradeAdapter.fetch(task, context);
+      const normalized = await censusTradeAdapter.normalize(raw, context);
+      const saved = await saveNormalizedDocument(store, normalized);
+      const documentObservation = await recordSavedDocumentObservation(store, normalized, saved.doc_id, { checkTargetId: options.checkTargetId });
+      const rows = parseCensusTradeRows(raw.body, input.direction);
+      const storedObservations = await storeTradeFlowObservations(store, rows, {
+        docId: saved.doc_id,
+        sourceItemId: documentObservation.source_item_id,
+        sourceUrl: normalized.source_url,
+        targetConfig: options.targetConfig
+      });
+      summaries.push({
+        source_adapter_id: censusTradeAdapter.id,
+        task_id: task.task_id,
+        doc_id: saved.doc_id,
+        source_url: normalized.source_url,
+        change_type: documentObservation.change_type,
+        source_item_id: documentObservation.source_item_id,
+        source_event_id: documentObservation.event_id,
+        observations: storedObservations,
+        semantic_changes: 0,
+        relation_changes: 0
+      });
+    }
+    return summaries;
+  } catch (error) {
+    await recordSourceFailure(store, {
+      source_adapter_id: censusTradeAdapter.id,
+      check_target_id: options.checkTargetId,
+      error_message: messageFromUnknown(error),
+      caused_by: "source-check.census-trade"
+    });
+    throw error;
+  }
+}
+
+async function storeTradeFlowObservations(
+  store: DatabaseStore,
+  rows: readonly CensusTradeRow[],
+  input: { docId: string; sourceItemId: string; sourceUrl: string; targetConfig: Record<string, unknown> }
+): Promise<number> {
+  let count = 0;
+  for (const row of rows) {
+    const componentId = componentIdFromConfig(input.targetConfig);
+    // Census Trade 是宏观观测源：只能落 observation，不能在这里升级成公司级事实边。
+    await storeObservation(store, {
+      observation_type: "TRADE_FLOW_OBSERVATION",
+      source_adapter_id: "census-trade",
+      source_item_id: input.sourceItemId,
+      doc_id: input.docId,
+      scope_kind: scopeKindFromConfig(input.targetConfig),
+      scope_id: scopeIdFromConfig(input.targetConfig, row),
+      ...(row.country_code === undefined ? {} : { geography_kind: "country", geography_id: row.country_code }),
+      ...(componentId === undefined ? {} : { component_id: componentId }),
+      metric_name: metricNameForRow(row),
+      metric_value: row.value_usd,
+      metric_unit: "USD",
+      time_window_start: `${row.time}-01`,
+      time_window_end: monthEndDate(row.time),
+      confidence: 0.82,
+      provenance: {
+        source_url: input.sourceUrl,
+        commodity_code: row.commodity_code,
+        commodity_description: row.commodity_description,
+        country_code: row.country_code,
+        country_name: row.country_name,
+        direction: row.direction,
+        no_company_edge: true
+      },
+      attrs: { semantic_layer: "observation" }
+    });
+    count += 1;
+  }
+  return count;
+}
+
+function censusTradeInputFromConfig(config: Record<string, unknown>): CensusTradeInput {
+  const label = "Census Trade source check target";
+  const direction = censusDirectionFromConfig(config);
+  const countryCode = optionalConfigString(config, "country_code", label);
+  const componentId = optionalConfigString(config, "component_id", label);
+  const scopeId = optionalConfigString(config, "scope_id", label);
+  return {
+    direction,
+    time: requireConfigString(config, "time", label),
+    commodityCode: requireConfigString(config, "commodity_code", label),
+    ...(countryCode === undefined ? {} : { countryCode }),
+    ...(componentId === undefined ? {} : { componentId }),
+    ...(scopeId === undefined ? {} : { scopeId })
+  };
+}
+
+function censusDirectionFromConfig(config: Record<string, unknown>): CensusTradeDirection {
+  const value = requireConfigString(config, "direction", "Census Trade source check target");
+  if (!isCensusTradeDirection(value)) throw new Error(`Census Trade direction must be imports or exports: ${value}`);
+  return value;
+}
+
+function scopeKindFromConfig(config: Record<string, unknown>): ObservationScopeKind {
+  const value = optionalConfigString(config, "scope_kind", "Census Trade source check target") ?? "component";
+  if (
+    value === "company" ||
+    value === "component" ||
+    value === "facility" ||
+    value === "country" ||
+    value === "port" ||
+    value === "route" ||
+    value === "topic"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported Census Trade observation scope_kind: ${value}`);
+}
+
+function scopeIdFromConfig(config: Record<string, unknown>, row: CensusTradeRow): string {
+  return optionalConfigString(config, "scope_id", "Census Trade source check target") ?? componentIdFromConfig(config) ?? row.commodity_code;
+}
+
+function componentIdFromConfig(config: Record<string, unknown>): string | undefined {
+  return optionalConfigString(config, "component_id", "Census Trade source check target");
+}
+
+function metricNameForRow(row: CensusTradeRow): string {
+  return `census_trade.${row.direction}.hs.${row.metric_name}`;
+}
+
+function optionalConfigString(config: Record<string, unknown>, key: string, label: string): string | undefined {
+  const value = config[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${label} ${key} must be a non-empty string`);
+  return value.trim();
+}
+
+function monthEndDate(month: string): string {
+  const [yearText, monthText] = month.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText);
+  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) throw new Error(`Invalid Census Trade month: ${month}`);
+  return new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10);
+}
+
+function messageFromUnknown(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "unknown error";
+}

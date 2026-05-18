@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { LeadType, ObservationType } from "@supplystrata/core";
 import {
+  recordSemanticChange,
   upsertLeadObservation,
   upsertObservation,
   type DbClient,
@@ -62,12 +63,42 @@ export async function storeObservation(client: DbClient, input: ObservationStore
   // 观测层只保存可复现信号，不在这里升级成 graph fact edge。
   const observationInput = toNewObservationInput(input, input.observation_id ?? deterministicObservationId(input));
   const result = await upsertObservation(client, observationInput);
+  await recordSemanticChange(client, {
+    scope_kind: "observation",
+    scope_id: result.observation_id,
+    change_type: result.inserted ? "OBSERVATION_ADDED" : "OBSERVATION_UPDATED",
+    after: {
+      observation_type: input.observation_type,
+      source_adapter_id: input.source_adapter_id,
+      doc_id: input.doc_id,
+      scope_kind: input.scope_kind,
+      scope_id: input.scope_id,
+      component_id: input.component_id,
+      metric_name: input.metric_name
+    },
+    caused_by: "observation-store"
+  });
   return { id: result.observation_id, inserted: result.inserted };
 }
 
 export async function storeLeadObservation(client: DbClient, input: LeadStoreInput): Promise<StoreResult> {
   const leadInput = toNewLeadObservationInput(input, input.lead_id ?? deterministicLeadId(input));
   const result = await upsertLeadObservation(client, leadInput);
+  await recordSemanticChange(client, {
+    scope_kind: "lead",
+    scope_id: result.lead_id,
+    change_type: result.inserted ? "LEAD_ADDED" : "LEAD_UPDATED",
+    after: {
+      lead_type: input.lead_type,
+      source_adapter_id: input.source_adapter_id,
+      doc_id: input.doc_id,
+      scope_kind: input.scope_kind,
+      scope_id: input.scope_id,
+      title: input.title,
+      status: input.status ?? "open"
+    },
+    caused_by: "observation-store"
+  });
   return { id: result.lead_id, inserted: result.inserted };
 }
 

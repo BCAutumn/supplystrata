@@ -17,6 +17,7 @@ describe("source registry", () => {
     expect(ids.has("edinet")).toBe(true);
     expect(ids.has("osh")).toBe(true);
     expect(ids.has("un-comtrade")).toBe(true);
+    expect(ids.has("census-trade")).toBe(true);
     expect(ids.has("noaa-ais")).toBe(true);
     expect(ids.has("usgs-mcs")).toBe(true);
   });
@@ -25,11 +26,11 @@ describe("source registry", () => {
     expect(sourceStatusSummary()).toMatchObject({
       total: 30,
       implemented: 2,
-      preview: 7,
+      preview: 9,
       planned: 2,
-      scoped: 18,
+      scoped: 16,
       manualOnly: 1,
-      requiresKey: 8
+      requiresKey: 9
     });
   });
 
@@ -57,7 +58,15 @@ describe("source registry", () => {
       relation_authority: "macro_trend",
       max_evidence_level: 2
     });
+    expect(sourceAuthorityFor({ source_adapter_id: "census-trade", document_type: "trade_dataset" })).toMatchObject({
+      relation_authority: "macro_trend",
+      max_evidence_level: 2
+    });
     expect(sourceAuthorityFor({ source_adapter_id: "osh", document_type: "supplier_list" })).toMatchObject({
+      relation_authority: "facility_claim",
+      max_evidence_level: 3
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "osh", document_type: "facility_dataset" })).toMatchObject({
       relation_authority: "facility_claim",
       max_evidence_level: 3
     });
