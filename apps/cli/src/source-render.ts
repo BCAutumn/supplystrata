@@ -1,4 +1,5 @@
 import type { OutputFormat } from "@supplystrata/render";
+import type { SourceManagementCatalog } from "@supplystrata/source-management";
 import type { DueSourceCheckRow, SourceHealthRow } from "@supplystrata/source-monitor";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { SourceRegistryEntry } from "@supplystrata/source-registry";
@@ -13,6 +14,29 @@ export function renderSourcesList(sources: SourceRegistryEntry[], format: Output
     lines.push(`  URL: ${source.official_url}`);
     lines.push(`  Notes: ${source.notes}`);
     lines.push("");
+  }
+  return lines.join("\n");
+}
+
+export function renderSourceManagementCatalog(catalog: SourceManagementCatalog, format: OutputFormat): string {
+  if (format === "json") return JSON.stringify(catalog, null, 2);
+  const lines = ["# Source Management Catalog", "", `Sources: ${catalog.sources.length}`, ""];
+  for (const item of catalog.sources) {
+    lines.push(`- ${item.source.id} [${item.source.tier}] ${item.config_mode}`);
+    lines.push(`  Name: ${item.source.name}`);
+    lines.push(`  Category: ${item.source.category}; automation: ${item.source.automation}; status: ${item.source.status}`);
+    lines.push(`  Output authority: ${item.source.relation_authority}; evidence cap: ${item.source.evidence_level_cap}`);
+    lines.push(`  Credentials: ${item.source.requires_key ? "required" : "not required"}`);
+    lines.push(`  Connectors: ${item.connector_keys.length === 0 ? "none" : item.connector_keys.join(", ")}`);
+    for (const [targetKind, schema] of Object.entries(item.target_config_schemas)) {
+      const required = schema.fields.filter((field) => field.required).map((field) => field.key);
+      lines.push(`  Config ${targetKind}: required ${required.length === 0 ? "none" : required.join(", ")}`);
+    }
+    lines.push("");
+  }
+  if (catalog.unregistered_connector_keys.length > 0) {
+    lines.push("## Registry Gaps", "");
+    for (const key of catalog.unregistered_connector_keys) lines.push(`- ${key}`);
   }
   return lines.join("\n");
 }
@@ -61,9 +85,24 @@ export function renderSourcePlan(plan: SourcePlanItem[], format: OutputFormat): 
     lines.push(`  Triggers: ${item.trigger_dependency_ids.join(", ")}`);
     for (const reason of item.reasons.slice(0, 3)) lines.push(`  Reason: ${reason}`);
     if (item.reasons.length > 3) lines.push(`  More reasons: ${item.reasons.length - 3}`);
+    if (item.suggested_check_targets.length > 0) {
+      lines.push(`  Suggested check targets: ${item.suggested_check_targets.length}`);
+      for (const target of item.suggested_check_targets.slice(0, 4)) {
+        lines.push(`    - ${target.runnable ? "runnable" : "planned"} ${target.target_kind}: ${formatTargetConfig(target.target_config)}`);
+        lines.push(`      Reason: ${target.reason}`);
+      }
+      if (item.suggested_check_targets.length > 4) lines.push(`    More target suggestions: ${item.suggested_check_targets.length - 4}`);
+    }
     lines.push("");
   }
   return lines.join("\n");
+}
+
+function formatTargetConfig(config: Record<string, string | number | boolean | string[]>): string {
+  return Object.entries(config)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join("|") : String(value)}`)
+    .join("; ");
 }
 
 function formatDate(value: Date | null): string {

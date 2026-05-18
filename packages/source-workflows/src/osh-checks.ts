@@ -18,6 +18,20 @@ import type { SourceCheckSummary } from "./source-check-runner.js";
 export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "osh",
   target_kind: "facility-search",
+  config_schema: {
+    fields: [
+      { key: "query", type: "string", required: true, description: "Facility search query." },
+      { key: "country_code", type: "string", required: false, description: "Optional OSH country filter." },
+      { key: "sector", type: "string", required: false, description: "Optional OSH sector filter." },
+      { key: "page", type: "positive_integer", required: false, description: "OSH result page." },
+      { key: "page_size", type: "positive_integer", required: false, description: "OSH result page size." },
+      { key: "scope_id", type: "string", required: false, description: "Entity or facility scope that requested the search." },
+      { key: "lead_id", type: "string", required: false, description: "Lead observation id that triggered the search." },
+      { key: "source_supplier_name", type: "string", required: false, description: "Supplier name from the upstream source." },
+      { key: "source_location_text", type: "string", required: false, description: "Location text from the upstream source." },
+      { key: "source_country_or_region", type: "string", required: false, description: "Country or region text from the upstream source." }
+    ]
+  },
   run(store, target) {
     return runOshFacilitySearchCheck(store, oshInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,

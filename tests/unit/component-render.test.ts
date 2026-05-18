@@ -11,6 +11,9 @@ describe("ComponentCard renderer", () => {
     expect(output).toContain("## Known consumers");
     expect(output).toContain("NVIDIA [ENT-NVIDIA]");
     expect(output).toContain("SK Hynix -> NVIDIA via BUYS_FROM");
+    expect(output).toContain("## Trade and material taxonomy");
+    expect(output).toContain("HS 854232");
+    expect(output).toContain("Proxy only: yes");
     expect(output).toContain("## Related observations");
     expect(output).toContain("INVENTORY_OBSERVATION: inventory_days");
     expect(output).toContain("Exact allocation by HBM generation");
@@ -22,6 +25,7 @@ describe("ComponentCard renderer", () => {
       component: { component_id: string };
       known_suppliers: unknown[];
       evidence_edges: unknown[];
+      trade_taxonomy: { hs_codes: unknown[]; materials: unknown[] };
       related_observations: unknown[];
     };
 
@@ -29,6 +33,7 @@ describe("ComponentCard renderer", () => {
     expect(parsed.component.component_id).toBe("COMP-MEMORY");
     expect(parsed.known_suppliers).toHaveLength(1);
     expect(parsed.evidence_edges).toHaveLength(1);
+    expect(parsed.trade_taxonomy.hs_codes).toHaveLength(1);
     expect(parsed.related_observations).toHaveLength(1);
   });
 });
@@ -82,6 +87,27 @@ function componentCardFixture(): ComponentCardModel {
       sources: 1,
       evidence_edges: 1,
       latest_source_date: "2026-02-25"
+    },
+    trade_taxonomy: {
+      hs_codes: [
+        {
+          system: "HS",
+          code: "854232",
+          description: "Electronic integrated circuits: memories",
+          confidence: 0.72,
+          proxy_only: true,
+          notes: "Broad memory IC trade proxy; cannot distinguish buyer-specific allocation."
+        }
+      ],
+      materials: [
+        {
+          material_id: "MAT-SILICON",
+          name: "Semiconductor-grade silicon",
+          role: "wafer substrate input",
+          confidence: 0.55,
+          source_suggestions: ["USGS Mineral Commodity Summaries"]
+        }
+      ]
     },
     related_observations: [
       {

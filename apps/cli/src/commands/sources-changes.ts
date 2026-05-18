@@ -2,12 +2,14 @@ import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
 import { listChangeTimeline } from "@supplystrata/db";
 import {
+  listRegisteredSourceCheckConnectorCapabilities,
   listSourceCheckConnectorIds,
   runDueSourceChecks,
   runManualSourceCheck,
   type DueSourceCheckRunResult,
   type SourceCheckSummary
 } from "@supplystrata/source-workflows";
+import { assertValidSourceManagementConfig, buildSourceManagementCatalog } from "@supplystrata/source-management";
 import { renderChangeTimelineItems } from "@supplystrata/render";
 import {
   listDueSourceChecks,
@@ -19,7 +21,7 @@ import {
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
 import { defaultSince, parseChangeScope, parseFormat, parseLimit, parseSince, withDatabase, write, writeJson } from "../cli-utils.js";
-import { renderDueSources, renderSourceHealth, renderSourcePlan, renderSourcesList } from "../source-render.js";
+import { renderDueSources, renderSourceHealth, renderSourceManagementCatalog, renderSourcePlan, renderSourcesList } from "../source-render.js";
 
 export function registerSourcesAndChangesCommands(program: Command): void {
   const sources = program.command("sources").description("source registry commands");
@@ -29,6 +31,14 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .description("list configured free/public sources")
     .action((options: { format: string }) => {
       write(renderSourcesList(listSources(), parseFormat(options.format)));
+    });
+  sources
+    .command("catalog")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("show source registry entries with runnable connector capabilities")
+    .action((options: { format: string }) => {
+      const catalog = buildSourceManagementCatalog({ connector_capabilities: listRegisteredSourceCheckConnectorCapabilities() });
+      write(renderSourceManagementCatalog(catalog, parseFormat(options.format)));
     });
   sources
     .command("status")
@@ -153,14 +163,44 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .requiredOption("--component <ids>", "component id or comma-separated component ids, e.g. COMP-WAFER,COMP-HBM")
     .option("--entity <ids>", "optional entity id or comma-separated entity ids for company-specific sources")
     .option("--depth <depth>", "max upstream catalog depth", "3")
+    .option("--trade-month <yyyy-mm>", "also emit Census Trade observation target suggestions for this month")
+    .option("--trade-country <code>", "optional Census partner country code for trade target suggestions")
+    .option("--trade-directions <directions>", "comma-separated trade directions for target suggestions", "imports,exports")
+    .option("--material-year <yyyy>", "also emit annual material observation target suggestions for USGS/IEA-style sources")
+    .option("--commodity-month <yyyy-mm>", "also emit monthly commodity price observation target suggestions for World Bank-style sources")
     .option("--format <format>", "markdown or json", "markdown")
     .description("plan free/public data sources for component upstream research")
-    .action((options: { component: string; entity?: string; depth: string; format: string }) => {
-      const componentIds = parseComponentIds(options.component);
-      const entityIds = options.entity === undefined ? [] : parseComponentIds(options.entity);
-      const plan = planSourcesForComponents({ component_ids: componentIds, entity_ids: entityIds, maxTierDepth: parseLimit(options.depth) });
-      write(renderSourcePlan(plan, parseFormat(options.format)));
-    });
+    .action(
+      (options: {
+        component: string;
+        entity?: string;
+        depth: string;
+        tradeMonth?: string;
+        tradeCountry?: string;
+        tradeDirections: string;
+        materialYear?: string;
+        commodityMonth?: string;
+        format: string;
+      }) => {
+        const componentIds = parseComponentIds(options.component);
+        const entityIds = options.entity === undefined ? [] : parseComponentIds(options.entity);
+        const plan = planSourcesForComponents({
+          component_ids: componentIds,
+          entity_ids: entityIds,
+          maxTierDepth: parseLimit(options.depth),
+          ...(options.tradeMonth === undefined
+            ? {}
+            : {
+                tradeObservationMonth: options.tradeMonth,
+                ...(options.tradeCountry === undefined ? {} : { tradeObservationCountryCode: options.tradeCountry }),
+                tradeObservationDirections: parseTradeDirections(options.tradeDirections)
+              }),
+          ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
+          ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth })
+        });
+        write(renderSourcePlan(plan, parseFormat(options.format)));
+      }
+    );
 
   const sourcePolicy = sources.command("policy").description("source monitoring policy commands");
   sourcePolicy
@@ -170,8 +210,11 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .action(async (options: { file: string }) => {
       await withDatabase(async (pool) => {
         const config = parseSourcePolicyConfig(await readFile(options.file, "utf8"));
+        const validation = assertValidSourceManagementConfig(config, {
+          connector_capabilities: listRegisteredSourceCheckConnectorCapabilities()
+        });
         const result = await syncSourcePolicyConfig(pool, { config, configSource: options.file });
-        writeJson({ ok: true, ...result });
+        writeJson({ ok: true, validation_warnings: validation.warnings, ...result });
       });
     });
 
@@ -209,6 +252,20 @@ function parseComponentIds(value: string): string[] {
     .filter((item) => item.length > 0);
   if (ids.length === 0) throw new Error("--component must include at least one component id");
   return [...new Set(ids)].sort();
+}
+
+function parseTradeDirections(value: string): ("imports" | "exports")[] {
+  const directions = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (directions.length === 0) throw new Error("--trade-directions must include imports or exports");
+  const unique: ("imports" | "exports")[] = [];
+  for (const direction of [...new Set(directions)]) {
+    if (direction !== "imports" && direction !== "exports") throw new Error(`Unsupported --trade-directions value: ${direction}`);
+    unique.push(direction);
+  }
+  return unique.sort();
 }
 
 function renderSourceCheckSummary(sourceAdapterId: string, summaries: readonly SourceCheckSummary[]): string {

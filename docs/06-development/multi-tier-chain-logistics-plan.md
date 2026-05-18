@@ -160,6 +160,23 @@ rare earths
 - parent / child taxonomy。
 - material / intermediate / component / equipment / service 分类。
 - 可在图上作为 chain depth 的中间层。
+- 可选的 `HS / HTS / CENSUS` 贸易代理码；这些码只生成 observation，不生成事实边。
+- 可选的 material exposure；它指导 USGS / World Bank / IEA 这类原材料源怎么挂到 ComponentCard。
+
+当前第一版落地在：
+
+```text
+packages/component-context/patterns/trade-taxonomy.json
+packages/component-context/patterns/material-taxonomy.json
+```
+
+原则：
+
+- `COMP-* -> HS code` 是公开贸易流观测入口，不是产品精确定义。
+- `proxy_only=true` 的 HS code 只能进入 `TRADE_FLOW_OBSERVATION`。
+- `material_id` 是下一步 USGS / World Bank / IEA 接入的共同锚点。
+- ComponentCard 必须把 trade proxy 和 material exposure 与事实边分开展示。
+- `material-taxonomy.json` 会把 `MAT-*` 映射到 `usgs-mcs / worldbank-pink / iea-critical-minerals` 这类 observation target。当前 USGS / World Bank target 先标为 planned，不假装已经能跑。
 
 ### Step 3：设施层
 

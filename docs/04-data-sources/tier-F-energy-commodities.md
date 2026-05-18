@@ -51,14 +51,26 @@
 
 ### 接入
 
-- XLSX 月度文件
-- 公开下载
+- 从 World Bank Commodity Markets 官方页发现 Pink Sheet 月度 XLSX 链接
+- `worldbank-pink / commodity-price-observation` connector 已接入，可按材料和月份落 `COMMODITY_PRICE_OBSERVATION`
+- 公开下载，不需要 API key
 
 ### 用法
 
 - 锂、镍、钴、铜价格背景（电池 / 新能源链）
 - 铜价格背景（数据中心电力建设）
-- 不进图谱
+- 只进 observation 层，不进图谱事实边
+
+### 与 material taxonomy 的关系
+
+`@supplystrata/component-context` 的 `material-taxonomy.json` 会把材料暴露映射到 World Bank Pink Sheet 的计划目标，例如：
+
+```text
+MAT-COPPER -> worldbank-pink / commodity-price-observation
+MAT-ALUMINUM -> worldbank-pink / commodity-price-observation
+```
+
+这些 target 当前在 `sources plan` 中标为 `runnable`，含义是 CLI 可以把计划目标直接交给 source check connector 执行。执行后只会生成 `COMMODITY_PRICE_OBSERVATION`，不能证明公司采购关系。
 
 ## F.4 USGS Mineral Commodity Summaries (`usgs-mcs`)
 
@@ -78,6 +90,19 @@
 - 锂 / 钴 / 镍 / 稀土等矿产基本面
 - 主要矿产生产国 → 节点级 macro signal
 - 不直接生成图谱边
+
+### 与 material taxonomy 的关系
+
+`material-taxonomy.json` 维护 `MAT-* -> USGS MCS topic` 的观测计划，例如：
+
+```text
+MAT-SILICON -> silicon
+MAT-COPPER -> copper
+MAT-RARE-EARTHS -> rare earths
+MAT-INDIUM -> indium
+```
+
+这些目标生成 `MINERAL_SUPPLY_OBSERVATION`，只能回答“这个材料的年度公开供给背景在哪里”，不能回答“某公司从哪个矿或国家采购”。
 
 ## F.5 IEA Critical Minerals Data Explorer (`iea-critical-minerals`)
 

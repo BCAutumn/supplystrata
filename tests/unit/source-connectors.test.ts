@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   connectorKey,
+  listSourceCheckConnectorCapabilities,
   optionalConfigPositiveInteger,
   requireConfigString,
   requireConfigStringArray,
@@ -48,6 +49,13 @@ describe("source-connectors", () => {
       "Unsupported due source target: dart-kr/company-filings"
     );
     expect(unsupportedSourceCheckTargetMessage(targetRow("dart-kr", "company-filings"), connectors)).toContain("supported: sec-edgar/sec-company-filings");
+    expect(listSourceCheckConnectorCapabilities(connectors)).toEqual([
+      {
+        source_adapter_id: "sec-edgar",
+        target_kind: "sec-company-filings",
+        key: "sec-edgar/sec-company-filings"
+      }
+    ]);
   });
 
   it("validates target config fields without source-specific casts", () => {

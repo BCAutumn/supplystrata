@@ -1,4 +1,5 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { findComponentTradeCode, listComponentMaterialExposures } from "@supplystrata/component-context";
 import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -18,6 +19,23 @@ import type { SourceCheckSummary } from "./source-check-runner.js";
 export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "census-trade",
   target_kind: "trade-flow-observation",
+  config_schema: {
+    fields: [
+      { key: "direction", type: "string", required: true, description: "Trade direction.", allowed_values: ["imports", "exports"] },
+      { key: "time", type: "string", required: true, description: "Month in YYYY-MM format." },
+      { key: "commodity_code", type: "string", required: true, description: "HS or Census commodity code." },
+      { key: "country_code", type: "string", required: false, description: "Optional partner country code." },
+      { key: "component_id", type: "string", required: false, description: "Component id that this macro observation contextualizes." },
+      {
+        key: "scope_kind",
+        type: "string",
+        required: false,
+        description: "Observation scope kind.",
+        allowed_values: ["company", "component", "facility", "country", "port", "route", "topic"]
+      },
+      { key: "scope_id", type: "string", required: false, description: "Observation scope id; defaults to component_id or commodity code." }
+    ]
+  },
   run(store, target) {
     return runCensusTradeSourceCheck(store, censusTradeInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,
@@ -84,8 +102,9 @@ async function storeTradeFlowObservations(
   input: { docId: string; sourceItemId: string; sourceUrl: string; targetConfig: Record<string, unknown> }
 ): Promise<number> {
   let count = 0;
+  const componentId = componentIdFromConfig(input.targetConfig);
   for (const row of rows) {
-    const componentId = componentIdFromConfig(input.targetConfig);
+    const taxonomyContext = componentTradeObservationContext(componentId, row.commodity_code);
     // Census Trade 是宏观观测源：只能落 observation，不能在这里升级成公司级事实边。
     await storeObservation(client, {
       observation_type: "TRADE_FLOW_OBSERVATION",
@@ -109,13 +128,54 @@ async function storeTradeFlowObservations(
         country_code: row.country_code,
         country_name: row.country_name,
         direction: row.direction,
-        no_company_edge: true
+        no_company_edge: true,
+        component_hs_proxy: taxonomyContext.isProxy,
+        component_hs_code_description: taxonomyContext.description,
+        component_hs_code_confidence: taxonomyContext.confidence,
+        component_hs_code_notes: taxonomyContext.notes,
+        component_material_ids: taxonomyContext.materialIds
       },
-      attrs: { semantic_layer: "observation" }
+      attrs: {
+        semantic_layer: "observation",
+        observation_policy: "macro_trade_flow_cannot_create_company_edge",
+        ...(taxonomyContext.isProxy ? { component_trade_taxonomy: "matched" } : { component_trade_taxonomy: "unmatched" })
+      }
     });
     count += 1;
   }
   return count;
+}
+
+function componentTradeObservationContext(
+  componentId: string | undefined,
+  commodityCode: string
+): {
+  isProxy: boolean;
+  description: string | null;
+  confidence: number | null;
+  notes: string | null;
+  materialIds: string[];
+} {
+  if (componentId === undefined) {
+    return { isProxy: false, description: null, confidence: null, notes: null, materialIds: [] };
+  }
+  const code = findComponentTradeCode(componentId, commodityCode);
+  if (code === undefined) {
+    return {
+      isProxy: false,
+      description: null,
+      confidence: null,
+      notes: null,
+      materialIds: listComponentMaterialExposures(componentId).map((item) => item.material_id)
+    };
+  }
+  return {
+    isProxy: code.proxy_only,
+    description: code.description,
+    confidence: code.confidence,
+    notes: code.notes,
+    materialIds: listComponentMaterialExposures(componentId).map((item) => item.material_id)
+  };
 }
 
 function censusTradeInputFromConfig(config: Record<string, unknown>): CensusTradeInput {

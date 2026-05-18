@@ -18,6 +18,14 @@ export interface SourceCheckOptions {
 export const secEdgarSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "sec-edgar",
   target_kind: "sec-company-filings",
+  config_schema: {
+    fields: [
+      { key: "cik", type: "string", required: true, description: "SEC CIK without punctuation." },
+      { key: "entity_id", type: "string", required: true, description: "Primary SupplyStrata entity id for the filer." },
+      { key: "form_types", type: "string_array", required: true, description: "SEC form types to monitor.", allowed_values: ["10-K", "10-Q", "20-F", "8-K"] },
+      { key: "limit", type: "positive_integer", required: false, description: "Maximum filings to fetch per check." }
+    ]
+  },
   run(store, target) {
     return checkSecEdgarSource(store, secEdgarInputFromTargetConfig(target.target_config), { checkTargetId: target.check_target_id });
   }

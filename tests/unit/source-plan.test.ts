@@ -48,4 +48,54 @@ describe("source-plan", () => {
     expect(sourceIds.filter((sourceId) => sourceId === "census-trade")).toHaveLength(1);
     expect(plan.find((item) => item.source_id === "census-trade")?.target_ids.length).toBeGreaterThan(1);
   });
+
+  it("emits Census Trade check target suggestions from component HS taxonomy when a month is provided", () => {
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-MEMORY"],
+      maxTierDepth: 2,
+      tradeObservationMonth: "2025-12",
+      tradeObservationCountryCode: "5800",
+      tradeObservationDirections: ["imports"]
+    });
+    const census = plan.find((item) => item.source_id === "census-trade");
+    const target = census?.suggested_check_targets.find(
+      (item) => item.target_config["commodity_code"] === "854232" && item.target_config["component_id"] === "COMP-MEMORY"
+    );
+
+    expect(target?.source_adapter_id).toBe("census-trade");
+    expect(target?.target_kind).toBe("trade-flow-observation");
+    expect(target?.target_config["direction"]).toBe("imports");
+    expect(target?.target_config["time"]).toBe("2025-12");
+    expect(target?.target_config["country_code"]).toBe("5800");
+    expect(target?.target_config["scope_kind"]).toBe("component");
+    expect(target?.target_config["scope_id"]).toBe("COMP-MEMORY");
+  });
+
+  it("does not emit runnable trade target suggestions without an explicit observation month", () => {
+    const plan = planSourcesForComponent("COMP-MEMORY", 2);
+
+    expect(plan.every((item) => item.suggested_check_targets.length === 0)).toBe(true);
+  });
+
+  it("emits material observation targets for USGS and runnable World Bank commodity prices without promoting them to facts", () => {
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-HBM"],
+      maxTierDepth: 1,
+      materialObservationYear: "2025",
+      commodityObservationMonth: "2025-12"
+    });
+    const usgs = plan.find((item) => item.source_id === "usgs-mcs");
+    const worldbank = plan.find((item) => item.source_id === "worldbank-pink");
+    const copperPrice = worldbank?.suggested_check_targets.find((item) => item.target_config["material_id"] === "MAT-COPPER");
+
+    expect(usgs?.relation_policy).toBe("observation_only");
+    expect(worldbank?.relation_policy).toBe("observation_only");
+    expect(usgs?.suggested_check_targets.some((item) => item.target_kind === "mineral-supply-observation" && item.target_config["period"] === "2025")).toBe(
+      true
+    );
+    expect(copperPrice?.runnable).toBe(true);
+    expect(copperPrice?.target_kind).toBe("commodity-price-observation");
+    expect(copperPrice?.target_config["period"]).toBe("2025-12");
+    expect(copperPrice?.target_config["scope_id"]).toBe("COMP-HBM");
+  });
 });

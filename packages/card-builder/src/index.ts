@@ -1,4 +1,5 @@
 import type { ComponentSpecificity, EvidenceLevel, RelationType } from "@supplystrata/core";
+import { getComponentTradeTaxonomy } from "@supplystrata/component-context";
 import {
   getEvidence,
   listObservationsByScope,
@@ -99,6 +100,7 @@ export async function loadComponentCard(client: DbClient, query: string): Promis
     known_consumers: summarizeComponentParticipants(evidenceEdges, "consumer"),
     evidence_edges: evidenceEdges,
     source_coverage: summarizeComponentSourceCoverage(evidenceEdges),
+    trade_taxonomy: componentTradeTaxonomyFromCatalog(component.component_id),
     related_observations: (await listObservationsByScope(client, { scope_kind: "component", scope_id: component.component_id, limit: 10 })).map(
       observationFromRow
     ),
@@ -206,6 +208,14 @@ function companyEdgeFromRow(row: CompanyEdgeRow): CompanyCardEdge {
 
 function componentHeaderFromRow(row: ComponentHeaderRow): ComponentHeader {
   return { component_id: row.component_id, name: row.name, taxonomy_path: row.taxonomy_path, aliases: row.aliases };
+}
+
+function componentTradeTaxonomyFromCatalog(componentId: string): ComponentCardModel["trade_taxonomy"] {
+  const taxonomy = getComponentTradeTaxonomy(componentId);
+  return {
+    hs_codes: taxonomy?.hs_codes ?? [],
+    materials: taxonomy?.materials ?? []
+  };
 }
 
 function toComponentEvidenceEdge(row: ComponentEdgeRow): ComponentEvidenceEdge {

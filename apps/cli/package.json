@@ -21,6 +21,7 @@
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",
+    "@supplystrata/source-management": "workspace:*",
     "@supplystrata/source-plan": "workspace:*",
     "@supplystrata/source-registry": "workspace:*",
     "@supplystrata/source-workflows": "workspace:*",

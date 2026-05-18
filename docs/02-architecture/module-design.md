@@ -34,6 +34,7 @@ supplystrata/
 │   ├── source-adapter-spec/                # SourceAdapter 接口契约
 │   ├── source-adapter-runtime/             # source adapter 限速、fetch、缓存与 snapshot 工厂
 │   ├── source-connectors/                  # source check target runner 注册与配置校验
+│   ├── source-management/                  # 数据源统一管理面：registry + connector + 用户配置校验
 │   ├── source-workflows/                   # 具体免费源的抓取/预览/监控 connector 编排
 │   ├── parsers/
 │   │   ├── html/
@@ -86,6 +87,7 @@ observation-extractor ← pipeline 消费；只产官方披露 observation draft
 observation-store ← pipeline / 后续 source monitor 消费；只写 observations / lead_observations
 source-plan ← CLI / 后续 workbench 消费；读取 source-registry + component-context，只输出 source plan
 source-connectors ← source-workflows 消费；集中注册 source check target runner，不抓源、不写库
+source-management ← CLI / 后续 host app 消费；读取 source-registry + source-connectors 能力，只做 catalog 与配置校验
 card-builder ← apps/cli / 后续 API 消费；负责从 DbClient 组装 CompanyCard / ComponentCard / ChainCard / EvidenceCard / UnknownMap DTO
 entity-resolver  ← pipeline / sources / extractor / graph-builder 消费
 evidence-scorer  ← graph-builder 消费
@@ -107,6 +109,8 @@ CI 里加 dependency-cruiser 校验。
 `source-plan` 是二/三级链路扩源的边界：它把 `component-context` 里的上游 lead 映射到 `source-registry` 里的免费/公开数据源，并标明 `edge / observation / lead / entity` 输出层与自动化策略。它不抓取、不解析、不写 Postgres，也不允许把 Comtrade/AIS/能源/新闻这类弱源升级成事实边。
 
 `source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验和 unsupported target 错误。具体源例如 SEC EDGAR 在 `source-workflows` 侧提供 connector 实现；`sources check` 和 `run-due` 都只走 connector registry，不在 CLI 或调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
+
+`source-management` 是统一数据源管理面：它把 `source-registry` 的权威来源清单、`source-connectors` 的可运行 target kind、connector 声明的 `target_config` 字段契约、外部 `source policy` 配置校验收口到一个纯模块。它不抓取、不写库、不读取环境变量；CLI、未来 TS 桌面端或 agent 宿主可以先调用它展示“哪些源可配置、哪些字段必填、哪些只登记未实现、哪些需要 key、哪些只能手工”，再决定是否同步到 Postgres。用户自定义 source policy 必须先通过这个模块校验，避免把不存在的 source/target 或字段错误的 target_config 写进调度表。
 
 `relation-extractor/rule` 的 counterparty / component 识别模式放在 `patterns.ts`。新增公司、组件、制造服务供应商时优先扩展模式数据；只有新增一种抽取语义时才修改主抽取流程。
 

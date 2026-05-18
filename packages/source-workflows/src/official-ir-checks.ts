@@ -1,5 +1,5 @@
 import type { DatabaseStore } from "@supplystrata/db";
-import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import { asmlIrAdapter, createAsmlIrAdapterContext, type AsmlIrInput } from "@supplystrata/sources-asml-ir";
 import { createSamsungIrAdapterContext, samsungIrAdapter, type SamsungIrInput } from "@supplystrata/sources-samsung-ir";
 import { createSkHynixIrAdapterContext, skHynixIrAdapter, type SkHynixIrInput } from "@supplystrata/sources-skhynix-ir";
@@ -10,6 +10,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
   {
     source_adapter_id: "tsmc-ir",
     target_kind: "official-html-disclosure",
+    config_schema: officialIrConfigSchema("ENT-TSMC"),
     run(store, target) {
       return runSourceAdapterCheck(store, {
         adapter: tsmcIrAdapter,
@@ -22,6 +23,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
   {
     source_adapter_id: "samsung-ir",
     target_kind: "official-html-disclosure",
+    config_schema: officialIrConfigSchema("ENT-SAMSUNG-ELECTRONICS"),
     run(store, target) {
       return runSourceAdapterCheck(store, {
         adapter: samsungIrAdapter,
@@ -34,6 +36,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
   {
     source_adapter_id: "skhynix-ir",
     target_kind: "official-html-disclosure",
+    config_schema: officialIrConfigSchema("ENT-SKHYNIX"),
     run(store, target) {
       return runSourceAdapterCheck(store, {
         adapter: skHynixIrAdapter,
@@ -46,6 +49,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
   {
     source_adapter_id: "asml-ir",
     target_kind: "official-html-disclosure",
+    config_schema: officialIrConfigSchema("ENT-ASML"),
     run(store, target) {
       return runSourceAdapterCheck(store, {
         adapter: asmlIrAdapter,
@@ -56,6 +60,15 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
     }
   }
 ];
+
+function officialIrConfigSchema(entityId: string): SourceCheckConfigSchema {
+  return {
+    fields: [
+      { key: "year", type: "positive_integer", required: true, description: "Disclosure year to fetch." },
+      { key: "entity_id", type: "string", required: true, description: "Expected official disclosure entity id.", allowed_values: [entityId] }
+    ]
+  };
+}
 
 function tsmcIrInputFromConfig(config: Record<string, unknown>): TsmcIrInput {
   return { year: requireYear(config, "TSMC IR source check target"), entityId: requireLiteralEntity(config, "ENT-TSMC", "TSMC IR source check target") };

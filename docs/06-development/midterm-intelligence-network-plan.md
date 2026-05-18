@@ -23,11 +23,13 @@
 - `packages/observation-store`：统一写入 observations / leads。
 - `packages/chain-view`：运行时输出 edge / claim / observation / lead / unknown 分层 ChainViewModel。
 - 语义级 changes 第一版：claim / observation / lead 写入路径会产生确定性的 `change_records`；官方披露文档变化会产生固定 section fingerprint diff；官方披露关系候选会产生 relation fingerprint diff，并进入 review queue。
+- Component-HS-Material taxonomy 第一版：`component-context` 已能输出 HS 代理码、material exposure 和 material observation target；`source-plan` 可据此生成 Census Trade runnable target、World Bank Pink Sheet runnable target，以及 USGS planned target；ComponentCard 会展示贸易代理码、材料暴露和已落库观测。
 
 仍缺：
 
 - 语义变化确认后自动生成 claim 草稿的工作流。
-- 更深层二级/三级免费源 adapter，把 relation/observation/lead 填到 ChainView。
+- USGS / IEA 等原材料源 adapter，把 planned material target 进一步变成 runnable connector，并落成 mineral / critical-minerals observations。
+- DART-KR / EDINET 等官方披露源，把二级/三级事实边继续做厚。
 
 ## 2. 目标形态
 

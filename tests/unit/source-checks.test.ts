@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type pg from "pg";
-import { listSourceCheckConnectorIds, runManualSourceCheck } from "@supplystrata/source-workflows";
+import { listRegisteredSourceCheckConnectorCapabilities, listSourceCheckConnectorIds, runManualSourceCheck } from "@supplystrata/source-workflows";
 import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
 
 describe("source check registry", () => {
   it("publishes registered source check connector ids", () => {
     expect(listSourceCheckConnectorIds()).toEqual(
-      expect.arrayContaining(["sec-edgar/sec-company-filings", "census-trade/trade-flow-observation", "osh/facility-search"])
+      expect.arrayContaining([
+        "sec-edgar/sec-company-filings",
+        "census-trade/trade-flow-observation",
+        "osh/facility-search",
+        "worldbank-pink/commodity-price-observation"
+      ])
+    );
+    expect(listRegisteredSourceCheckConnectorCapabilities()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source_adapter_id: "sec-edgar",
+          target_kind: "sec-company-filings",
+          key: "sec-edgar/sec-company-filings"
+        })
+      ])
     );
   });
 

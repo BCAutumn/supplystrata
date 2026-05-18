@@ -75,6 +75,36 @@ interface TradeFlowSignal {
 - 港口级数据 + AIS（Tier E）可作为 logistics 背景
 - 禁止直接从 Census Trade 生成公司级 `BUYS_FROM` / `SUPPLIES_TO` 边；它只能支持组件、国家、港口或路线层面的观测。
 
+### Component-HS taxonomy 正式接入
+
+`@supplystrata/component-context` 维护 `patterns/trade-taxonomy.json`，把组件映射到可复用的贸易代理码和材料暴露：
+
+```text
+COMP-MEMORY -> HS 854232 -> TRADE_FLOW_OBSERVATION
+COMP-SILICON-WAFER -> HS 381800 / 280461 -> TRADE_FLOW_OBSERVATION
+COMP-POWER-SUPPLY -> HS 850440 -> TRADE_FLOW_OBSERVATION
+```
+
+这些映射全部带 `proxy_only=true`。含义是：
+
+- 可以回答“这个组件附近有哪些公开贸易流信号？”
+- 可以生成 `source_check_targets` 的 `census-trade / trade-flow-observation` 配置建议。
+- 可以写入 ComponentCard / ChainView 的 observation lane。
+- 不能生成公司级事实边，不能推出“某公司从某国家采购某组件”。
+
+CLI 示例：
+
+```bash
+pnpm cli sources plan \
+  --component COMP-MEMORY \
+  --depth 3 \
+  --trade-month 2025-12 \
+  --trade-country 5800 \
+  --trade-directions imports,exports
+```
+
+输出里的 `suggested_check_targets` 可以复制进 source policy 配置，或由后续统一 source-management UI 生成。
+
 ## D.3 USITC DataWeb (`usitc-dataweb`)
 
 ### 用途

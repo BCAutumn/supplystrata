@@ -27,9 +27,9 @@ describe("source registry", () => {
     expect(sourceStatusSummary()).toMatchObject({
       total: 31,
       implemented: 2,
-      preview: 9,
+      preview: 10,
       planned: 2,
-      scoped: 17,
+      scoped: 16,
       manualOnly: 1,
       requiresKey: 9
     });

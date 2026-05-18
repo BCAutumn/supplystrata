@@ -50,6 +50,7 @@
       "@supplystrata/source-adapter-spec": ["packages/source-adapter-spec/src/index.ts"],
       "@supplystrata/source-adapter-runtime": ["packages/source-adapter-runtime/src/index.ts"],
       "@supplystrata/source-connectors": ["packages/source-connectors/src/index.ts"],
+      "@supplystrata/source-management": ["packages/source-management/src/index.ts"],
       "@supplystrata/signal-extractor": ["packages/signal-extractor/src/index.ts"],
       "@supplystrata/source-monitor": ["packages/source-monitor/src/index.ts"],
       "@supplystrata/source-normalizers": ["packages/source-normalizers/src/index.ts"],
@@ -67,7 +68,8 @@
       "@supplystrata/sources-samsung-ir": ["packages/sources/samsung-ir/src/index.ts"],
       "@supplystrata/sources-sec-edgar": ["packages/sources/sec-edgar/src/index.ts"],
       "@supplystrata/sources-skhynix-ir": ["packages/sources/skhynix-ir/src/index.ts"],
-      "@supplystrata/sources-tsmc-ir": ["packages/sources/tsmc-ir/src/index.ts"]
+      "@supplystrata/sources-tsmc-ir": ["packages/sources/tsmc-ir/src/index.ts"],
+      "@supplystrata/sources-worldbank-pink": ["packages/sources/worldbank-pink/src/index.ts"]
     }
   }
 }

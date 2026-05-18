@@ -1,0 +1,147 @@
+[
+  {
+    "material_id": "MAT-SILICON",
+    "name": "Semiconductor-grade silicon",
+    "aliases": ["silicon", "high-purity silicon", "semiconductor silicon"],
+    "category": "mineral",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-SILICON",
+          "mineral": "silicon"
+        },
+        "reason": "USGS MCS can provide annual silicon production and reserve context; it cannot identify semiconductor customer allocation.",
+        "runnable": false
+      }
+    ]
+  },
+  {
+    "material_id": "MAT-COPPER",
+    "name": "Copper",
+    "aliases": ["copper", "refined copper"],
+    "category": "metal",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-COPPER",
+          "mineral": "copper"
+        },
+        "reason": "USGS MCS can provide annual copper production and reserve context for packaging, PCB, and power exposure.",
+        "runnable": false
+      },
+      {
+        "source_adapter_id": "worldbank-pink",
+        "target_kind": "commodity-price-observation",
+        "observation_type": "COMMODITY_PRICE_OBSERVATION",
+        "required_period": "month",
+        "target_config_template": {
+          "material_id": "MAT-COPPER",
+          "commodity": "copper"
+        },
+        "reason": "World Bank Pink Sheet can provide monthly copper price context; it cannot prove a company purchase relationship.",
+        "runnable": true
+      }
+    ]
+  },
+  {
+    "material_id": "MAT-RARE-EARTHS",
+    "name": "Rare earths",
+    "aliases": ["rare earth elements", "REE"],
+    "category": "mineral",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-RARE-EARTHS",
+          "mineral": "rare earths"
+        },
+        "reason": "USGS MCS can provide annual rare-earth production and reserve context for equipment exposure.",
+        "runnable": false
+      }
+    ]
+  },
+  {
+    "material_id": "MAT-PHOTORESIST-CHEMISTRY",
+    "name": "Photoresist chemistry",
+    "aliases": ["photoresist chemistry", "photoresist materials"],
+    "category": "chemical",
+    "observation_targets": []
+  },
+  {
+    "material_id": "MAT-NEON",
+    "name": "Neon",
+    "aliases": ["neon", "semiconductor neon"],
+    "category": "industrial_gas",
+    "observation_targets": []
+  },
+  {
+    "material_id": "MAT-ARGON",
+    "name": "Argon",
+    "aliases": ["argon", "semiconductor argon"],
+    "category": "industrial_gas",
+    "observation_targets": []
+  },
+  {
+    "material_id": "MAT-ALUMINUM",
+    "name": "Aluminum",
+    "aliases": ["aluminum", "aluminium"],
+    "category": "metal",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-ALUMINUM",
+          "mineral": "aluminum"
+        },
+        "reason": "USGS MCS can provide annual aluminum production context for cooling and enclosure exposure.",
+        "runnable": false
+      },
+      {
+        "source_adapter_id": "worldbank-pink",
+        "target_kind": "commodity-price-observation",
+        "observation_type": "COMMODITY_PRICE_OBSERVATION",
+        "required_period": "month",
+        "target_config_template": {
+          "material_id": "MAT-ALUMINUM",
+          "commodity": "aluminum"
+        },
+        "reason": "World Bank Pink Sheet can provide monthly aluminum price context; it cannot prove a supplier relationship.",
+        "runnable": true
+      }
+    ]
+  },
+  {
+    "material_id": "MAT-INDIUM",
+    "name": "Indium",
+    "aliases": ["indium"],
+    "category": "metal",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-INDIUM",
+          "mineral": "indium"
+        },
+        "reason": "USGS MCS can provide annual indium production context for photonics and compound semiconductor exposure.",
+        "runnable": false
+      }
+    ]
+  }
+]

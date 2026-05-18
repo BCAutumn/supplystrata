@@ -5,10 +5,33 @@ export interface SourceCheckTargetRow {
   target_config: Record<string, unknown>;
 }
 
+export type SourceCheckConfigFieldType = "string" | "string_array" | "positive_integer";
+
+export interface SourceCheckConfigField {
+  key: string;
+  type: SourceCheckConfigFieldType;
+  required: boolean;
+  description: string;
+  allowed_values?: readonly string[];
+}
+
+export interface SourceCheckConfigSchema {
+  fields: readonly SourceCheckConfigField[];
+  allow_extra_keys?: boolean;
+}
+
 export interface SourceCheckConnector<TStore, TResult, TTarget extends SourceCheckTargetRow = SourceCheckTargetRow> {
   readonly source_adapter_id: string;
   readonly target_kind: string;
+  readonly config_schema?: SourceCheckConfigSchema;
   run(store: TStore, target: TTarget): Promise<TResult[]>;
+}
+
+export interface SourceCheckConnectorCapability {
+  source_adapter_id: string;
+  target_kind: string;
+  key: string;
+  config_schema?: SourceCheckConfigSchema;
 }
 
 export function connectorKey(input: Pick<SourceCheckTargetRow, "source_adapter_id" | "target_kind">): string {
@@ -17,6 +40,17 @@ export function connectorKey(input: Pick<SourceCheckTargetRow, "source_adapter_i
 
 export function listSourceCheckConnectorKeys(connectors: readonly SourceCheckConnector<unknown, unknown>[]): string[] {
   return connectors.map((connector) => connectorKey(connector)).sort();
+}
+
+export function listSourceCheckConnectorCapabilities(connectors: readonly SourceCheckConnector<unknown, unknown>[]): SourceCheckConnectorCapability[] {
+  return connectors
+    .map((connector) => ({
+      source_adapter_id: connector.source_adapter_id,
+      target_kind: connector.target_kind,
+      key: connectorKey(connector),
+      ...(connector.config_schema === undefined ? {} : { config_schema: connector.config_schema })
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key));
 }
 
 export async function runSourceCheckConnector<TStore, TResult, TTarget extends SourceCheckTargetRow>(
@@ -76,4 +110,57 @@ export function requireConfigStringArray(config: Record<string, unknown>, key: s
     }
     return item;
   });
+}
+
+export function validateSourceCheckTargetConfig(input: { config: Record<string, unknown>; schema: SourceCheckConfigSchema; label: string }): string[] {
+  const errors: string[] = [];
+  const knownKeys = new Set(input.schema.fields.map((field) => field.key));
+  for (const field of input.schema.fields) {
+    const value = input.config[field.key];
+    if (value === undefined) {
+      if (field.required) errors.push(`${input.label} ${field.key} is required`);
+      continue;
+    }
+    errors.push(...validateConfigFieldValue(value, field, input.label));
+  }
+  if (input.schema.allow_extra_keys !== true) {
+    for (const key of Object.keys(input.config)) {
+      if (!knownKeys.has(key)) errors.push(`${input.label} ${key} is not supported`);
+    }
+  }
+  return errors;
+}
+
+function validateConfigFieldValue(value: unknown, field: SourceCheckConfigField, label: string): string[] {
+  if (field.type === "string") return validateStringField(value, field, label);
+  if (field.type === "string_array") return validateStringArrayField(value, field, label);
+  return validatePositiveIntegerField(value, field, label);
+}
+
+function validateStringField(value: unknown, field: SourceCheckConfigField, label: string): string[] {
+  if (typeof value !== "string" || value.trim().length === 0) return [`${label} ${field.key} must be a non-empty string`];
+  if (field.allowed_values !== undefined && !field.allowed_values.includes(value)) {
+    return [`${label} ${field.key} must be one of: ${field.allowed_values.join(", ")}`];
+  }
+  return [];
+}
+
+function validateStringArrayField(value: unknown, field: SourceCheckConfigField, label: string): string[] {
+  if (!Array.isArray(value) || value.length === 0) return [`${label} ${field.key} must be a non-empty string array`];
+  const errors: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.trim().length === 0) {
+      errors.push(`${label} ${field.key} contains a non-string item`);
+      continue;
+    }
+    if (field.allowed_values !== undefined && !field.allowed_values.includes(item)) {
+      errors.push(`${label} ${field.key} item must be one of: ${field.allowed_values.join(", ")}`);
+    }
+  }
+  return errors;
+}
+
+function validatePositiveIntegerField(value: unknown, field: SourceCheckConfigField, label: string): string[] {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) return [`${label} ${field.key} must be a positive integer`];
+  return [];
 }

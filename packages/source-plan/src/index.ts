@@ -1,4 +1,13 @@
-import { listComponentUpstreamLeads, type ComponentDependencyCategory, type ComponentUpstreamLead } from "@supplystrata/component-context";
+import {
+  listComponentHsCodes,
+  listComponentMaterialObservationTargets,
+  listComponentUpstreamLeads,
+  type ComponentDependencyCategory,
+  type ComponentMaterialExposure,
+  type ComponentTradeCode,
+  type MaterialObservationTarget,
+  type ComponentUpstreamLead
+} from "@supplystrata/component-context";
 import {
   getSourceById,
   type AutomationPolicy,
@@ -22,6 +31,15 @@ export type ResearchSourcePurpose =
 
 export type PlannedOutputLayer = "edge" | "observation" | "lead" | "entity";
 export type SourceRelationPolicy = "can_create_fact_edge" | "observation_only" | "lead_only" | "entity_only";
+export type TradeObservationDirection = "imports" | "exports";
+
+export interface SourcePlanCheckTargetSuggestion {
+  source_adapter_id: string;
+  target_kind: string;
+  runnable: boolean;
+  target_config: Record<string, string | number | boolean | string[]>;
+  reason: string;
+}
 
 export interface SourcePlanItem {
   source_id: string;
@@ -37,12 +55,18 @@ export interface SourcePlanItem {
   target_ids: string[];
   trigger_dependency_ids: string[];
   reasons: string[];
+  suggested_check_targets: SourcePlanCheckTargetSuggestion[];
 }
 
 export interface SourcePlanForComponentsInput {
   component_ids: readonly string[];
   entity_ids?: readonly string[];
   maxTierDepth?: number;
+  tradeObservationMonth?: string;
+  tradeObservationCountryCode?: string;
+  tradeObservationDirections?: readonly TradeObservationDirection[];
+  materialObservationYear?: string;
+  commodityObservationMonth?: string;
 }
 
 interface SourcePlanDraft {
@@ -55,6 +79,19 @@ interface SourcePlanDraft {
 
 interface SourcePlanContext {
   entityIds: ReadonlySet<string>;
+  tradeObservation?: TradeObservationContext;
+  materialObservation?: MaterialObservationContext;
+}
+
+export interface TradeObservationContext {
+  month: string;
+  countryCode?: string;
+  directions: readonly TradeObservationDirection[];
+}
+
+interface MaterialObservationContext {
+  year?: string;
+  month?: string;
 }
 
 const CATEGORY_SOURCE_IDS = {
@@ -105,16 +142,37 @@ export function planSourcesForComponents(input: SourcePlanForComponentsInput): S
   const drafts: SourcePlanDraft[] = [];
   const maxTierDepth = input.maxTierDepth ?? 3;
   const context = createContext(input);
+  const taxonomyComponentIds = new Set(input.component_ids);
   for (const componentId of input.component_ids) {
     for (const lead of listComponentUpstreamLeads(componentId, maxTierDepth)) {
+      taxonomyComponentIds.add(lead.parent_component_id);
+      taxonomyComponentIds.add(lead.target_id);
       drafts.push(...draftsForLead(lead, context));
     }
   }
-  return aggregateDrafts(drafts);
+  if (context.tradeObservation !== undefined) drafts.push(...draftsForTradeTaxonomy([...taxonomyComponentIds]));
+  if (context.materialObservation !== undefined) drafts.push(...draftsForMaterialTaxonomy([...taxonomyComponentIds]));
+  return aggregateDrafts(drafts, context);
 }
 
-export function planSourcesForComponent(componentId: string, maxTierDepth = 3, entityIds: readonly string[] = []): SourcePlanItem[] {
-  return planSourcesForComponents({ component_ids: [componentId], maxTierDepth, entity_ids: entityIds });
+export function planSourcesForComponent(
+  componentId: string,
+  maxTierDepth = 3,
+  entityIds: readonly string[] = [],
+  tradeObservation?: TradeObservationContext
+): SourcePlanItem[] {
+  return planSourcesForComponents({
+    component_ids: [componentId],
+    maxTierDepth,
+    entity_ids: entityIds,
+    ...(tradeObservation === undefined
+      ? {}
+      : {
+          tradeObservationMonth: tradeObservation.month,
+          ...(tradeObservation.countryCode === undefined ? {} : { tradeObservationCountryCode: tradeObservation.countryCode }),
+          tradeObservationDirections: tradeObservation.directions
+        })
+  });
 }
 
 export function planSourcesForComponentLead(lead: ComponentUpstreamLead, entityIds: readonly string[] = []): SourcePlanItem[] {
@@ -142,8 +200,70 @@ function draftsForLead(lead: ComponentUpstreamLead, context: SourcePlanContext):
   });
 }
 
-function createContext(input: Pick<SourcePlanForComponentsInput, "entity_ids">): SourcePlanContext {
-  return { entityIds: new Set(input.entity_ids ?? []) };
+function draftsForTradeTaxonomy(componentIds: readonly string[]): SourcePlanDraft[] {
+  const drafts: SourcePlanDraft[] = [];
+  for (const componentId of componentIds) {
+    if (listComponentHsCodes(componentId).length === 0) continue;
+    requireSource("census-trade");
+    drafts.push({
+      sourceId: "census-trade",
+      parentComponentId: componentId,
+      targetId: componentId,
+      dependencyId: `trade-taxonomy:${componentId}`,
+      reason: `${componentId}: Census Trade can create observation-only HS proxy checks from component trade taxonomy`
+    });
+  }
+  return drafts;
+}
+
+function draftsForMaterialTaxonomy(componentIds: readonly string[]): SourcePlanDraft[] {
+  const drafts: SourcePlanDraft[] = [];
+  for (const componentId of componentIds) {
+    for (const item of listComponentMaterialObservationTargets(componentId)) {
+      requireSource(item.target.source_adapter_id);
+      drafts.push({
+        sourceId: item.target.source_adapter_id,
+        parentComponentId: componentId,
+        targetId: item.material.material_id,
+        dependencyId: `material-taxonomy:${componentId}:${item.material.material_id}`,
+        reason: `${componentId} exposes ${item.material.name}: ${item.target.reason}`
+      });
+    }
+  }
+  return drafts;
+}
+
+function createContext(
+  input: Pick<
+    SourcePlanForComponentsInput,
+    | "entity_ids"
+    | "tradeObservationMonth"
+    | "tradeObservationCountryCode"
+    | "tradeObservationDirections"
+    | "materialObservationYear"
+    | "commodityObservationMonth"
+  >
+): SourcePlanContext {
+  return {
+    entityIds: new Set(input.entity_ids ?? []),
+    ...(input.tradeObservationMonth === undefined
+      ? {}
+      : {
+          tradeObservation: {
+            month: normalizeTradeObservationMonth(input.tradeObservationMonth),
+            ...(input.tradeObservationCountryCode === undefined ? {} : { countryCode: input.tradeObservationCountryCode.trim() }),
+            directions: normalizeTradeObservationDirections(input.tradeObservationDirections)
+          }
+        }),
+    ...(input.materialObservationYear === undefined && input.commodityObservationMonth === undefined
+      ? {}
+      : {
+          materialObservation: {
+            ...(input.materialObservationYear === undefined ? {} : { year: normalizeMaterialObservationYear(input.materialObservationYear) }),
+            ...(input.commodityObservationMonth === undefined ? {} : { month: normalizeTradeObservationMonth(input.commodityObservationMonth) })
+          }
+        })
+  };
 }
 
 function sourceMatchesContext(sourceId: string, context: SourcePlanContext): boolean {
@@ -162,17 +282,17 @@ function sourceIdsForSuggestion(suggestion: string): string[] {
   return sourceIds;
 }
 
-function aggregateDrafts(drafts: readonly SourcePlanDraft[]): SourcePlanItem[] {
+function aggregateDrafts(drafts: readonly SourcePlanDraft[], context?: SourcePlanContext): SourcePlanItem[] {
   const grouped = new Map<string, SourcePlanDraft[]>();
   for (const draft of drafts) {
     const current = grouped.get(draft.sourceId) ?? [];
     current.push(draft);
     grouped.set(draft.sourceId, current);
   }
-  return [...grouped.entries()].map(([sourceId, sourceDrafts]) => toPlanItem(sourceId, sourceDrafts)).sort(comparePlanItems);
+  return [...grouped.entries()].map(([sourceId, sourceDrafts]) => toPlanItem(sourceId, sourceDrafts, context)).sort(comparePlanItems);
 }
 
-function toPlanItem(sourceId: string, drafts: readonly SourcePlanDraft[]): SourcePlanItem {
+function toPlanItem(sourceId: string, drafts: readonly SourcePlanDraft[], context?: SourcePlanContext): SourcePlanItem {
   const source = requireSource(sourceId);
   return {
     source_id: source.id,
@@ -187,8 +307,105 @@ function toPlanItem(sourceId: string, drafts: readonly SourcePlanDraft[]): Sourc
     parent_component_ids: uniqueSorted(drafts.map((draft) => draft.parentComponentId)),
     target_ids: uniqueSorted(drafts.map((draft) => draft.targetId)),
     trigger_dependency_ids: uniqueSorted(drafts.map((draft) => draft.dependencyId)),
-    reasons: uniqueSorted(drafts.map((draft) => draft.reason))
+    reasons: uniqueSorted(drafts.map((draft) => draft.reason)),
+    suggested_check_targets: buildSuggestedCheckTargets(sourceId, drafts, context)
   };
+}
+
+function buildSuggestedCheckTargets(
+  sourceId: string,
+  drafts: readonly SourcePlanDraft[],
+  context: SourcePlanContext | undefined
+): SourcePlanCheckTargetSuggestion[] {
+  const suggestions: SourcePlanCheckTargetSuggestion[] = [];
+  if (sourceId === "census-trade" && context?.tradeObservation !== undefined) {
+    const componentIds = uniqueSorted(drafts.flatMap((draft) => [draft.parentComponentId, draft.targetId]));
+    for (const componentId of componentIds) {
+      for (const code of listComponentHsCodes(componentId)) {
+        for (const direction of context.tradeObservation.directions) {
+          suggestions.push(toCensusTradeSuggestion(componentId, code, direction, context.tradeObservation));
+        }
+      }
+    }
+  }
+  if (context?.materialObservation !== undefined) {
+    for (const draft of drafts) {
+      for (const item of listComponentMaterialObservationTargets(draft.parentComponentId)) {
+        if (item.target.source_adapter_id !== sourceId || item.material.material_id !== draft.targetId) continue;
+        const suggestion = toMaterialObservationSuggestion(draft.parentComponentId, item.material, item.target, context.materialObservation);
+        if (suggestion !== undefined) suggestions.push(suggestion);
+      }
+    }
+  }
+  return dedupeSuggestions(suggestions);
+}
+
+function toCensusTradeSuggestion(
+  componentId: string,
+  code: ComponentTradeCode,
+  direction: TradeObservationDirection,
+  context: TradeObservationContext
+): SourcePlanCheckTargetSuggestion {
+  return {
+    source_adapter_id: "census-trade",
+    target_kind: "trade-flow-observation",
+    runnable: true,
+    target_config: {
+      direction,
+      time: context.month,
+      commodity_code: code.code,
+      component_id: componentId,
+      scope_kind: "component",
+      scope_id: componentId,
+      ...(context.countryCode === undefined ? {} : { country_code: context.countryCode })
+    },
+    reason: `${componentId} uses ${code.system} ${code.code} as an observation-only trade proxy: ${code.notes}`
+  };
+}
+
+function toMaterialObservationSuggestion(
+  componentId: string,
+  material: ComponentMaterialExposure,
+  target: MaterialObservationTarget,
+  context: MaterialObservationContext
+): SourcePlanCheckTargetSuggestion | undefined {
+  const period = materialPeriodForTarget(target, context);
+  if (period === undefined) return undefined;
+  return {
+    source_adapter_id: target.source_adapter_id,
+    target_kind: target.target_kind,
+    runnable: target.runnable,
+    target_config: {
+      ...target.target_config_template,
+      component_id: componentId,
+      scope_kind: "component",
+      scope_id: componentId,
+      period
+    },
+    reason: `${componentId} exposes ${material.name} [${material.material_id}]: ${target.reason}`
+  };
+}
+
+function materialPeriodForTarget(target: MaterialObservationTarget, context: MaterialObservationContext): string | undefined {
+  if (target.required_period === "year") return context.year;
+  if (target.required_period === "month") return context.month;
+  return "none";
+}
+
+function dedupeSuggestions(suggestions: readonly SourcePlanCheckTargetSuggestion[]): SourcePlanCheckTargetSuggestion[] {
+  const byKey = new Map<string, SourcePlanCheckTargetSuggestion>();
+  for (const suggestion of suggestions) {
+    const key = `${suggestion.source_adapter_id}:${suggestion.target_kind}:${stableConfigKey(suggestion.target_config)}`;
+    byKey.set(key, suggestion);
+  }
+  return [...byKey.values()].sort((left, right) => left.source_adapter_id.localeCompare(right.source_adapter_id) || left.reason.localeCompare(right.reason));
+}
+
+function stableConfigKey(config: Record<string, string | number | boolean | string[]>): string {
+  return Object.entries(config)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join("|") : String(value)}`)
+    .join(";");
 }
 
 function relationPolicyForSource(source: SourceRegistryEntry): SourceRelationPolicy {
@@ -253,4 +470,26 @@ function outputLayerRank(layer: PlannedOutputLayer): number {
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+function normalizeTradeObservationMonth(value: string): string {
+  const trimmed = value.trim();
+  if (!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(trimmed)) throw new Error(`trade observation month must use YYYY-MM format: ${value}`);
+  return trimmed;
+}
+
+function normalizeTradeObservationDirections(value: readonly TradeObservationDirection[] | undefined): TradeObservationDirection[] {
+  const directions = value ?? ["imports", "exports"];
+  const unique = [...new Set(directions)];
+  if (unique.length === 0) throw new Error("trade observation directions must include imports or exports");
+  for (const direction of unique) {
+    if (direction !== "imports" && direction !== "exports") throw new Error(`unsupported trade observation direction: ${String(direction)}`);
+  }
+  return unique.sort();
+}
+
+function normalizeMaterialObservationYear(value: string): string {
+  const trimmed = value.trim();
+  if (!/^[0-9]{4}$/.test(trimmed)) throw new Error(`material observation year must use YYYY format: ${value}`);
+  return trimmed;
 }

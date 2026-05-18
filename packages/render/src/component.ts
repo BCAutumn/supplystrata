@@ -34,6 +34,28 @@ export interface ComponentEvidenceEdge {
   source_date: string | null;
 }
 
+export interface ComponentTradeCode {
+  system: string;
+  code: string;
+  description: string;
+  confidence: number;
+  proxy_only: boolean;
+  notes: string;
+}
+
+export interface ComponentMaterialExposure {
+  material_id: string;
+  name: string;
+  role: string;
+  confidence: number;
+  source_suggestions: string[];
+}
+
+export interface ComponentTradeTaxonomyModel {
+  hs_codes: ComponentTradeCode[];
+  materials: ComponentMaterialExposure[];
+}
+
 export interface ComponentObservation {
   observation_id: string;
   observation_type: ObservationType;
@@ -69,6 +91,7 @@ export interface ComponentCardModel {
     evidence_edges: number;
     latest_source_date: string | null;
   };
+  trade_taxonomy: ComponentTradeTaxonomyModel;
   related_observations: ComponentObservation[];
   unknown_map: UnknownMapItem[];
 }
@@ -83,6 +106,7 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
         known_consumers: card.known_consumers,
         evidence_edges: card.evidence_edges,
         source_coverage: card.source_coverage,
+        trade_taxonomy: card.trade_taxonomy,
         related_observations: card.related_observations,
         unknown_map: card.unknown_map
       },
@@ -105,6 +129,8 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
   appendComponentParticipants(lines, card.known_consumers);
   lines.push("", "## Evidence edges", "");
   appendComponentEvidenceEdges(lines, card.evidence_edges);
+  lines.push("", "## Trade and material taxonomy", "");
+  appendTradeTaxonomy(lines, card.trade_taxonomy);
   lines.push("", "## Related observations", "");
   appendRelatedObservations(lines, card.related_observations);
   lines.push("", "## Source coverage", "");
@@ -119,6 +145,29 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
     }
   }
   return lines.join("\n");
+}
+
+function appendTradeTaxonomy(lines: string[], taxonomy: ComponentTradeTaxonomyModel): void {
+  if (taxonomy.hs_codes.length === 0 && taxonomy.materials.length === 0) {
+    lines.push("(no trade or material taxonomy recorded yet)");
+    return;
+  }
+  if (taxonomy.hs_codes.length > 0) {
+    lines.push("Trade proxies:");
+    for (const code of taxonomy.hs_codes) {
+      lines.push(`- ${code.system} ${code.code}: ${code.description}`);
+      lines.push(`  Proxy only: ${code.proxy_only ? "yes" : "no"}; confidence ${code.confidence.toFixed(2)}`);
+      lines.push(`  Notes: ${code.notes}`);
+    }
+  }
+  if (taxonomy.materials.length > 0) {
+    lines.push("Materials:");
+    for (const material of taxonomy.materials) {
+      lines.push(`- ${material.name} [${material.material_id}]`);
+      lines.push(`  Role: ${material.role}; confidence ${material.confidence.toFixed(2)}`);
+      lines.push(`  Sources to check: ${material.source_suggestions.join(", ")}`);
+    }
+  }
 }
 
 function appendComponentParticipants(lines: string[], items: readonly ComponentParticipant[]): void {

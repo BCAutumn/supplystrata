@@ -2,8 +2,10 @@ import type { DatabaseStore } from "@supplystrata/db";
 import { listDueSourceChecks, type DueSourceCheckRow } from "@supplystrata/source-monitor";
 import {
   connectorKey,
+  listSourceCheckConnectorCapabilities,
   runSourceCheckConnector,
   unsupportedSourceCheckTargetMessage,
+  type SourceCheckConnectorCapability,
   type SourceCheckConnector,
   type SourceCheckTargetRow
 } from "@supplystrata/source-connectors";
@@ -11,6 +13,7 @@ import { censusTradeSourceCheckConnector } from "./census-trade-checks.js";
 import { officialIrSourceCheckConnectors } from "./official-ir-checks.js";
 import { oshSourceCheckConnector } from "./osh-checks.js";
 import { secEdgarSourceCheckConnector } from "./sec-edgar.js";
+import { worldBankPinkSourceCheckConnector } from "./worldbank-pink-checks.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
 export interface DueSourceCheckRunItem {
@@ -54,7 +57,8 @@ const SOURCE_CHECK_CONNECTORS: readonly SourceCheckConnector<DatabaseStore, Sour
   secEdgarSourceCheckConnector,
   ...officialIrSourceCheckConnectors,
   censusTradeSourceCheckConnector,
-  oshSourceCheckConnector
+  oshSourceCheckConnector,
+  worldBankPinkSourceCheckConnector
 ];
 
 async function runDueSourceCheckTarget(store: DatabaseStore, target: DueSourceCheckRow): Promise<DueSourceCheckRunItem> {
@@ -77,6 +81,10 @@ export async function runManualSourceCheck(store: DatabaseStore, input: ManualSo
 
 export function listSourceCheckConnectorIds(): string[] {
   return SOURCE_CHECK_CONNECTORS.map((connector) => connectorKey(connector)).sort();
+}
+
+export function listRegisteredSourceCheckConnectorCapabilities(): SourceCheckConnectorCapability[] {
+  return listSourceCheckConnectorCapabilities(SOURCE_CHECK_CONNECTORS);
 }
 
 function manualSourceCheckTarget(input: ManualSourceCheckInput): SourceCheckTargetRow {

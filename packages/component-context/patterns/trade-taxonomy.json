@@ -1,0 +1,296 @@
+[
+  {
+    "component_id": "COMP-MEMORY",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "854232",
+        "description": "Electronic integrated circuits: memories",
+        "confidence": 0.72,
+        "proxy_only": true,
+        "notes": "Broad memory IC trade proxy; cannot distinguish HBM, DRAM, GDDR, NAND, or buyer-specific allocation."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-SILICON",
+        "name": "Semiconductor-grade silicon",
+        "role": "wafer substrate input",
+        "confidence": 0.55,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "silicon wafer supplier annual reports"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-HBM",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "854232",
+        "description": "Electronic integrated circuits: memories",
+        "confidence": 0.62,
+        "proxy_only": true,
+        "notes": "HBM is not separately visible at HS6 level; use only as a memory trade proxy."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-SILICON",
+        "name": "Semiconductor-grade silicon",
+        "role": "memory die substrate input",
+        "confidence": 0.5,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "memory supplier filings"]
+      },
+      {
+        "material_id": "MAT-COPPER",
+        "name": "Copper",
+        "role": "interconnect and packaging input",
+        "confidence": 0.38,
+        "source_suggestions": ["World Bank Pink Sheet", "USGS Mineral Commodity Summaries"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-DRAM",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "854232",
+        "description": "Electronic integrated circuits: memories",
+        "confidence": 0.7,
+        "proxy_only": true,
+        "notes": "Broad memory IC trade proxy; DRAM-specific product splits require supplier disclosure."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-SILICON",
+        "name": "Semiconductor-grade silicon",
+        "role": "memory die substrate input",
+        "confidence": 0.5,
+        "source_suggestions": ["USGS Mineral Commodity Summaries"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-GPU",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "854231",
+        "description": "Electronic integrated circuits: processors and controllers",
+        "confidence": 0.55,
+        "proxy_only": true,
+        "notes": "Broad processor/controller IC proxy; not GPU-specific and not company-specific."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-SILICON",
+        "name": "Semiconductor-grade silicon",
+        "role": "logic die substrate input",
+        "confidence": 0.48,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "foundry supplier reports"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-SILICON-WAFER",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "381800",
+        "description": "Chemical elements doped for use in electronics, in discs, wafers, or similar forms",
+        "confidence": 0.74,
+        "proxy_only": true,
+        "notes": "Useful wafer trade proxy; still cannot identify foundry customer or qualified wafer vendor."
+      },
+      {
+        "system": "HS",
+        "code": "280461",
+        "description": "Silicon containing by weight not less than 99.99 percent of silicon",
+        "confidence": 0.48,
+        "proxy_only": true,
+        "notes": "Upstream high-purity silicon proxy; broader than semiconductor wafers."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-SILICON",
+        "name": "Semiconductor-grade silicon",
+        "role": "primary input",
+        "confidence": 0.8,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "silicon wafer supplier annual reports"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-EUV-LITHOGRAPHY",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "848620",
+        "description": "Machines and apparatus for the manufacture of semiconductor devices or electronic integrated circuits",
+        "confidence": 0.6,
+        "proxy_only": true,
+        "notes": "Broad semiconductor manufacturing equipment proxy; not EUV-specific."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-RARE-EARTHS",
+        "name": "Rare earths",
+        "role": "equipment supply chain background",
+        "confidence": 0.22,
+        "source_suggestions": ["USGS Mineral Commodity Summaries"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-PHOTORESIST",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "370790",
+        "description": "Chemical preparations for photographic uses",
+        "confidence": 0.35,
+        "proxy_only": true,
+        "notes": "Very broad chemistry proxy; photoresist-grade detail requires supplier or facility disclosure."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-PHOTORESIST-CHEMISTRY",
+        "name": "Photoresist chemistry",
+        "role": "direct material family",
+        "confidence": 0.55,
+        "source_suggestions": ["chemical supplier filings", "facility environmental permits"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-SPECIALTY-GASES",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "280429",
+        "description": "Rare gases other than argon",
+        "confidence": 0.4,
+        "proxy_only": true,
+        "notes": "Broad rare gas proxy; semiconductor-grade neon, krypton, xenon allocation is not visible."
+      },
+      {
+        "system": "HS",
+        "code": "280421",
+        "description": "Argon",
+        "confidence": 0.36,
+        "proxy_only": true,
+        "notes": "Argon proxy for industrial gas context; not fab-specific."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-NEON",
+        "name": "Neon",
+        "role": "lithography gas input",
+        "confidence": 0.45,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "industrial gas supplier reports"]
+      },
+      {
+        "material_id": "MAT-ARGON",
+        "name": "Argon",
+        "role": "fab process gas input",
+        "confidence": 0.36,
+        "source_suggestions": ["industrial gas supplier reports"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-PCB",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "853400",
+        "description": "Printed circuits",
+        "confidence": 0.7,
+        "proxy_only": true,
+        "notes": "PCB trade proxy; does not identify board supplier or final system buyer."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-COPPER",
+        "name": "Copper",
+        "role": "conductive trace input",
+        "confidence": 0.52,
+        "source_suggestions": ["World Bank Pink Sheet", "USGS Mineral Commodity Summaries"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-POWER-SUPPLY",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "850440",
+        "description": "Static converters",
+        "confidence": 0.58,
+        "proxy_only": true,
+        "notes": "Power supply / converter proxy; not specific to AI servers."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-COPPER",
+        "name": "Copper",
+        "role": "winding and conductor input",
+        "confidence": 0.42,
+        "source_suggestions": ["World Bank Pink Sheet", "USGS Mineral Commodity Summaries"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-COOLING",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "841950",
+        "description": "Heat exchange units",
+        "confidence": 0.45,
+        "proxy_only": true,
+        "notes": "Cooling equipment proxy; liquid cooling modules for AI servers are not separately visible."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-ALUMINUM",
+        "name": "Aluminum",
+        "role": "thermal hardware input",
+        "confidence": 0.34,
+        "source_suggestions": ["World Bank Pink Sheet", "USGS Mineral Commodity Summaries"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-OPTICAL-MODULE",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "851762",
+        "description": "Machines for reception, conversion, and transmission or regeneration of data",
+        "confidence": 0.42,
+        "proxy_only": true,
+        "notes": "Broad networking/optical module proxy; optical transceiver detail requires supplier disclosure."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-INDIUM",
+        "name": "Indium",
+        "role": "compound semiconductor and photonics background",
+        "confidence": 0.28,
+        "source_suggestions": ["USGS Mineral Commodity Summaries"]
+      }
+    ]
+  }
+]

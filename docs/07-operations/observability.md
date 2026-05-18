@@ -85,6 +85,8 @@ pnpm --silent cli sources run-due --limit 5 --format markdown
 
 `sources run-due` 是调度入口：它读取 `source_check_targets` 中已经到期的目标，并通过 `@supplystrata/source-connectors` 的 connector registry 分发到对应 runner。当前已注册 `sec-edgar / sec-company-filings`，`tsmc-ir`、`samsung-ir`、`skhynix-ir`、`asml-ir` 的 `official-html-disclosure`，`census-trade / trade-flow-observation`，以及 `osh / facility-search`。监控目标和 cadence 分离后，同一个 adapter 可以同时监控 NVIDIA、AMD、Apple、Tesla 等不同公司、不同组件或不同设施查询，而一次成功或失败只推进对应 target 的 `next_check_at`，不会误跳过同源下的其它目标。新增免费源时应新增 connector，不在 `run-due` 主循环里继续加 source-specific 分支。
 
+`sources catalog` 是配置前的统一管理视图：它把 source registry 与已注册 connector 能力、`target_config` 字段契约合并展示，不需要数据库。外部 `sources policy sync --file ...` 在写库前会用同一套校验拦截不存在的 source、不可运行的 target kind、字段错误的 target_config 和 manual-only 自动化配置。这样用户自由配置数据源时，错误会停在管理层，而不是进入调度表后才失败。
+
 `census-trade` 是第一条宏观贸易观测 connector：它需要 `CENSUS_API_KEY`，保存 `trade_dataset` 文档，并把 HS code 月度进口/出口值写成 `TRADE_FLOW_OBSERVATION`。它不会写 `edges`，也不会把国家-商品流量推断成公司-公司关系。
 
 `osh` 是第一条设施候选 connector：它需要 `OSH_API_TOKEN`，保存 `facility_dataset` 文档，并把 facility search 结果写成 `FACILITY_PROFILE_OBSERVATION`。OSH contributor 声明只证明设施候选、地理和行业背景；交叉验证和 review/apply 之前不会写 `BUYS_FROM` / `MANUFACTURES_AT`。

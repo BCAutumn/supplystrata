@@ -1,5 +1,5 @@
 {
-  "name": "@supplystrata/card-builder",
+  "name": "@supplystrata/sources-worldbank-pink",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -10,12 +10,11 @@
     }
   },
   "dependencies": {
-    "@supplystrata/chain-view": "workspace:*",
-    "@supplystrata/chain-view-builder": "workspace:*",
-    "@supplystrata/component-context": "workspace:*",
+    "@supplystrata/config": "workspace:*",
     "@supplystrata/core": "workspace:*",
-    "@supplystrata/db": "workspace:*",
-    "@supplystrata/render": "workspace:*"
+    "@supplystrata/source-adapter-runtime": "workspace:*",
+    "@supplystrata/source-normalizers": "workspace:*",
+    "xlsx": "~0.18.5"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -155,7 +155,7 @@ name        组件 ID、组件名或别名（如 "COMP-MEMORY" / "memory" / "HBM
 --format    markdown | json
 ```
 
-返回 ComponentCard：known_suppliers、known_consumers、evidence_edges、source_coverage、unknown_map。它只读取 `components` taxonomy 与图谱边，不绑定 Apple / NVIDIA。
+返回 ComponentCard：known_suppliers、known_consumers、evidence_edges、source_coverage、trade_taxonomy、related_observations、unknown_map。它只读取 `components` taxonomy、`component-context` 目录、observation 层和图谱边，不绑定 Apple / NVIDIA。
 
 ### supplystrata chain `<company>`
 
@@ -233,6 +233,51 @@ supplystrata changes --source sec-edgar --attention-only
 
 ### supplystrata sources check
 
+### supplystrata sources catalog
+
+```
+--format markdown | json
+```
+
+展示统一数据源管理面：每个 `source_adapter_id` 的 registry 状态、自动化边界、证据上限、是否需要 key、当前已注册的可执行 connector，以及每个 connector 的 `target_config` 字段契约。这个命令不连接数据库，也不抓源，适合开源用户或宿主 App 在配置前先查看“哪些源能直接跑、target_config 应该怎么写、哪些只是 registry 占位、哪些只能手工”。
+
+示例：
+
+```bash
+supplystrata sources catalog --format markdown
+supplystrata sources catalog --format json
+```
+
+`sources policy sync` 会在写入 Postgres 之前调用同一套 source-management 校验：未注册 source、未注册 target kind、`target_config` 字段类型/枚举错误、manual-only 源启用自动 target 都会直接失败；需要 API key 的源会返回 warning，但不阻止同步。
+
+### supplystrata sources plan
+
+```
+--component <ids>           组件 ID，支持逗号分隔
+--entity <ids>              可选，公司上下文；例如 ENT-APPLE 会允许 Apple Supplier List 进入计划
+--depth N                   上游链路深度，默认 3
+--trade-month YYYY-MM       可选；给 Census Trade 生成可运行 observation target 建议
+--trade-country <code>      可选；Census partner country code
+--trade-directions <dirs>   imports,exports，默认两者都生成
+--material-year YYYY        可选；给 USGS/IEA 风格年度材料观测生成计划目标
+--commodity-month YYYY-MM   可选；给 World Bank 风格月度商品价格观测生成计划目标
+--format markdown | json
+```
+
+这个命令读取 `@supplystrata/component-context` 的上游依赖目录、`Component-HS-Material taxonomy` 和 `Material taxonomy`。没有 period 参数时，它只回答“该查哪些源”；传入月份或年份后，会生成 `suggested_check_targets`。
+
+- `census-trade / trade-flow-observation` 当前是 runnable target。
+- `worldbank-pink / commodity-price-observation` 当前是 runnable target，可按月写入商品价格 observation。
+- `usgs-mcs / mineral-supply-observation` 当前是 planned target，先用于配置规划和前端展示，等 adapter 接入后再变成 runnable。
+- 所有这些目标只会落 observation 层，不会生成图谱事实边。
+
+示例：
+
+```bash
+supplystrata sources plan --component COMP-MEMORY --depth 3 --trade-month 2025-12 --trade-country 5800
+supplystrata sources plan --component COMP-HBM --material-year 2025 --commodity-month 2025-12 --format json
+```
+
 ```
 --source <adapter-id>       source registry / connector id，例如 sec-edgar、tsmc-ir、census-trade、osh
 --target-kind <kind>        可选；同一个 source 有多个 target kind 时必须指定
@@ -257,6 +302,7 @@ supplystrata changes --source sec-edgar --attention-only
 supplystrata sources check --source sec-edgar --cik 0001045810 --entity ENT-NVIDIA --forms 10-Q,8-K --limit 3
 supplystrata sources check --source tsmc-ir --config '{"entity_id":"ENT-TSMC","year":2025}'
 supplystrata sources check --source osh --target-kind facility-search --config '{"query":"Foxconn","scope_id":"ENT-FOXCONN","limit":10}'
+supplystrata sources check --source worldbank-pink --config '{"commodity":"copper","period":"2025-12","material_id":"MAT-COPPER","component_id":"COMP-HBM","scope_kind":"component","scope_id":"COMP-HBM"}'
 ```
 
 ### supplystrata sources run-due
