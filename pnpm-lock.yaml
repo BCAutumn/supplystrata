@@ -168,6 +168,9 @@ importers:
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../db
+      '@supplystrata/source-plan':
+        specifier: workspace:*
+        version: link:../source-plan
       pg:
         specifier: ~8.13.1
         version: 8.13.3

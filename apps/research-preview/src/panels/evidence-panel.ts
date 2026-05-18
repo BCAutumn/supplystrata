@@ -15,6 +15,7 @@ export function renderEvidencePanel(container: HTMLElement, model: WorkbenchMode
     evidences.length === 0
       ? `<p class="muted">No evidence attached to this context segment.</p>`
       : evidences.map((evidence, index) => renderEvidenceItem(evidence, index === 0)).join("");
+  const sourceHintsHtml = renderSourceHints(segment);
   container.innerHTML = `<h2>${escapeHtml(segment.semantic_layer)} segment</h2>
     <dl>
       <dt>Relation</dt><dd>${escapeHtml(segment.relation)}</dd>
@@ -23,6 +24,7 @@ export function renderEvidencePanel(container: HTMLElement, model: WorkbenchMode
       <dt>Confidence</dt><dd>${segment.confidence.toFixed(3)}</dd>
       <dt>Label</dt><dd>${escapeHtml(segment.label)}</dd>
     </dl>
+    ${sourceHintsHtml}
     ${evidenceHtml}`;
 }
 
@@ -50,6 +52,20 @@ function renderEvidenceItem(evidence: WorkbenchModel["evidences"][number], prima
     <dt>Locator</dt><dd>${escapeHtml(evidence.cite_locator ?? "(not recorded)")}</dd>
     <dt>Cite</dt><dd>${escapeHtml(evidence.cite_text)}</dd>
   </dl>`;
+}
+
+function renderSourceHints(segment: ChainViewSegmentModel): string {
+  if (segment.source_hints === undefined || segment.source_hints.length === 0) return "";
+  const items = segment.source_hints
+    .slice(0, 5)
+    .map(
+      (hint) =>
+        `<li><strong>${escapeHtml(hint.source_id)}</strong> · ${escapeHtml(hint.expected_output_layer)} · ${escapeHtml(
+          hint.relation_policy
+        )} · key ${hint.requires_key ? "yes" : "no"}</li>`
+    )
+    .join("");
+  return `<h3>Next source hints</h3><ul>${items}</ul>`;
 }
 
 function escapeHtml(value: string): string {

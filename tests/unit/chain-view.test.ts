@@ -166,5 +166,7 @@ describe("chain-view", () => {
     expect(segment.from).toMatchObject({ kind: "company", id: "ENT-TSMC" });
     expect(segment.to).toMatchObject({ kind: "component", id: "COMP-EUV-LITHOGRAPHY" });
     expect(segment.label).toContain("Trace advanced wafer production");
+    expect(segment.source_hints?.some((hint) => hint.source_id === "asml-ir" && hint.expected_output_layer === "edge")).toBe(true);
+    expect(segment.source_hints?.every((hint) => hint.relation_policy !== "lead_only")).toBe(true);
   });
 });

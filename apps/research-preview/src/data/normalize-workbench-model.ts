@@ -91,6 +91,20 @@ function validateSegment(value: unknown, path: string, errors: string[]): void {
     expectString(value, "edge_id", path, errors);
     expectEvidenceLevel(value, "evidence_level", path, errors);
   }
+  if (value["source_hints"] !== undefined) {
+    validateArrayField(value, "source_hints", path, errors, validateSourceHint);
+  }
+}
+
+function validateSourceHint(value: unknown, path: string, errors: string[]): void {
+  if (!isRecordAt(value, path, errors)) return;
+  expectString(value, "source_id", path, errors);
+  expectString(value, "source_name", path, errors);
+  expectEnum(value, "expected_output_layer", SOURCE_PLAN_LAYERS, path, errors);
+  expectEnum(value, "relation_policy", SOURCE_RELATION_POLICIES, path, errors);
+  expectBoolean(value, "requires_key", path, errors);
+  expectString(value, "status", path, errors);
+  expectStringArray(value, "reasons", path, errors);
 }
 
 function validateStats(value: unknown, path: string, errors: string[]): void {

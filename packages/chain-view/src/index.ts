@@ -2,6 +2,16 @@ import type { ChainEndpointKind, EvidenceLevel, RelationType, SemanticLayer } fr
 
 export type ChainViewRelation = RelationType | "CLAIMS" | "OBSERVES" | "LEADS_TO" | "UNKNOWN_BOUNDARY";
 
+export interface ChainViewSourceHint {
+  source_id: string;
+  source_name: string;
+  expected_output_layer: "edge" | "observation" | "lead" | "entity";
+  relation_policy: "can_create_fact_edge" | "observation_only" | "lead_only" | "entity_only";
+  requires_key: boolean;
+  status: string;
+  reasons: string[];
+}
+
 export interface ChainViewRoot {
   kind: ChainEndpointKind;
   id: string;
@@ -32,6 +42,7 @@ export interface ChainViewSegmentModel {
   evidence_level?: EvidenceLevel;
   confidence: number;
   label: string;
+  source_hints?: ChainViewSourceHint[];
 }
 
 export interface ChainViewModel {

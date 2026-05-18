@@ -1,7 +1,14 @@
 import type pg from "pg";
 import { listComponentUpstreamLeads, type ComponentUpstreamLead } from "@supplystrata/component-context";
 import type { EvidenceLevel, RelationType } from "@supplystrata/core";
-import { summarizeChainSegments, type ChainViewEndpoint, type ChainViewModel, type ChainViewRoot, type ChainViewSegmentModel } from "@supplystrata/chain-view";
+import {
+  summarizeChainSegments,
+  type ChainViewEndpoint,
+  type ChainViewModel,
+  type ChainViewRoot,
+  type ChainViewSegmentModel,
+  type ChainViewSourceHint
+} from "@supplystrata/chain-view";
 import {
   listLeadObservationsByScope,
   listObservationsByScope,
@@ -12,6 +19,7 @@ import {
   type ObservationRow,
   type UnknownItemRow
 } from "@supplystrata/db";
+import { planSourcesForComponentLead, type SourcePlanItem } from "@supplystrata/source-plan";
 
 export interface BuildCompanyChainViewInput {
   query: string;
@@ -117,7 +125,9 @@ export function segmentFromComponentUpstreamLead(lead: ComponentUpstreamLead, in
     lead_id: lead.dependency_id,
     evidence_ids: [],
     confidence: lead.confidence,
-    label: componentLeadLabel(lead, input.row)
+    label: componentLeadLabel(lead, input.row),
+    // 二/三级 lead 必须带上“下一步查什么源”，但这些 hint 仍然只是研究计划，不会升级成事实边。
+    source_hints: sourceHintsForComponentLead(lead, input.row)
   };
 }
 
@@ -347,4 +357,24 @@ function leadConfidence(row: LeadObservationRow): number {
 function componentLeadLabel(lead: ComponentUpstreamLead, row: ChainFactRow): string {
   const unknowns = lead.unknowns.length === 0 ? "" : ` Unknowns: ${lead.unknowns.join("; ")}.`;
   return `${lead.title}. Trigger: ${row.upstream_name} is linked by ${row.relation} (${row.component ?? row.component_id ?? "component"}). ${lead.summary}${unknowns}`;
+}
+
+function sourceHintsForComponentLead(lead: ComponentUpstreamLead, row: ChainFactRow): ChainViewSourceHint[] {
+  return planSourcesForComponentLead(lead, uniqueEntityIdsForLead(row)).map(sourceHintFromPlanItem).slice(0, 6);
+}
+
+function uniqueEntityIdsForLead(row: ChainFactRow): string[] {
+  return [...new Set([row.subject_id, row.object_id, row.upstream_id])].sort();
+}
+
+function sourceHintFromPlanItem(item: SourcePlanItem): ChainViewSourceHint {
+  return {
+    source_id: item.source_id,
+    source_name: item.source_name,
+    expected_output_layer: item.expected_output_layer,
+    relation_policy: item.relation_policy,
+    requires_key: item.requires_key,
+    status: item.status,
+    reasons: item.reasons.slice(0, 3)
+  };
 }

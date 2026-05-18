@@ -43,6 +43,12 @@ function appendSegment(lines: string[], segment: ChainViewSegmentModel): void {
   if (segment.observation_id !== undefined) lines.push(`${indent}  Observation: ${segment.observation_id}`);
   if (segment.lead_id !== undefined) lines.push(`${indent}  Lead: ${segment.lead_id}`);
   if (segment.unknown_id !== undefined) lines.push(`${indent}  Unknown: ${segment.unknown_id}`);
+  if (segment.source_hints !== undefined && segment.source_hints.length > 0) {
+    lines.push(`${indent}  Source hints:`);
+    for (const hint of segment.source_hints.slice(0, 4)) {
+      lines.push(`${indent}  - ${hint.source_id} (${hint.expected_output_layer}, ${hint.relation_policy}, key ${hint.requires_key ? "yes" : "no"})`);
+    }
+  }
 }
 
 function formatSegmentConfidence(segment: ChainViewSegmentModel): string {

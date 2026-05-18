@@ -416,6 +416,7 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 - 从 `observations` 生成 observation lane。
 - 从 `lead_observations` 生成折叠线索。
 - 从 `unknown_items` 生成 unknown boundary。
+- 从组件二/三级上游 lead 生成 `source_hints`，把“下一步查哪些免费源”挂在具体链路段上，而不是只在页面底部给全局 source plan。
 
 验收：
 
@@ -423,6 +424,7 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 - [x] 每段都有 `semantic_layer`。
 - [x] 默认只展示 Level 4/5 fact edges，observations/leads 不污染事实边。
 - [x] observation / lead / unknown segments 接入。
+- [x] 二/三级 lead segment 包含 source hints，标明候选源输出层级和 relation policy。
 
 ### PR F：语义级 changes
 
@@ -572,6 +574,7 @@ v0.2 仍然优先完成：
 [x] packages/chain-view 可以输出分层 ChainViewModel
 [x] CLI JSON 输出包含 semantic_layer
 [x] ChainViewModel 包含 observation / lead / unknown context segments
+[x] 二/三级 lead segment 带 source hints，能说明下一步应查哪些免费/公开源
 [x] research-preview 能消费 ChainViewModel
 [x] observations/leads 不会进入 Neo4j fact edge
 [x] claim / observation / lead 写入路径产生语义级 changes
