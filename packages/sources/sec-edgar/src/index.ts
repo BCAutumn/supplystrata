@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
 import { loadEnv } from "@supplystrata/config";
-import { createId, isSecFormType, secFormTypeOrDefault, type FetchTask, type SecFormType } from "@supplystrata/core";
+import { isSecFormType, secFormTypeOrDefault, type FetchTask, type SecFormType } from "@supplystrata/core";
 import {
   createFsSnapshotStore,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
-  requireSnapshotStore,
+  persistRawDocumentSnapshot,
   type AdapterContext,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
@@ -67,26 +66,21 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
   },
   async fetch(task, ctx) {
     const bytes = await fetchBytesWithTimeout(task.url, { userAgent: ctx.userAgent, timeoutMs: 20_000, sourceLabel: "SEC filing" });
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
     const entityPart = task.hint?.entity_id ?? "unknown";
     const period = task.hint?.period ?? new Date().toISOString().slice(0, 10);
-    const storageKey = `sec-edgar/${entityPart}/${period.slice(0, 4)}/${period.slice(5, 7)}/${sha256}.html`;
-    await requireSnapshotStore(ctx, "sec-edgar").put(storageKey, bytes);
-    return {
-      doc_id: createId("DOC"),
-      source_adapter_id: "sec-edgar",
+    return persistRawDocumentSnapshot({
+      ctx,
+      sourceAdapterId: "sec-edgar",
       url: task.url,
-      fetched_at: ctx.now().toISOString(),
-      bytes_sha256: sha256,
-      storage_key: storageKey,
       body: bytes,
       metadata: {
         task_id: task.task_id,
         document_type: task.hint?.document_type ?? "10-K",
         primary_entity_id: task.hint?.entity_id,
         source_date: task.hint?.period
-      }
-    };
+      },
+      storageKeyForSha256: (sha256) => `sec-edgar/${entityPart}/${period.slice(0, 4)}/${period.slice(5, 7)}/${sha256}.html`
+    });
   },
   async normalize(raw) {
     const documentType = secDocumentTypeFromMetadata(raw.metadata["document_type"]);

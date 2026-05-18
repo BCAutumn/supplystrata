@@ -1,11 +1,11 @@
-import { createHash } from "node:crypto";
 import { loadEnv } from "@supplystrata/config";
-import { createId, type NormalizedDocument } from "@supplystrata/core";
+import { type NormalizedDocument } from "@supplystrata/core";
 import { parsePdf } from "@supplystrata/parsers-pdf";
 import {
   createFsSnapshotStore,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
+  persistRawDocumentSnapshot,
   requireSnapshotStore,
   type AdapterContext,
   type SourceAdapter,
@@ -45,16 +45,10 @@ const appleSuppliersAdapterBase: SourceAdapter<AppleSuppliersInput, Uint8Array> 
     const fiscalYear = task.hint?.period?.slice(0, 4) ?? "unknown";
     const snapshotStore = requireSnapshotStore(ctx, "apple-suppliers");
     const bytes = await fetchOrLoadCached(task.url, fiscalYear, snapshotStore);
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const storageKey = `apple-suppliers/${fiscalYear}/${sha256}.pdf`;
-    await snapshotStore.put(storageKey, bytes);
-    return {
-      doc_id: createId("DOC"),
-      source_adapter_id: "apple-suppliers",
+    return persistRawDocumentSnapshot({
+      ctx,
+      sourceAdapterId: "apple-suppliers",
       url: task.url,
-      fetched_at: ctx.now().toISOString(),
-      bytes_sha256: sha256,
-      storage_key: storageKey,
       body: bytes,
       metadata: {
         task_id: task.task_id,
@@ -62,8 +56,9 @@ const appleSuppliersAdapterBase: SourceAdapter<AppleSuppliersInput, Uint8Array> 
         primary_entity_id: task.hint?.entity_id,
         source_date: task.hint?.period,
         extraction_mode: "semi_auto"
-      }
-    };
+      },
+      storageKeyForSha256: (sha256) => `apple-suppliers/${fiscalYear}/${sha256}.pdf`
+    });
   },
   async normalize(raw) {
     const primaryEntityId = stringMetadata(raw.metadata, "primary_entity_id");

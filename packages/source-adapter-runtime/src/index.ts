@@ -27,6 +27,15 @@ export interface HtmlSnapshotAdapterDefinition<TFetchInput> {
   normalize(raw: RawDocument<Uint8Array>, ctx: AdapterContext): Promise<NormalizedDocument>;
 }
 
+export interface PersistRawDocumentSnapshotInput {
+  readonly ctx: AdapterContext;
+  readonly sourceAdapterId: string;
+  readonly url: string;
+  readonly body: Uint8Array;
+  readonly metadata: Record<string, unknown>;
+  storageKeyForSha256(sha256: string): string;
+}
+
 interface RateLimitState {
   nextAvailableAtMs: number;
   tail: Promise<void>;
@@ -166,6 +175,22 @@ export function createFsSnapshotStore(baseDir: string): SourceSnapshotStore {
 export function requireSnapshotStore(ctx: AdapterContext, sourceAdapterId: string): SourceSnapshotStore {
   if (ctx.snapshotStore !== undefined) return ctx.snapshotStore;
   throw new Error(`${sourceAdapterId} requires AdapterContext.snapshotStore for raw document persistence`);
+}
+
+export async function persistRawDocumentSnapshot(input: PersistRawDocumentSnapshotInput): Promise<RawDocument<Uint8Array>> {
+  const sha256 = createHash("sha256").update(input.body).digest("hex");
+  const storageKey = input.storageKeyForSha256(sha256);
+  await requireSnapshotStore(input.ctx, input.sourceAdapterId).put(storageKey, input.body);
+  return {
+    doc_id: createId("DOC"),
+    source_adapter_id: input.sourceAdapterId,
+    url: input.url,
+    fetched_at: input.ctx.now().toISOString(),
+    bytes_sha256: sha256,
+    storage_key: storageKey,
+    body: input.body,
+    metadata: input.metadata
+  };
 }
 
 // 统一处理公开网页/API 抓取的超时与状态码错误，避免各 adapter 自己散落网络细节。

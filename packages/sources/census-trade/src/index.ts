@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
-import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
+import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
   createFsSnapshotStore,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
-  requireSnapshotStore,
+  persistRawDocumentSnapshot,
   type AdapterContext,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
@@ -58,17 +58,11 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
       sourceLabel: "U.S. Census International Trade",
       headers: { Accept: "application/json" }
     });
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
     const metadata = taskMetadataFromUrl(task.url);
-    const storageKey = `trade/census/${metadata.direction}/hs/${metadata.time}/${sha256}.json`;
-    await requireSnapshotStore(ctx, "census-trade").put(storageKey, bytes);
-    return {
-      doc_id: createId("DOC"),
-      source_adapter_id: "census-trade",
+    return persistRawDocumentSnapshot({
+      ctx,
+      sourceAdapterId: "census-trade",
       url: task.url,
-      fetched_at: ctx.now().toISOString(),
-      bytes_sha256: sha256,
-      storage_key: storageKey,
       body: bytes,
       metadata: {
         task_id: task.task_id,
@@ -78,8 +72,9 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
         time: metadata.time,
         commodity_code: metadata.commodityCode,
         ...(metadata.countryCode === undefined ? {} : { country_code: metadata.countryCode })
-      }
-    };
+      },
+      storageKeyForSha256: (sha256) => `trade/census/${metadata.direction}/hs/${metadata.time}/${sha256}.json`
+    });
   },
   async normalize(raw) {
     return normalizeCensusTradeDocument(raw);

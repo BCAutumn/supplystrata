@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
-import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
+import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import {
   createFsSnapshotStore,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
-  requireSnapshotStore,
+  persistRawDocumentSnapshot,
   type AdapterContext,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
@@ -53,19 +53,14 @@ const companiesHouseAdapterBase: SourceAdapter<CompaniesHouseSearchInput, Uint8A
         Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}`
       }
     });
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const storageKey = `entity-resolution/companies-house/${sha256}.json`;
-    await requireSnapshotStore(ctx, "companies-house").put(storageKey, bytes);
-    return {
-      doc_id: createId("DOC"),
-      source_adapter_id: "companies-house",
+    return persistRawDocumentSnapshot({
+      ctx,
+      sourceAdapterId: "companies-house",
       url: task.url,
-      fetched_at: ctx.now().toISOString(),
-      bytes_sha256: sha256,
-      storage_key: storageKey,
       body: bytes,
-      metadata: { task_id: task.task_id, document_type: "company_registry" }
-    };
+      metadata: { task_id: task.task_id, document_type: "company_registry" },
+      storageKeyForSha256: (sha256) => `entity-resolution/companies-house/${sha256}.json`
+    });
   },
   async normalize(raw) {
     return normalizeCompaniesHouseDocument(raw);

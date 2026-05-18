@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
-import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
+import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
   createFsSnapshotStore,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
-  requireSnapshotStore,
+  persistRawDocumentSnapshot,
   type AdapterContext,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
@@ -58,19 +58,14 @@ const oshAdapterBase: SourceAdapter<OshFacilitySearchInput, Uint8Array> = {
         Authorization: `Token ${token}`
       }
     });
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const storageKey = `facility/osh/${sha256}.json`;
-    await requireSnapshotStore(ctx, "osh").put(storageKey, bytes);
-    return {
-      doc_id: createId("DOC"),
-      source_adapter_id: "osh",
+    return persistRawDocumentSnapshot({
+      ctx,
+      sourceAdapterId: "osh",
       url: task.url,
-      fetched_at: ctx.now().toISOString(),
-      bytes_sha256: sha256,
-      storage_key: storageKey,
       body: bytes,
-      metadata: { task_id: task.task_id, document_type: "facility_dataset" }
-    };
+      metadata: { task_id: task.task_id, document_type: "facility_dataset" },
+      storageKeyForSha256: (sha256) => `facility/osh/${sha256}.json`
+    });
   },
   async normalize(raw) {
     return normalizeOshFacilitiesDocument(raw);

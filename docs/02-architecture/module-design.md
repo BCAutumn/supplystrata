@@ -189,6 +189,7 @@ export interface DocumentChunk {
 - adapter **必须**声明 `rate_limit`，并通过 `@supplystrata/source-adapter-runtime` 的 `createRateLimitedSourceAdapter()` 导出统一限速后的实例；pipeline / source monitor 不再各自实现限速。
 - adapter 原始响应落盘必须通过 `AdapterContext.snapshotStore` 或 adapter definition 显式注入；source adapter 不直接依赖具体对象存储实现。默认本地开发使用 `createFsSnapshotStore(env.OBJECT_STORE_FS_BASE)`，宿主 App 可以替换为自己的存储。
 - HTML snapshot 类数据源优先使用 `@supplystrata/source-adapter-runtime` 的 `defineHtmlSnapshotAdapter()`，避免每个 IR/官网源重复实现 fetch、缓存回退、sha256、落盘和 `RawDocument` 组装。单个 adapter 只声明 URL 计划、source metadata、storage prefix 和 normalize 策略。
+- 非 HTML 源使用 `@supplystrata/source-adapter-runtime` 的 `persistRawDocumentSnapshot()` 统一完成 sha256、落盘和 `RawDocument` 组装；adapter 自己只保留鉴权、URL、storage key 规则和 metadata。这样后续接 DART / EDINET / AIS / procurement 时不会复制同一段原始文档持久化逻辑。
 
 ### 2. EntityResolver
 
