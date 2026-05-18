@@ -1,5 +1,5 @@
 import { loadEnv } from "@supplystrata/config";
-import { defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-runtime";
+import { createFsSnapshotStore, defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export interface SamsungIrInput {
@@ -34,5 +34,6 @@ export function officialDisclosureUrl(year: number): string {
 }
 
 export function createSamsungIrAdapterContext(): AdapterContext {
-  return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
+  const env = loadEnv();
+  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
 }

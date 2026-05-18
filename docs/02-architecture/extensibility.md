@@ -40,7 +40,8 @@ export const unComtradeAdapter: SourceAdapter<...> = {
 HTML snapshot 类来源（公司 IR、年报网页、新闻稿网页）优先用 `defineHtmlSnapshotAdapter()`：
 
 ```ts
-import { defineHtmlSnapshotAdapter } from "@supplystrata/source-adapter-runtime";
+import { loadEnv } from "@supplystrata/config";
+import { createFsSnapshotStore, defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-runtime";
 
 export const companyIrAdapter = defineHtmlSnapshotAdapter<CompanyIrInput>({
   id: "company-ir",
@@ -62,9 +63,18 @@ export const companyIrAdapter = defineHtmlSnapshotAdapter<CompanyIrInput>({
     return normalizeHtmlDocument({ raw, documentType: "annual_report" });
   }
 });
+
+export function createCompanyIrAdapterContext(): AdapterContext {
+  const env = loadEnv();
+  return {
+    userAgent: env.SEC_USER_AGENT,
+    now: () => new Date(),
+    snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE)
+  };
+}
 ```
 
-这个工厂统一处理限速、超时抓取、缓存回退、sha256、对象存储落盘和 `RawDocument` 元数据，避免新 adapter 复制旧 adapter 的实现细节。
+这个工厂统一处理限速、超时抓取、缓存回退、sha256、对象存储落盘和 `RawDocument` 元数据，避免新 adapter 复制旧 adapter 的实现细节。宿主应用可以传入自己的 `snapshotStore`，不需要使用本地文件系统。
 
 ### 1.3 在 source registry 注册
 

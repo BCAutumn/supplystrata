@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
-import { createRateLimitedSourceAdapter, SourceRateLimiter, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  createRateLimitedSourceAdapter,
+  defineHtmlSnapshotAdapter,
+  SourceRateLimiter,
+  type AdapterContext,
+  type SourceAdapter,
+  type SourceSnapshotStore
+} from "@supplystrata/source-adapter-runtime";
 
 describe("source adapter rate limiter", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("serializes concurrent fetches using adapter rate_limit", async () => {
     let nowMs = 0;
     const waits: number[] = [];
@@ -53,6 +64,97 @@ describe("source adapter rate limiter", () => {
 
     expect(waits).toEqual([2000]);
     expect(calls).toEqual(["plan:a", "fetch:task-1"]);
+  });
+
+  it("requires explicit snapshot storage for HTML snapshot adapters", async () => {
+    const adapter = defineHtmlSnapshotAdapter<{ id: string }>({
+      id: "html-source",
+      tier: "P0",
+      description: "HTML source",
+      tos_url: "https://example.com/tos",
+      rate_limit: { requests: 1, per_seconds: 1 },
+      sourceLabel: "HTML source",
+      storagePrefix: "html-source",
+      async *plan() {
+        yield { task_id: "task-1", url: "https://example.com/a.html", expected_format: "html", hint: { period: "2026-01-01" } };
+      },
+      async normalize(raw) {
+        return {
+          doc_id: raw.doc_id,
+          source_adapter_id: raw.source_adapter_id,
+          document_type: "annual_report",
+          language: "en",
+          fetched_at: raw.fetched_at,
+          source_url: raw.url,
+          storage_key: raw.storage_key,
+          bytes_sha256: raw.bytes_sha256,
+          text: "html",
+          chunks: [],
+          metadata: {}
+        };
+      }
+    });
+
+    await expect(adapter.fetch({ task_id: "task-1", url: "https://example.com/a.html", expected_format: "html" }, adapterContext())).rejects.toThrow(
+      "requires AdapterContext.snapshotStore"
+    );
+  });
+
+  it("writes HTML snapshots through the injected snapshot store", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response("<html><body>ok</body></html>", {
+          status: 200,
+          headers: { "Content-Type": "text/html" }
+        })
+    );
+    const writes: { key: string; body: Uint8Array }[] = [];
+    const snapshotStore: SourceSnapshotStore = {
+      async put(key, body) {
+        writes.push({ key, body });
+      },
+      async readLatest() {
+        return undefined;
+      }
+    };
+    const adapter = defineHtmlSnapshotAdapter<{ id: string }>({
+      id: "html-source",
+      tier: "P0",
+      description: "HTML source",
+      tos_url: "https://example.com/tos",
+      rate_limit: { requests: 10, per_seconds: 1 },
+      sourceLabel: "HTML source",
+      storagePrefix: "html-source",
+      async *plan() {
+        yield { task_id: "task-1", url: "https://example.com/a.html", expected_format: "html", hint: { period: "2026-01-01" } };
+      },
+      async normalize(raw) {
+        return {
+          doc_id: raw.doc_id,
+          source_adapter_id: raw.source_adapter_id,
+          document_type: "annual_report",
+          language: "en",
+          fetched_at: raw.fetched_at,
+          source_url: raw.url,
+          storage_key: raw.storage_key,
+          bytes_sha256: raw.bytes_sha256,
+          text: "html",
+          chunks: [],
+          metadata: {}
+        };
+      }
+    });
+
+    const raw = await adapter.fetch(
+      { task_id: "task-1", url: "https://example.com/a.html", expected_format: "html", hint: { period: "2026-01-01" } },
+      { ...adapterContext(), snapshotStore }
+    );
+
+    expect(raw.storage_key).toMatch(/^html-source\/2026\/[a-f0-9]{64}\.html$/);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.key).toBe(raw.storage_key);
+    expect(new TextDecoder().decode(writes[0]?.body)).toContain("<body>ok</body>");
   });
 });
 

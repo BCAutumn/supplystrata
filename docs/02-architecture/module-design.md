@@ -187,7 +187,7 @@ export interface DocumentChunk {
 - adapter **不直接**解析关系或写实体主表；实体消歧由 entity-resolver / review apply 阶段处理
 - adapter 的 `normalize()` 必须返回完整 `NormalizedDocument`。HTML / PDF / text 用 parser 包清洗切块；结构化 JSON 源也要生成可审计文本摘要和 chunks。
 - adapter **必须**声明 `rate_limit`，并通过 `@supplystrata/source-adapter-runtime` 的 `createRateLimitedSourceAdapter()` 导出统一限速后的实例；pipeline / source monitor 不再各自实现限速。
-- HTML snapshot 类数据源优先使用 `@supplystrata/source-adapter-runtime` 的 `defineHtmlSnapshotAdapter()`，避免每个 IR/官网源重复实现 fetch、缓存回退、对象存储落盘和 `RawDocument` 组装。单个 adapter 只声明 URL 计划、source metadata、storage prefix 和 normalize 策略。
+- HTML snapshot 类数据源优先使用 `@supplystrata/source-adapter-runtime` 的 `defineHtmlSnapshotAdapter()`，避免每个 IR/官网源重复实现 fetch、缓存回退、对象存储落盘和 `RawDocument` 组装。单个 adapter 只声明 URL 计划、source metadata、storage prefix 和 normalize 策略；对象存储通过 `AdapterContext.snapshotStore` 或 adapter definition 显式注入，runtime 不读取 `.env`，也不直接创建具体存储后端。
 
 ### 2. EntityResolver
 

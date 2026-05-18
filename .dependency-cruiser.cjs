@@ -44,6 +44,12 @@ module.exports = {
       to: { path: "^packages/(config|object-store|source-adapter-runtime)/|^node_modules/(pino|pg)" }
     },
     {
+      name: "source-adapter-runtime-must-not-own-env-or-store",
+      severity: "error",
+      from: { path: "^packages/source-adapter-runtime/src" },
+      to: { path: "^packages/(config|object-store)/" }
+    },
+    {
       name: "pipeline-must-not-depend-on-concrete-source-adapters",
       severity: "error",
       from: { path: "^packages/pipeline/src" },

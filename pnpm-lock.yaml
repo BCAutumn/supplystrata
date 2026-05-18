@@ -484,15 +484,9 @@ importers:
 
   packages/source-adapter-runtime:
     dependencies:
-      '@supplystrata/config':
-        specifier: workspace:*
-        version: link:../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../object-store
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../source-adapter-spec

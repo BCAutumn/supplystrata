@@ -5,9 +5,21 @@ export interface SourceRateLimit {
   per_seconds: number;
 }
 
+export interface SourceSnapshotLookupInput {
+  storagePrefix: string;
+  partition: string;
+  extension: string;
+}
+
+export interface SourceSnapshotStore {
+  put(key: string, body: Uint8Array): Promise<void>;
+  readLatest(input: SourceSnapshotLookupInput): Promise<Uint8Array | undefined>;
+}
+
 export interface AdapterContext {
   userAgent: string;
   now(): Date;
+  snapshotStore?: SourceSnapshotStore;
 }
 
 export interface SourceAdapter<TFetchInput, TRawDoc> {

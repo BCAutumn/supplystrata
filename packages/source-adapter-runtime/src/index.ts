@@ -1,12 +1,10 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { loadEnv } from "@supplystrata/config";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join, normalize, resolve } from "node:path";
 import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
-import { FsObjectStore } from "@supplystrata/object-store";
-import { validateRateLimit, type AdapterContext, type SourceAdapter, type SourceRateLimit } from "@supplystrata/source-adapter-spec";
+import { validateRateLimit, type AdapterContext, type SourceAdapter, type SourceRateLimit, type SourceSnapshotStore } from "@supplystrata/source-adapter-spec";
 
-export type { AdapterContext, SourceAdapter, SourceRateLimit } from "@supplystrata/source-adapter-spec";
+export type { AdapterContext, SourceAdapter, SourceRateLimit, SourceSnapshotLookupInput, SourceSnapshotStore } from "@supplystrata/source-adapter-spec";
 
 export interface FetchBytesOptions {
   userAgent: string;
@@ -24,6 +22,7 @@ export interface HtmlSnapshotAdapterDefinition<TFetchInput> {
   readonly sourceLabel: string;
   readonly storagePrefix: string;
   readonly timeoutMs?: number;
+  readonly snapshotStore?: SourceSnapshotStore;
   plan(input: TFetchInput, ctx: AdapterContext): AsyncIterable<FetchTask> | Iterable<FetchTask>;
   normalize(raw: RawDocument<Uint8Array>, ctx: AdapterContext): Promise<NormalizedDocument>;
 }
@@ -104,17 +103,19 @@ export function defineHtmlSnapshotAdapter<TFetchInput>(definition: HtmlSnapshotA
     async fetch(task, ctx) {
       const period = task.hint?.period ?? "unknown";
       const year = period.slice(0, 4) || "unknown";
+      const snapshotStore = snapshotStoreFor(definition, ctx);
       const snapshot = await fetchOrLoadCachedSnapshot({
         url: task.url,
         userAgent: ctx.userAgent,
         year,
         storagePrefix: definition.storagePrefix,
         sourceLabel: definition.sourceLabel,
-        timeoutMs: definition.timeoutMs ?? 12_000
+        timeoutMs: definition.timeoutMs ?? 12_000,
+        snapshotStore
       });
       const sha256 = createHash("sha256").update(snapshot.bytes).digest("hex");
       const storageKey = `${definition.storagePrefix}/${year}/${sha256}.html`;
-      await new FsObjectStore().put(storageKey, snapshot.bytes);
+      await snapshotStore.put(storageKey, snapshot.bytes);
       return {
         doc_id: createId("DOC"),
         source_adapter_id: definition.id,
@@ -138,6 +139,28 @@ export function defineHtmlSnapshotAdapter<TFetchInput>(definition: HtmlSnapshotA
     }
   };
   return createRateLimitedSourceAdapter(adapter);
+}
+
+export function createFsSnapshotStore(baseDir: string): SourceSnapshotStore {
+  const root = resolve(baseDir);
+  return {
+    async put(key, body) {
+      const path = safeSnapshotPath(root, key);
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, body);
+    },
+    async readLatest(input) {
+      const dir = safeSnapshotPath(root, join(input.storagePrefix, input.partition));
+      try {
+        const files = (await readdir(dir)).filter((file) => file.endsWith(`.${input.extension}`)).sort();
+        const latest = files.at(-1);
+        return latest === undefined ? undefined : new Uint8Array(await readFile(join(dir, latest)));
+      } catch (error) {
+        if (isNodeError(error) && error.code === "ENOENT") return undefined;
+        throw error;
+      }
+    }
+  };
 }
 
 // 统一处理公开网页/API 抓取的超时与状态码错误，避免各 adapter 自己散落网络细节。
@@ -170,6 +193,7 @@ interface CachedSnapshotInput {
   storagePrefix: string;
   sourceLabel: string;
   timeoutMs: number;
+  snapshotStore: SourceSnapshotStore;
 }
 
 interface CachedSnapshotResult {
@@ -189,7 +213,7 @@ async function fetchOrLoadCachedSnapshot(input: CachedSnapshotInput): Promise<Ca
       source_fetch_status: "live"
     };
   } catch (error) {
-    const cached = await readLatestCachedSnapshot(input.storagePrefix, input.year);
+    const cached = await input.snapshotStore.readLatest({ storagePrefix: input.storagePrefix, partition: input.year, extension: "html" });
     if (cached !== undefined) {
       return {
         bytes: cached,
@@ -201,20 +225,24 @@ async function fetchOrLoadCachedSnapshot(input: CachedSnapshotInput): Promise<Ca
   }
 }
 
-async function readLatestCachedSnapshot(storagePrefix: string, year: string): Promise<Uint8Array | undefined> {
-  const dir = join(loadEnv().OBJECT_STORE_FS_BASE, storagePrefix, year);
-  try {
-    const files = (await readdir(dir)).filter((file) => file.endsWith(".html")).sort();
-    const latest = files.at(-1);
-    return latest === undefined ? undefined : new Uint8Array(await readFile(join(dir, latest)));
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") return undefined;
-    throw error;
-  }
-}
-
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+function safeSnapshotPath(root: string, key: string): string {
+  const normalized = normalize(key);
+  if (normalized.startsWith("..") || normalized.includes("/../")) {
+    throw new Error(`Unsafe source snapshot key: ${key}`);
+  }
+  return join(root, normalized);
+}
+
+function snapshotStoreFor<TFetchInput>(definition: HtmlSnapshotAdapterDefinition<TFetchInput>, ctx: AdapterContext): SourceSnapshotStore {
+  const snapshotStore = ctx.snapshotStore ?? definition.snapshotStore;
+  if (snapshotStore === undefined) {
+    throw new Error(`${definition.id} requires AdapterContext.snapshotStore or definition.snapshotStore for snapshot persistence`);
+  }
+  return snapshotStore;
 }
 
 function messageFromUnknown(error: unknown): string {
