@@ -13,7 +13,6 @@
     "@supplystrata/config": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/entity-source": "workspace:*",
-    "@supplystrata/object-store": "workspace:*",
     "@supplystrata/source-normalizers": "workspace:*",
     "@supplystrata/source-adapter-runtime": "workspace:*"
   },

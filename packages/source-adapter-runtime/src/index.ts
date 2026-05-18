@@ -163,6 +163,11 @@ export function createFsSnapshotStore(baseDir: string): SourceSnapshotStore {
   };
 }
 
+export function requireSnapshotStore(ctx: AdapterContext, sourceAdapterId: string): SourceSnapshotStore {
+  if (ctx.snapshotStore !== undefined) return ctx.snapshotStore;
+  throw new Error(`${sourceAdapterId} requires AdapterContext.snapshotStore for raw document persistence`);
+}
+
 // 统一处理公开网页/API 抓取的超时与状态码错误，避免各 adapter 自己散落网络细节。
 export async function fetchBytesWithTimeout(url: string, options: FetchBytesOptions): Promise<Uint8Array> {
   try {
@@ -238,11 +243,7 @@ function safeSnapshotPath(root: string, key: string): string {
 }
 
 function snapshotStoreFor<TFetchInput>(definition: HtmlSnapshotAdapterDefinition<TFetchInput>, ctx: AdapterContext): SourceSnapshotStore {
-  const snapshotStore = ctx.snapshotStore ?? definition.snapshotStore;
-  if (snapshotStore === undefined) {
-    throw new Error(`${definition.id} requires AdapterContext.snapshotStore or definition.snapshotStore for snapshot persistence`);
-  }
-  return snapshotStore;
+  return ctx.snapshotStore ?? definition.snapshotStore ?? requireSnapshotStore(ctx, definition.id);
 }
 
 function messageFromUnknown(error: unknown): string {

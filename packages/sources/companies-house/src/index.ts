@@ -3,8 +3,14 @@ import { Buffer } from "node:buffer";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
 import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
-import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
+import {
+  createFsSnapshotStore,
+  createRateLimitedSourceAdapter,
+  fetchBytesWithTimeout,
+  requireSnapshotStore,
+  type AdapterContext,
+  type SourceAdapter
+} from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export interface CompaniesHouseSearchInput {
@@ -49,7 +55,7 @@ const companiesHouseAdapterBase: SourceAdapter<CompaniesHouseSearchInput, Uint8A
     });
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const storageKey = `entity-resolution/companies-house/${sha256}.json`;
-    await new FsObjectStore(loadEnv().OBJECT_STORE_FS_BASE).put(storageKey, bytes);
+    await requireSnapshotStore(ctx, "companies-house").put(storageKey, bytes);
     return {
       doc_id: createId("DOC"),
       source_adapter_id: "companies-house",
@@ -69,7 +75,8 @@ const companiesHouseAdapterBase: SourceAdapter<CompaniesHouseSearchInput, Uint8A
 export const companiesHouseAdapter = createRateLimitedSourceAdapter(companiesHouseAdapterBase);
 
 export function createCompaniesHouseAdapterContext(): AdapterContext {
-  return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
+  const env = loadEnv();
+  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
 }
 
 export async function lookupCompaniesHouseCompanies(

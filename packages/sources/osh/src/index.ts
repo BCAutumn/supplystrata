@@ -1,8 +1,14 @@
 import { createHash } from "node:crypto";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
 import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
-import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
+import {
+  createFsSnapshotStore,
+  createRateLimitedSourceAdapter,
+  fetchBytesWithTimeout,
+  requireSnapshotStore,
+  type AdapterContext,
+  type SourceAdapter
+} from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export interface OshFacilitySearchInput {
@@ -54,7 +60,7 @@ const oshAdapterBase: SourceAdapter<OshFacilitySearchInput, Uint8Array> = {
     });
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const storageKey = `facility/osh/${sha256}.json`;
-    await new FsObjectStore(loadEnv().OBJECT_STORE_FS_BASE).put(storageKey, bytes);
+    await requireSnapshotStore(ctx, "osh").put(storageKey, bytes);
     return {
       doc_id: createId("DOC"),
       source_adapter_id: "osh",
@@ -74,7 +80,8 @@ const oshAdapterBase: SourceAdapter<OshFacilitySearchInput, Uint8Array> = {
 export const oshAdapter = createRateLimitedSourceAdapter(oshAdapterBase);
 
 export function createOshAdapterContext(): AdapterContext {
-  return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
+  const env = loadEnv();
+  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
 }
 
 export function buildOshFacilitySearchUrl(input: OshFacilitySearchInput): string {

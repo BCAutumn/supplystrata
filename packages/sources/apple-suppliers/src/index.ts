@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { loadEnv } from "@supplystrata/config";
 import { createId, type NormalizedDocument } from "@supplystrata/core";
-import { FsObjectStore } from "@supplystrata/object-store";
 import { parsePdf } from "@supplystrata/parsers-pdf";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
+import {
+  createFsSnapshotStore,
+  createRateLimitedSourceAdapter,
+  fetchBytesWithTimeout,
+  requireSnapshotStore,
+  type AdapterContext,
+  type SourceAdapter,
+  type SourceSnapshotStore
+} from "@supplystrata/source-adapter-runtime";
 import { extractFixedWidthSupplierListCandidates, type SupplierListCandidate, type SupplierListParseConfig } from "@supplystrata/supplier-list";
 
 export interface AppleSuppliersInput {
@@ -38,10 +43,11 @@ const appleSuppliersAdapterBase: SourceAdapter<AppleSuppliersInput, Uint8Array> 
   },
   async fetch(task, ctx) {
     const fiscalYear = task.hint?.period?.slice(0, 4) ?? "unknown";
-    const bytes = await fetchOrLoadCached(task.url, fiscalYear);
+    const snapshotStore = requireSnapshotStore(ctx, "apple-suppliers");
+    const bytes = await fetchOrLoadCached(task.url, fiscalYear, snapshotStore);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const storageKey = `apple-suppliers/${fiscalYear}/${sha256}.pdf`;
-    await new FsObjectStore(loadEnv().OBJECT_STORE_FS_BASE).put(storageKey, bytes);
+    await snapshotStore.put(storageKey, bytes);
     return {
       doc_id: createId("DOC"),
       source_adapter_id: "apple-suppliers",
@@ -80,7 +86,8 @@ export function appleSupplierListUrl(fiscalYear: 2022): string {
 }
 
 export function createAppleSuppliersAdapterContext(): AdapterContext {
-  return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
+  const env = loadEnv();
+  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
 }
 
 export function extractAppleSupplierCandidates(normalized: NormalizedDocument, fiscalYear: number): AppleSupplierCandidate[] {
@@ -91,7 +98,7 @@ export function extractAppleSupplierCandidatesFromText(text: string, fiscalYear:
   return extractFixedWidthSupplierListCandidates(text, appleSupplierListParseConfig(fiscalYear));
 }
 
-async function fetchOrLoadCached(url: string, fiscalYear: string): Promise<Uint8Array> {
+async function fetchOrLoadCached(url: string, fiscalYear: string, snapshotStore: SourceSnapshotStore): Promise<Uint8Array> {
   try {
     return await fetchBytesWithTimeout(url, {
       userAgent: appleBrowserUserAgent(),
@@ -103,7 +110,7 @@ async function fetchOrLoadCached(url: string, fiscalYear: string): Promise<Uint8
       }
     });
   } catch (error) {
-    const cached = await readLatestCached(fiscalYear);
+    const cached = await snapshotStore.readLatest({ storagePrefix: "apple-suppliers", partition: fiscalYear, extension: "pdf" });
     if (cached !== undefined) return cached;
     throw error;
   }
@@ -112,17 +119,6 @@ async function fetchOrLoadCached(url: string, fiscalYear: string): Promise<Uint8
 function appleBrowserUserAgent(): string {
   // Apple 的静态 PDF 会拒绝非浏览器 UA；该 adapter 仍通过低频请求和官方 URL 保持半自动合规边界。
   return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
-}
-
-async function readLatestCached(fiscalYear: string): Promise<Uint8Array | undefined> {
-  const dir = join(loadEnv().OBJECT_STORE_FS_BASE, "apple-suppliers", fiscalYear);
-  try {
-    const files = (await readdir(dir)).filter((file) => file.endsWith(".pdf")).sort();
-    const latest = files.at(-1);
-    return latest === undefined ? undefined : new Uint8Array(await readFile(join(dir, latest)));
-  } catch {
-    return undefined;
-  }
 }
 
 function appleSupplierListParseConfig(fiscalYear: number): SupplierListParseConfig {

@@ -92,6 +92,7 @@
 [x] 新增 `@supplystrata/source-workflows`，把 SEC/Apple/IR/OSH/Census/entity source 这类具体免费源编排从 `pipeline` 中移出；`pipeline` 回到 normalized document engine，只处理已标准化文档到 evidence/edge/observation 的内核链路。
 [x] dependency-cruiser 增加 `pipeline-must-not-depend-on-concrete-source-adapters`，CI 会阻止 `pipeline` 重新 import `packages/sources/*`。
 [x] `@supplystrata/source-adapter-runtime` 不再直接读取 `loadEnv()` 或创建 `FsObjectStore`；HTML snapshot 持久化改为通过 `AdapterContext.snapshotStore` / definition 显式注入，宿主 App 可替换为自己的存储后端。
+[x] SEC / Apple PDF / registry JSON / Census / OSH 等非 HTML adapter 也改为通过 `AdapterContext.snapshotStore` 写原始响应；所有 source adapter 不再直接依赖 `@supplystrata/object-store`。
 ```
 
 ## 下一批质量修复
@@ -100,7 +101,7 @@
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
 [ ] `apps/cli/src/cli-utils.ts` 仍承担较多 DB 生命周期、参数解析和输出工具职责；后续可以继续拆成 runtime / parse / io 三个小模块。
-[ ] 非 HTML snapshot 的 SEC / Apple PDF / registry JSON / Census / OSH adapter 仍各自创建 `FsObjectStore`；后续可继续抽成统一 raw-document storage helper，并通过 context 注入。
+[ ] source adapter 仍各自组装 `storage_key` 与 `RawDocument` 元数据；后续可继续抽成统一 raw-document builder，进一步减少重复。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] `claim` / `observation` upsert 仍偏“全量覆盖”；后续应把 create、patch、state transition 分开，避免状态字段被普通 upsert 意外覆盖。
 [ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；后续如果对外暴露 API，应把同一套 schema 上移到 `workbench-export` 或独立 contract 包，避免前后端各维护一份。

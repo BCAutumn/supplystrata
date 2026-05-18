@@ -1,8 +1,14 @@
 import { createHash } from "node:crypto";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
 import { createId, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
-import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
+import {
+  createFsSnapshotStore,
+  createRateLimitedSourceAdapter,
+  fetchBytesWithTimeout,
+  requireSnapshotStore,
+  type AdapterContext,
+  type SourceAdapter
+} from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 
 export const CENSUS_TRADE_DIRECTIONS = ["imports", "exports"] as const;
@@ -55,7 +61,7 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const metadata = taskMetadataFromUrl(task.url);
     const storageKey = `trade/census/${metadata.direction}/hs/${metadata.time}/${sha256}.json`;
-    await new FsObjectStore(loadEnv().OBJECT_STORE_FS_BASE).put(storageKey, bytes);
+    await requireSnapshotStore(ctx, "census-trade").put(storageKey, bytes);
     return {
       doc_id: createId("DOC"),
       source_adapter_id: "census-trade",
@@ -83,7 +89,8 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
 export const censusTradeAdapter = createRateLimitedSourceAdapter(censusTradeAdapterBase);
 
 export function createCensusTradeAdapterContext(): AdapterContext {
-  return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
+  const env = loadEnv();
+  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
 }
 
 export function buildCensusTradeUrl(input: CensusTradeInput): string {

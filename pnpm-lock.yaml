@@ -633,9 +633,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/parsers-pdf':
         specifier: workspace:*
         version: link:../../parsers/pdf
@@ -654,9 +651,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -672,9 +666,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -693,9 +684,6 @@ importers:
       '@supplystrata/entity-source':
         specifier: workspace:*
         version: link:../../entity-source
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -714,9 +702,6 @@ importers:
       '@supplystrata/entity-source':
         specifier: workspace:*
         version: link:../../entity-source
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -732,9 +717,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -750,9 +732,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -768,9 +747,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -786,9 +762,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime
@@ -804,9 +777,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
-      '@supplystrata/object-store':
-        specifier: workspace:*
-        version: link:../../object-store
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime

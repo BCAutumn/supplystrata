@@ -12,7 +12,6 @@
   "dependencies": {
     "@supplystrata/config": "workspace:*",
     "@supplystrata/core": "workspace:*",
-    "@supplystrata/object-store": "workspace:*",
     "@supplystrata/parsers-pdf": "workspace:*",
     "@supplystrata/supplier-list": "workspace:*",
     "@supplystrata/source-adapter-runtime": "workspace:*"

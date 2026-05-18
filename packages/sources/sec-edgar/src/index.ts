@@ -1,8 +1,14 @@
 import { createHash } from "node:crypto";
 import { loadEnv } from "@supplystrata/config";
 import { createId, isSecFormType, secFormTypeOrDefault, type FetchTask, type SecFormType } from "@supplystrata/core";
-import { FsObjectStore } from "@supplystrata/object-store";
-import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-runtime";
+import {
+  createFsSnapshotStore,
+  createRateLimitedSourceAdapter,
+  fetchBytesWithTimeout,
+  requireSnapshotStore,
+  type AdapterContext,
+  type SourceAdapter
+} from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
 export type SecEdgarFormType = SecFormType;
@@ -65,7 +71,7 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
     const entityPart = task.hint?.entity_id ?? "unknown";
     const period = task.hint?.period ?? new Date().toISOString().slice(0, 10);
     const storageKey = `sec-edgar/${entityPart}/${period.slice(0, 4)}/${period.slice(5, 7)}/${sha256}.html`;
-    await new FsObjectStore(loadEnv().OBJECT_STORE_FS_BASE).put(storageKey, bytes);
+    await requireSnapshotStore(ctx, "sec-edgar").put(storageKey, bytes);
     return {
       doc_id: createId("DOC"),
       source_adapter_id: "sec-edgar",
@@ -97,7 +103,8 @@ export function normalizeCik(cik: string): string {
 }
 
 export function createAdapterContext(): AdapterContext {
-  return { userAgent: loadEnv().SEC_USER_AGENT, now: () => new Date() };
+  const env = loadEnv();
+  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
 }
 
 export function isSecEdgarFormType(value: string): value is SecEdgarFormType {
