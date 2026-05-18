@@ -2,7 +2,7 @@ import { createDatabaseStore, type DatabaseStore, type PendingEntityStatusFilter
 import type { ChangeTimelineScope } from "@supplystrata/db";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import { isSecFormType, type SecFormType } from "@supplystrata/core";
-import type { EntityLookupSource } from "@supplystrata/pipeline";
+import type { EntityLookupSource } from "@supplystrata/source-workflows";
 import type { OutputFormat } from "@supplystrata/render";
 
 export type PreviewFormat = OutputFormat | "csv";

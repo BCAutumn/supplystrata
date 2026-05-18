@@ -10,7 +10,7 @@ import {
   type OshFacilityCandidate,
   type OshFacilitySearchInput
 } from "@supplystrata/sources-osh";
-import { recordSavedDocumentObservation } from "./document-observations.js";
+import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
 export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {

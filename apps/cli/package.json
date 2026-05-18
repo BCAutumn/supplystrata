@@ -23,6 +23,7 @@
     "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/source-plan": "workspace:*",
     "@supplystrata/source-registry": "workspace:*",
+    "@supplystrata/source-workflows": "workspace:*",
     "@supplystrata/workbench-export": "workspace:*",
     "commander": "~12.1.0"
   },

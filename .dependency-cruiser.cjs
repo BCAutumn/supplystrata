@@ -44,13 +44,19 @@ module.exports = {
       to: { path: "^packages/(config|object-store|source-adapter-runtime)/|^node_modules/(pino|pg)" }
     },
     {
+      name: "pipeline-must-not-depend-on-concrete-source-adapters",
+      severity: "error",
+      from: { path: "^packages/pipeline/src" },
+      to: { path: "^packages/sources/" }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },
       to: { path: "^packages/graph/src" }
     },
     {
-      name: "apps-cli-uses-render-and-pipeline-not-sources-directly",
+      name: "apps-cli-must-not-use-concrete-source-adapters-directly",
       severity: "warn",
       from: { path: "^apps/cli/src" },
       to: { path: "^packages/sources/" }

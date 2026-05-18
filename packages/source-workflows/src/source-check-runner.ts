@@ -3,7 +3,7 @@ import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { recordSourceDegraded, recordSourceFailure, type SourceDocumentChangeType } from "@supplystrata/source-monitor";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import type { FetchTask, RawDocument } from "@supplystrata/core";
-import { persistDocumentObservations } from "./document-observations.js";
+import { persistDocumentObservations } from "@supplystrata/pipeline";
 
 export interface SourceCheckSummary {
   source_adapter_id: string;

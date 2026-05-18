@@ -55,6 +55,7 @@
       "@supplystrata/source-normalizers": ["packages/source-normalizers/src/index.ts"],
       "@supplystrata/source-plan": ["packages/source-plan/src/index.ts"],
       "@supplystrata/source-registry": ["packages/source-registry/src/index.ts"],
+      "@supplystrata/source-workflows": ["packages/source-workflows/src/index.ts"],
       "@supplystrata/supplier-list": ["packages/supplier-list/src/index.ts"],
       "@supplystrata/workbench-export": ["packages/workbench-export/src/index.ts"],
       "@supplystrata/sources-apple-suppliers": ["packages/sources/apple-suppliers/src/index.ts"],

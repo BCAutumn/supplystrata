@@ -77,10 +77,15 @@ packages/observation-store
 
 packages/source-connectors
   统一注册 source check target runner；只做 target 分发和配置校验，不抓源、不写库。
-  已把 SEC EDGAR、TSMC/Samsung/SK hynix/ASML 官方 IR、Census Trade、Open Supply Hub source check 接入 connector registry；后续 DART、EDINET、Comtrade、RMI 等免费源通过新增 connector 接入，不再改 pipeline 调度分支。
+  已把 source check connector 契约收口；具体 connector 实现在 source-workflows，不再落入 pipeline。
+
+packages/source-workflows
+  具体免费/公开源的 use-case 编排层：SEC EDGAR、Apple Supplier List、官方 IR、Census Trade、Open Supply Hub、OpenCorporates / Companies House 都在这里接入。
+  后续 DART、EDINET、Comtrade、RMI 等免费源通过新增 workflow/connector 接入，不再改 pipeline 内核或 CLI 调度分支。
 
 packages/pipeline
-  只做纵向链路编排；已拆成 run / source-documents / previews / apple-suppliers / document-observations，避免新增免费源时继续膨胀入口文件。
+  只做 normalized document engine；已拆成 run / document-observations / citation-location / review-apply。
+  不直接 import `sources/*`，新增免费源不能再塞回 pipeline。
 
 packages/chain-view
   把 edges、claims、observations、leads、unknowns 组装成 ChainViewModel。

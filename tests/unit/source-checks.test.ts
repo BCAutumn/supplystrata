@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type pg from "pg";
-import { listSourceCheckConnectorIds, runManualSourceCheck } from "@supplystrata/pipeline";
+import { listSourceCheckConnectorIds, runManualSourceCheck } from "@supplystrata/source-workflows";
 import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
 
 describe("source check registry", () => {

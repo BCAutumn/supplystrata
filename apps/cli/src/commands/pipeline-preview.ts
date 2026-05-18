@@ -8,7 +8,7 @@ import {
   previewSecEdgarSupplyChain,
   runDefaultNvidiaSlice,
   runSecEdgarPipeline
-} from "@supplystrata/pipeline";
+} from "@supplystrata/source-workflows";
 import {
   isSupportedFormType,
   parseFormat,

@@ -1,12 +1,7 @@
 import type { Command } from "commander";
 import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@supplystrata/db";
-import {
-  applyApprovedReviewCandidate,
-  applyApprovedReviewCandidates,
-  enqueueAppleSupplierReviewCandidates,
-  enqueueEntitySourceReviewCandidates,
-  lookupEntitySourceCandidates
-} from "@supplystrata/pipeline";
+import { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "@supplystrata/pipeline";
+import { enqueueAppleSupplierReviewCandidates, enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "@supplystrata/source-workflows";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
 import { decideReviewCandidate, getReviewCandidate, nextReviewCandidate, reviewStats } from "@supplystrata/review-store";
 import { parseEntityLookupSource, parseFormat, parseLimit, parsePendingEntityStatus, withDatabase, write, writeJson } from "../cli-utils.js";

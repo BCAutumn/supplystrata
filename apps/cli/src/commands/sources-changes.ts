@@ -7,7 +7,7 @@ import {
   runManualSourceCheck,
   type DueSourceCheckRunResult,
   type SourceCheckSummary
-} from "@supplystrata/pipeline";
+} from "@supplystrata/source-workflows";
 import { renderChangeTimelineItems } from "@supplystrata/render";
 import {
   listDueSourceChecks,

@@ -89,6 +89,8 @@
 [x] `.gitignore` 的 `data/` / `reports/` 改为根目录限定，避免误忽略 `apps/research-preview/src/data` 这类源码目录。
 [x] `@supplystrata/source-monitor` 从单个 700+ 行 index 拆出 `types.ts` / `policy-config.ts` / `scheduling.ts`；index 继续只承载数据库编排入口，后续拆 health/event store 更容易。
 [x] `@supplystrata/source-registry` 从单个大 index 拆出 `types.ts` / `registry-data.ts`，并移除 `sec-edgar-fixture` 在生产 registry 中的短路映射；离线 SEC fixture 使用真实 `sec-edgar` source id + fixture URL。
+[x] 新增 `@supplystrata/source-workflows`，把 SEC/Apple/IR/OSH/Census/entity source 这类具体免费源编排从 `pipeline` 中移出；`pipeline` 回到 normalized document engine，只处理已标准化文档到 evidence/edge/observation 的内核链路。
+[x] dependency-cruiser 增加 `pipeline-must-not-depend-on-concrete-source-adapters`，CI 会阻止 `pipeline` 重新 import `packages/sources/*`。
 ```
 
 ## 下一批质量修复
@@ -98,7 +100,7 @@
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
 [ ] `apps/cli/src/cli-utils.ts` 仍承担较多 DB 生命周期、参数解析和输出工具职责；后续可以继续拆成 runtime / parse / io 三个小模块。
 [ ] `@supplystrata/source-adapter-runtime` 当前仍直接创建 `FsObjectStore` 并读取 `loadEnv()`；下一步可以继续把 object store / env 注入显式化，进一步支持宿主应用嵌入。
-[ ] `pipeline` 仍对 preview、entity lookup、Apple review 等用例直接依赖多个 source adapter；后续应把 source connector registry 做成 feature 包注册入口，pipeline 只依赖连接器契约。
+[ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] `claim` / `observation` upsert 仍偏“全量覆盖”；后续应把 create、patch、state transition 分开，避免状态字段被普通 upsert 意外覆盖。
 [ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；后续如果对外暴露 API，应把同一套 schema 上移到 `workbench-export` 或独立 contract 包，避免前后端各维护一份。
 ```

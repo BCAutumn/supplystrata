@@ -23,7 +23,7 @@ import type { SecEdgarInput } from "@supplystrata/sources-sec-edgar";
 import { createSkHynixIrAdapterContext, skHynixIrAdapter, type SkHynixIrInput } from "@supplystrata/sources-skhynix-ir";
 import { createTsmcIrAdapterContext, tsmcIrAdapter, type TsmcIrInput } from "@supplystrata/sources-tsmc-ir";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
-import { isValidCandidate as validateCandidate } from "./candidate-validation.js";
+import { isValidCandidate as validateCandidate } from "@supplystrata/pipeline";
 import { fetchAndNormalizeFirstTask, fetchAndParseSecEdgar } from "./source-documents.js";
 import type {
   AppleSuppliersPreview,

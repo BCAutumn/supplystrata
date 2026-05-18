@@ -1,5 +1,5 @@
 import type { RelationType } from "@supplystrata/core";
-import type { AppleSuppliersPreview, NvidiaResearchReportPreview, SupplyChainPreview } from "@supplystrata/pipeline";
+import type { AppleSuppliersPreview, NvidiaResearchReportPreview, SupplyChainPreview } from "@supplystrata/source-workflows";
 import type { OutputFormat } from "@supplystrata/render";
 import type { PreviewFormat } from "./cli-utils.js";
 

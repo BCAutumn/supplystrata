@@ -7,7 +7,7 @@ import {
   extractAppleSupplierCandidates,
   type AppleSuppliersInput
 } from "@supplystrata/sources-apple-suppliers";
-import { recordSavedDocumentObservation } from "./document-observations.js";
+import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import { fetchAndNormalizeFirstTask } from "./source-documents.js";
 import type { ReviewEnqueueSummary } from "./types.js";
 

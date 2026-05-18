@@ -1,4 +1,4 @@
-import type { EntityLookupSummary } from "@supplystrata/pipeline";
+import type { EntityLookupSummary } from "@supplystrata/source-workflows";
 import type { OutputFormat } from "@supplystrata/render";
 
 export function renderEntityLookup(result: EntityLookupSummary, format: OutputFormat): string {

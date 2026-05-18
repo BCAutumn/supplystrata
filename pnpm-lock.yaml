@@ -111,6 +111,9 @@ importers:
       '@supplystrata/source-registry':
         specifier: workspace:*
         version: link:../../packages/source-registry
+      '@supplystrata/source-workflows':
+        specifier: workspace:*
+        version: link:../../packages/source-workflows
       '@supplystrata/workbench-export':
         specifier: workspace:*
         version: link:../../packages/workbench-export
@@ -389,9 +392,6 @@ importers:
       '@supplystrata/claim-builder':
         specifier: workspace:*
         version: link:../claim-builder
-      '@supplystrata/config':
-        specifier: workspace:*
-        version: link:../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
@@ -404,9 +404,6 @@ importers:
       '@supplystrata/entity-resolver':
         specifier: workspace:*
         version: link:../entity-resolver
-      '@supplystrata/entity-source':
-        specifier: workspace:*
-        version: link:../entity-source
       '@supplystrata/evidence-scorer':
         specifier: workspace:*
         version: link:../evidence-scorer
@@ -434,48 +431,9 @@ importers:
       '@supplystrata/review-store':
         specifier: workspace:*
         version: link:../review-store
-      '@supplystrata/signal-extractor':
-        specifier: workspace:*
-        version: link:../signal-extractor
-      '@supplystrata/source-adapter-spec':
-        specifier: workspace:*
-        version: link:../source-adapter-spec
-      '@supplystrata/source-connectors':
-        specifier: workspace:*
-        version: link:../source-connectors
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor
-      '@supplystrata/sources-apple-suppliers':
-        specifier: workspace:*
-        version: link:../sources/apple-suppliers
-      '@supplystrata/sources-asml-ir':
-        specifier: workspace:*
-        version: link:../sources/asml-ir
-      '@supplystrata/sources-census-trade':
-        specifier: workspace:*
-        version: link:../sources/census-trade
-      '@supplystrata/sources-companies-house':
-        specifier: workspace:*
-        version: link:../sources/companies-house
-      '@supplystrata/sources-opencorporates':
-        specifier: workspace:*
-        version: link:../sources/opencorporates
-      '@supplystrata/sources-osh':
-        specifier: workspace:*
-        version: link:../sources/osh
-      '@supplystrata/sources-samsung-ir':
-        specifier: workspace:*
-        version: link:../sources/samsung-ir
-      '@supplystrata/sources-sec-edgar':
-        specifier: workspace:*
-        version: link:../sources/sec-edgar
-      '@supplystrata/sources-skhynix-ir':
-        specifier: workspace:*
-        version: link:../sources/skhynix-ir
-      '@supplystrata/sources-tsmc-ir':
-        specifier: workspace:*
-        version: link:../sources/tsmc-ir
 
   packages/relation-extractor/rule:
     dependencies:
@@ -585,6 +543,93 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/source-workflows:
+    dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../config
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      '@supplystrata/entity-resolver':
+        specifier: workspace:*
+        version: link:../entity-resolver
+      '@supplystrata/entity-source':
+        specifier: workspace:*
+        version: link:../entity-source
+      '@supplystrata/evidence-scorer':
+        specifier: workspace:*
+        version: link:../evidence-scorer
+      '@supplystrata/graph-builder':
+        specifier: workspace:*
+        version: link:../graph-builder
+      '@supplystrata/graph-store':
+        specifier: workspace:*
+        version: link:../graph-store
+      '@supplystrata/observability':
+        specifier: workspace:*
+        version: link:../observability
+      '@supplystrata/observation-store':
+        specifier: workspace:*
+        version: link:../observation-store
+      '@supplystrata/pipeline':
+        specifier: workspace:*
+        version: link:../pipeline
+      '@supplystrata/relation-extractor-rule':
+        specifier: workspace:*
+        version: link:../relation-extractor/rule
+      '@supplystrata/review-candidates':
+        specifier: workspace:*
+        version: link:../review-candidates
+      '@supplystrata/review-store':
+        specifier: workspace:*
+        version: link:../review-store
+      '@supplystrata/signal-extractor':
+        specifier: workspace:*
+        version: link:../signal-extractor
+      '@supplystrata/source-adapter-spec':
+        specifier: workspace:*
+        version: link:../source-adapter-spec
+      '@supplystrata/source-connectors':
+        specifier: workspace:*
+        version: link:../source-connectors
+      '@supplystrata/source-monitor':
+        specifier: workspace:*
+        version: link:../source-monitor
+      '@supplystrata/sources-apple-suppliers':
+        specifier: workspace:*
+        version: link:../sources/apple-suppliers
+      '@supplystrata/sources-asml-ir':
+        specifier: workspace:*
+        version: link:../sources/asml-ir
+      '@supplystrata/sources-census-trade':
+        specifier: workspace:*
+        version: link:../sources/census-trade
+      '@supplystrata/sources-companies-house':
+        specifier: workspace:*
+        version: link:../sources/companies-house
+      '@supplystrata/sources-opencorporates':
+        specifier: workspace:*
+        version: link:../sources/opencorporates
+      '@supplystrata/sources-osh':
+        specifier: workspace:*
+        version: link:../sources/osh
+      '@supplystrata/sources-samsung-ir':
+        specifier: workspace:*
+        version: link:../sources/samsung-ir
+      '@supplystrata/sources-sec-edgar':
+        specifier: workspace:*
+        version: link:../sources/sec-edgar
+      '@supplystrata/sources-skhynix-ir':
+        specifier: workspace:*
+        version: link:../sources/skhynix-ir
+      '@supplystrata/sources-tsmc-ir':
+        specifier: workspace:*
+        version: link:../sources/tsmc-ir
 
   packages/sources/apple-suppliers:
     dependencies:

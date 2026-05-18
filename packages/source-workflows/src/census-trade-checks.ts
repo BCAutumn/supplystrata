@@ -12,7 +12,7 @@ import {
   type CensusTradeInput,
   type CensusTradeRow
 } from "@supplystrata/sources-census-trade";
-import { recordSavedDocumentObservation } from "./document-observations.js";
+import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
 export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {

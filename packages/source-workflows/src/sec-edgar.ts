@@ -7,10 +7,9 @@ import { recordSourceFailure } from "@supplystrata/source-monitor";
 import { optionalConfigPositiveInteger, requireConfigString, requireConfigStringArray, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import { isSecEdgarFormType, type SecEdgarFormType, type SecEdgarInput } from "@supplystrata/sources-sec-edgar";
 import { createAdapterContext, secEdgarAdapter } from "@supplystrata/sources-sec-edgar";
+import { runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
 import { fetchAndParseSecEdgar } from "./source-documents.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
-import { runSupplyChainPipelineFromNormalized } from "./run.js";
-import type { PipelineSummary } from "./types.js";
 
 export interface SourceCheckOptions {
   checkTargetId?: string;
