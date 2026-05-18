@@ -1,17 +1,7 @@
-import type pg from "pg";
-import type { DbClient } from "@supplystrata/db";
-import { buildCompanyChainView, type ChainViewModel, type ChainViewSegmentModel } from "@supplystrata/chain-view";
+import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { OutputFormat } from "./types.js";
 
 export type { ChainViewModel, ChainViewSegmentModel };
-
-export async function renderChain(client: DbClient, query: string, input: { depth: number; format: OutputFormat }): Promise<string> {
-  return renderChainCard(await loadChainCard(client, query, { depth: input.depth }), input.format);
-}
-
-export async function loadChainCard(client: DbClient, query: string, input: { depth: number }): Promise<ChainViewModel> {
-  return buildCompanyChainView(client, { query, depth: input.depth });
-}
 
 export function renderChainCard(model: ChainViewModel, format: OutputFormat): string {
   if (format === "json") return JSON.stringify(model, null, 2);

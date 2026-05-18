@@ -1,4 +1,4 @@
-import { saveNormalizedDocument, type DatabaseStore } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
 import { getLogger } from "@supplystrata/observability";
 import { recordSourceFailure, type SourceDocumentChangeType } from "@supplystrata/source-monitor";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
@@ -38,7 +38,7 @@ export async function runSourceAdapterCheck<TInput>(
       const raw = await fetchSourceTask(input.adapter, task, input.context);
       const normalized = await input.adapter.normalize(raw, input.context);
       const { saved, observation } = await store.transaction(async (client) => {
-        const savedDocument = await saveNormalizedDocument(client, normalized);
+        const savedDocument = await saveNormalizedDocumentTx(client, normalized);
         const documentObservation = await persistDocumentObservations(client, normalized, savedDocument.doc_id, {
           ...(input.options.checkTargetId === undefined ? {} : { checkTargetId: input.options.checkTargetId })
         });

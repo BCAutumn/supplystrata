@@ -1,4 +1,4 @@
-import { saveNormalizedDocument, type DatabaseStore } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import {
@@ -22,7 +22,7 @@ export async function enqueueAppleSupplierReviewCandidates(
     logLabel: "Apple Supplier List"
   });
   const { saved, candidates, result } = await store.transaction(async (client) => {
-    const savedDocument = await saveNormalizedDocument(client, normalized);
+    const savedDocument = await saveNormalizedDocumentTx(client, normalized);
     await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id);
     const reviewCandidates = extractAppleSupplierCandidates(normalized, input.fiscalYear).map((candidate) =>
       buildSupplierListReviewCandidate({

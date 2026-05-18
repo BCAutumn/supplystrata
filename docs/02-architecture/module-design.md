@@ -84,10 +84,11 @@ observation-extractor ← pipeline 消费；只产官方披露 observation draft
 observation-store ← pipeline / 后续 source monitor 消费；只写 observations / lead_observations
 source-plan ← CLI / 后续 workbench 消费；读取 source-registry + component-context，只输出 source plan
 source-connectors ← pipeline 消费；集中注册 source check target runner，不抓源、不写库
+card-builder ← apps/cli / 后续 API 消费；负责从 DbClient 组装 CompanyCard / ComponentCard / ChainCard / EvidenceCard / UnknownMap DTO
 entity-resolver  ← pipeline / sources / extractor / graph-builder 消费
 evidence-scorer  ← graph-builder 消费
 llm-bridge ← relation-extractor/llm + entity-resolver 消费
-render ← apps/cli 消费；loader 与 formatter 分离，formatter 必须是纯函数
+render ← apps/cli / 后续 API 消费；只把 DTO 渲染成 Markdown 或 JSON，不查库、不抓源、不做业务判断
 ```
 
 **禁止反向依赖**。例如 `core` 不能依赖 `db`、`sources/*` 不能直接依赖 `graph`。`graph-builder` 只能依赖 `graph-store` 接口，不能依赖具体 Neo4j adapter。
@@ -107,7 +108,9 @@ CI 里加 dependency-cruiser 校验。
 
 `data-quality` 通过 `DATA_QUALITY_RULES` 注册规则。全局规则和实体专用规则分组注册，避免在 `runDataQualityChecks()` 中继续堆业务特例。
 
-`render` 只负责把已经聚合好的 card/view model 渲染成 Markdown 或 JSON。当前保留 `loadCompanyCard`、`loadComponentCard`、`loadChainCard`、`loadEvidenceCard`、`loadUnknownMap` 这类 loader 作为过渡层；CLI 必须显式调用 loader 后再调用纯 formatter，例如 `renderCompanyCard(model, format)`。后续迁移到 API / TypeScript + Canvas 工作台时，loader 可以整体下沉到独立 card/use-case 包，formatter 不应该直接查库、抓源或做业务判断。
+`card-builder` 负责把 `DbClient`、chain-view-builder、query helpers 聚合成稳定 card DTO，例如 `loadCompanyCard()`、`loadComponentCard()`、`loadChainCard()`、`loadEvidenceCard()`、`loadUnknownMap()`。它是 CLI、后续只读 API 与工作台之间的 use-case 层，允许依赖 `db`，但不得依赖具体图后端。
+
+`render` 只负责把已经聚合好的 card/view model 渲染成 Markdown 或 JSON。它不得接收 `DbClient`，不得 import `db` / `pg` / graph backend，也不得承载查询、抓取或业务判断。CLI 必须显式调用 `card-builder` 后再调用纯 formatter，例如 `renderCompanyCard(model, format)`。迁移到 API / TypeScript + Canvas 工作台时，可以复用同一批 DTO，而不是复用 Markdown renderer。
 
 ## 关键接口契约
 

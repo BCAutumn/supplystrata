@@ -1,6 +1,6 @@
 import type pg from "pg";
 import type { NormalizedDocument } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DatabaseStore, DbClient } from "./client.js";
 
 export interface SavedDocumentRef {
   doc_id: string;
@@ -11,7 +11,11 @@ interface SavedDocumentRow extends pg.QueryResultRow {
   doc_id: string;
 }
 
-export async function saveNormalizedDocument(client: DbClient, doc: NormalizedDocument): Promise<SavedDocumentRef> {
+export async function saveNormalizedDocument(store: DatabaseStore, doc: NormalizedDocument): Promise<SavedDocumentRef> {
+  return store.transaction((client) => saveNormalizedDocumentTx(client, doc));
+}
+
+export async function saveNormalizedDocumentTx(client: DbClient, doc: NormalizedDocument): Promise<SavedDocumentRef> {
   const saved = await client.query<SavedDocumentRow>(
     `INSERT INTO documents (doc_id, source_adapter_id, document_type, primary_entity_id, source_url, source_date, fetched_at, bytes_sha256, storage_key, language, parse_status, metadata)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'parsed',$11)

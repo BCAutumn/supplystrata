@@ -4,9 +4,9 @@ import {
   segmentFromLead,
   segmentFromObservation,
   segmentFromUnknown,
-  segmentsFromFactRow,
-  type ChainViewRoot
-} from "@supplystrata/chain-view";
+  segmentsFromFactRow
+} from "@supplystrata/chain-view-builder";
+import type { ChainViewRoot } from "@supplystrata/chain-view";
 import { listComponentUpstreamLeads } from "@supplystrata/component-context";
 
 describe("chain-view", () => {

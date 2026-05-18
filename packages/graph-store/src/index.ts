@@ -1,4 +1,4 @@
-import type { EntityRecord, RelationType } from "@supplystrata/core";
+import type { ComponentSpecificity, EdgeValidity, EntityRecord, EvidenceLevel, RelationType } from "@supplystrata/core";
 
 export interface GraphEdgeInput {
   edge_id: string;
@@ -7,11 +7,11 @@ export interface GraphEdgeInput {
   relation: RelationType;
   component?: string;
   component_id?: string;
-  component_specificity?: string;
-  evidence_level: number;
+  component_specificity?: ComponentSpecificity;
+  evidence_level: EvidenceLevel;
   confidence: number;
   is_inferred: boolean;
-  validity: string;
+  validity: EdgeValidity;
   last_verified_at: string;
 }
 

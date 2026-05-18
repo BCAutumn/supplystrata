@@ -108,6 +108,21 @@ export const SOURCE_REGISTRY = [
     notes: "当前预览抓 2025 官方业绩披露/新闻页，用于 HBM/DRAM 供应侧背景；韩文/DART 留后续。"
   },
   {
+    id: "micron-ir",
+    tier: "P1",
+    name: "Micron Investor Relations",
+    category: "official_disclosure",
+    evidence_level_cap: 4,
+    publisher_type: "company_official",
+    relation_authority: "self_disclosure",
+    automation: "semi_auto",
+    status: "scoped",
+    requires_key: false,
+    official_url: "https://investors.micron.com/",
+    tos_url: "https://www.micron.com/about/legal",
+    notes: "Micron 官方披露源位；用于 memory supplier filings 的后续交叉验证，接 adapter 前只能进入 source plan。"
+  },
+  {
     id: "asml-ir",
     tier: "P0",
     name: "ASML Investor Relations",

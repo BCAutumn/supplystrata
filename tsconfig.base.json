@@ -19,8 +19,10 @@
     "paths": {
       "@supplystrata/core": ["packages/core/src/index.ts"],
       "@supplystrata/config": ["packages/config/src/index.ts"],
+      "@supplystrata/card-builder": ["packages/card-builder/src/index.ts"],
       "@supplystrata/claim-builder": ["packages/claim-builder/src/index.ts"],
       "@supplystrata/chain-view": ["packages/chain-view/src/index.ts"],
+      "@supplystrata/chain-view-builder": ["packages/chain-view-builder/src/index.ts"],
       "@supplystrata/component-context": ["packages/component-context/src/index.ts"],
       "@supplystrata/data-quality": ["packages/data-quality/src/index.ts"],
       "@supplystrata/db": ["packages/db/src/index.ts"],

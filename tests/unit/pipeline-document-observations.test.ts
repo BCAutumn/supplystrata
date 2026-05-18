@@ -16,10 +16,10 @@ class RecordingDbClient implements DbClient {
     this.calls.push({ sql, params });
     return {
       command: "MOCK",
-      rowCount: 0,
+      rowCount: mockRowsForAtomicUpsert<T>(sql, params).length,
       oid: 0,
       fields: [],
-      rows: []
+      rows: mockRowsForAtomicUpsert<T>(sql, params)
     };
   }
 }
@@ -146,14 +146,23 @@ class ChangedDocumentDbClient extends RecordingDbClient {
 
   override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
+    const upsertRows = mockRowsForAtomicUpsert<T>(sql, params);
+    const rows = upsertRows.length > 0 ? upsertRows : rowsForChangedDocument<T>(sql, { oldText: this.#oldText, oldSourceUrl: this.#oldSourceUrl });
     return {
       command: "MOCK",
-      rowCount: 0,
+      rowCount: rows.length,
       oid: 0,
       fields: [],
-      rows: rowsForChangedDocument<T>(sql, { oldText: this.#oldText, oldSourceUrl: this.#oldSourceUrl })
+      rows
     };
   }
+}
+
+function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ observation_id: params[0], inserted: true }] as unknown as T[];
+  }
+  return [];
 }
 
 function rowsForChangedDocument<T extends pg.QueryResultRow>(sql: string, input: { oldText: string; oldSourceUrl: string }): T[] {

@@ -25,8 +25,9 @@ export interface ClaimRow extends pg.QueryResultRow {
   updated_at: Date;
 }
 
-interface ClaimIdRow extends pg.QueryResultRow {
+interface UpsertClaimRow extends pg.QueryResultRow {
   claim_id: string;
+  inserted: boolean;
 }
 
 export interface NewClaimInput {
@@ -81,8 +82,7 @@ export async function insertClaim(client: DbClient, input: NewClaimInput): Promi
 
 export async function upsertClaim(client: DbClient, input: NewClaimInput): Promise<UpsertClaimResult> {
   const claimId = input.claim_id ?? createId("CLM");
-  const existing = await client.query<ClaimIdRow>(`SELECT claim_id FROM claims WHERE claim_id = $1`, [claimId]);
-  await client.query(
+  const result = await client.query<UpsertClaimRow>(
     `INSERT INTO claims (
        claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id, review_id,
        status, evidence_level, confidence, is_inferred, generated_by, last_verified_at
@@ -102,7 +102,8 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
        is_inferred = EXCLUDED.is_inferred,
        generated_by = EXCLUDED.generated_by,
        last_verified_at = EXCLUDED.last_verified_at,
-       updated_at = now()`,
+       updated_at = now()
+     RETURNING claim_id, (xmax = 0) AS inserted`,
     [
       claimId,
       input.claim_type,
@@ -120,7 +121,9 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
       input.last_verified_at ?? null
     ]
   );
-  return { claim_id: claimId, inserted: existing.rows[0] === undefined };
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Claim upsert did not return a row: ${claimId}`);
+  return { claim_id: row.claim_id, inserted: row.inserted };
 }
 
 export async function linkClaimEvidence(client: DbClient, input: { claim_id: string; evidence_id: string; role: ClaimEvidenceRole }): Promise<void> {

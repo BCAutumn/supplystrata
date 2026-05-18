@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { normalizeAlias, type EvidenceLevel, type ExtractionMethod, type RelationType } from "@supplystrata/core";
+import { normalizeAlias, type ComponentSpecificity, type EdgeValidity, type EvidenceLevel, type ExtractionMethod, type RelationType } from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
 export interface EdgeRow extends pg.QueryResultRow {
@@ -9,11 +9,11 @@ export interface EdgeRow extends pg.QueryResultRow {
   relation: RelationType;
   component: string | null;
   component_id: string | null;
-  component_specificity: string | null;
+  component_specificity: ComponentSpecificity | null;
   evidence_level: EvidenceLevel;
   confidence: number;
   is_inferred: boolean;
-  validity: "current" | "historical" | "deprecated";
+  validity: EdgeValidity;
   primary_evidence_id: string | null;
   last_verified_at: Date;
   subject_name: string;

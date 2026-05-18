@@ -1,16 +1,28 @@
-import type { ChangeTimelineInput, ChangeTimelineItem, DbClient } from "@supplystrata/db";
-import { listChangeTimeline } from "@supplystrata/db";
+import type { EvidenceLevel, RelationType } from "@supplystrata/core";
 import type { OutputFormat } from "./types.js";
 
-export async function renderChanges(client: DbClient, input: ChangeTimelineInput & { format: OutputFormat }): Promise<string> {
-  const changes = await listChangeTimeline(client, input);
-  return renderChangeTimelineItems(changes, {
-    format: input.format,
-    since: input.since
-  });
+export interface ChangeTimelineItemModel {
+  event_id: string;
+  event_family: "graph" | "source" | "semantic";
+  event_type: string;
+  occurred_at: string;
+  scope_kind?: string;
+  scope_id?: string;
+  source_adapter_id?: string;
+  source_item_id?: string;
+  doc_id?: string;
+  edge_id?: string;
+  evidence_id?: string;
+  evidence_level?: EvidenceLevel;
+  subject_name?: string;
+  object_name?: string;
+  relation?: RelationType;
+  component?: string;
+  caused_by: string;
+  requires_attention: boolean;
 }
 
-export function renderChangeTimelineItems(items: readonly ChangeTimelineItem[], input: { format: OutputFormat; since: string }): string {
+export function renderChangeTimelineItems(items: readonly ChangeTimelineItemModel[], input: { format: OutputFormat; since: string }): string {
   if (input.format === "json") return JSON.stringify({ schema_version: "1.0.0", since: input.since, changes: items }, null, 2);
   const attention = items.filter((item) => item.requires_attention);
   const normal = items.filter((item) => !item.requires_attention);
@@ -20,7 +32,7 @@ export function renderChangeTimelineItems(items: readonly ChangeTimelineItem[], 
   return lines.join("\n");
 }
 
-function appendChangeGroup(lines: string[], title: string, items: readonly ChangeTimelineItem[]): void {
+function appendChangeGroup(lines: string[], title: string, items: readonly ChangeTimelineItemModel[]): void {
   lines.push("", `## ${title}`, "");
   if (items.length === 0) {
     lines.push("(none)");
@@ -36,11 +48,11 @@ function appendChangeGroup(lines: string[], title: string, items: readonly Chang
   }
 }
 
-function changePrimaryId(item: ChangeTimelineItem): string {
+function changePrimaryId(item: ChangeTimelineItemModel): string {
   return item.edge_id ?? item.evidence_id ?? item.doc_id ?? item.source_item_id ?? item.scope_id ?? item.event_id;
 }
 
-function changeSummary(item: ChangeTimelineItem): string {
+function changeSummary(item: ChangeTimelineItemModel): string {
   if (item.event_family === "source") return `Source monitor recorded ${item.event_type.toLowerCase()} for ${item.source_adapter_id ?? "unknown source"}.`;
   if (item.subject_name !== undefined && item.object_name !== undefined && item.relation !== undefined) {
     const component = item.component === undefined ? "" : ` (${item.component})`;

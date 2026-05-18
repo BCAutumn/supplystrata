@@ -47,12 +47,12 @@ async function loadFromFile(file: File): Promise<void> {
   const token = beginLoad();
   try {
     loadStatus.textContent = `Loading ${file.name}...`;
-    const model = await loadWorkbenchModelFromFile(file);
+    const model = await loadWorkbenchModelFromFile(file, token.controller.signal);
     if (!isActiveLoad(token)) return;
     setModel(model);
     loadStatus.textContent = `Loaded ${file.name}`;
   } catch (error) {
-    if (isActiveLoad(token)) showLoadError(error);
+    if (isActiveLoad(token) && !isAbortError(error)) showLoadError(error);
   }
 }
 

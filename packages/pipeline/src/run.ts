@@ -1,5 +1,5 @@
 import { type ApprovedCandidate, type CandidateRelation } from "@supplystrata/core";
-import { saveNormalizedDocument, type DatabaseStore } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
@@ -13,7 +13,7 @@ import type { NormalizedPipelineInput, PipelineSummary } from "./types.js";
 export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore, input: NormalizedPipelineInput): Promise<PipelineSummary> {
   const normalized = input.normalized;
   const { savedDocument, observationResult } = await store.transaction(async (client) => {
-    const documentRef = await saveNormalizedDocument(client, normalized);
+    const documentRef = await saveNormalizedDocumentTx(client, normalized);
     const observations = await persistDocumentObservations(client, normalized, documentRef.doc_id);
     return { savedDocument: documentRef, observationResult: observations };
   });

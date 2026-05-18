@@ -9,6 +9,7 @@ import { migration0007SourceCheckTargetsSql } from "./migration-sql/0007_source_
 import { migration0008ClaimDraftsSql } from "./migration-sql/0008_claim_drafts.js";
 import { migration0009ReviewQueueHardeningSql } from "./migration-sql/0009_review_queue_hardening.js";
 import { migration0010GraphProjectionJobsSql } from "./migration-sql/0010_graph_projection_jobs.js";
+import { sql as migration0011GraphProjectionInProgressSql } from "./migration-sql/0011_graph_projection_in_progress.js";
 
 interface Migration {
   readonly id: string;
@@ -66,6 +67,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0010_graph_projection_jobs",
     description: "Create durable GraphStore projection retry jobs.",
     sql: migration0010GraphProjectionJobsSql
+  },
+  {
+    id: "0011_graph_projection_in_progress",
+    description: "Treat in-progress GraphStore projection jobs as active for uniqueness.",
+    sql: migration0011GraphProjectionInProgressSql
   }
 ];
 

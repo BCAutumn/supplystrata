@@ -1,8 +1,8 @@
 import type pg from "pg";
-import type { ComponentSpecificity, EntityRecord, EvidenceLevel, RelationType } from "@supplystrata/core";
+import type { ComponentSpecificity, EdgeValidity, EntityRecord, EvidenceLevel, RelationType } from "@supplystrata/core";
 import {
+  claimDueGraphProjectionJobs,
   listCurrentEdges,
-  listDueGraphProjectionJobs,
   markGraphProjectionJobFailed,
   markGraphProjectionJobSucceeded,
   type DatabaseStore
@@ -66,7 +66,7 @@ export async function checkGraphConsistency(store: DatabaseStore, graph: GraphSt
 }
 
 export async function retryGraphProjectionJobs(store: DatabaseStore, graph: GraphStore, input: { limit?: number } = {}): Promise<GraphProjectionRetrySummary> {
-  const jobs = await listDueGraphProjectionJobs(store, { limit: input.limit ?? 50 });
+  const jobs = await store.transaction((client) => claimDueGraphProjectionJobs(client, { limit: input.limit ?? 50 }));
   let synced = 0;
   let failed = 0;
   for (const job of jobs) {
@@ -156,7 +156,7 @@ interface GraphEdgeRow extends pg.QueryResultRow {
   evidence_level: EvidenceLevel;
   confidence: number;
   is_inferred: boolean;
-  validity: string;
+  validity: EdgeValidity;
   last_verified_at: Date;
 }
 

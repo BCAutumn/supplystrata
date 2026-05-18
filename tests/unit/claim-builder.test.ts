@@ -134,17 +134,18 @@ describe("claim-builder", () => {
     });
 
     expect(result).toEqual({ claim_id: deterministicClaimIdForSemanticReview(candidate.review_id), inserted: true });
-    expect(client.calls).toHaveLength(5);
+    expect(client.calls).toHaveLength(4);
     expect(client.calls[0]?.params).toEqual(["nvidia"]);
     expect(client.calls[1]?.params).toEqual(["tsmc"]);
-    expect(client.calls[3]?.sql).toContain("INSERT INTO claims");
-    expect(client.calls[3]?.params).toContain("ENT-NVIDIA");
-    expect(client.calls[3]?.params).toContain("ENT-TSMC");
-    expect(client.calls[3]?.params).toContain("COMP-WAFER");
-    expect(client.calls[3]?.params).toContain("draft");
-    expect(client.calls[3]?.params).toContain(candidate.review_id);
-    expect(client.calls[4]?.sql).toContain("INSERT INTO change_records");
-    expect(client.calls[4]?.params).toContain("CLAIM_DRAFT_ADDED");
+    expect(client.calls[2]?.sql).toContain("INSERT INTO claims");
+    expect(client.calls[2]?.sql).toContain("RETURNING claim_id, (xmax = 0) AS inserted");
+    expect(client.calls[2]?.params).toContain("ENT-NVIDIA");
+    expect(client.calls[2]?.params).toContain("ENT-TSMC");
+    expect(client.calls[2]?.params).toContain("COMP-WAFER");
+    expect(client.calls[2]?.params).toContain("draft");
+    expect(client.calls[2]?.params).toContain(candidate.review_id);
+    expect(client.calls[3]?.sql).toContain("INSERT INTO change_records");
+    expect(client.calls[3]?.params).toContain("CLAIM_DRAFT_ADDED");
   });
 });
 
@@ -154,6 +155,9 @@ function rowsForClaimBuilder<T extends pg.QueryResultRow>(sql: string, params: r
   }
   if (sql.includes("SELECT entity_id FROM entity_master") && params[0] === "tsmc") {
     return [{ entity_id: "ENT-TSMC" }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING claim_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ claim_id: params[0], inserted: true }] as unknown as T[];
   }
   return [];
 }

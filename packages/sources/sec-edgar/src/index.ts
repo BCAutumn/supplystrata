@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { loadEnv } from "@supplystrata/config";
-import { createId, type FetchTask } from "@supplystrata/core";
+import { createId, isSecFormType, secFormTypeOrDefault, type FetchTask, type SecFormType } from "@supplystrata/core";
 import { FsObjectStore } from "@supplystrata/object-store";
 import { createRateLimitedSourceAdapter, fetchBytesWithTimeout, type AdapterContext, type SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 
-export type SecEdgarFormType = "10-K" | "10-Q" | "20-F" | "8-K";
+export type SecEdgarFormType = SecFormType;
 
 export interface SecEdgarInput {
   cik: string;
@@ -101,7 +101,7 @@ export function createAdapterContext(): AdapterContext {
 }
 
 export function isSecEdgarFormType(value: string): value is SecEdgarFormType {
-  return value === "10-K" || value === "10-Q" || value === "20-F" || value === "8-K";
+  return isSecFormType(value);
 }
 
 function parseSubmissionPayload(value: unknown): SecSubmissionPayload {
@@ -140,5 +140,5 @@ function requireString(value: string | undefined, name: string): string {
 }
 
 function secDocumentTypeFromMetadata(value: unknown): SecEdgarFormType {
-  return typeof value === "string" && isSecEdgarFormType(value) ? value : "10-K";
+  return secFormTypeOrDefault(value);
 }

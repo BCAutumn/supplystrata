@@ -75,7 +75,7 @@ function componentCardFixture(): ComponentCardModel {
         primary_evidence_id: "EV-1",
         cite_text: "We purchase memory from SK Hynix.",
         source_url: "https://example.com/10k",
-        source_date: new Date("2026-02-25T00:00:00.000Z")
+        source_date: "2026-02-25T00:00:00.000Z"
       }
     ],
     source_coverage: {
@@ -106,7 +106,7 @@ function componentCardFixture(): ComponentCardModel {
         confidence: 0.7,
         provenance: { fixture: true },
         attrs: {},
-        created_at: new Date("2026-02-25T00:00:00.000Z")
+        created_at: "2026-02-25T00:00:00.000Z"
       }
     ],
     unknown_map: [

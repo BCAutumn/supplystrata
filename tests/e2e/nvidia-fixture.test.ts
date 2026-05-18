@@ -9,7 +9,8 @@ import { GraphBuilder } from "@supplystrata/graph-builder";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
 import { parseHtml } from "@supplystrata/parsers-html";
 import { runSupplyChainPipelineFromNormalized } from "@supplystrata/pipeline";
-import { renderCompany, renderUnknownMap } from "@supplystrata/render";
+import { loadCompanyCard, loadUnknownMap } from "@supplystrata/card-builder";
+import { renderCompanyCard, renderUnknownMapCard } from "@supplystrata/render";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { canConnectToIntegrationDatabase } from "../integration/helpers.js";
 
@@ -55,8 +56,8 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
       await builder.close();
     }
 
-    const company = await renderCompany(pool, "nvidia", "markdown");
-    const unknownMap = await renderUnknownMap(pool, "nvidia", "markdown");
+    const company = renderCompanyCard(await loadCompanyCard(pool, "nvidia"), "markdown");
+    const unknownMap = renderUnknownMapCard(await loadUnknownMap(pool, "nvidia"), "markdown");
 
     expect(summary).toMatchObject({ candidates: 8, applied_edges: 8 });
     expect(summary.evidence_ids).toHaveLength(8);

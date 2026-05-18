@@ -13,6 +13,15 @@ describe("source-plan", () => {
     expect(byId.get("usgs-mcs")?.target_ids).toContain("COMP-SILICON-WAFER");
   });
 
+  it("keeps memory supplier plan entries connected to registered free source definitions", () => {
+    const plan = planSourcesForComponent("COMP-MEMORY", 2);
+    const byId = new Map(plan.map((item) => [item.source_id, item]));
+
+    expect(byId.get("micron-ir")?.status).toBe("scoped");
+    expect(byId.get("micron-ir")?.relation_policy).toBe("can_create_fact_edge");
+    expect(byId.get("micron-ir")?.expected_output_layer).toBe("edge");
+  });
+
   it("routes manufacturing-service leads to facility, procurement, logistics, and manual BOL sources without Apple coupling by default", () => {
     const plan = planSourcesForComponent("COMP-MANUFACTURING-SERVICES", 3);
     const byId = new Map(plan.map((item) => [item.source_id, item]));

@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { getPendingEntity } from "@supplystrata/db";
+import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@supplystrata/db";
 import {
   applyApprovedReviewCandidate,
   applyApprovedReviewCandidates,
@@ -47,10 +47,14 @@ function registerEntityCommands(program: Command): void {
     .description("list pending entity surfaces")
     .action(async (options: { status: string; limit: string; format: string }) => {
       await withDatabase(async (pool) => {
+        const status = parsePendingEntityStatus(options.status);
+        const items = await listPendingEntities(pool, {
+          status,
+          limit: parseLimit(options.limit)
+        });
         write(
-          await renderPendingEntities(pool, {
-            status: parsePendingEntityStatus(options.status),
-            limit: parseLimit(options.limit),
+          renderPendingEntities(items.map(pendingEntityToModel), {
+            status,
             format: parseFormat(options.format)
           })
         );
@@ -63,7 +67,9 @@ function registerEntityCommands(program: Command): void {
     .description("show one pending entity with context")
     .action(async (pendingId: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(await renderPendingEntity(pool, pendingId, parseFormat(options.format)));
+        const pending = await getPendingEntity(pool, pendingId);
+        if (pending === undefined) throw new Error(`Pending entity not found: ${pendingId}`);
+        write(renderPendingEntity(pendingEntityToModel(pending), parseFormat(options.format)));
       });
     });
   entityPending
@@ -87,6 +93,28 @@ function registerEntityCommands(program: Command): void {
         write(renderEntityLookup(result, parseFormat(options.format)));
       });
     });
+}
+
+function pendingEntityToModel(row: PendingEntityRow): {
+  pending_id: string;
+  surface: string;
+  context: Record<string, unknown>;
+  first_seen_at: string;
+  occurrence_count: number;
+  status: "pending" | "resolved" | "rejected";
+  resolved_entity_id: string | null;
+  reviewer: string | null;
+} {
+  return {
+    pending_id: row.pending_id,
+    surface: row.surface,
+    context: row.context,
+    first_seen_at: row.first_seen_at.toISOString(),
+    occurrence_count: row.occurrence_count,
+    status: row.status,
+    resolved_entity_id: row.resolved_entity_id,
+    reviewer: row.reviewer
+  };
 }
 
 function registerReviewCommands(program: Command): void {

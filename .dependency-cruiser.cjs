@@ -26,6 +26,18 @@ module.exports = {
       to: { path: "^packages/(db|graph|graph-builder)/" }
     },
     {
+      name: "chain-view-model-must-stay-pure",
+      severity: "error",
+      from: { path: "^packages/chain-view/src" },
+      to: { path: "^packages/(db|component-context|graph|graph-builder)/|^node_modules/pg" }
+    },
+    {
+      name: "render-must-stay-pure",
+      severity: "error",
+      from: { path: "^packages/render/src" },
+      to: { path: "^packages/(db|chain-view-builder|card-builder|component-context|graph|graph-builder)/|^node_modules/pg" }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { DbClient } from "@supplystrata/db";
 import {
   deprecateEdge,
+  claimDueGraphProjectionJobs,
   insertChainSegment,
   insertChainSegments,
   insertChainView,
@@ -37,10 +38,10 @@ class RecordingDbClient implements DbClient {
     this.calls.push({ sql, params });
     return {
       command: "MOCK",
-      rowCount: 0,
+      rowCount: mockRowsForAtomicUpsert<T>(sql, params).length,
       oid: 0,
       fields: [],
-      rows: []
+      rows: mockRowsForAtomicUpsert<T>(sql, params)
     };
   }
 }
@@ -141,9 +142,9 @@ describe("db intelligence-network repositories", () => {
     });
 
     expect(claim).toEqual({ claim_id: "CLM-EDGE-TEST", inserted: true });
-    expect(client.calls).toHaveLength(2);
-    expect(client.calls[0]?.sql).toContain("SELECT claim_id FROM claims");
-    expect(client.calls[1]?.sql).toContain("ON CONFLICT (claim_id) DO UPDATE");
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (claim_id) DO UPDATE");
+    expect(client.calls[0]?.sql).toContain("RETURNING claim_id, (xmax = 0) AS inserted");
   });
 
   it("inserts observations and leads as non-edge records", async () => {
@@ -328,4 +329,28 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[1]?.sql).toContain("INSERT INTO chain_segments");
     expect(client.calls[2]?.sql.trimStart().startsWith("SELECT")).toBe(true);
   });
+
+  it("claims graph projection jobs with row locks before retry workers process them", async () => {
+    const client = new RecordingDbClient();
+
+    await claimDueGraphProjectionJobs(client, { limit: 25 });
+
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0]?.sql).toContain("FOR UPDATE SKIP LOCKED");
+    expect(client.calls[0]?.sql).toContain("SET status = 'in_progress'");
+    expect(client.calls[0]?.params).toEqual([25]);
+  });
 });
+
+function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("RETURNING claim_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ claim_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ observation_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING lead_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ lead_id: params[0], inserted: true }] as unknown as T[];
+  }
+  return [];
+}

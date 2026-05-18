@@ -9,7 +9,8 @@ import {
   type ChangeTimelineItem,
   type DbClient
 } from "@supplystrata/db";
-import { buildCompanyChainView, type ChainViewModel, type ChainViewSegmentModel } from "@supplystrata/chain-view";
+import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-view";
+import { buildCompanyChainView } from "@supplystrata/chain-view-builder";
 import { listSourceHealthRows } from "@supplystrata/source-monitor";
 import { planSourcesForComponents, type SourcePlanItem } from "@supplystrata/source-plan";
 import { RELATION_TYPES, type ClaimType, type EvidenceLevel, type ExtractionMethod, type RelationType } from "@supplystrata/core";

@@ -1,20 +1,17 @@
-import type { DbClient } from "@supplystrata/db";
-import { listUnknownItems, resolveEntityId } from "@supplystrata/db";
 import type { OutputFormat } from "./types.js";
+
+export interface UnknownMapItem {
+  unknown_id: string;
+  question: string;
+  why_unknown: string;
+  blocking_data_sources: string[];
+  proxies: string[];
+  status: string;
+}
 
 export interface UnknownMapModel {
   scope: string;
-  items: Awaited<ReturnType<typeof listUnknownItems>>;
-}
-
-export async function loadUnknownMap(client: DbClient, query: string): Promise<UnknownMapModel> {
-  const entityId = await resolveEntityId(client, query);
-  const items = await listUnknownItems(client, entityId);
-  return { scope: entityId, items };
-}
-
-export async function renderUnknownMap(client: DbClient, query: string, format: OutputFormat): Promise<string> {
-  return renderUnknownMapCard(await loadUnknownMap(client, query), format);
+  items: UnknownMapItem[];
 }
 
 export function renderUnknownMapCard(model: UnknownMapModel, format: OutputFormat): string {

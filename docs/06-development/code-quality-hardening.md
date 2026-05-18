@@ -58,14 +58,28 @@
 [x] research-preview 加入加载 token + AbortController；URL / 文件加载交错时，旧请求不能覆盖新工作台状态。
 [x] `CandidateRelation` 增加 `source_location`；SEC 规则抽取器输出 chunk locator 与 cite offset，evidence trace 优先使用 extractor 提供的偏移并校验原文。
 [x] Supplier List review/apply 接入统一 citation locator；半自动审核边写入 evidence 前必须定位到唯一 chunk，避免 reviewed evidence 只有 doc_id 没有 chunk_id。
+[x] claim / observation upsert 改为 `RETURNING (xmax = 0) AS inserted`，删除先查后写的 inserted 推断，避免并发下两个调用者同时误判为新增。
+[x] `saveNormalizedDocument()` 内部包裹事务，并提供 `saveNormalizedDocumentTx()` 供已有事务复用；document 与 chunks 不再可能半写入。
+[x] graph projection job 增加 `in_progress` 状态和 `claimDueGraphProjectionJobs()`；worker 领取任务使用 `FOR UPDATE SKIP LOCKED`，避免多进程重复拉同一个投影任务。
+[x] SEC 表单类型集中到 core 的 `SEC_FORM_TYPES / parseSecFormType / secFormTypeOrDefault`；CLI、SEC adapter、pipeline 不再各自维护一份校验逻辑。
+[x] GraphStore 的 `validity` 收紧为 core `EdgeValidity`，图后端 adapter 不能再接收任意字符串状态。
+[x] source-plan 引用的 `micron-ir` 补入 source registry，并增加测试覆盖，避免计划层引用未登记来源后静默过滤。
+[x] source-plan 对未注册 source id 改为 fail-fast，不再把拼错或漏登记的数据源静默丢弃。
+[x] research-preview 的本地文件加载接入同一个 AbortController 令牌，URL / 文件加载都不会被旧请求回写污染状态。
+[x] `@supplystrata/chain-view` 降级为纯视图模型包；DB/组件上下文组装迁入 `@supplystrata/chain-view-builder`，前端和 JSON 消费方不再被拖入 `pg` / `db` 依赖链。
+[x] dependency-cruiser 增加 `chain-view-model-must-stay-pure`，CI 会阻止纯视图模型包重新依赖 DB、图后端、组件上下文或 `pg`。
+[x] 新增 `@supplystrata/card-builder`，集中 CompanyCard / ComponentCard / ChainCard / EvidenceCard / UnknownMap 的数据库加载和 DTO 组装。
+[x] `packages/render` 降级为纯 formatter：移除 `DbClient`、`db`、`pg`、chain-view-builder 依赖，只接收稳定 DTO 后输出 Markdown / JSON。
+[x] CLI、E2E 与 card 命令改为显式 `card-builder load -> render formatter`，数据库读取与展示格式化不再混在一个包里。
+[x] dependency-cruiser 增加 `render-must-stay-pure`，CI 会阻止 render 重新依赖 DB、Graph、card-builder 或 `pg`。
 ```
 
 ## 下一批质量修复
 
 ```text
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
-[ ] `packages/render` 仍保留兼容性 `renderX(client, ...)` 包装函数；下一轮可把 loader 整体迁到独立 card/use-case 包，并让 render 包只保留 formatter。
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
+[ ] `apps/cli/src/cli-utils.ts` 仍承担较多 DB 生命周期、参数解析和输出工具职责；后续可以继续拆成 runtime / parse / io 三个小模块。
 ```
 
 ## 验收门槛

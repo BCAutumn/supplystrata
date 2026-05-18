@@ -1,4 +1,4 @@
-import type { DocumentType, FetchTask, NormalizedDocument, RawDocument } from "@supplystrata/core";
+import { secFormTypeOrDefault, type DocumentType, type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { getLogger } from "@supplystrata/observability";
 import { createAdapterContext, secEdgarAdapter, type SecEdgarInput } from "@supplystrata/sources-sec-edgar";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
@@ -51,6 +51,5 @@ async function firstPlannedTask<TInput>(adapter: SourceAdapter<TInput, Uint8Arra
 }
 
 function readDocumentType(value: unknown): DocumentType {
-  if (value === "10-K" || value === "10-Q" || value === "20-F" || value === "8-K") return value;
-  return "10-K";
+  return secFormTypeOrDefault(value);
 }

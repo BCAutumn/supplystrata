@@ -15,10 +15,10 @@ class RecordingDbClient implements DbClient {
     this.calls.push({ sql, params });
     return {
       command: "MOCK",
-      rowCount: 0,
+      rowCount: mockRowsForAtomicUpsert<T>(sql, params).length,
       oid: 0,
       fields: [],
-      rows: []
+      rows: mockRowsForAtomicUpsert<T>(sql, params)
     };
   }
 }
@@ -42,11 +42,11 @@ describe("observation-store", () => {
     const result = await storeObservation(client, input);
 
     expect(result).toEqual({ id: deterministicObservationId(input), inserted: true });
-    expect(client.calls).toHaveLength(3);
-    expect(client.calls[0]?.sql).toContain("SELECT observation_id FROM observations");
-    expect(client.calls[1]?.sql).toContain("ON CONFLICT (observation_id) DO UPDATE");
-    expect(client.calls[2]?.sql).toContain("INSERT INTO change_records");
-    expect(client.calls[2]?.params).toContain("OBSERVATION_ADDED");
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (observation_id) DO UPDATE");
+    expect(client.calls[0]?.sql).toContain("RETURNING observation_id, (xmax = 0) AS inserted");
+    expect(client.calls[1]?.sql).toContain("INSERT INTO change_records");
+    expect(client.calls[1]?.params).toContain("OBSERVATION_ADDED");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -95,11 +95,21 @@ describe("observation-store", () => {
     const result = await storeLeadObservation(client, input);
 
     expect(result).toEqual({ id: deterministicLeadId(input), inserted: true });
-    expect(client.calls).toHaveLength(3);
-    expect(client.calls[0]?.sql).toContain("SELECT lead_id FROM lead_observations");
-    expect(client.calls[1]?.sql).toContain("ON CONFLICT (lead_id) DO UPDATE");
-    expect(client.calls[2]?.sql).toContain("INSERT INTO change_records");
-    expect(client.calls[2]?.params).toContain("LEAD_ADDED");
+    expect(client.calls).toHaveLength(2);
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (lead_id) DO UPDATE");
+    expect(client.calls[0]?.sql).toContain("RETURNING lead_id, (xmax = 0) AS inserted");
+    expect(client.calls[1]?.sql).toContain("INSERT INTO change_records");
+    expect(client.calls[1]?.params).toContain("LEAD_ADDED");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 });
+
+function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ observation_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING lead_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ lead_id: params[0], inserted: true }] as unknown as T[];
+  }
+  return [];
+}

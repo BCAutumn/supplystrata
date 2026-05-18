@@ -127,7 +127,9 @@ function draftsForLead(lead: ComponentUpstreamLead, context: SourcePlanContext):
     for (const sourceId of sourceIdsForSuggestion(suggestion)) sourceIds.add(sourceId);
   }
   return [...sourceIds].flatMap((sourceId) => {
-    if (getSourceById(sourceId) === undefined || !sourceMatchesContext(sourceId, context)) return [];
+    // 计划层引用的来源必须先登记到 source registry；未登记来源静默消失会让研究计划看起来“正常但缺数据”。
+    requireSource(sourceId);
+    if (!sourceMatchesContext(sourceId, context)) return [];
     return [
       {
         sourceId,

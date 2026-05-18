@@ -31,6 +31,10 @@ export const RELATION_TYPES = [
 
 export type RelationType = (typeof RELATION_TYPES)[number];
 
+export const EDGE_VALIDITIES = ["current", "historical", "deprecated"] as const;
+
+export type EdgeValidity = (typeof EDGE_VALIDITIES)[number];
+
 export const DOCUMENT_TYPES = [
   "10-K",
   "10-Q",
@@ -46,6 +50,23 @@ export const DOCUMENT_TYPES = [
 ] as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+export const SEC_FORM_TYPES = ["10-K", "10-Q", "20-F", "8-K"] as const;
+
+export type SecFormType = (typeof SEC_FORM_TYPES)[number];
+
+export function isSecFormType(value: string): value is SecFormType {
+  return SEC_FORM_TYPES.some((formType) => formType === value);
+}
+
+export function parseSecFormType(value: string): SecFormType {
+  if (isSecFormType(value)) return value;
+  throw new Error(`Unsupported SEC form type: ${value}`);
+}
+
+export function secFormTypeOrDefault(value: unknown, fallback: SecFormType = "10-K"): SecFormType {
+  return typeof value === "string" && isSecFormType(value) ? value : fallback;
+}
 
 export type EvidenceLevel = 1 | 2 | 3 | 4 | 5;
 export type ExtractionMethod = "rule" | "llm" | "manual" | "hybrid";

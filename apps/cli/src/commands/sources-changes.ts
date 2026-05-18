@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
+import { listChangeTimeline } from "@supplystrata/db";
 import { checkSecEdgarSource, runDueSourceChecks, type DueSourceCheckRunResult, type SourceCheckSummary } from "@supplystrata/pipeline";
-import { renderChanges } from "@supplystrata/render";
+import { renderChangeTimelineItems } from "@supplystrata/render";
 import {
   listDueSourceChecks,
   listSourceHealthRows,
@@ -161,13 +162,13 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         const input = {
           since: parseSince(options.since),
           limit: parseLimit(options.limit),
-          format: parseFormat(options.format),
           ...(scope === undefined ? {} : { scope }),
           ...(options.type === undefined ? {} : { changeType: options.type }),
           ...(options.source === undefined ? {} : { sourceAdapterId: options.source }),
           attentionOnly: options.attentionOnly
         };
-        write(await renderChanges(pool, input));
+        const changes = await listChangeTimeline(pool, input);
+        write(renderChangeTimelineItems(changes, { format: parseFormat(options.format), since: input.since }));
       });
     });
 }

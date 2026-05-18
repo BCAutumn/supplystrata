@@ -1,5 +1,5 @@
 {
-  "name": "@supplystrata/render",
+  "name": "@supplystrata/chain-view-builder",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -11,7 +11,10 @@
   },
   "dependencies": {
     "@supplystrata/chain-view": "workspace:*",
-    "@supplystrata/core": "workspace:*"
+    "@supplystrata/component-context": "workspace:*",
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "pg": "~8.13.1"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

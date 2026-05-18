@@ -1,4 +1,4 @@
-import { saveNormalizedDocument, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { getLogger } from "@supplystrata/observability";
 import { storeObservation } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -39,7 +39,7 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
       const normalized = await oshAdapter.normalize(raw, context);
       const candidates = parseOshFacilityCandidates(raw.body, normalized.source_url);
       const { saved, documentObservation, storedObservations } = await store.transaction(async (client) => {
-        const savedDocument = await saveNormalizedDocument(client, normalized);
+        const savedDocument = await saveNormalizedDocumentTx(client, normalized);
         const savedObservation = await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id, { checkTargetId: options.checkTargetId });
         const observationCount = await storeOshFacilityObservations(client, candidates, {
           docId: savedDocument.doc_id,

@@ -8,6 +8,7 @@ describe("source registry", () => {
     expect(ids.has("tsmc-ir")).toBe(true);
     expect(ids.has("samsung-ir")).toBe(true);
     expect(ids.has("skhynix-ir")).toBe(true);
+    expect(ids.has("micron-ir")).toBe(true);
     expect(ids.has("asml-ir")).toBe(true);
     expect(ids.has("apple-suppliers")).toBe(true);
     expect(ids.has("opencorporates")).toBe(true);
@@ -24,11 +25,11 @@ describe("source registry", () => {
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 30,
+      total: 31,
       implemented: 2,
       preview: 9,
       planned: 2,
-      scoped: 16,
+      scoped: 17,
       manualOnly: 1,
       requiresKey: 9
     });

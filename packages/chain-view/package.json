@@ -10,10 +10,7 @@
     }
   },
   "dependencies": {
-    "@supplystrata/component-context": "workspace:*",
-    "@supplystrata/core": "workspace:*",
-    "@supplystrata/db": "workspace:*",
-    "pg": "~8.13.1"
+    "@supplystrata/core": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

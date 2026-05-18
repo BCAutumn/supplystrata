@@ -51,8 +51,9 @@ export interface NewObservationInput {
   attrs?: Record<string, unknown>;
 }
 
-interface ObservationIdRow extends pg.QueryResultRow {
+interface UpsertObservationRow extends pg.QueryResultRow {
   observation_id: string;
+  inserted: boolean;
 }
 
 export interface UpsertObservationResult {
@@ -77,8 +78,7 @@ export async function insertObservation(client: DbClient, input: NewObservationI
 
 export async function upsertObservation(client: DbClient, input: NewObservationInput): Promise<UpsertObservationResult> {
   const observationId = input.observation_id ?? createId("OBS");
-  const existing = await client.query<ObservationIdRow>(`SELECT observation_id FROM observations WHERE observation_id = $1`, [observationId]);
-  await client.query(
+  const result = await client.query<UpsertObservationRow>(
     `INSERT INTO observations (
        observation_id, observation_type, source_adapter_id, source_item_id, doc_id,
        scope_kind, scope_id, geography_kind, geography_id, component_id, metric_name,
@@ -106,10 +106,13 @@ export async function upsertObservation(client: DbClient, input: NewObservationI
        change_percent = EXCLUDED.change_percent,
        confidence = EXCLUDED.confidence,
        provenance = EXCLUDED.provenance,
-       attrs = EXCLUDED.attrs`,
+       attrs = EXCLUDED.attrs
+     RETURNING observation_id, (xmax = 0) AS inserted`,
     observationParams(observationId, input)
   );
-  return { observation_id: observationId, inserted: existing.rows[0] === undefined };
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Observation upsert did not return a row: ${observationId}`);
+  return { observation_id: row.observation_id, inserted: row.inserted };
 }
 
 export async function listObservationsByScope(
@@ -187,8 +190,9 @@ export interface NewLeadObservationInput {
   attrs?: Record<string, unknown>;
 }
 
-interface LeadIdRow extends pg.QueryResultRow {
+interface UpsertLeadRow extends pg.QueryResultRow {
   lead_id: string;
+  inserted: boolean;
 }
 
 export interface UpsertLeadObservationResult {
@@ -211,8 +215,7 @@ export async function insertLeadObservation(client: DbClient, input: NewLeadObse
 
 export async function upsertLeadObservation(client: DbClient, input: NewLeadObservationInput): Promise<UpsertLeadObservationResult> {
   const leadId = input.lead_id ?? createId("LEAD");
-  const existing = await client.query<LeadIdRow>(`SELECT lead_id FROM lead_observations WHERE lead_id = $1`, [leadId]);
-  await client.query(
+  const result = await client.query<UpsertLeadRow>(
     `INSERT INTO lead_observations (
        lead_id, lead_type, source_adapter_id, doc_id, scope_kind, scope_id, title, summary,
        cite_text, source_url, status, review_id, attrs
@@ -231,10 +234,13 @@ export async function upsertLeadObservation(client: DbClient, input: NewLeadObse
        status = EXCLUDED.status,
        review_id = EXCLUDED.review_id,
        attrs = EXCLUDED.attrs,
-       updated_at = now()`,
+       updated_at = now()
+     RETURNING lead_id, (xmax = 0) AS inserted`,
     leadParams(leadId, input)
   );
-  return { lead_id: leadId, inserted: existing.rows[0] === undefined };
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Lead observation upsert did not return a row: ${leadId}`);
+  return { lead_id: row.lead_id, inserted: row.inserted };
 }
 
 export async function listLeadObservationsByScope(

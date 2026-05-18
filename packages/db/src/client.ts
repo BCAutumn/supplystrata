@@ -8,6 +8,8 @@ export interface DbClient {
   query<T extends pg.QueryResultRow>(sql: string, params?: readonly unknown[]): Promise<pg.QueryResult<T>>;
 }
 
+export interface DbRow extends pg.QueryResultRow {}
+
 interface DbConnection extends DbClient {
   release(): void;
 }

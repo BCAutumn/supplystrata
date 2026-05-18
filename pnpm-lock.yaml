@@ -60,6 +60,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@supplystrata/card-builder':
+        specifier: workspace:*
+        version: link:../../packages/card-builder
       '@supplystrata/claim-builder':
         specifier: workspace:*
         version: link:../../packages/claim-builder
@@ -124,8 +127,35 @@ importers:
         specifier: workspace:*
         version: link:../../packages/workbench-export
 
+  packages/card-builder:
+    dependencies:
+      '@supplystrata/chain-view':
+        specifier: workspace:*
+        version: link:../chain-view
+      '@supplystrata/chain-view-builder':
+        specifier: workspace:*
+        version: link:../chain-view-builder
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      '@supplystrata/render':
+        specifier: workspace:*
+        version: link:../render
+
   packages/chain-view:
     dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/chain-view-builder:
+    dependencies:
+      '@supplystrata/chain-view':
+        specifier: workspace:*
+        version: link:../chain-view
       '@supplystrata/component-context':
         specifier: workspace:*
         version: link:../component-context
@@ -464,9 +494,6 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
-      '@supplystrata/db':
-        specifier: workspace:*
-        version: link:../db
 
   packages/review-candidates:
     dependencies:
@@ -746,6 +773,9 @@ importers:
       '@supplystrata/chain-view':
         specifier: workspace:*
         version: link:../chain-view
+      '@supplystrata/chain-view-builder':
+        specifier: workspace:*
+        version: link:../chain-view-builder
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core

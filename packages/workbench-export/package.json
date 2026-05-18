@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@supplystrata/chain-view": "workspace:*",
+    "@supplystrata/chain-view-builder": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",

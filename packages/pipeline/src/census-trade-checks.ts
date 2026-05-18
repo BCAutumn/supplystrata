@@ -1,4 +1,4 @@
-import { saveNormalizedDocument, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { getLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -41,7 +41,7 @@ async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTrad
       const normalized = await censusTradeAdapter.normalize(raw, context);
       const rows = parseCensusTradeRows(raw.body, input.direction);
       const { saved, documentObservation, storedObservations } = await store.transaction(async (client) => {
-        const savedDocument = await saveNormalizedDocument(client, normalized);
+        const savedDocument = await saveNormalizedDocumentTx(client, normalized);
         const savedObservation = await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id, { checkTargetId: options.checkTargetId });
         const observationCount = await storeTradeFlowObservations(client, rows, {
           docId: savedDocument.doc_id,

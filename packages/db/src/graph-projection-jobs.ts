@@ -3,7 +3,7 @@ import { createId } from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
 export type GraphProjectionOperation = "upsert_edge" | "remove_edge";
-export type GraphProjectionJobStatus = "pending" | "failed" | "succeeded";
+export type GraphProjectionJobStatus = "pending" | "failed" | "in_progress" | "succeeded";
 
 export interface GraphProjectionJobRow extends pg.QueryResultRow {
   job_id: string;
@@ -25,7 +25,7 @@ export async function recordGraphProjectionFailure(
   const result = await client.query<GraphProjectionJobRow>(
     `INSERT INTO graph_projection_jobs (job_id, operation, edge_id, status, attempts, last_error, next_attempt_at)
      VALUES ($1,$2,$3,'pending',1,$4,now() + interval '1 minute')
-     ON CONFLICT (operation, edge_id) WHERE status IN ('pending','failed')
+     ON CONFLICT (operation, edge_id) WHERE status IN ('pending','failed','in_progress')
      DO UPDATE SET
        status = 'pending',
        attempts = graph_projection_jobs.attempts + 1,
@@ -47,7 +47,7 @@ export async function markGraphProjectionJobsSucceeded(client: DbClient, input: 
      SET status = 'succeeded', updated_at = now(), completed_at = now()
      WHERE operation = $1
        AND edge_id = $2
-       AND status IN ('pending','failed')`,
+       AND status IN ('pending','failed','in_progress')`,
     [input.operation, input.edge_id]
   );
   return result.rowCount ?? 0;
@@ -61,6 +61,28 @@ export async function listDueGraphProjectionJobs(client: DbClient, input: { limi
        AND next_attempt_at <= now()
      ORDER BY next_attempt_at, created_at, job_id
      LIMIT $1`,
+    [input.limit]
+  );
+  return result.rows;
+}
+
+export async function claimDueGraphProjectionJobs(client: DbClient, input: { limit: number }): Promise<GraphProjectionJobRow[]> {
+  const result = await client.query<GraphProjectionJobRow>(
+    `WITH due AS (
+       SELECT job_id
+       FROM graph_projection_jobs
+       WHERE status IN ('pending','failed')
+         AND next_attempt_at <= now()
+       ORDER BY next_attempt_at, created_at, job_id
+       LIMIT $1
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE graph_projection_jobs jobs
+     SET status = 'in_progress', updated_at = now()
+     FROM due
+     WHERE jobs.job_id = due.job_id
+     RETURNING jobs.job_id, jobs.operation, jobs.edge_id, jobs.status, jobs.attempts, jobs.last_error,
+               jobs.next_attempt_at, jobs.created_at, jobs.updated_at, jobs.completed_at`,
     [input.limit]
   );
   return result.rows;

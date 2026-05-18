@@ -1,6 +1,7 @@
 import { createDatabaseStore, type DatabaseStore, type PendingEntityStatusFilter } from "@supplystrata/db";
 import type { ChangeTimelineScope } from "@supplystrata/db";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
+import { isSecFormType, type SecFormType } from "@supplystrata/core";
 import type { EntityLookupSource } from "@supplystrata/pipeline";
 import type { OutputFormat } from "@supplystrata/render";
 
@@ -80,8 +81,8 @@ export function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-export function isSupportedFormType(value: string): value is "10-K" | "10-Q" | "20-F" | "8-K" {
-  return value === "10-K" || value === "10-Q" || value === "20-F" || value === "8-K";
+export function isSupportedFormType(value: string): value is SecFormType {
+  return isSecFormType(value);
 }
 
 export function formatCliError(error: unknown): string {

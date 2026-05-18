@@ -1,17 +1,32 @@
-import type { DbClient } from "@supplystrata/db";
-import { getEvidence } from "@supplystrata/db";
+import type { EvidenceLevel, ExtractionMethod, RelationType } from "@supplystrata/core";
 import type { OutputFormat } from "./types.js";
 
-export async function renderEvidence(client: DbClient, evidenceId: string, format: OutputFormat): Promise<string> {
-  return renderEvidenceCard(await loadEvidenceCard(client, evidenceId), format);
-}
-
-export type EvidenceCardModel = NonNullable<Awaited<ReturnType<typeof getEvidence>>>;
-
-export async function loadEvidenceCard(client: DbClient, evidenceId: string): Promise<EvidenceCardModel> {
-  const evidence = await getEvidence(client, evidenceId);
-  if (evidence === undefined) throw new Error(`Evidence not found: ${evidenceId}`);
-  return evidence;
+export interface EvidenceCardModel {
+  evidence_id: string;
+  edge_id: string | null;
+  superseded_by: string | null;
+  cite_text: string;
+  cite_locator: string | null;
+  cite_start_char: number | null;
+  cite_end_char: number | null;
+  cite_text_sha256: string | null;
+  normalized_cite_text_sha256: string | null;
+  source_snapshot_sha256: string | null;
+  parser_version: string | null;
+  extractor_version: string | null;
+  relation_candidate_hash: string | null;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  extraction_method: ExtractionMethod;
+  source_url: string;
+  source_date: string | null;
+  fetched_at: string;
+  source_adapter_id: string;
+  document_type: string;
+  subject_name: string | null;
+  object_name: string | null;
+  relation: RelationType | null;
 }
 
 export function renderEvidenceCard(evidence: EvidenceCardModel, format: OutputFormat): string {
@@ -23,7 +38,7 @@ export function renderEvidenceCard(evidence: EvidenceCardModel, format: OutputFo
     `Confidence: ${evidence.confidence.toFixed(3)}`,
     `Inferred: ${evidence.is_inferred ? "yes" : "no"}`,
     `Extraction: ${evidence.extraction_method}`,
-    `Source: ${evidence.source_adapter_id} ${evidence.source_date?.toISOString().slice(0, 10) ?? ""}`,
+    `Source: ${evidence.source_adapter_id} ${evidence.source_date?.slice(0, 10) ?? ""}`,
     `URL: ${evidence.source_url}`,
     `Source snapshot sha256: ${evidence.source_snapshot_sha256 ?? "(not recorded)"}`,
     `Parser version: ${evidence.parser_version ?? "(not recorded)"}`,
