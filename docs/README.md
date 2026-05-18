@@ -36,6 +36,7 @@ docs/
 ├── 04-data-sources/              数据源
 │   ├── source-registry.md        ★ 数据源总表（含 P0/P1/P2 分级）
 │   ├── source-roi-matrix.md         数据源 ROI 排序与 v0.2 接入顺序
+│   ├── coverage-research-2026-05.md 数据覆盖研究与下一批 connector 顺序
 │   ├── tier-A-disclosures.md        公司官方披露
 │   ├── tier-B-entity-resolution.md  实体解析数据
 │   ├── tier-C-facility-data.md      工厂/供应商设施

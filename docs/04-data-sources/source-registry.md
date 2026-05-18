@@ -30,7 +30,7 @@
 | `usitc-dataweb`         | P1   | USITC DataWeb                                  | 美国官方贸易/关税                            | 2-3                    | API/CSV                               | 公开              | scoped      |
 | `eia`                   | P1   | U.S. EIA                                       | 能源 / 电力 / 油气数据                       | 2-3 (背景信号)         | API                                   | 公开 + UA         | scoped      |
 | `fred`                  | P1   | FRED (St. Louis Fed)                           | 宏观经济时间序列                             | 2-3 (背景信号)         | API                                   | 公开              | scoped      |
-| `worldbank-pink`        | P1   | World Bank Pink Sheet                          | 商品价格月度数据                             | 2-3 (背景信号)         | XLSX 下载                             | 公开              | scoped      |
+| `worldbank-pink`        | P1   | World Bank Pink Sheet                          | 商品价格月度数据                             | 2-3 (背景信号)         | XLSX 下载                             | 公开              | preview     |
 | `usgs-mcs`              | P1   | USGS Mineral Commodity Summaries               | 矿产基本面                                   | 2-3 (背景信号)         | PDF + CSV                             | 公开              | scoped      |
 | `iea-critical-minerals` | P1   | IEA Critical Minerals Data Explorer            | 关键矿物需求 / 供应情景                      | 2-3 (背景信号)         | CSV/API/下载（以官方可用方式为准）    | 公开              | scoped      |
 | `rmi-facilities`        | P1   | Responsible Minerals Initiative facility lists | 冶炼 / 精炼 / 处理设施候选                   | 2-3 (设施/原材料候选)  | CSV/XLSX/网页下载（需遵守来源条款）   | 公开 + 归因       | scoped      |
