@@ -92,11 +92,9 @@ export class SourceRateLimiter {
   }
 }
 
-export const defaultSourceRateLimiter = new SourceRateLimiter();
-
 export function createRateLimitedSourceAdapter<TFetchInput, TRawDoc>(
   adapter: SourceAdapter<TFetchInput, TRawDoc>,
-  limiter: SourceRateLimiter = defaultSourceRateLimiter
+  limiter: SourceRateLimiter = new SourceRateLimiter()
 ): SourceAdapter<TFetchInput, TRawDoc> {
   return {
     ...adapter,

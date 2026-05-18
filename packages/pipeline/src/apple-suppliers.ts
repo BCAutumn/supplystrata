@@ -21,17 +21,20 @@ export async function enqueueAppleSupplierReviewCandidates(
     context: createAppleSuppliersAdapterContext(),
     logLabel: "Apple Supplier List"
   });
-  const saved = await saveNormalizedDocument(store, normalized);
-  await recordSavedDocumentObservation(store, normalized, saved.doc_id);
-  const candidates = extractAppleSupplierCandidates(normalized, input.fiscalYear).map((candidate) =>
-    buildSupplierListReviewCandidate({
-      candidate,
-      docId: saved.doc_id,
-      sourceUrl: raw.url,
-      ...(sourceDate === undefined ? {} : { sourceDate })
-    })
-  );
-  const result = await enqueueReviewCandidates(store, candidates);
+  const { saved, candidates, result } = await store.transaction(async (client) => {
+    const savedDocument = await saveNormalizedDocument(client, normalized);
+    await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id);
+    const reviewCandidates = extractAppleSupplierCandidates(normalized, input.fiscalYear).map((candidate) =>
+      buildSupplierListReviewCandidate({
+        candidate,
+        docId: savedDocument.doc_id,
+        sourceUrl: raw.url,
+        ...(sourceDate === undefined ? {} : { sourceDate })
+      })
+    );
+    const enqueueResult = await enqueueReviewCandidates(client, reviewCandidates);
+    return { saved: savedDocument, candidates: reviewCandidates, result: enqueueResult };
+  });
   return {
     doc_id: saved.doc_id,
     source_url: raw.url,

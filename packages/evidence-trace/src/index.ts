@@ -22,6 +22,10 @@ export interface EvidenceTraceInput {
   document_metadata: Record<string, unknown>;
   identity: EvidenceTraceIdentity;
   chunk_text?: string;
+  citation_location?: {
+    cite_start_char: number;
+    cite_end_char: number;
+  };
 }
 
 export interface EvidenceTraceFields {
@@ -38,7 +42,7 @@ export interface EvidenceTraceFields {
 export function buildEvidenceTrace(input: EvidenceTraceInput): EvidenceTraceFields {
   const citeTextHash = sha256Hex(input.cite_text);
   const normalizedCiteTextHash = sha256Hex(normalizeCiteTextForHash(input.cite_text));
-  const offsets = input.chunk_text === undefined ? { start: null, end: null } : findCitationOffsets(input.chunk_text, input.cite_text);
+  const offsets = citationOffsets(input);
 
   return {
     cite_start_char: offsets.start,
@@ -53,6 +57,22 @@ export function buildEvidenceTrace(input: EvidenceTraceInput): EvidenceTraceFiel
       extractor_id: input.extractor_id,
       normalized_cite_text_sha256: normalizedCiteTextHash
     })
+  };
+}
+
+function citationOffsets(input: EvidenceTraceInput): { start: number | null; end: number | null } {
+  if (input.citation_location === undefined) {
+    return input.chunk_text === undefined ? { start: null, end: null } : findCitationOffsets(input.chunk_text, input.cite_text);
+  }
+  if (input.chunk_text !== undefined) {
+    const citedText = input.chunk_text.slice(input.citation_location.cite_start_char, input.citation_location.cite_end_char);
+    if (citedText !== input.cite_text) {
+      throw new Error("candidate citation_location does not reproduce cite_text from chunk_text");
+    }
+  }
+  return {
+    start: input.citation_location.cite_start_char,
+    end: input.citation_location.cite_end_char
   };
 }
 

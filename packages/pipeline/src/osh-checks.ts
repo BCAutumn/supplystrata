@@ -1,4 +1,4 @@
-import { saveNormalizedDocument, type DatabaseStore } from "@supplystrata/db";
+import { saveNormalizedDocument, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { getLogger } from "@supplystrata/observability";
 import { storeObservation } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -37,14 +37,17 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
       getLogger().info({ stage: "source-check", adapter: oshAdapter.id, task_id: task.task_id }, "checking OSH facility source task");
       const raw = await oshAdapter.fetch(task, context);
       const normalized = await oshAdapter.normalize(raw, context);
-      const saved = await saveNormalizedDocument(store, normalized);
-      const documentObservation = await recordSavedDocumentObservation(store, normalized, saved.doc_id, { checkTargetId: options.checkTargetId });
       const candidates = parseOshFacilityCandidates(raw.body, normalized.source_url);
-      const storedObservations = await storeOshFacilityObservations(store, candidates, {
-        docId: saved.doc_id,
-        sourceItemId: documentObservation.source_item_id,
-        query: input.query,
-        targetConfig: options.targetConfig
+      const { saved, documentObservation, storedObservations } = await store.transaction(async (client) => {
+        const savedDocument = await saveNormalizedDocument(client, normalized);
+        const savedObservation = await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id, { checkTargetId: options.checkTargetId });
+        const observationCount = await storeOshFacilityObservations(client, candidates, {
+          docId: savedDocument.doc_id,
+          sourceItemId: savedObservation.source_item_id,
+          query: input.query,
+          targetConfig: options.targetConfig
+        });
+        return { saved: savedDocument, documentObservation: savedObservation, storedObservations: observationCount };
       });
       summaries.push({
         source_adapter_id: oshAdapter.id,
@@ -72,14 +75,14 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
 }
 
 async function storeOshFacilityObservations(
-  store: DatabaseStore,
+  client: DbClient,
   candidates: readonly OshFacilityCandidate[],
   input: { docId: string; sourceItemId: string; query: string; targetConfig: Record<string, unknown> }
 ): Promise<number> {
   let count = 0;
   for (const candidate of candidates) {
     // OSH contributor 声明只证明设施候选和地理/行业背景，不能直接生成供应关系事实边。
-    await storeObservation(store, {
+    await storeObservation(client, {
       observation_type: "FACILITY_PROFILE_OBSERVATION",
       source_adapter_id: "osh",
       source_item_id: input.sourceItemId,

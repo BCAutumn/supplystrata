@@ -1,7 +1,15 @@
 import { createHash } from "node:crypto";
 import type pg from "pg";
 import type { ClaimType, EvidenceLevel, RelationType } from "@supplystrata/core";
-import { linkClaimEvidence, recordSemanticChange, tryResolveEntityId, upsertClaim, type DbClient, type NewClaimInput } from "@supplystrata/db";
+import {
+  linkClaimEvidence,
+  recordSemanticChange,
+  tryResolveEntityId,
+  upsertClaim,
+  type DatabaseStore,
+  type DbClient,
+  type NewClaimInput
+} from "@supplystrata/db";
 import type { SemanticChangeReviewCandidate } from "@supplystrata/review-candidates";
 
 export interface ClaimableFactEdge {
@@ -222,6 +230,10 @@ export async function buildEdgeClaimsFromCurrentEdges(client: DbClient, input: B
   }
 
   return { scanned: edges.length, inserted, updated, generated_by: generatedBy };
+}
+
+export async function buildEdgeClaimsFromCurrentEdgesTransactionally(store: DatabaseStore, input: BuildEdgeClaimsInput = {}): Promise<BuildEdgeClaimsSummary> {
+  return store.transaction((client) => buildEdgeClaimsFromCurrentEdges(client, input));
 }
 
 async function listClaimableFactEdges(client: DbClient, input: { min_evidence_level: 4 | 5; limit: number }): Promise<ClaimableFactEdgeRow[]> {

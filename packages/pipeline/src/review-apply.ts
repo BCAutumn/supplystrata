@@ -27,6 +27,7 @@ import {
   type ReviewQueueItem
 } from "@supplystrata/review-store";
 import { getLogger } from "@supplystrata/observability";
+import { locateCandidateCitation } from "./citation-location.js";
 
 export interface AppliedReviewEdgeResult extends ApplyResult {
   role: "supplier_relation" | "facility_relation";
@@ -111,9 +112,11 @@ async function applySupplierListReviewCandidate(store: DatabaseStore, item: Supp
   const doc = await loadReviewDocument(store, item);
   if (doc.status === "blocked") return doc;
   const scored = await scoreSupplierListRelations(supplierRelation, facilityPreparation.facilityRelation, doc.document);
+  const citationChunks = locateSupplierListCitations(doc.document, scored);
+  if (citationChunks.status === "blocked") return blockReviewCandidate(store, reviewId, citationChunks.reason);
   const builder = new GraphBuilder(store, resolver, { graphSyncMode: "defer" });
   try {
-    const applyResults = await applySupplierListEdges(builder, scored, doc.docId, reviewer);
+    const applyResults = await applySupplierListEdges(builder, scored, doc.docId, citationChunks, reviewer);
     const pendingResolved = await resolvePendingEntitySurface(store, {
       surface: supplierRelation.object_resolve.surface,
       entityId: entityResolution.supplier_entity_id,
@@ -205,6 +208,12 @@ interface ScoredSupplierListRelations {
   facilityRelation: ReturnType<typeof supplierListReviewToFacilityRelation>;
 }
 
+interface SupplierListCitationChunks {
+  status: "ready";
+  supplierChunkId: string;
+  facilityChunkId: string;
+}
+
 async function scoreSupplierListRelations(
   supplierRelation: ReturnType<typeof supplierListReviewToSupplierRelation>,
   facilityRelation: ReturnType<typeof supplierListReviewToFacilityRelation>,
@@ -221,10 +230,30 @@ async function scoreSupplierListRelations(
   };
 }
 
+function locateSupplierListCitations(
+  doc: DocumentWithChunks,
+  scored: ScoredSupplierListRelations
+): SupplierListCitationChunks | { status: "blocked"; reason: string } {
+  const supplierLocation = locateCandidateCitation(doc.chunks, scored.supplierRelation);
+  if (supplierLocation.status !== "located") {
+    return { status: "blocked", reason: `supplier relation citation is not uniquely located: ${supplierLocation.reason}` };
+  }
+  const facilityLocation = locateCandidateCitation(doc.chunks, scored.facilityRelation);
+  if (facilityLocation.status !== "located") {
+    return { status: "blocked", reason: `facility relation citation is not uniquely located: ${facilityLocation.reason}` };
+  }
+  return {
+    status: "ready",
+    supplierChunkId: supplierLocation.chunk_id,
+    facilityChunkId: facilityLocation.chunk_id
+  };
+}
+
 async function applySupplierListEdges(
   builder: GraphBuilder,
   scored: ScoredSupplierListRelations,
   docId: string,
+  citationChunks: SupplierListCitationChunks,
   reviewer: string
 ): Promise<[AppliedReviewEdgeResult, AppliedReviewEdgeResult]> {
   const reviewedAt = new Date().toISOString();
@@ -232,13 +261,15 @@ async function applySupplierListEdges(
     candidate: scored.supplierRelation,
     scoring: scored.supplierScoring,
     approved_by: { reviewer, reviewed_at: reviewedAt },
-    doc_id: docId
+    doc_id: docId,
+    chunk_id: citationChunks.supplierChunkId
   });
   const facilityApply = await applyReviewedRelation(builder, {
     candidate: scored.facilityRelation,
     scoring: scored.facilityScoring,
     approved_by: { reviewer, reviewed_at: reviewedAt },
-    doc_id: docId
+    doc_id: docId,
+    chunk_id: citationChunks.facilityChunkId
   });
   return [
     { ...supplierApply, role: "supplier_relation", relation: scored.supplierRelation.relation },

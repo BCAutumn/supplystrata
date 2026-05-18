@@ -36,6 +36,34 @@ describe("evidence trace", () => {
     expect(normalizeCiteTextForHash(" NVIDIA\n\tpurchases   memory ")).toBe("NVIDIA purchases memory");
   });
 
+  it("uses extractor-provided offsets when they reproduce cite_text", () => {
+    const citeText = "NVIDIA purchases memory from SK hynix.";
+    const trace = buildEvidenceTrace({
+      cite_text: citeText,
+      extractor_id: "rule.sec.memory-supplier",
+      source_snapshot_sha256: "source-sha",
+      document_metadata: {},
+      chunk_text: `Prefix. ${citeText} Suffix.`,
+      citation_location: {
+        cite_start_char: "Prefix. ".length,
+        cite_end_char: "Prefix. ".length + citeText.length
+      },
+      identity: {
+        subject_id: "ENT-NVIDIA",
+        object_id: "ENT-SK-HYNIX",
+        relation: "BUYS_FROM",
+        component: {
+          component: "memory",
+          component_id: "COMP-MEMORY",
+          component_specificity: "unspecified"
+        }
+      }
+    });
+
+    expect(trace.cite_start_char).toBe("Prefix. ".length);
+    expect(trace.cite_end_char).toBe("Prefix. ".length + citeText.length);
+  });
+
   it("does not invent offsets when cite_text is absent from the chunk", () => {
     expect(findCitationOffsets("A different sentence.", "NVIDIA purchases memory.")).toEqual({ start: null, end: null });
   });

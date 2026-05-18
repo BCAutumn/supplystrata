@@ -16,6 +16,7 @@ export interface ReviewQueueItem {
 
 export interface ReviewStats {
   pending: number;
+  in_review: number;
   approved: number;
   rejected: number;
   blocked: number;
@@ -58,10 +59,11 @@ export async function enqueueReviewCandidates(client: DbClient, candidates: read
 
 export async function reviewStats(client: DbClient): Promise<ReviewStats> {
   const result = await client.query<ReviewStatsRow>("SELECT status, count(*)::text AS count FROM review_candidates GROUP BY status");
-  const stats: ReviewStats = { pending: 0, approved: 0, rejected: 0, blocked: 0, applied: 0, total: 0 };
+  const stats: ReviewStats = { pending: 0, in_review: 0, approved: 0, rejected: 0, blocked: 0, applied: 0, total: 0 };
   for (const row of result.rows) {
     const count = Number.parseInt(row.count, 10);
     if (row.status === "pending") stats.pending = count;
+    if (row.status === "in_review") stats.in_review = count;
     if (row.status === "approved") stats.approved = count;
     if (row.status === "rejected") stats.rejected = count;
     if (row.status === "blocked") stats.blocked = count;
@@ -73,11 +75,17 @@ export async function reviewStats(client: DbClient): Promise<ReviewStats> {
 
 export async function nextReviewCandidate(client: DbClient): Promise<ReviewQueueItem | undefined> {
   const result = await client.query<ReviewCandidateRow>(
-    `SELECT review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at
-     FROM review_candidates
-     WHERE status = 'pending'
-     ORDER BY created_at, review_id
-     LIMIT 1`
+    `UPDATE review_candidates
+     SET status = 'in_review', updated_at = now()
+     WHERE review_id = (
+       SELECT review_id
+       FROM review_candidates
+       WHERE status = 'pending'
+       ORDER BY created_at, review_id
+       FOR UPDATE SKIP LOCKED
+       LIMIT 1
+     )
+     RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`
   );
   return rowToReviewItem(result.rows[0]);
 }
@@ -120,12 +128,12 @@ export async function decideReviewCandidate(
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = $2, reviewer = $3, reviewed_at = now(), decision_reason = $4
-     WHERE review_id = $1
+     WHERE review_id = $1 AND status IN ('pending','in_review')
      RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
     [input.reviewId, input.decision, input.reviewer, input.reason ?? null]
   );
   const item = rowToReviewItem(result.rows[0]);
-  if (item === undefined) throw new Error(`Review candidate not found: ${input.reviewId}`);
+  if (item === undefined) throw new Error(`Review candidate not found or not decidable: ${input.reviewId}`);
   await recordSemanticChange(client, {
     scope_kind: "review",
     scope_id: item.review_id,
@@ -145,12 +153,12 @@ export async function markReviewCandidateApplied(client: DbClient, input: { revi
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'applied', decision_reason = $2, updated_at = now()
-     WHERE review_id = $1
+     WHERE review_id = $1 AND status IN ('approved','blocked')
      RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
     [input.reviewId, input.reason]
   );
   const item = rowToReviewItem(result.rows[0]);
-  if (item === undefined) throw new Error(`Review candidate not found: ${input.reviewId}`);
+  if (item === undefined) throw new Error(`Review candidate not found or not applicable: ${input.reviewId}`);
   await recordSemanticChange(client, {
     scope_kind: "review",
     scope_id: item.review_id,
@@ -168,12 +176,12 @@ export async function markReviewCandidateBlocked(client: DbClient, input: { revi
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'blocked', decision_reason = $2, updated_at = now()
-     WHERE review_id = $1
+     WHERE review_id = $1 AND status <> 'applied'
      RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
     [input.reviewId, input.reason]
   );
   const item = rowToReviewItem(result.rows[0]);
-  if (item === undefined) throw new Error(`Review candidate not found: ${input.reviewId}`);
+  if (item === undefined) throw new Error(`Review candidate not found or already applied: ${input.reviewId}`);
   await recordSemanticChange(client, {
     scope_kind: "review",
     scope_id: item.review_id,

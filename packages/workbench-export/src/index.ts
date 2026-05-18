@@ -7,15 +7,12 @@ import {
   listUnknownItems,
   resolveEntityId,
   type ChangeTimelineItem,
-  type ClaimRow,
-  type DbClient,
-  type EvidenceDetailRow,
-  type UnknownItemRow
+  type DbClient
 } from "@supplystrata/db";
 import { buildCompanyChainView, type ChainViewModel, type ChainViewSegmentModel } from "@supplystrata/chain-view";
-import { listSourceHealthRows, type SourceHealthRow } from "@supplystrata/source-monitor";
+import { listSourceHealthRows } from "@supplystrata/source-monitor";
 import { planSourcesForComponents, type SourcePlanItem } from "@supplystrata/source-plan";
-import { RELATION_TYPES, type EvidenceLevel, type RelationType } from "@supplystrata/core";
+import { RELATION_TYPES, type ClaimType, type EvidenceLevel, type ExtractionMethod, type RelationType } from "@supplystrata/core";
 
 export interface WorkbenchExportInput {
   company: string;
@@ -46,6 +43,88 @@ export interface WorkbenchEdge {
   evidence_ids: string[];
 }
 
+export type WorkbenchClaimStatus = "draft" | "active" | "superseded" | "rejected";
+
+export interface WorkbenchClaim {
+  claim_id: string;
+  claim_type: ClaimType;
+  claim_text: string;
+  subject_id: string | null;
+  object_id: string | null;
+  component_id: string | null;
+  edge_id: string | null;
+  review_id: string | null;
+  status: WorkbenchClaimStatus;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  generated_by: string;
+  last_verified_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkbenchEvidence {
+  evidence_id: string;
+  edge_id: string | null;
+  superseded_by: string | null;
+  cite_text: string;
+  cite_locator: string | null;
+  cite_start_char: number | null;
+  cite_end_char: number | null;
+  cite_text_sha256: string | null;
+  normalized_cite_text_sha256: string | null;
+  source_snapshot_sha256: string | null;
+  parser_version: string | null;
+  extractor_version: string | null;
+  relation_candidate_hash: string | null;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  extraction_method: ExtractionMethod;
+  source_url: string;
+  source_date: string | null;
+  fetched_at: string;
+  source_adapter_id: string;
+  document_type: string;
+  subject_name: string | null;
+  object_name: string | null;
+  relation: RelationType | null;
+}
+
+export interface WorkbenchUnknownItem {
+  unknown_id: string;
+  question: string;
+  why_unknown: string;
+  blocking_data_sources: string[];
+  proxies: string[];
+  status: string;
+}
+
+export interface WorkbenchSourceHealth {
+  source_adapter_id: string;
+  tier: string;
+  category: string;
+  registry_status: string;
+  automation: string;
+  tos_url: string;
+  official_url: string;
+  requires_key: boolean;
+  last_checked_at: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  failure_count: number;
+  last_change_at: string | null;
+  last_error_message: string | null;
+  policy_enabled: boolean | null;
+  check_cadence_minutes: number | null;
+  jitter_minutes: number | null;
+  priority: number | null;
+  next_check_at: string | null;
+  policy_config_source: string | null;
+  policy_notes: string | null;
+}
+
 export interface WorkbenchModel {
   schema_version: "1.0.0";
   generated_at: string;
@@ -56,11 +135,11 @@ export interface WorkbenchModel {
   edges: WorkbenchEdge[];
   upstream_edges: WorkbenchEdge[];
   downstream_edges: WorkbenchEdge[];
-  claims: ClaimRow[];
-  draft_claims: ClaimRow[];
-  evidences: EvidenceDetailRow[];
-  unknown_items: UnknownItemRow[];
-  sources: SourceHealthRow[];
+  claims: WorkbenchClaim[];
+  draft_claims: WorkbenchClaim[];
+  evidences: WorkbenchEvidence[];
+  unknown_items: WorkbenchUnknownItem[];
+  sources: WorkbenchSourceHealth[];
   source_plan: SourcePlanItem[];
   changes: ChangeTimelineItem[];
 }
@@ -74,10 +153,10 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
   const claimIds = uniqueStrings(chain.segments.flatMap((segment) => (segment.claim_id === undefined ? [] : [segment.claim_id])));
   const evidenceIds = uniqueStrings(chain.segments.flatMap((segment) => segment.evidence_ids));
   const claims = await loadClaims(client, claimIds);
-  const draftClaims = await listDraftClaims(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.draftClaimLimit ?? 25 });
+  const draftClaims = (await listDraftClaims(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.draftClaimLimit ?? 25 })).map(claimToDto);
   const evidences = await loadWorkbenchEvidences(client, { evidenceIds, edgeIds });
-  const unknownItems = await listUnknownItems(client, rootEntityId);
-  const sources = (await listSourceHealthRows(client)).slice(0, input.sourceLimit ?? 50);
+  const unknownItems = (await listUnknownItems(client, rootEntityId)).map(unknownItemToDto);
+  const sources = (await listSourceHealthRows(client)).slice(0, input.sourceLimit ?? 50).map(sourceHealthToDto);
   const sourcePlan = planSourcesForComponents({
     component_ids: componentIdsFromSegments(chain.segments),
     entity_ids: [rootEntityId],
@@ -159,28 +238,28 @@ function roleOrder(role: WorkbenchCompanyNode["role"]): number {
   return role === "root" ? 0 : 1;
 }
 
-async function loadClaims(client: DbClient, claimIds: readonly string[]): Promise<ClaimRow[]> {
-  const claims: ClaimRow[] = [];
+async function loadClaims(client: DbClient, claimIds: readonly string[]): Promise<WorkbenchClaim[]> {
+  const claims: WorkbenchClaim[] = [];
   for (const claimId of claimIds) {
     const claim = await getClaim(client, claimId);
-    if (claim !== undefined) claims.push(claim);
+    if (claim !== undefined) claims.push(claimToDto(claim));
   }
   return claims;
 }
 
-async function loadEvidences(client: DbClient, evidenceIds: readonly string[]): Promise<EvidenceDetailRow[]> {
-  const evidences: EvidenceDetailRow[] = [];
+async function loadEvidences(client: DbClient, evidenceIds: readonly string[]): Promise<WorkbenchEvidence[]> {
+  const evidences: WorkbenchEvidence[] = [];
   for (const evidenceId of evidenceIds) {
     const evidence = await getEvidence(client, evidenceId);
-    if (evidence !== undefined) evidences.push(evidence);
+    if (evidence !== undefined) evidences.push(evidenceToDto(evidence));
   }
   return evidences;
 }
 
-async function loadWorkbenchEvidences(client: DbClient, input: { evidenceIds: readonly string[]; edgeIds: readonly string[] }): Promise<EvidenceDetailRow[]> {
-  const byId = new Map<string, EvidenceDetailRow>();
+async function loadWorkbenchEvidences(client: DbClient, input: { evidenceIds: readonly string[]; edgeIds: readonly string[] }): Promise<WorkbenchEvidence[]> {
+  const byId = new Map<string, WorkbenchEvidence>();
   for (const evidence of await listEvidenceForEdges(client, input.edgeIds)) {
-    byId.set(evidence.evidence_id, evidence);
+    byId.set(evidence.evidence_id, evidenceToDto(evidence));
   }
   for (const evidence of await loadEvidences(client, input.evidenceIds)) {
     byId.set(evidence.evidence_id, evidence);
@@ -188,7 +267,7 @@ async function loadWorkbenchEvidences(client: DbClient, input: { evidenceIds: re
   return [...byId.values()].sort(compareWorkbenchEvidence);
 }
 
-function compareWorkbenchEvidence(left: EvidenceDetailRow, right: EvidenceDetailRow): number {
+function compareWorkbenchEvidence(left: WorkbenchEvidence, right: WorkbenchEvidence): number {
   const leftEdge = left.edge_id ?? "";
   const rightEdge = right.edge_id ?? "";
   const edgeOrder = leftEdge.localeCompare(rightEdge);
@@ -196,6 +275,186 @@ function compareWorkbenchEvidence(left: EvidenceDetailRow, right: EvidenceDetail
   const activeOrder = Number(left.superseded_by !== null) - Number(right.superseded_by !== null);
   if (activeOrder !== 0) return activeOrder;
   return right.evidence_level - left.evidence_level || right.confidence - left.confidence || left.evidence_id.localeCompare(right.evidence_id);
+}
+
+interface ClaimDbShape {
+  claim_id: string;
+  claim_type: ClaimType;
+  claim_text: string;
+  subject_id: string | null;
+  object_id: string | null;
+  component_id: string | null;
+  edge_id: string | null;
+  review_id: string | null;
+  status: WorkbenchClaimStatus;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  generated_by: string;
+  last_verified_at: Date | string;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+interface EvidenceDbShape {
+  evidence_id: string;
+  edge_id: string | null;
+  superseded_by: string | null;
+  cite_text: string;
+  cite_locator: string | null;
+  cite_start_char: number | null;
+  cite_end_char: number | null;
+  cite_text_sha256: string | null;
+  normalized_cite_text_sha256: string | null;
+  source_snapshot_sha256: string | null;
+  parser_version: string | null;
+  extractor_version: string | null;
+  relation_candidate_hash: string | null;
+  evidence_level: EvidenceLevel;
+  confidence: number;
+  is_inferred: boolean;
+  extraction_method: ExtractionMethod;
+  source_url: string;
+  source_date: Date | string | null;
+  fetched_at: Date | string;
+  source_adapter_id: string;
+  document_type: string;
+  subject_name: string | null;
+  object_name: string | null;
+  relation: RelationType | null;
+}
+
+interface UnknownDbShape {
+  unknown_id: string;
+  question: string;
+  why_unknown: string;
+  blocking_data_sources: string[];
+  proxies: string[];
+  status: string;
+}
+
+interface SourceHealthDbShape {
+  source_adapter_id: string;
+  tier: string;
+  category: string;
+  registry_status: string;
+  automation: string;
+  tos_url: string;
+  official_url: string;
+  requires_key: boolean;
+  last_checked_at: Date | string | null;
+  last_success_at: Date | string | null;
+  last_failure_at: Date | string | null;
+  failure_count: number;
+  last_change_at: Date | string | null;
+  last_error_message: string | null;
+  policy_enabled: boolean | null;
+  check_cadence_minutes: number | null;
+  jitter_minutes: number | null;
+  priority: number | null;
+  next_check_at: Date | string | null;
+  policy_config_source: string | null;
+  policy_notes: string | null;
+}
+
+function claimToDto(row: ClaimDbShape): WorkbenchClaim {
+  return {
+    claim_id: row.claim_id,
+    claim_type: row.claim_type,
+    claim_text: row.claim_text,
+    subject_id: row.subject_id,
+    object_id: row.object_id,
+    component_id: row.component_id,
+    edge_id: row.edge_id,
+    review_id: row.review_id,
+    status: row.status,
+    evidence_level: row.evidence_level,
+    confidence: row.confidence,
+    is_inferred: row.is_inferred,
+    generated_by: row.generated_by,
+    last_verified_at: toIsoString(row.last_verified_at),
+    created_at: toIsoString(row.created_at),
+    updated_at: toIsoString(row.updated_at)
+  };
+}
+
+function evidenceToDto(row: EvidenceDbShape): WorkbenchEvidence {
+  return {
+    evidence_id: row.evidence_id,
+    edge_id: row.edge_id,
+    superseded_by: row.superseded_by,
+    cite_text: row.cite_text,
+    cite_locator: row.cite_locator,
+    cite_start_char: row.cite_start_char,
+    cite_end_char: row.cite_end_char,
+    cite_text_sha256: row.cite_text_sha256,
+    normalized_cite_text_sha256: row.normalized_cite_text_sha256,
+    source_snapshot_sha256: row.source_snapshot_sha256,
+    parser_version: row.parser_version,
+    extractor_version: row.extractor_version,
+    relation_candidate_hash: row.relation_candidate_hash,
+    evidence_level: row.evidence_level,
+    confidence: row.confidence,
+    is_inferred: row.is_inferred,
+    extraction_method: row.extraction_method,
+    source_url: row.source_url,
+    source_date: row.source_date === null ? null : toDateOnly(row.source_date),
+    fetched_at: toIsoString(row.fetched_at),
+    source_adapter_id: row.source_adapter_id,
+    document_type: row.document_type,
+    subject_name: row.subject_name,
+    object_name: row.object_name,
+    relation: row.relation
+  };
+}
+
+function unknownItemToDto(row: UnknownDbShape): WorkbenchUnknownItem {
+  return {
+    unknown_id: row.unknown_id,
+    question: row.question,
+    why_unknown: row.why_unknown,
+    blocking_data_sources: row.blocking_data_sources,
+    proxies: row.proxies,
+    status: row.status
+  };
+}
+
+function sourceHealthToDto(row: SourceHealthDbShape): WorkbenchSourceHealth {
+  return {
+    source_adapter_id: row.source_adapter_id,
+    tier: row.tier,
+    category: row.category,
+    registry_status: row.registry_status,
+    automation: row.automation,
+    tos_url: row.tos_url,
+    official_url: row.official_url,
+    requires_key: row.requires_key,
+    last_checked_at: toNullableIsoString(row.last_checked_at),
+    last_success_at: toNullableIsoString(row.last_success_at),
+    last_failure_at: toNullableIsoString(row.last_failure_at),
+    failure_count: row.failure_count,
+    last_change_at: toNullableIsoString(row.last_change_at),
+    last_error_message: row.last_error_message,
+    policy_enabled: row.policy_enabled,
+    check_cadence_minutes: row.check_cadence_minutes,
+    jitter_minutes: row.jitter_minutes,
+    priority: row.priority,
+    next_check_at: toNullableIsoString(row.next_check_at),
+    policy_config_source: row.policy_config_source,
+    policy_notes: row.policy_notes
+  };
+}
+
+function toNullableIsoString(value: Date | string | null): string | null {
+  return value === null ? null : toIsoString(value);
+}
+
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function toDateOnly(value: Date | string): string {
+  return toIsoString(value).slice(0, 10);
 }
 
 function uniqueStrings(values: readonly string[]): string[] {

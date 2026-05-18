@@ -1,4 +1,6 @@
 export { enqueueAppleSupplierReviewCandidates } from "./apple-suppliers.js";
+export { locateCandidateCitation } from "./citation-location.js";
+export type { CitationLocation, SavedChunkRef } from "./citation-location.js";
 export { persistDocumentObservations, recordSavedDocumentObservation } from "./document-observations.js";
 export type { PersistDocumentObservationResult } from "./document-observations.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";

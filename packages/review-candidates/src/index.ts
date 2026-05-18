@@ -4,7 +4,7 @@ import { candidateAliases, type EntitySourceCandidate } from "@supplystrata/enti
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
 
 export type ReviewCandidateKind = ReviewCandidate["kind"];
-export type ReviewCandidateStatus = "pending" | "approved" | "rejected" | "blocked" | "applied";
+export type ReviewCandidateStatus = "pending" | "in_review" | "approved" | "rejected" | "blocked" | "applied";
 
 export interface ReviewEvidenceContext {
   doc_id?: string;

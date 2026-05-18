@@ -3,7 +3,18 @@ import { runDataQualityChecks } from "@supplystrata/data-quality";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { Neo4jGraphStore } from "@supplystrata/graph";
 import { GraphBuilder } from "@supplystrata/graph-builder";
-import { renderChain, renderCompany, renderComponent, renderEvidence, renderUnknownMap } from "@supplystrata/render";
+import {
+  loadChainCard,
+  loadCompanyCard,
+  loadComponentCard,
+  loadEvidenceCard,
+  loadUnknownMap,
+  renderChainCard,
+  renderCompanyCard,
+  renderComponentCard,
+  renderEvidenceCard,
+  renderUnknownMapCard
+} from "@supplystrata/render";
 import { parseFormat, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderDataQuality } from "../dq-render.js";
 import { renderGraphCheck } from "../graph-render.js";
@@ -41,6 +52,22 @@ export function registerGraphDqAndCardCommands(program: Command): void {
         }
       });
     });
+  graph
+    .command("retry-projections")
+    .option("--limit <count>", "max queued projection jobs to retry", "50")
+    .description("retry failed GraphStore projection jobs from the durable queue")
+    .action(async (options: { limit: string }) => {
+      await withDatabase(async (pool) => {
+        const resolver = new DbEntityResolver(pool);
+        const builder = new GraphBuilder(pool, resolver, new Neo4jGraphStore());
+        try {
+          const summary = await builder.retryProjectionJobs({ limit: parseLimit(options.limit) });
+          writeJson({ ok: true, ...summary });
+        } finally {
+          await builder.close();
+        }
+      });
+    });
 
   const dq = program.command("dq").description("data quality commands");
   dq.command("run")
@@ -60,7 +87,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a company card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(await renderCompany(pool, query, parseFormat(options.format)));
+        write(renderCompanyCard(await loadCompanyCard(pool, query), parseFormat(options.format)));
       });
     });
 
@@ -72,7 +99,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a chain-first upstream view for a company")
     .action(async (query: string, options: { depth: string; format: string }) => {
       await withDatabase(async (pool) => {
-        write(await renderChain(pool, query, { depth: parseLimit(options.depth), format: parseFormat(options.format) }));
+        write(renderChainCard(await loadChainCard(pool, query, { depth: parseLimit(options.depth) }), parseFormat(options.format)));
       });
     });
 
@@ -83,7 +110,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a component supply-chain card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(await renderComponent(pool, query, parseFormat(options.format)));
+        write(renderComponentCard(await loadComponentCard(pool, query), parseFormat(options.format)));
       });
     });
 
@@ -94,7 +121,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render an evidence card")
     .action(async (evidenceId: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(await renderEvidence(pool, evidenceId, parseFormat(options.format)));
+        write(renderEvidenceCard(await loadEvidenceCard(pool, evidenceId), parseFormat(options.format)));
       });
     });
 
@@ -105,7 +132,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render unknown map")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(await renderUnknownMap(pool, query, parseFormat(options.format)));
+        write(renderUnknownMapCard(await loadUnknownMap(pool, query), parseFormat(options.format)));
       });
     });
 }

@@ -25,6 +25,7 @@ interface ExtractSentenceOptions {
   readonly subjectSurface?: string;
   readonly documentType?: NormalizedDocument["document_type"];
   readonly extractorId?: string;
+  readonly sourceLocation?: CandidateRelation["source_location"];
 }
 
 interface ComponentClassification {
@@ -41,11 +42,17 @@ export const secOfficialSupplyChainExtractor: RelationExtractor = {
     if (!isSecDisclosure(doc)) return;
     if (doc.primary_entity_id === undefined) return;
     for (const chunk of doc.chunks) {
-      for (const sentence of sentenceWindows(chunk.text)) {
-        for (const candidate of extractFromSentence(sentence, chunk.locator, {
+      for (const window of sentenceWindowsWithOffsets(chunk.text)) {
+        for (const candidate of extractFromSentence(window.sentence, chunk.locator, {
           subjectSurface: doc.primary_entity_id,
           documentType: doc.document_type,
-          extractorId: SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID
+          extractorId: SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID,
+          sourceLocation: {
+            chunk_id: chunk.chunk_id,
+            chunk_locator: chunk.locator,
+            cite_start_char: window.start,
+            cite_end_char: window.end
+          }
         })) {
           yield candidate;
         }
@@ -65,6 +72,8 @@ export function extractFromSentence(sentence: string, locator: string, options: 
   const subjectSurface = options.subjectSurface ?? "ENT-NVIDIA";
   const documentType = options.documentType ?? "10-K";
   const extractorId = options.extractorId ?? SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID;
+  const sourceLocation = options.sourceLocation;
+  const sourceLocationInput = sourceLocation === undefined ? {} : { sourceLocation };
 
   if (
     (manufacturingContext || foundryListContext) &&
@@ -79,6 +88,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
         objectSurface: "TSMC",
         citeText: sentence,
         locator,
+        ...sourceLocationInput,
         component: componentFromDefinition(FOUNDRY_WAFER_COMPONENT)
       })
     );
@@ -93,6 +103,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
         objectSurface: "Samsung",
         citeText: sentence,
         locator,
+        ...sourceLocationInput,
         component: componentFromDefinition(FOUNDRY_WAFER_COMPONENT)
       })
     );
@@ -107,6 +118,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
         objectSurface: "SK hynix",
         citeText: sentence,
         locator,
+        ...sourceLocationInput,
         component: memoryComponent
       })
     );
@@ -121,6 +133,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
         objectSurface: "Micron",
         citeText: sentence,
         locator,
+        ...sourceLocationInput,
         component: memoryComponent
       })
     );
@@ -135,6 +148,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
         objectSurface: "Samsung",
         citeText: sentence,
         locator,
+        ...sourceLocationInput,
         component: memoryComponent
       })
     );
@@ -150,6 +164,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
           objectSurface: supplier.surface,
           citeText: sentence,
           locator,
+          ...sourceLocationInput,
           component: componentFromDefinition(supplier.serviceComponent)
         })
       );
@@ -167,6 +182,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
           objectSurface: counterparty.surface,
           citeText: sentence,
           locator,
+          ...sourceLocationInput,
           ...(component === undefined ? {} : { component }),
           confidenceHint: 0.9
         })
@@ -186,6 +202,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
           objectSurface: counterparty.surface,
           citeText: sentence,
           locator,
+          ...sourceLocationInput,
           ...(commitmentComponent === undefined ? {} : { component: commitmentComponent }),
           confidenceHint: 0.89
         })
@@ -202,6 +219,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
           objectSurface: counterparty.surface,
           citeText: sentence,
           locator,
+          ...sourceLocationInput,
           ...(commitmentComponent === undefined ? {} : { component: commitmentComponent }),
           confidenceHint: 0.86
         })
@@ -291,6 +309,7 @@ interface CandidateBuildInput {
   readonly objectSurface: string;
   readonly citeText: string;
   readonly locator: string;
+  readonly sourceLocation?: CandidateRelation["source_location"];
   readonly component?: ComponentClassification;
   readonly confidenceHint?: number;
 }
@@ -317,10 +336,24 @@ function buildCandidate(input: CandidateBuildInput): CandidateRelation {
     ...(input.component?.specificity === undefined ? {} : { component_specificity: input.component.specificity }),
     cite_text: input.citeText,
     cite_locator: input.locator,
+    ...(input.sourceLocation === undefined ? {} : { source_location: input.sourceLocation }),
     extractor_id: input.extractorId,
     raw_evidence_level_hint: 5,
     raw_confidence_hint: input.confidenceHint ?? 0.92
   };
+}
+
+function sentenceWindowsWithOffsets(text: string): { sentence: string; start: number; end: number }[] {
+  const windows: { sentence: string; start: number; end: number }[] = [];
+  let cursor = 0;
+  for (const sentence of sentenceWindows(text)) {
+    const start = text.indexOf(sentence, cursor);
+    if (start < 0) continue;
+    const end = start + sentence.length;
+    windows.push({ sentence, start, end });
+    cursor = end;
+  }
+  return windows;
 }
 
 function isSecDisclosure(doc: NormalizedDocument): boolean {

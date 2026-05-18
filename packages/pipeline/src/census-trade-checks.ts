@@ -1,4 +1,4 @@
-import { saveNormalizedDocument, type DatabaseStore } from "@supplystrata/db";
+import { saveNormalizedDocument, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { getLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -39,14 +39,17 @@ async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTrad
       getLogger().info({ stage: "source-check", adapter: censusTradeAdapter.id, task_id: task.task_id }, "checking Census trade source task");
       const raw = await censusTradeAdapter.fetch(task, context);
       const normalized = await censusTradeAdapter.normalize(raw, context);
-      const saved = await saveNormalizedDocument(store, normalized);
-      const documentObservation = await recordSavedDocumentObservation(store, normalized, saved.doc_id, { checkTargetId: options.checkTargetId });
       const rows = parseCensusTradeRows(raw.body, input.direction);
-      const storedObservations = await storeTradeFlowObservations(store, rows, {
-        docId: saved.doc_id,
-        sourceItemId: documentObservation.source_item_id,
-        sourceUrl: normalized.source_url,
-        targetConfig: options.targetConfig
+      const { saved, documentObservation, storedObservations } = await store.transaction(async (client) => {
+        const savedDocument = await saveNormalizedDocument(client, normalized);
+        const savedObservation = await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id, { checkTargetId: options.checkTargetId });
+        const observationCount = await storeTradeFlowObservations(client, rows, {
+          docId: savedDocument.doc_id,
+          sourceItemId: savedObservation.source_item_id,
+          sourceUrl: normalized.source_url,
+          targetConfig: options.targetConfig
+        });
+        return { saved: savedDocument, documentObservation: savedObservation, storedObservations: observationCount };
       });
       summaries.push({
         source_adapter_id: censusTradeAdapter.id,
@@ -74,7 +77,7 @@ async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTrad
 }
 
 async function storeTradeFlowObservations(
-  store: DatabaseStore,
+  client: DbClient,
   rows: readonly CensusTradeRow[],
   input: { docId: string; sourceItemId: string; sourceUrl: string; targetConfig: Record<string, unknown> }
 ): Promise<number> {
@@ -82,7 +85,7 @@ async function storeTradeFlowObservations(
   for (const row of rows) {
     const componentId = componentIdFromConfig(input.targetConfig);
     // Census Trade 是宏观观测源：只能落 observation，不能在这里升级成公司级事实边。
-    await storeObservation(store, {
+    await storeObservation(client, {
       observation_type: "TRADE_FLOW_OBSERVATION",
       source_adapter_id: "census-trade",
       source_item_id: input.sourceItemId,

@@ -105,6 +105,7 @@ function registerReviewCommands(program: Command): void {
               "# Review Stats",
               "",
               `Pending: ${stats.pending}`,
+              `In review: ${stats.in_review}`,
               `Approved: ${stats.approved}`,
               `Rejected: ${stats.rejected}`,
               `Blocked: ${stats.blocked}`,
@@ -117,7 +118,7 @@ function registerReviewCommands(program: Command): void {
   review
     .command("next")
     .option("--format <format>", "markdown or json", "markdown")
-    .description("show next pending review candidate")
+    .description("claim and show the next pending review candidate")
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
         const item = await nextReviewCandidate(pool);

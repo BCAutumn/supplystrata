@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { buildEdgeClaimsFromCurrentEdges } from "@supplystrata/claim-builder";
+import { buildEdgeClaimsFromCurrentEdgesTransactionally } from "@supplystrata/claim-builder";
 import { parseFormat, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
 
 export function registerClaimCommands(program: Command): void {
@@ -14,7 +14,7 @@ export function registerClaimCommands(program: Command): void {
     .description("build active claims from current non-inferred fact edges")
     .action(async (options: { minLevel: string; limit: string; generatedBy: string; format: string }) => {
       await withDatabase(async (pool) => {
-        const summary = await buildEdgeClaimsFromCurrentEdges(pool, {
+        const summary = await buildEdgeClaimsFromCurrentEdgesTransactionally(pool, {
           min_evidence_level: parseMinEvidenceLevel(options.minLevel),
           limit: parseLimit(options.limit),
           generated_by: options.generatedBy

@@ -42,12 +42,30 @@
 [x] 建立 Prettier 全仓格式化基线，并把 format:check 纳入 CI / release-check。
 [x] 新增 build-packages.mjs，workspace packages/apps 可输出 dist JS 与 d.ts，package exports 指向 dist，development condition 指向 src。
 [x] Vitest alias 改为从 `tsconfig.base.json` 自动读取，消除测试别名与 TypeScript paths 双维护。
+[x] pending entity 写入改为单语句 `INSERT ... ON CONFLICT ... RETURNING`，避免先查后写的竞态；context 采用 JSONB 合并，避免后写覆盖整份上下文。
+[x] review queue 领取改为 `UPDATE ... FOR UPDATE SKIP LOCKED ... RETURNING`，领取即进入 `in_review` 状态，避免多个 worker/CLI 拿到同一条候选。
+[x] source check、Apple Supplier review enqueue、Census/OSH observation 写入、pipeline document observation 写入全部收束进 `DatabaseStore.transaction()`。
+[x] CLI claim build 走事务包装器，claim、claim_evidence、change_records 不再分散提交。
+[x] GraphStore 投影失败写入 `graph_projection_jobs` durable outbox，并提供 `graph retry-projections` 做局部重试；Neo4j/其它图后端失败不再只停留在日志里。
+[x] `workbench-export` 输出改为稳定 DTO/serializer，不再把 `ClaimRow` / `EvidenceDetailRow` / `SourceHealthRow` 这类数据库 Row 作为公共 JSON 契约直接透传。
+[x] source adapter 默认 rate limiter 改为 adapter 级实例；需要跨 adapter 共享限速时由调用方显式注入，避免隐式全局单例让测试或并发任务互相污染。
+[x] CompanyCard 开始拆分加载与渲染：CLI 显式 `loadCompanyCard()` 后调用纯 `renderCompanyCard()`，为后续把 card loader 迁出 render 包铺路。
+[x] ComponentCard 同步拆分为 `loadComponentCard()` + 纯 `renderComponentCard()`，组件研究卡片不再只能通过胖控制器入口消费。
+[x] Chain/Evidence/Unknown 入口同步拆分为 loader + 纯 formatter；CLI 不再调用胖 `renderX(client, ...)` 路径。
+[x] graph-builder 的 GraphStore rebuild/check/sync/retry 逻辑抽到 `projection.ts`；`index.ts` 从 578 行降到约 420 行，主类更聚焦 Postgres truth 写入与编排。
+[x] graph-builder 的 Postgres edge/evidence/change 写入抽到 `sql-store.ts`；`index.ts` 只保留实体解析、事务边界和 GraphStore 投影编排。
+[x] 自动 pipeline 的 citation-to-chunk 逻辑抽到 `citation-location.ts`；候选证据必须精确映射到唯一持久化 chunk，避免在主流程里用松散字符串猜测 chunk。
+[x] research-preview 加入加载 token + AbortController；URL / 文件加载交错时，旧请求不能覆盖新工作台状态。
+[x] `CandidateRelation` 增加 `source_location`；SEC 规则抽取器输出 chunk locator 与 cite offset，evidence trace 优先使用 extractor 提供的偏移并校验原文。
+[x] Supplier List review/apply 接入统一 citation locator；半自动审核边写入 evidence 前必须定位到唯一 chunk，避免 reviewed evidence 只有 doc_id 没有 chunk_id。
 ```
 
 ## 下一批质量修复
 
 ```text
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
+[ ] `packages/render` 仍保留兼容性 `renderX(client, ...)` 包装函数；下一轮可把 loader 整体迁到独立 card/use-case 包，并让 render 包只保留 formatter。
+[ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
 ```
 
 ## 验收门槛

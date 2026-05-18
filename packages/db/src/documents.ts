@@ -4,7 +4,7 @@ import type { DbClient } from "./client.js";
 
 export interface SavedDocumentRef {
   doc_id: string;
-  chunks: { chunk_id: string; text: string }[];
+  chunks: { chunk_id: string; text: string; locator: string }[];
 }
 
 interface SavedDocumentRow extends pg.QueryResultRow {
@@ -51,7 +51,7 @@ export async function saveNormalizedDocument(client: DbClient, doc: NormalizedDo
          token_count = EXCLUDED.token_count`,
       [chunkId, savedDocId, index, chunk.text, chunk.locator, chunk.language ?? doc.language, chunk.token_count ?? null]
     );
-    savedChunks.push({ chunk_id: chunkId, text: chunk.text });
+    savedChunks.push({ chunk_id: chunkId, text: chunk.text, locator: chunk.locator });
   }
   return { doc_id: savedDocId, chunks: savedChunks };
 }

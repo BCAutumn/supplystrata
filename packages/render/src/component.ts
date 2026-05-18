@@ -67,6 +67,10 @@ interface ComponentEdgeRow extends pg.QueryResultRow {
 }
 
 export async function renderComponent(client: DbClient, query: string, format: OutputFormat): Promise<string> {
+  return renderComponentCard(await loadComponentCard(client, query), format);
+}
+
+export async function loadComponentCard(client: DbClient, query: string): Promise<ComponentCardModel> {
   const component = await resolveComponent(client, query);
   const edges = await loadComponentEdges(client, component);
   const evidenceEdges = edges.map(toComponentEvidenceEdge);
@@ -85,7 +89,7 @@ export async function renderComponent(client: DbClient, query: string, format: O
     related_observations: relatedObservations,
     unknown_map: unknownItems
   };
-  return renderComponentCard(card, format);
+  return card;
 }
 
 export function renderComponentCard(card: ComponentCardModel, format: OutputFormat): string {

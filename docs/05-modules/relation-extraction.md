@@ -158,6 +158,9 @@ For each document:
 
 - [ ] `cite_text` 长度 ≥ 30
 - [ ] `cite_text` 是文档原文子串
+- [ ] 自动 apply 前，`cite_text` 必须能映射到唯一一个已持久化 `document_chunks.chunk_id`
+- [ ] extractor 能提供 `source_location` 时，必须包含 `chunk_locator` 或 `chunk_id` 以及 `cite_start_char` / `cite_end_char`
+- [ ] `source_location` 的偏移必须能从对应 chunk 精确切回 `cite_text`
 - [ ] `subject_resolve` / `object_resolve` 至少含 surface
 - [ ] `relation` 在 RELATION_TYPES 内
 - [ ] 主体/客体的合法 Kind 与 relation 矩阵一致

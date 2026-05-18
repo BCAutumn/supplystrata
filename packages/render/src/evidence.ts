@@ -3,8 +3,18 @@ import { getEvidence } from "@supplystrata/db";
 import type { OutputFormat } from "./types.js";
 
 export async function renderEvidence(client: DbClient, evidenceId: string, format: OutputFormat): Promise<string> {
+  return renderEvidenceCard(await loadEvidenceCard(client, evidenceId), format);
+}
+
+export type EvidenceCardModel = NonNullable<Awaited<ReturnType<typeof getEvidence>>>;
+
+export async function loadEvidenceCard(client: DbClient, evidenceId: string): Promise<EvidenceCardModel> {
   const evidence = await getEvidence(client, evidenceId);
   if (evidence === undefined) throw new Error(`Evidence not found: ${evidenceId}`);
+  return evidence;
+}
+
+export function renderEvidenceCard(evidence: EvidenceCardModel, format: OutputFormat): string {
   if (format === "json") return JSON.stringify({ schema_version: "1.0.0", evidence }, null, 2);
   return [
     `# Evidence ${evidence.evidence_id}`,

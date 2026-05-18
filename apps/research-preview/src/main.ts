@@ -9,6 +9,8 @@ import { renderSourceHealthPanel } from "./panels/source-health-panel.js";
 import { renderUnknownPanel } from "./panels/unknown-panel.js";
 
 let state: WorkbenchState = createInitialState();
+let nextLoadId = 0;
+let activeLoad: LoadToken | null = null;
 
 const canvas = requireElement("chain-canvas", HTMLCanvasElement);
 const fileInput = requireElement("report-file", HTMLInputElement);
@@ -42,22 +44,28 @@ if (initialReportUrl !== null) {
 }
 
 async function loadFromFile(file: File): Promise<void> {
+  const token = beginLoad();
   try {
     loadStatus.textContent = `Loading ${file.name}...`;
-    setModel(await loadWorkbenchModelFromFile(file));
+    const model = await loadWorkbenchModelFromFile(file);
+    if (!isActiveLoad(token)) return;
+    setModel(model);
     loadStatus.textContent = `Loaded ${file.name}`;
   } catch (error) {
-    showLoadError(error);
+    if (isActiveLoad(token)) showLoadError(error);
   }
 }
 
 async function loadFromUrl(reportUrl: string): Promise<void> {
+  const token = beginLoad();
   try {
     loadStatus.textContent = `Loading ${reportUrl}...`;
-    setModel(await loadWorkbenchModelFromUrl(reportUrl));
+    const model = await loadWorkbenchModelFromUrl(reportUrl, token.controller.signal);
+    if (!isActiveLoad(token)) return;
+    setModel(model);
     loadStatus.textContent = `Loaded ${reportUrl}`;
   } catch (error) {
-    showLoadError(error);
+    if (isActiveLoad(token) && !isAbortError(error)) showLoadError(error);
   }
 }
 
@@ -107,6 +115,30 @@ function showLoadError(error: unknown): void {
   const message = error instanceof Error ? error.message : "Unknown load error";
   loadStatus.textContent = "Load failed";
   inspectorPanel.innerHTML = `<h2>Load failed</h2><p class="error">${escapeHtml(message)}</p>`;
+}
+
+interface LoadToken {
+  id: number;
+  controller: AbortController;
+}
+
+function beginLoad(): LoadToken {
+  activeLoad?.controller.abort();
+  const token = {
+    id: nextLoadId + 1,
+    controller: new AbortController()
+  };
+  nextLoadId = token.id;
+  activeLoad = token;
+  return token;
+}
+
+function isActiveLoad(token: LoadToken): boolean {
+  return activeLoad?.id === token.id;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function selectedSegment(stateValue: WorkbenchState): ChainViewSegmentModel | null {

@@ -220,6 +220,12 @@ export interface CandidateRelation {
   component_specificity?: ComponentSpecificity;
   cite_text: string;
   cite_locator: string;
+  source_location?: {
+    chunk_id?: string;
+    chunk_locator?: string;
+    cite_start_char: number;
+    cite_end_char: number;
+  };
   validity?: { from?: string; to?: string };
   extractor_id: string;
   raw_evidence_level_hint: EvidenceLevel;
@@ -331,7 +337,7 @@ export interface ChainViewRecord {
 }
 
 export function createId(
-  prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS" | "CLM" | "OBS" | "LEAD" | "CHAIN" | "SEG"
+  prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS" | "CLM" | "OBS" | "LEAD" | "CHAIN" | "SEG" | "GPJ"
 ): string {
   return `${prefix}-${randomUUID()}`;
 }

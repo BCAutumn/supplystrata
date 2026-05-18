@@ -6,13 +6,17 @@ import { GraphBuilder } from "@supplystrata/graph-builder";
 import { getLogger } from "@supplystrata/observability";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { isValidCandidate } from "./candidate-validation.js";
+import { locateCandidateCitation } from "./citation-location.js";
 import { persistDocumentObservations } from "./document-observations.js";
 import type { NormalizedPipelineInput, PipelineSummary } from "./types.js";
 
 export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore, input: NormalizedPipelineInput): Promise<PipelineSummary> {
   const normalized = input.normalized;
-  const savedDocument = await saveNormalizedDocument(store, normalized);
-  const observationResult = await persistDocumentObservations(store, normalized, savedDocument.doc_id);
+  const { savedDocument, observationResult } = await store.transaction(async (client) => {
+    const documentRef = await saveNormalizedDocument(client, normalized);
+    const observations = await persistDocumentObservations(client, normalized, documentRef.doc_id);
+    return { savedDocument: documentRef, observationResult: observations };
+  });
 
   const resolver = new DbEntityResolver(store);
   const scorer = new DeterministicEvidenceScorer();
@@ -38,13 +42,26 @@ export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore,
           getLogger().warn({ stage: "score", candidate: candidate.extractor_id }, "candidate needs review and was not auto-applied");
           continue;
         }
-        const chunkId = savedDocument.chunks.find((chunk) => chunk.text.includes(candidate.cite_text))?.chunk_id;
+        const citationLocation = locateCandidateCitation(savedDocument.chunks, candidate);
+        if (citationLocation.status !== "located") {
+          getLogger().warn(
+            {
+              stage: "citation-location",
+              extractor: candidate.extractor_id,
+              status: citationLocation.status,
+              occurrence_count: citationLocation.occurrence_count,
+              reason: citationLocation.reason
+            },
+            "candidate rejected because citation cannot be mapped to exactly one persisted chunk"
+          );
+          continue;
+        }
         const approved: ApprovedCandidate = {
           candidate,
           scoring,
           approved_by: "auto",
           doc_id: savedDocument.doc_id,
-          ...(chunkId === undefined ? {} : { chunk_id: chunkId })
+          chunk_id: citationLocation.chunk_id
         };
         const result = await graphBuilder.apply(approved);
         evidenceIds.push(result.evidence_id);

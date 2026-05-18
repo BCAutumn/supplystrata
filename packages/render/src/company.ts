@@ -27,7 +27,14 @@ interface CompanyHeaderRow extends pg.QueryResultRow {
   display_name: string;
 }
 
-export async function renderCompany(client: DbClient, query: string, format: OutputFormat): Promise<string> {
+export interface CompanyCardModel {
+  entity: CompanyHeaderRow;
+  directly_disclosed_upstream: CompanyEdgeRow[];
+  directly_disclosed_downstream: CompanyEdgeRow[];
+  unknown_map: Awaited<ReturnType<typeof listUnknownItems>>;
+}
+
+export async function loadCompanyCard(client: DbClient, query: string): Promise<CompanyCardModel> {
   const entityId = await resolveEntityId(client, query);
   const headerResult = await client.query<CompanyHeaderRow>("SELECT entity_id, canonical_name, display_name FROM entity_master WHERE entity_id = $1", [
     entityId
@@ -37,33 +44,45 @@ export async function renderCompany(client: DbClient, query: string, format: Out
   const upstreamEdges = await loadCompanyEdges(client, entityId, "upstream");
   const downstreamEdges = await loadCompanyEdges(client, entityId, "downstream");
   const unknownItems = await listUnknownItems(client, entityId);
+  return {
+    entity: header,
+    directly_disclosed_upstream: upstreamEdges,
+    directly_disclosed_downstream: downstreamEdges,
+    unknown_map: unknownItems
+  };
+}
 
+export async function renderCompany(client: DbClient, query: string, format: OutputFormat): Promise<string> {
+  return renderCompanyCard(await loadCompanyCard(client, query), format);
+}
+
+export function renderCompanyCard(card: CompanyCardModel, format: OutputFormat): string {
   if (format === "json") {
     return JSON.stringify(
       {
         schema_version: "1.0.0",
-        entity: header,
-        directly_disclosed_upstream: upstreamEdges,
-        directly_disclosed_downstream: downstreamEdges,
-        unknown_map: unknownItems
+        entity: card.entity,
+        directly_disclosed_upstream: card.directly_disclosed_upstream,
+        directly_disclosed_downstream: card.directly_disclosed_downstream,
+        unknown_map: card.unknown_map
       },
       null,
       2
     );
   }
 
-  const lines = [`# ${header.canonical_name} [${header.entity_id}]`, "", "## Directly disclosed upstream (Level 4-5)", ""];
-  if (upstreamEdges.length === 0) {
+  const lines = [`# ${card.entity.canonical_name} [${card.entity.entity_id}]`, "", "## Directly disclosed upstream (Level 4-5)", ""];
+  if (card.directly_disclosed_upstream.length === 0) {
     lines.push("(no directly disclosed upstream edges yet)", "");
   }
-  appendCompanyEdges(lines, upstreamEdges);
+  appendCompanyEdges(lines, card.directly_disclosed_upstream);
   lines.push("## Directly disclosed downstream customers (Level 4-5)", "");
-  if (downstreamEdges.length === 0) {
+  if (card.directly_disclosed_downstream.length === 0) {
     lines.push("(no directly disclosed downstream edges yet)", "");
   }
-  appendCompanyEdges(lines, downstreamEdges);
+  appendCompanyEdges(lines, card.directly_disclosed_downstream);
   lines.push("## Unknown map", "");
-  for (const item of unknownItems) {
+  for (const item of card.unknown_map) {
     lines.push(`- ${item.question}`);
     lines.push(`  Why unknown: ${item.why_unknown}`);
   }

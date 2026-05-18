@@ -7,6 +7,8 @@ import { migration0005RemoveLegacyReviewQueueSql } from "./migration-sql/0005_re
 import { migration0006ClaimsObservationsChainViewsSql } from "./migration-sql/0006_claims_observations_chain_views.js";
 import { migration0007SourceCheckTargetsSql } from "./migration-sql/0007_source_check_targets.js";
 import { migration0008ClaimDraftsSql } from "./migration-sql/0008_claim_drafts.js";
+import { migration0009ReviewQueueHardeningSql } from "./migration-sql/0009_review_queue_hardening.js";
+import { migration0010GraphProjectionJobsSql } from "./migration-sql/0010_graph_projection_jobs.js";
 
 interface Migration {
   readonly id: string;
@@ -54,6 +56,16 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0008_claim_drafts",
     description: "Allow reviewed semantic changes to create non-active claim drafts.",
     sql: migration0008ClaimDraftsSql
+  },
+  {
+    id: "0009_review_queue_hardening",
+    description: "Add pending entity uniqueness needed for atomic upsert and review queue hardening.",
+    sql: migration0009ReviewQueueHardeningSql
+  },
+  {
+    id: "0010_graph_projection_jobs",
+    description: "Create durable GraphStore projection retry jobs.",
+    sql: migration0010GraphProjectionJobsSql
   }
 ];
 

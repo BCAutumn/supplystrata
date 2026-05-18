@@ -2,34 +2,29 @@ import type pg from "pg";
 import { createId } from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
+interface PendingEntityUpsertRow extends pg.QueryResultRow {
+  pending_id: string;
+  inserted: boolean;
+}
+
 export async function recordPendingEntity(
   client: DbClient,
   input: { surface: string; context: Record<string, unknown> }
 ): Promise<{ pending_id: string; is_new: boolean }> {
-  const existing = await client.query<{ pending_id: string } & pg.QueryResultRow>(
-    `SELECT pending_id
-     FROM pending_entities
-     WHERE lower(surface) = lower($1) AND status = 'pending'
-     ORDER BY first_seen_at
-     LIMIT 1`,
-    [input.surface]
-  );
-  const current = existing.rows[0];
-  if (current !== undefined) {
-    await client.query("UPDATE pending_entities SET occurrence_count = occurrence_count + 1, context = $2 WHERE pending_id = $1", [
-      current.pending_id,
-      input.context
-    ]);
-    return { pending_id: current.pending_id, is_new: false };
-  }
-
   const pendingId = createId("PND");
-  await client.query(
+  const result = await client.query<PendingEntityUpsertRow>(
     `INSERT INTO pending_entities (pending_id, surface, context, status)
-     VALUES ($1,$2,$3,'pending')`,
+     VALUES ($1,$2,$3,'pending')
+     ON CONFLICT ((lower(surface))) WHERE status = 'pending'
+     DO UPDATE SET
+       occurrence_count = pending_entities.occurrence_count + 1,
+       context = pending_entities.context || EXCLUDED.context
+     RETURNING pending_id, (xmax = 0) AS inserted`,
     [pendingId, input.surface, input.context]
   );
-  return { pending_id: pendingId, is_new: true };
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Failed to upsert pending entity: ${input.surface}`);
+  return { pending_id: row.pending_id, is_new: row.inserted };
 }
 
 export type PendingEntityStatusFilter = "pending" | "resolved" | "all";

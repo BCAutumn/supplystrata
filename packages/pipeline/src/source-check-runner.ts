@@ -37,9 +37,12 @@ export async function runSourceAdapterCheck<TInput>(
     for await (const task of input.adapter.plan(input.adapterInput, input.context)) {
       const raw = await fetchSourceTask(input.adapter, task, input.context);
       const normalized = await input.adapter.normalize(raw, input.context);
-      const saved = await saveNormalizedDocument(store, normalized);
-      const observation = await persistDocumentObservations(store, normalized, saved.doc_id, {
-        ...(input.options.checkTargetId === undefined ? {} : { checkTargetId: input.options.checkTargetId })
+      const { saved, observation } = await store.transaction(async (client) => {
+        const savedDocument = await saveNormalizedDocument(client, normalized);
+        const documentObservation = await persistDocumentObservations(client, normalized, savedDocument.doc_id, {
+          ...(input.options.checkTargetId === undefined ? {} : { checkTargetId: input.options.checkTargetId })
+        });
+        return { saved: savedDocument, observation: documentObservation };
       });
       summaries.push({
         source_adapter_id: input.adapter.id,

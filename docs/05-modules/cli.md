@@ -76,12 +76,21 @@ supplystrata
 │       └── entity-source <query> [--source] [--jurisdiction] [--limit]
 ├── graph
 │   ├── rebuild
-│   └── check [--format]
+│   ├── check [--format]
+│   └── retry-projections [--limit]
 └── dq
     └── run [--format]
 ```
 
 ## 主要命令规格
+
+卡片命令的实现约束：
+
+```text
+company / component / chain / evidence / unknown-map
+```
+
+CLI 必须显式先调用对应 loader 生成 card/view model，再调用纯 formatter 输出 Markdown 或 JSON。不要把新的 SQL 查询、实体解析或业务判断塞进 formatter；后续这些 loader 会迁到独立 card/use-case 包，供 API 与 TypeScript + Canvas 工作台复用。
 
 ### supplystrata preview
 

@@ -169,7 +169,13 @@ describe("SEC official supply-chain rule extractor", () => {
       subject_resolve: { surface: "ENT-AMD" },
       object_resolve: { surface: "TSMC" },
       relation: "USES_FOUNDRY",
-      extractor_id: "rule.sec.official-supply-chain"
+      extractor_id: "rule.sec.official-supply-chain",
+      source_location: {
+        chunk_id: "CHK-AMD-1",
+        chunk_locator: "fixture#amd",
+        cite_start_char: 0,
+        cite_end_char: doc.chunks[0]?.text.length
+      }
     });
   });
 

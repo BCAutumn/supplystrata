@@ -4,6 +4,12 @@
 
 Neo4j 只是当前内置 adapter，位于 `packages/graph`。`packages/graph-store` 才是稳定接口，未来可以接宿主 app 自带的图存储、内存图、SQLite 投影或远程图服务。没有传入 GraphStore 时，GraphBuilder 默认 `graph_sync.status = "deferred"`，不会要求启动 Neo4j。
 
+内部职责拆分：
+
+- `index.ts`：实体解析、事务边界、GraphStore 投影编排。
+- `sql-store.ts`：Postgres truth 写入，包括 edge/evidence/change record。
+- `projection.ts`：GraphStore rebuild/check/sync/retry 与 projection outbox 消费。
+
 ## 接口
 
 ```ts
@@ -11,6 +17,7 @@ interface GraphBuilder {
   apply(approved: ApprovedCandidate): Promise<ApplyResult>;
   deprecate(edgeId: string, reason: string, evidence: Provenance): Promise<void>;
   rebuild(): Promise<{ nodes: number; edges: number }>;
+  retryProjectionJobs(input?: { limit?: number }): Promise<GraphProjectionRetrySummary>;
 }
 ```
 
@@ -18,15 +25,15 @@ interface GraphBuilder {
 
 ```
 1. 在 Postgres 事务内：
-   a. 写 evidence 表（含 confidence_breakdown）
-   b. 找/建 edge
+   a. 找/建 edge
       - 唯一键 = (subject_id, object_id, relation, COALESCE(component, ''),
                   effective_period_or_null)
       - 如已存在：append evidence_ids, 更新 last_verified_at
       - 如不存在：建新 edge
-   c. 计算 edge.evidence_level = max(evidence levels)
-   d. 计算 edge.confidence (按公式 in confidence-scoring.md)
-   e. 写 change_records（new_edge | evidence_added | level_changed | confidence_changed）
+   b. 写 evidence 表（含 confidence_breakdown、trace fingerprint、chunk offset）
+   c. 将同来源同 extractor 的旧 evidence 标记为 superseded
+   d. 重新选择 primary_evidence_id
+   e. 写 change_records（new_edge | edge_evidence_added | evidence_superseded）
 
 2. 在 GraphStore 物化视图（可选；当前 CLI 默认 adapter 是 Neo4j）：
    MERGE (s:Entity { entity_id: $subject_id })
@@ -43,8 +50,8 @@ interface GraphBuilder {
 
 - Postgres 事务保证 evidence + edge + change 同时可见或同时不写
 - GraphStore 写在 Postgres commit 之后；失败不会回滚 Postgres，也不会让 review apply 停在半完成状态
-- `ApplyResult.graph_sync.status = "failed"` 时，CLI/API 调用方应该提示运行 `supplystrata graph rebuild`
-- 如果 Postgres commit 后 GraphStore 长期失败，可以全量 `rebuild()` 恢复；后续再引入 outbox/后台重试
+- `ApplyResult.graph_sync.status = "failed"` 时，GraphBuilder 会写入 `graph_projection_jobs`。这是 durable outbox；后续可用 `supplystrata graph retry-projections` 重试局部投影。
+- 如果 GraphStore 长期不可达或计数漂移，可以全量 `rebuild()` 恢复；局部 retry 和全量 rebuild 都只从 Postgres truth store 读取事实。
 
 ## Primary evidence 选择
 
@@ -86,7 +93,7 @@ evidence 内仍保留原始关系语句（在 cite_text 中）。
 - `extractor_version`：产生 candidate 的规则/模型/prompt 版本；LLM prompt 先记录为 `prompt:<prompt_hash>`。
 - `relation_candidate_hash`：subject/object/relation/component/extractor/cite hash 的稳定指纹，用于后续重复 evidence 检测与 backfill。
 
-如果 `chunk_id` 缺失或 `cite_text` 在 chunk 中找不到，graph-builder 不猜测偏移，保持 offset 为空并交给 data-quality 报告。自动 pipeline 在进入 review/apply 前仍必须做 `cite_text` 子串校验。
+如果 extractor 已提供 `candidate.source_location`，graph-builder 会优先使用其中的 chunk 内偏移，并要求该偏移能从 chunk text 精确切回 `cite_text`。如果 `chunk_id` 缺失或 `cite_text` 在 chunk 中找不到，graph-builder 不猜测偏移，保持 offset 为空并交给 data-quality 报告。自动 pipeline 在进入 review/apply 前仍必须做 `cite_text` 子串校验和唯一 chunk 定位。
 
 历史 evidence 通过维护命令补齐：
 
@@ -197,5 +204,6 @@ supplystrata graph apply --review-id REV-xxx
 supplystrata graph rebuild
 supplystrata graph stats
 supplystrata graph check                # 一致性校验
+supplystrata graph retry-projections    # 重试失败的局部图投影
 supplystrata graph deprecate --edge EDGE-xxx --reason "..."
 ```
