@@ -96,6 +96,9 @@ importers:
       '@supplystrata/render':
         specifier: workspace:*
         version: link:../../packages/render
+      '@supplystrata/research-pack':
+        specifier: workspace:*
+        version: link:../../packages/research-pack
       '@supplystrata/review-candidates':
         specifier: workspace:*
         version: link:../../packages/review-candidates
@@ -461,6 +464,33 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/research-pack:
+    dependencies:
+      '@supplystrata/card-builder':
+        specifier: workspace:*
+        version: link:../card-builder
+      '@supplystrata/claim-builder':
+        specifier: workspace:*
+        version: link:../claim-builder
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../core
+      '@supplystrata/data-quality':
+        specifier: workspace:*
+        version: link:../data-quality
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      '@supplystrata/render':
+        specifier: workspace:*
+        version: link:../render
+      '@supplystrata/source-plan':
+        specifier: workspace:*
+        version: link:../source-plan
+      '@supplystrata/workbench-export':
+        specifier: workspace:*
+        version: link:../workbench-export
 
   packages/review-candidates:
     dependencies:

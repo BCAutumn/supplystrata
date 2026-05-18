@@ -18,6 +18,7 @@
     "@supplystrata/graph-builder": "workspace:*",
     "@supplystrata/pipeline": "workspace:*",
     "@supplystrata/render": "workspace:*",
+    "@supplystrata/research-pack": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",

@@ -98,6 +98,10 @@ packages/render
   只负责把 CompanyCard / ComponentCard / ChainViewModel 渲染成 CLI JSON/Markdown。
   已拆成 company / component / chain / evidence / changes / pending / unknown 等小模块；index 只做稳定 re-export，避免渲染层重新变成总控文件。
 
+packages/research-pack
+  把已有 truth-store 数据打包成可复现研究输出：workbench JSON、CompanyCard、ChainView、ComponentCard、source plan、data-quality report 和 manifest。
+  它不抓新源、不写事实边，只消费现有 DB 和确定性 claim builder；后续宿主 app 可以直接复用这个包，而不是调用 CLI。
+
 apps/research-preview
   只消费 JSON；不直连 Postgres / Neo4j。
 ```
@@ -513,6 +517,17 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 - [x] `apps/research-preview` 只读这个 JSON。
 - [x] Canvas 第一版能显示 fact edge、observation、lead、unknown boundary。
 - [x] research-preview 侧栏能展示 `draft_claims`，不把草稿画进 fact edge lane。
+
+### PR H：research-pack 研究包
+
+状态：已落地第一版。`@supplystrata/research-pack` 负责把现有 DB 数据打包成目录，`apps/cli research run` 负责调用并写入本地文件。
+
+验收：
+
+- [x] 输出 `manifest.json / workbench.json / company.md / chain.md / source-plan.json / quality.json`。
+- [x] 支持显式加入组件，并为组件输出 `components/*.md` 与 `components/*.json`。
+- [x] 默认先刷新 active claims，但不抓新源、不写事实边。
+- [x] Host app 可以直接调用 package API，不需要 shell 到 CLI。
 - [x] Evidence Inspector 从只看 primary evidence 扩到多 evidence / supersession chain。
 - [ ] 公司切换仍需等多公司 export/fixture 完善后补。
 

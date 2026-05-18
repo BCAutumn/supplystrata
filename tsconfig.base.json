@@ -45,6 +45,7 @@
       "@supplystrata/pipeline": ["packages/pipeline/src/index.ts"],
       "@supplystrata/relation-extractor-rule": ["packages/relation-extractor/rule/src/index.ts"],
       "@supplystrata/render": ["packages/render/src/index.ts"],
+      "@supplystrata/research-pack": ["packages/research-pack/src/index.ts"],
       "@supplystrata/review-candidates": ["packages/review-candidates/src/index.ts"],
       "@supplystrata/review-store": ["packages/review-store/src/index.ts"],
       "@supplystrata/source-adapter-spec": ["packages/source-adapter-spec/src/index.ts"],

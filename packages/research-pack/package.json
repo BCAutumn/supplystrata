@@ -1,0 +1,27 @@
+{
+  "name": "@supplystrata/research-pack",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@supplystrata/card-builder": "workspace:*",
+    "@supplystrata/claim-builder": "workspace:*",
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/data-quality": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "@supplystrata/render": "workspace:*",
+    "@supplystrata/source-plan": "workspace:*",
+    "@supplystrata/workbench-export": "workspace:*"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
+}

@@ -89,6 +89,7 @@ source-plan ← CLI / 后续 workbench 消费；读取 source-registry + compone
 source-connectors ← source-workflows 消费；集中注册 source check target runner，不抓源、不写库
 source-management ← CLI / 后续 host app 消费；读取 source-registry + source-connectors 能力，只做 catalog 与配置校验
 card-builder ← apps/cli / 后续 API 消费；负责从 DbClient 组装 CompanyCard / ComponentCard / ChainCard / EvidenceCard / UnknownMap DTO
+research-pack ← CLI / 后续 host app 消费；编排已有 truth-store 数据，导出 workbench、cards、source plan、quality report，不抓新源、不写事实边
 entity-resolver  ← pipeline / sources / extractor / graph-builder 消费
 evidence-scorer  ← graph-builder 消费
 llm-bridge ← relation-extractor/llm + entity-resolver 消费
