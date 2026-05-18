@@ -14,6 +14,7 @@ export interface SourceCheckSummary {
   source_item_id: string;
   source_event_id: string;
   observations: number;
+  review_candidates?: number;
   semantic_changes: number;
   relation_changes: number;
 }

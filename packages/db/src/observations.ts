@@ -195,6 +195,11 @@ interface UpsertLeadRow extends pg.QueryResultRow {
   inserted: boolean;
 }
 
+interface LeadStatusUpdateRow extends pg.QueryResultRow {
+  lead_id: string;
+  status: LeadStatus;
+}
+
 export interface UpsertLeadObservationResult {
   lead_id: string;
   inserted: boolean;
@@ -279,6 +284,45 @@ export async function getLeadObservation(client: DbClient, leadId: string): Prom
     [leadId]
   );
   return result.rows[0];
+}
+
+export async function markLeadObservationInReview(
+  client: DbClient,
+  input: { leadId: string; attrsPatch?: Record<string, unknown> }
+): Promise<{ lead_id: string; status: LeadStatus } | undefined> {
+  const result = await client.query<LeadStatusUpdateRow>(
+    `UPDATE lead_observations
+     SET status = CASE WHEN status = 'open' THEN 'in_review' ELSE status END,
+         attrs = attrs || $2::jsonb,
+         updated_at = now()
+     WHERE lead_id = $1
+       AND status IN ('open','in_review')
+     RETURNING lead_id, status`,
+    [input.leadId, JSON.stringify(input.attrsPatch ?? {})]
+  );
+  const row = result.rows[0];
+  if (row === undefined) return undefined;
+  return { lead_id: row.lead_id, status: row.status };
+}
+
+export async function markLeadObservationPromoted(
+  client: DbClient,
+  input: { leadId: string; reviewId: string; attrsPatch?: Record<string, unknown> }
+): Promise<{ lead_id: string; status: LeadStatus } | undefined> {
+  const result = await client.query<LeadStatusUpdateRow>(
+    `UPDATE lead_observations
+     SET status = 'promoted',
+         review_id = $2,
+         attrs = attrs || $3::jsonb,
+         updated_at = now()
+     WHERE lead_id = $1
+       AND status IN ('open','in_review')
+     RETURNING lead_id, status`,
+    [input.leadId, input.reviewId, JSON.stringify(input.attrsPatch ?? {})]
+  );
+  const row = result.rows[0];
+  if (row === undefined) return undefined;
+  return { lead_id: row.lead_id, status: row.status };
 }
 
 function observationParams(observationId: string, input: NewObservationInput): readonly unknown[] {

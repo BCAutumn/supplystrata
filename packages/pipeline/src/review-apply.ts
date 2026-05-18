@@ -1,6 +1,14 @@
 import { upsertSemanticChangeClaimDraft } from "@supplystrata/claim-builder";
 import { type ApplyResult, type ApprovedCandidate, type RelationType } from "@supplystrata/core";
-import { loadDocument, recordPendingEntity, type DatabaseStore, type DbClient, type DbTxClient, type DocumentWithChunks } from "@supplystrata/db";
+import {
+  loadDocument,
+  markLeadObservationPromoted,
+  recordPendingEntity,
+  type DatabaseStore,
+  type DbClient,
+  type DbTxClient,
+  type DocumentWithChunks
+} from "@supplystrata/db";
 import {
   applyEntitySourceReviewCandidate,
   ensureSupplierListFacilityEntity,
@@ -13,6 +21,7 @@ import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import {
   isEntitySourceReviewCandidate,
+  isOshFacilityReviewCandidate,
   isSemanticChangeReviewCandidate,
   isSupplierListReviewCandidate,
   supplierListReviewToFacilityRelation,
@@ -44,6 +53,7 @@ export type ReviewApplyResult =
     }
   | { status: "entity_applied"; review_id: string; import_result: Extract<EntityImportResult, { status: "applied" }> }
   | { status: "acknowledged"; review_id: string; kind: "semantic_change"; claim_id: string; reason: string }
+  | { status: "acknowledged"; review_id: string; kind: "osh_facility_candidate"; reason: string; lead_id?: string }
   | { status: "blocked"; review_id: string; reason: string; pending_id?: string };
 
 export type ReviewApplyBatchItem = ReviewApplyResult | { status: "error"; review_id: string; reason: string };
@@ -83,6 +93,32 @@ export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewI
       const reason = `acknowledged semantic change review candidate and created draft claim ${draft.claim_id}; no graph edge is applied by design`;
       await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
       return { status: "acknowledged", review_id: item.review_id, kind: "semantic_change", claim_id: draft.claim_id, reason };
+    });
+  }
+  if (isOshFacilityReviewCandidate(item.candidate)) {
+    const candidate = item.candidate;
+    return store.transaction(async (client) => {
+      const sourceLeadId = candidate.payload.source_lead_id;
+      if (sourceLeadId !== undefined) {
+        await markLeadObservationPromoted(client, {
+          leadId: sourceLeadId,
+          reviewId: item.review_id,
+          attrsPatch: {
+            promoted_review_id: item.review_id,
+            promoted_observation_id: candidate.payload.observation_id,
+            promoted_osh_facility_id: candidate.payload.osh_candidate.os_id
+          }
+        });
+      }
+      const reason = `acknowledged OSH facility candidate ${candidate.payload.osh_candidate.os_id}; no graph edge is applied by design`;
+      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+      return {
+        status: "acknowledged",
+        review_id: item.review_id,
+        kind: "osh_facility_candidate",
+        reason,
+        ...(sourceLeadId === undefined ? {} : { lead_id: sourceLeadId })
+      };
     });
   }
   return blockReviewCandidate(store, reviewId, `unsupported review candidate kind: ${item.kind}`);

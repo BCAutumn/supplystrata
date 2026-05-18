@@ -74,4 +74,6 @@ export interface ReviewEnqueueSummary {
   candidates: number;
   inserted: number;
   skipped: number;
+  facility_cross_check_leads?: number;
+  facility_cross_check_targets?: number;
 }

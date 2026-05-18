@@ -1,6 +1,8 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { storeObservation } from "@supplystrata/observation-store";
+import { buildOshFacilityReviewCandidate } from "@supplystrata/review-candidates";
+import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import {
@@ -38,16 +40,23 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
       const raw = await oshAdapter.fetch(task, context);
       const normalized = await oshAdapter.normalize(raw, context);
       const candidates = parseOshFacilityCandidates(raw.body, normalized.source_url);
-      const { saved, documentObservation, storedObservations } = await store.transaction(async (client) => {
+      const { saved, documentObservation, storedObservations, reviewCandidates } = await store.transaction(async (client) => {
         const savedDocument = await saveNormalizedDocumentTx(client, normalized);
         const savedObservation = await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id, { checkTargetId: options.checkTargetId });
-        const observationCount = await storeOshFacilityObservations(client, candidates, {
+        const observationResult = await storeOshFacilityObservations(client, candidates, {
           docId: savedDocument.doc_id,
           sourceItemId: savedObservation.source_item_id,
+          sourceUrl: normalized.source_url,
           query: input.query,
           targetConfig: options.targetConfig
         });
-        return { saved: savedDocument, documentObservation: savedObservation, storedObservations: observationCount };
+        const enqueueResult = await enqueueReviewCandidates(client, observationResult.reviewCandidates);
+        return {
+          saved: savedDocument,
+          documentObservation: savedObservation,
+          storedObservations: observationResult.observations,
+          reviewCandidates: enqueueResult.inserted
+        };
       });
       summaries.push({
         source_adapter_id: oshAdapter.id,
@@ -58,6 +67,7 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
         source_item_id: documentObservation.source_item_id,
         source_event_id: documentObservation.event_id,
         observations: storedObservations,
+        review_candidates: reviewCandidates,
         semantic_changes: 0,
         relation_changes: 0
       });
@@ -79,12 +89,13 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
 async function storeOshFacilityObservations(
   client: DbClient,
   candidates: readonly OshFacilityCandidate[],
-  input: { docId: string; sourceItemId: string; query: string; targetConfig: Record<string, unknown> }
-): Promise<number> {
-  let count = 0;
+  input: { docId: string; sourceItemId: string; sourceUrl: string; query: string; targetConfig: Record<string, unknown> }
+): Promise<{ observations: number; reviewCandidates: ReturnType<typeof buildOshFacilityReviewCandidate>[] }> {
+  const reviewCandidates: ReturnType<typeof buildOshFacilityReviewCandidate>[] = [];
+  let observations = 0;
   for (const candidate of candidates) {
     // OSH contributor 声明只证明设施候选和地理/行业背景，不能直接生成供应关系事实边。
-    await storeObservation(client, {
+    const observation = await storeObservation(client, {
       observation_type: "FACILITY_PROFILE_OBSERVATION",
       source_adapter_id: "osh",
       source_item_id: input.sourceItemId,
@@ -116,9 +127,29 @@ async function storeOshFacilityObservations(
         target_scope_id: optionalConfigString(input.targetConfig, "scope_id", "OSH source check target")
       }
     });
-    count += 1;
+    observations += 1;
+    const sourceLeadId = optionalConfigString(input.targetConfig, "lead_id", "OSH source check target");
+    const targetScopeId = optionalConfigString(input.targetConfig, "scope_id", "OSH source check target");
+    const sourceSupplierName = optionalConfigString(input.targetConfig, "source_supplier_name", "OSH source check target");
+    const sourceLocationText = optionalConfigString(input.targetConfig, "source_location_text", "OSH source check target");
+    const sourceCountryOrRegion = optionalConfigString(input.targetConfig, "source_country_or_region", "OSH source check target");
+    reviewCandidates.push(
+      buildOshFacilityReviewCandidate({
+        candidate,
+        docId: input.docId,
+        sourceItemId: input.sourceItemId,
+        observationId: observation.id,
+        sourceUrl: input.sourceUrl,
+        query: input.query,
+        ...(sourceLeadId === undefined ? {} : { sourceLeadId }),
+        ...(targetScopeId === undefined ? {} : { targetScopeId }),
+        ...(sourceSupplierName === undefined ? {} : { sourceSupplierName }),
+        ...(sourceLocationText === undefined ? {} : { sourceLocationText }),
+        ...(sourceCountryOrRegion === undefined ? {} : { sourceCountryOrRegion })
+      })
+    );
   }
-  return count;
+  return { observations, reviewCandidates };
 }
 
 function oshInputFromConfig(config: Record<string, unknown>): OshFacilitySearchInput {

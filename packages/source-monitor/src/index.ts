@@ -85,6 +85,15 @@ export async function syncSourcePolicyConfig(client: DbClient, input: { config: 
   return { upserted: input.config.policies.length + input.config.check_targets.length };
 }
 
+export async function ensureSourceCheckTarget(
+  client: DbTxClient,
+  input: { target: SourceCheckTargetInput; configSource: string }
+): Promise<{ check_target_id: string }> {
+  await ensureRegisteredSourceHealth(client, input.target.source_adapter_id);
+  await upsertSourceCheckTarget(client, input.target, input.configSource);
+  return { check_target_id: input.target.check_target_id };
+}
+
 export async function listDueSourceChecks(client: DbClient, input: { now?: string; limit?: number } = {}): Promise<DueSourceCheckRow[]> {
   const now = input.now ?? new Date().toISOString();
   const limit = input.limit ?? 50;

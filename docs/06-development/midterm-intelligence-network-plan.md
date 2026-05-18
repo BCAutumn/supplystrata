@@ -82,6 +82,7 @@ packages/source-connectors
 packages/source-workflows
   具体免费/公开源的 use-case 编排层：SEC EDGAR、Apple Supplier List、官方 IR、Census Trade、Open Supply Hub、OpenCorporates / Companies House 都在这里接入。
   后续 DART、EDINET、Comtrade、RMI 等免费源通过新增 workflow/connector 接入，不再改 pipeline 内核或 CLI 调度分支。
+  Apple Supplier List workflow 会把官方供应商设施行同时写入 review candidates 和 OSH cross-check leads，并把 lead 物化成 OSH facility-search source check target；前者经人工审核后才生成 fact edge，后者触发 Open Supply Hub 设施候选检索，并落入 `osh_facility_candidate` review candidate。
 
 packages/pipeline
   只做 normalized document engine；已拆成 run / document-observations / citation-location / review-apply。
@@ -534,6 +535,7 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 v0.2 仍然优先完成：
 
 - Apple Supplier List reviewed facility edges。
+- Apple Supplier List -> OSH cross-check leads -> source check targets -> OSH facility review candidates，作为设施候选和地点校验入口，不自动生成供应链事实边。
 - NVIDIA 研究路径可复现。
 - ComponentCard。
 - changes / source health。

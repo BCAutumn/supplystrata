@@ -1,4 +1,4 @@
-export { enqueueAppleSupplierReviewCandidates } from "./apple-suppliers.js";
+export { buildAppleOshCrossCheckLead, buildAppleOshSourceCheckTarget, enqueueAppleSupplierReviewCandidates } from "./apple-suppliers.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
 export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
 export {

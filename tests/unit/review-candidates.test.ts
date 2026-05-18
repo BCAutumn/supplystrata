@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEntitySourceReviewCandidate,
+  buildOshFacilityReviewCandidate,
   buildSemanticChangeReviewCandidate,
   buildSupplierListReviewCandidate,
   isReviewCandidate,
@@ -229,5 +230,58 @@ describe("review candidates", () => {
     });
     expect(candidate.review_id).toContain("REV-SEMANTIC");
     expect(candidate.needs_review).toBe(true);
+  });
+
+  it("converts OSH facility observations into review-only candidates", () => {
+    const candidate = buildOshFacilityReviewCandidate({
+      candidate: {
+        os_id: "CN2024001",
+        name: "3M Shenzhen Facility",
+        address: "Shenzhen, Guangdong",
+        country_code: "CN",
+        country_name: "China",
+        latitude: 22.54,
+        longitude: 114.06,
+        contributors: ["Open Supply Hub fixture"],
+        sector: "Electronics",
+        product_type: "Components",
+        source_url: "https://opensupplyhub.org/api/facilities/?q=3M"
+      },
+      docId: "DOC-OSH",
+      sourceItemId: "SRCITEM-OSH",
+      observationId: "OBS-OSH",
+      sourceUrl: "https://opensupplyhub.org/api/facilities/?q=3M",
+      query: "3M",
+      sourceLeadId: "LEAD-APPLE-OSH",
+      targetScopeId: "ENT-APPLE",
+      sourceSupplierName: "3M",
+      sourceLocationText: "Guangdong, Jiangsu, Shanghai",
+      sourceCountryOrRegion: "China mainland"
+    });
+
+    expect(candidate).toMatchObject({
+      kind: "osh_facility_candidate",
+      title: "OSH facility candidate: 3M -> 3M Shenzhen Facility",
+      payload: {
+        source_lead_id: "LEAD-APPLE-OSH",
+        source_item_id: "SRCITEM-OSH",
+        observation_id: "OBS-OSH",
+        query: "3M",
+        target_scope_id: "ENT-APPLE",
+        osh_candidate: {
+          os_id: "CN2024001",
+          name: "3M Shenzhen Facility"
+        }
+      },
+      evidence: {
+        doc_id: "DOC-OSH",
+        source_adapter_id: "osh",
+        source_locator: "Open Supply Hub facility CN2024001"
+      }
+    });
+    expect(candidate.review_id).toContain("REV-OSH-FACILITY");
+    expect(candidate.review_reason).toContain("不能自动生成供应链事实边");
+    expect(isReviewCandidate(candidate)).toBe(true);
+    expect(isReviewCandidate({ ...candidate, payload: { ...candidate.payload, osh_candidate: { name: "missing id" } } })).toBe(false);
   });
 });

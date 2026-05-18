@@ -4,6 +4,7 @@ import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/d
 import {
   calculateNextCheckAt,
   classifyDocumentChange,
+  ensureSourceCheckTarget,
   listDueSourceChecks,
   listSourceHealthRows,
   parseSourcePolicyConfig,
@@ -163,6 +164,30 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("SOURCE_DEGRADED"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("last_failure_at = $2"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("last_success_at = $2"))).toBe(false);
+  });
+
+  it("ensures source check targets with source health and default policy", async () => {
+    const client = new SourceMonitorDbClient({ failureCount: 0 });
+
+    const result = await ensureSourceCheckTarget(client, {
+      configSource: "lead:apple-suppliers",
+      target: {
+        check_target_id: "osh:apple-supplier:LEAD-1",
+        source_adapter_id: "osh",
+        target_kind: "facility-search",
+        enabled: true,
+        priority: 30,
+        subject_entity_id: "ENT-APPLE",
+        target_config: { query: "3M", scope_id: "ENT-APPLE", lead_id: "LEAD-1" },
+        notes: "fixture"
+      }
+    });
+
+    expect(result).toEqual({ check_target_id: "osh:apple-supplier:LEAD-1" });
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_health"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_policies"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_check_targets"))).toBe(true);
+    expect(client.calls.some((call) => call.params.includes("lead:apple-suppliers"))).toBe(true);
   });
 });
 
