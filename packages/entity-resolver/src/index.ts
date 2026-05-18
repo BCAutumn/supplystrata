@@ -5,8 +5,12 @@ import { normalizeAlias, type AliasRecord, type ResolveInput, type ResolveResult
 import type { DbClient } from "@supplystrata/db";
 import { resolveSpecialEntity } from "./special-entities.js";
 
+export interface ResolveContext {
+  client?: DbClient;
+}
+
 export interface EntityResolver {
-  resolve(input: ResolveInput): Promise<ResolveResult>;
+  resolve(input: ResolveInput, context?: ResolveContext): Promise<ResolveResult>;
 }
 
 interface AliasMatchRow {
@@ -60,21 +64,22 @@ export class DbEntityResolver implements EntityResolver {
     this.#client = client;
   }
 
-  async resolve(input: ResolveInput): Promise<ResolveResult> {
+  async resolve(input: ResolveInput, context: ResolveContext = {}): Promise<ResolveResult> {
+    const client = context.client ?? this.#client;
     const surface = input.surface.trim();
     if (surface.length === 0) return { status: "unknown", confidence: 0, needs_human_review: true };
 
     const special = resolveSpecialEntity(surface, input.context?.nearby_text ?? "");
     if (special !== undefined) return special;
 
-    const byEntityId = await this.#resolveByEntityId(surface);
+    const byEntityId = await this.#resolveByEntityId(client, surface);
     if (byEntityId !== undefined) return byEntityId;
 
-    const identifier = await this.#resolveByIdentifier(input);
+    const identifier = await this.#resolveByIdentifier(client, input);
     if (identifier !== undefined) return identifier;
 
     const normalized = normalizeAlias(surface);
-    const result = await this.#client.query<AliasMatchRow & { [key: string]: unknown }>(
+    const result = await client.query<AliasMatchRow & { [key: string]: unknown }>(
       `SELECT a.entity_id, e.canonical_name, e.display_name, a.alias, a.alias_kind, a.source_type, e.primary_country, e.identifiers, e.industry
        FROM entity_alias a
        JOIN entity_master e ON e.entity_id = a.entity_id
@@ -86,7 +91,7 @@ export class DbEntityResolver implements EntityResolver {
     const exact = resolveExactMatches(surface, input, result.rows);
     if (exact !== undefined) return exact;
 
-    const fuzzy = await this.#client.query<AliasMatchRow & { [key: string]: unknown }>(
+    const fuzzy = await client.query<AliasMatchRow & { [key: string]: unknown }>(
       `SELECT a.entity_id, e.canonical_name, e.display_name, a.alias, a.alias_kind, a.source_type, e.primary_country, e.identifiers, e.industry
        FROM entity_alias a
        JOIN entity_master e ON e.entity_id = a.entity_id
@@ -98,7 +103,7 @@ export class DbEntityResolver implements EntityResolver {
     return resolveFuzzyMatches(surface, fuzzy.rows);
   }
 
-  async #resolveByIdentifier(input: ResolveInput): Promise<ResolveResult | undefined> {
+  async #resolveByIdentifier(client: DbClient, input: ResolveInput): Promise<ResolveResult | undefined> {
     const identifiers = input.identifiers;
     if (identifiers === undefined) return undefined;
     const clauses: string[] = [];
@@ -120,7 +125,7 @@ export class DbEntityResolver implements EntityResolver {
     }
     if (clauses.length === 0) return undefined;
 
-    const result = await this.#client.query<Pick<AliasMatchRow, "entity_id"> & { [key: string]: unknown }>(
+    const result = await client.query<Pick<AliasMatchRow, "entity_id"> & { [key: string]: unknown }>(
       `SELECT entity_id FROM entity_master WHERE status = 'active' AND (${clauses.join(" OR ")}) LIMIT 2`,
       params
     );
@@ -135,8 +140,8 @@ export class DbEntityResolver implements EntityResolver {
     };
   }
 
-  async #resolveByEntityId(surface: string): Promise<ResolveResult | undefined> {
-    const result = await this.#client.query<Pick<AliasMatchRow, "entity_id"> & { [key: string]: unknown }>(
+  async #resolveByEntityId(client: DbClient, surface: string): Promise<ResolveResult | undefined> {
+    const result = await client.query<Pick<AliasMatchRow, "entity_id"> & { [key: string]: unknown }>(
       "SELECT entity_id FROM entity_master WHERE lower(entity_id) = lower($1) AND status = 'active' LIMIT 1",
       [surface]
     );

@@ -119,7 +119,7 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 | `noaa-ais` / `eia` / `fred` / `worldbank-pink` / `usgs-mcs` | `macro_statistical_agency` | `macro_trend`      | 2                  | 物流、能源、商品和矿产数据只能作为背景观测。                                        |
 | `sam-gov` / `usaspending` / `eu-ted` / `gdelt`              | `regulator` 或 `news`      | `lead_only`        | 1-2                | 采购/新闻只能进入 lead/hypothesis queue。                                           |
 
-未注册 adapter 一律按 `manual / lead_only / max_evidence_level=2` 处理；不能只因为 `document_type` 写成 `10-K` 或 `annual_report` 就获得高证据等级。新增高权威来源必须先进入 source registry。离线测试专用的 `sec-edgar-fixture` 显式映射到 `sec-edgar`。
+未注册 adapter 一律按 `manual / lead_only / max_evidence_level=2` 处理；不能只因为 `document_type` 写成 `10-K` 或 `annual_report` 就获得高证据等级。新增高权威来源必须先进入 source registry。离线 fixture 若要测试 SEC 权威评分，应使用 `source_adapter_id = sec-edgar` 并把 URL / storage key 标记为 fixture 路径；测试专用 adapter id 不再在生产 registry 里短路映射。
 
 抽取方法是 LLM 时仍按 [evidence-model.md](../03-data-model/evidence-model.md) 中"LLM 上限 4"规则降级。宏观贸易、能源、AIS、新闻和采购类来源默认进入 observations / leads，不得直接生成高等级公司供应链边。
 

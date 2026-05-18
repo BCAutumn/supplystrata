@@ -160,6 +160,9 @@ class ChangedDocumentDbClient extends RecordingDbClient {
 }
 
 function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("FROM source_policies")) {
+    return [{ check_cadence_minutes: 720, jitter_minutes: 60 }] as unknown as T[];
+  }
   if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ observation_id: params[0], inserted: true }] as unknown as T[];
   }

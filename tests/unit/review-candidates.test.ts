@@ -3,6 +3,7 @@ import {
   buildEntitySourceReviewCandidate,
   buildSemanticChangeReviewCandidate,
   buildSupplierListReviewCandidate,
+  isReviewCandidate,
   supplierListFacilityDisplayName,
   supplierListFacilityEntityId,
   supplierListReviewToFacilityRelation,
@@ -63,6 +64,9 @@ describe("review candidates", () => {
       object_resolve: { surface: "Supplier Co." },
       extractor_id: "review.supplier-list-row"
     });
+    expect(isReviewCandidate(candidate)).toBe(true);
+    expect(isReviewCandidate({ kind: "supplier_list_row" })).toBe(false);
+    expect(isReviewCandidate({ ...candidate, evidence: { source_url: "fixture://missing-fields" } })).toBe(false);
   });
 
   it("creates stable facility ids and facility relations from supplier-list reviews", () => {

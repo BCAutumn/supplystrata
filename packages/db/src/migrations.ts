@@ -10,6 +10,7 @@ import { migration0008ClaimDraftsSql } from "./migration-sql/0008_claim_drafts.j
 import { migration0009ReviewQueueHardeningSql } from "./migration-sql/0009_review_queue_hardening.js";
 import { migration0010GraphProjectionJobsSql } from "./migration-sql/0010_graph_projection_jobs.js";
 import { sql as migration0011GraphProjectionInProgressSql } from "./migration-sql/0011_graph_projection_in_progress.js";
+import { sql as migration0012ObservationTypeContractSql } from "./migration-sql/0012_observation_type_contract.js";
 
 interface Migration {
   readonly id: string;
@@ -72,6 +73,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0011_graph_projection_in_progress",
     description: "Treat in-progress GraphStore projection jobs as active for uniqueness.",
     sql: migration0011GraphProjectionInProgressSql
+  },
+  {
+    id: "0012_observation_type_contract",
+    description: "Synchronize observations.observation_type check constraint with core OBSERVATION_TYPES.",
+    sql: migration0012ObservationTypeContractSql
   }
 ];
 

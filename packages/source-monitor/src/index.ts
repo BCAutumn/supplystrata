@@ -2,128 +2,36 @@ import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { DbClient, DbTxClient } from "@supplystrata/db";
 import { listSources, type SourceRegistryEntry } from "@supplystrata/source-registry";
+import { parseSourcePolicyConfig } from "./policy-config.js";
+import { calculateNextCheckAt } from "./scheduling.js";
+import type {
+  DocumentObservationInput,
+  DocumentObservationResult,
+  DueSourceCheckRow,
+  SourceCheckTargetInput,
+  SourceDegradedInput,
+  SourceDocumentChangeType,
+  SourceFailureInput,
+  SourceHealthRow,
+  SourcePolicyConfig,
+  SourcePolicyInput
+} from "./types.js";
 
-export type SourceDocumentChangeType = "DOCUMENT_NEW" | "DOCUMENT_UNCHANGED" | "DOCUMENT_CHANGED";
-
-export interface SourceHealthRow extends pg.QueryResultRow {
-  source_adapter_id: string;
-  tier: string;
-  category: string;
-  registry_status: string;
-  automation: string;
-  tos_url: string;
-  official_url: string;
-  requires_key: boolean;
-  last_checked_at: Date | null;
-  last_success_at: Date | null;
-  last_failure_at: Date | null;
-  failure_count: number;
-  last_change_at: Date | null;
-  last_error_message: string | null;
-  policy_enabled: boolean | null;
-  check_cadence_minutes: number | null;
-  jitter_minutes: number | null;
-  priority: number | null;
-  next_check_at: Date | null;
-  policy_config_source: string | null;
-  policy_notes: string | null;
-}
-
-export interface SourcePolicyRow extends pg.QueryResultRow {
-  source_adapter_id: string;
-  enabled: boolean;
-  check_cadence_minutes: number;
-  jitter_minutes: number;
-  priority: number;
-  config_source: string;
-  next_check_at: Date | null;
-  notes: string | null;
-}
-
-export interface DueSourceCheckRow extends pg.QueryResultRow {
-  check_target_id: string;
-  source_adapter_id: string;
-  target_kind: string;
-  subject_entity_id: string | null;
-  target_config: Record<string, unknown>;
-  target_enabled: boolean;
-  target_priority: number;
-  target_config_source: string;
-  target_notes: string | null;
-  policy_enabled: boolean;
-  check_cadence_minutes: number;
-  jitter_minutes: number;
-  policy_priority: number;
-  policy_config_source: string;
-  next_check_at: Date | null;
-  policy_notes: string | null;
-}
-
-export interface SourcePolicyInput {
-  source_adapter_id: string;
-  enabled: boolean;
-  check_cadence_minutes: number;
-  jitter_minutes?: number;
-  priority?: number;
-  notes?: string;
-}
-
-export interface SourceCheckTargetInput {
-  check_target_id: string;
-  source_adapter_id: string;
-  target_kind: string;
-  enabled: boolean;
-  priority?: number;
-  subject_entity_id?: string;
-  target_config: Record<string, unknown>;
-  notes?: string;
-}
-
-export interface SourcePolicyConfig {
-  schema_version: "1.0.0";
-  policies: SourcePolicyInput[];
-  check_targets: SourceCheckTargetInput[];
-}
-
-export interface DocumentObservationInput {
-  source_adapter_id: string;
-  source_url: string;
-  doc_id: string;
-  bytes_sha256: string;
-  storage_key: string;
-  observed_at?: string;
-  item_key?: string;
-  check_target_id?: string;
-  caused_by?: string;
-}
-
-export interface SourceFailureInput {
-  source_adapter_id: string;
-  error_message: string;
-  failed_at?: string;
-  task_id?: string;
-  url?: string;
-  check_target_id?: string;
-  caused_by?: string;
-}
-
-export interface SourceDegradedInput {
-  source_adapter_id: string;
-  error_message: string;
-  degraded_at?: string;
-  task_id?: string;
-  url?: string;
-  check_target_id?: string;
-  caused_by?: string;
-}
-
-export interface DocumentObservationResult {
-  source_item_id: string;
-  event_id: string;
-  change_type: SourceDocumentChangeType;
-  previous_doc_id: string | null;
-  previous_bytes_sha256: string | null;
-}
+export { parseSourcePolicyConfig } from "./policy-config.js";
+export { calculateNextCheckAt } from "./scheduling.js";
+export type {
+  DocumentObservationInput,
+  DocumentObservationResult,
+  DueSourceCheckRow,
+  SourceCheckTargetInput,
+  SourceDegradedInput,
+  SourceDocumentChangeType,
+  SourceFailureInput,
+  SourceHealthRow,
+  SourcePolicyConfig,
+  SourcePolicyInput,
+  SourcePolicyRow
+} from "./types.js";
 
 interface SourceItemRow extends pg.QueryResultRow {
   source_item_id: string;
@@ -136,6 +44,11 @@ interface SourceHealthStateRow extends pg.QueryResultRow {
   failure_count: number;
   last_failure_at: Date | null;
   last_error_message: string | null;
+}
+
+interface NextCheckPolicyRow extends pg.QueryResultRow {
+  check_cadence_minutes: number;
+  jitter_minutes: number;
 }
 
 export async function syncSourceHealthRegistry(client: DbClient): Promise<{ upserted: number }> {
@@ -409,21 +322,6 @@ export async function recordSourceDegraded(client: DbTxClient, input: SourceDegr
   return { event_id: eventId };
 }
 
-export function parseSourcePolicyConfig(text: string): SourcePolicyConfig {
-  const parsed = JSON.parse(text) as unknown;
-  if (!isRecord(parsed)) throw new Error("source policy config must be an object");
-  if (parsed["schema_version"] !== "1.0.0") throw new Error("source policy config schema_version must be 1.0.0");
-  const policies = parsed["policies"];
-  if (!Array.isArray(policies)) throw new Error("source policy config policies must be an array");
-  const checkTargets = parsed["check_targets"];
-  if (!Array.isArray(checkTargets)) throw new Error("source policy config check_targets must be an array");
-  return {
-    schema_version: "1.0.0",
-    policies: policies.map(parseSourcePolicyInput),
-    check_targets: checkTargets.map(parseSourceCheckTargetInput)
-  };
-}
-
 export function classifyDocumentChange(previousSha256: string | null, nextSha256: string): SourceDocumentChangeType {
   if (previousSha256 === null) return "DOCUMENT_NEW";
   if (previousSha256 === nextSha256) return "DOCUMENT_UNCHANGED";
@@ -459,6 +357,7 @@ async function ensureRegisteredSourceHealth(client: DbClient, sourceAdapterId: s
   const source = listSources().find((entry) => entry.id === sourceAdapterId);
   if (source === undefined) throw new Error(`Unknown source_adapter_id: ${sourceAdapterId}`);
   await upsertSourceHealth(client, source);
+  await upsertDefaultSourcePolicy(client, source);
   const result = await client.query<SourceHealthStateRow>(
     `SELECT failure_count, last_failure_at, last_error_message
      FROM source_health
@@ -531,26 +430,52 @@ async function upsertSourceCheckTarget(client: DbClient, target: SourceCheckTarg
 }
 
 async function updateSourcePolicyNextCheck(client: DbClient, input: { sourceAdapterId: string; baseTime: string }): Promise<void> {
+  const policy = await loadNextCheckPolicy(client, input.sourceAdapterId);
+  const nextCheckAt = calculateNextCheckAt({
+    baseTime: input.baseTime,
+    cadenceMinutes: policy.check_cadence_minutes,
+    jitterMinutes: policy.jitter_minutes,
+    jitterSeed: `policy:${input.sourceAdapterId}`
+  });
   await client.query(
     `UPDATE source_policies
-     SET next_check_at = $2::timestamptz + (check_cadence_minutes || ' minutes')::interval,
+     SET next_check_at = $2::timestamptz,
          updated_at = now()
      WHERE source_adapter_id = $1`,
-    [input.sourceAdapterId, input.baseTime]
+    [input.sourceAdapterId, nextCheckAt]
   );
 }
 
 async function updateSourceCheckTargetNextCheck(client: DbClient, input: { checkTargetId: string; sourceAdapterId: string; baseTime: string }): Promise<void> {
+  const policy = await loadNextCheckPolicy(client, input.sourceAdapterId);
+  const nextCheckAt = calculateNextCheckAt({
+    baseTime: input.baseTime,
+    cadenceMinutes: policy.check_cadence_minutes,
+    jitterMinutes: policy.jitter_minutes,
+    jitterSeed: `target:${input.sourceAdapterId}:${input.checkTargetId}`
+  });
   await client.query(
     `UPDATE source_check_targets t
-     SET next_check_at = $3::timestamptz + (p.check_cadence_minutes || ' minutes')::interval,
+     SET next_check_at = $3::timestamptz,
          updated_at = now()
      FROM source_policies p
      WHERE t.check_target_id = $1
        AND t.source_adapter_id = $2
        AND p.source_adapter_id = t.source_adapter_id`,
-    [input.checkTargetId, input.sourceAdapterId, input.baseTime]
+    [input.checkTargetId, input.sourceAdapterId, nextCheckAt]
   );
+}
+
+async function loadNextCheckPolicy(client: DbClient, sourceAdapterId: string): Promise<NextCheckPolicyRow> {
+  const result = await client.query<NextCheckPolicyRow>(
+    `SELECT check_cadence_minutes, jitter_minutes
+     FROM source_policies
+     WHERE source_adapter_id = $1`,
+    [sourceAdapterId]
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Source policy not found while scheduling next check: ${sourceAdapterId}`);
+  return row;
 }
 
 function defaultPolicyForSource(source: SourceRegistryEntry): SourcePolicyInput {
@@ -581,86 +506,4 @@ function defaultPolicyForSource(source: SourceRegistryEntry): SourcePolicyInput 
     priority: 100,
     notes: "Preview/scoped source; weekly check by default when automation is allowed."
   };
-}
-
-function parseSourcePolicyInput(value: unknown): SourcePolicyInput {
-  if (!isRecord(value)) throw new Error("source policy entry must be an object");
-  const sourceAdapterId = requireString(value, "source_adapter_id");
-  const enabled = requireBoolean(value, "enabled");
-  const checkCadenceMinutes = requirePositiveInteger(value, "check_cadence_minutes");
-  const jitterMinutes = optionalNonNegativeInteger(value, "jitter_minutes");
-  const priority = optionalNonNegativeInteger(value, "priority");
-  const notes = optionalString(value, "notes");
-  return {
-    source_adapter_id: sourceAdapterId,
-    enabled,
-    check_cadence_minutes: checkCadenceMinutes,
-    ...(jitterMinutes === undefined ? {} : { jitter_minutes: jitterMinutes }),
-    ...(priority === undefined ? {} : { priority }),
-    ...(notes === undefined ? {} : { notes })
-  };
-}
-
-function parseSourceCheckTargetInput(value: unknown): SourceCheckTargetInput {
-  if (!isRecord(value)) throw new Error("source check target entry must be an object");
-  const checkTargetId = requireString(value, "check_target_id");
-  const sourceAdapterId = requireString(value, "source_adapter_id");
-  const targetKind = requireString(value, "target_kind");
-  const enabled = requireBoolean(value, "enabled");
-  const priority = optionalNonNegativeInteger(value, "priority");
-  const subjectEntityId = optionalString(value, "subject_entity_id");
-  const targetConfig = requireRecord(value, "target_config");
-  const notes = optionalString(value, "notes");
-  return {
-    check_target_id: checkTargetId,
-    source_adapter_id: sourceAdapterId,
-    target_kind: targetKind,
-    enabled,
-    target_config: targetConfig,
-    ...(priority === undefined ? {} : { priority }),
-    ...(subjectEntityId === undefined ? {} : { subject_entity_id: subjectEntityId }),
-    ...(notes === undefined ? {} : { notes })
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requireString(value: Record<string, unknown>, key: string): string {
-  const item = value[key];
-  if (typeof item !== "string" || item.trim().length === 0) throw new Error(`source policy ${key} must be a non-empty string`);
-  return item;
-}
-
-function requireBoolean(value: Record<string, unknown>, key: string): boolean {
-  const item = value[key];
-  if (typeof item !== "boolean") throw new Error(`source policy ${key} must be a boolean`);
-  return item;
-}
-
-function requireRecord(value: Record<string, unknown>, key: string): Record<string, unknown> {
-  const item = value[key];
-  if (!isRecord(item)) throw new Error(`source policy ${key} must be an object`);
-  return item;
-}
-
-function requirePositiveInteger(value: Record<string, unknown>, key: string): number {
-  const item = value[key];
-  if (!Number.isInteger(item) || typeof item !== "number" || item < 1) throw new Error(`source policy ${key} must be a positive integer`);
-  return item;
-}
-
-function optionalNonNegativeInteger(value: Record<string, unknown>, key: string): number | undefined {
-  const item = value[key];
-  if (item === undefined) return undefined;
-  if (!Number.isInteger(item) || typeof item !== "number" || item < 0) throw new Error(`source policy ${key} must be a non-negative integer`);
-  return item;
-}
-
-function optionalString(value: Record<string, unknown>, key: string): string | undefined {
-  const item = value[key];
-  if (item === undefined) return undefined;
-  if (typeof item !== "string") throw new Error(`source policy ${key} must be a string`);
-  return item;
 }

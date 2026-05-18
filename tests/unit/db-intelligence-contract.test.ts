@@ -1,6 +1,8 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
+import { OBSERVATION_TYPES } from "@supplystrata/core";
 import type { DbClient } from "@supplystrata/db";
+import { sql as migration0012ObservationTypeContractSql } from "../../packages/db/src/migration-sql/0012_observation_type_contract.js";
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
@@ -17,6 +19,7 @@ import {
   recordSemanticChange,
   resolveUnknownItem,
   upsertClaim,
+  upsertObservation,
   upsertUnknownItem,
   linkClaimEvidence,
   linkClaimUnknown,
@@ -85,6 +88,12 @@ class EdgeDeprecationDbClient extends RecordingDbClient {
 }
 
 describe("db intelligence-network repositories", () => {
+  it("keeps DB observation type constraint synchronized with core observation types", () => {
+    for (const observationType of OBSERVATION_TYPES) {
+      expect(migration0012ObservationTypeContractSql).toContain(`'${observationType}'`);
+    }
+  });
+
   it("inserts claims and links evidence/unknowns without business inference", async () => {
     const client = new RecordingDbClient();
 
@@ -147,6 +156,26 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[0]?.sql).toContain("RETURNING claim_id, (xmax = 0) AS inserted");
   });
 
+  it("does not resurrect rejected or superseded claims through generated upserts", async () => {
+    const client = new RecordingDbClient();
+
+    await upsertClaim(client, {
+      claim_id: "CLM-EDGE-TEST",
+      claim_type: "SUPPLY_RELATION_CLAIM",
+      claim_text: "Generated claim text.",
+      subject_id: "ENT-NVIDIA",
+      object_id: "ENT-SK-HYNIX",
+      edge_id: "EDGE-TEST",
+      status: "active",
+      evidence_level: 5,
+      confidence: 0.93,
+      is_inferred: false,
+      generated_by: "unit-test"
+    });
+
+    expect(client.calls[0]?.sql).toContain("WHEN claims.status IN ('superseded','rejected') THEN claims.status");
+  });
+
   it("inserts observations and leads as non-edge records", async () => {
     const client = new RecordingDbClient();
 
@@ -178,6 +207,25 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[0]?.sql).toContain("INSERT INTO observations");
     expect(client.calls[1]?.sql).toContain("INSERT INTO lead_observations");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("upserts observations without replacing existing provenance and attrs blobs wholesale", async () => {
+    const client = new RecordingDbClient();
+
+    await upsertObservation(client, {
+      observation_id: "OBS-TEST",
+      observation_type: "FACILITY_PROFILE_OBSERVATION",
+      source_adapter_id: "osh",
+      scope_kind: "facility",
+      scope_id: "FAC-TEST",
+      metric_name: "profile_confidence",
+      confidence: 0.7,
+      provenance: { source: "osh" },
+      attrs: { country: "MY" }
+    });
+
+    expect(client.calls[0]?.sql).toContain("provenance = observations.provenance || EXCLUDED.provenance");
+    expect(client.calls[0]?.sql).toContain("attrs = observations.attrs || EXCLUDED.attrs");
   });
 
   it("records semantic changes without touching fact edges", async () => {

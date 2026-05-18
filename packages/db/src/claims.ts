@@ -96,7 +96,10 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
        component_id = EXCLUDED.component_id,
        edge_id = EXCLUDED.edge_id,
        review_id = EXCLUDED.review_id,
-       status = EXCLUDED.status,
+       status = CASE
+         WHEN claims.status IN ('superseded','rejected') THEN claims.status
+         ELSE EXCLUDED.status
+       END,
        evidence_level = EXCLUDED.evidence_level,
        confidence = EXCLUDED.confidence,
        is_inferred = EXCLUDED.is_inferred,

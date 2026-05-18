@@ -106,6 +106,28 @@ export async function listApprovedReviewCandidates(client: DbClient, input: { li
   });
 }
 
+export async function claimApprovedReviewCandidates(client: DbClient, input: { limit: number }): Promise<ReviewQueueItem[]> {
+  const result = await client.query<ReviewCandidateRow>(
+    `UPDATE review_candidates
+     SET status = 'in_review', updated_at = now()
+     WHERE review_id IN (
+       SELECT review_id
+       FROM review_candidates
+       WHERE status = 'approved'
+       ORDER BY reviewed_at NULLS LAST, created_at, review_id
+       FOR UPDATE SKIP LOCKED
+       LIMIT $1
+     )
+     RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
+    [input.limit]
+  );
+  return result.rows.map((row) => {
+    const item = rowToReviewItem(row);
+    if (item === undefined) throw new Error(`Invalid claimed review candidate row: ${row.review_id}`);
+    return item;
+  });
+}
+
 export async function getReviewCandidate(client: DbClient, reviewId: string): Promise<ReviewQueueItem | undefined> {
   const result = await client.query<ReviewCandidateRow>(
     `SELECT review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at
@@ -153,7 +175,11 @@ export async function markReviewCandidateApplied(client: DbClient, input: { revi
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'applied', decision_reason = $2, updated_at = now()
-     WHERE review_id = $1 AND status IN ('approved','blocked')
+     WHERE review_id = $1
+       AND (
+         status IN ('approved','blocked')
+         OR (status = 'in_review' AND reviewed_at IS NOT NULL)
+       )
      RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
     [input.reviewId, input.reason]
   );

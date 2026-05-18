@@ -105,8 +105,8 @@ export async function upsertObservation(client: DbClient, input: NewObservationI
        change_value = EXCLUDED.change_value,
        change_percent = EXCLUDED.change_percent,
        confidence = EXCLUDED.confidence,
-       provenance = EXCLUDED.provenance,
-       attrs = EXCLUDED.attrs
+       provenance = observations.provenance || EXCLUDED.provenance,
+       attrs = observations.attrs || EXCLUDED.attrs
      RETURNING observation_id, (xmax = 0) AS inserted`,
     observationParams(observationId, input)
   );

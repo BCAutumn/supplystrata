@@ -135,7 +135,7 @@ supplystrata changes --format json
 不允许：
 
 - 图谱里有边变化，但 changes 流没有记录。
-- source monitor 失败或缓存回退只写日志不落库。
+- source monitor 失败和缓存回退已经落库为 `SOURCE_FAILED` / `SOURCE_DEGRADED`；缓存回退不会被记作成功文档观察。
 - review 状态变化不出现在 timeline。
 
 ## 工作台 timeline

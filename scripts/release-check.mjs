@@ -81,7 +81,7 @@ async function runNamedCommand(name, args) {
 
 async function checkIgnoreRules() {
   const gitignore = await readFile(join(rootDir, ".gitignore"), "utf8");
-  const required = ["node_modules/", "data/", "reports/", ".env"];
+  const required = ["node_modules/", "/data/", "/reports/", ".env"];
   for (const item of required) {
     addCheck(`.gitignore contains ${item}`, gitignore.split(/\r?\n/).includes(item));
   }

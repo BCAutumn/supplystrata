@@ -1,7 +1,13 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import type { DbClient } from "@supplystrata/db";
-import { decideReviewCandidate, markReviewCandidateApplied, markReviewCandidateBlocked, nextReviewCandidate } from "@supplystrata/review-store";
+import {
+  claimApprovedReviewCandidates,
+  decideReviewCandidate,
+  markReviewCandidateApplied,
+  markReviewCandidateBlocked,
+  nextReviewCandidate
+} from "@supplystrata/review-store";
 
 interface QueryCall {
   sql: string;
@@ -52,6 +58,19 @@ describe("review-store semantic changes", () => {
     const item = await nextReviewCandidate(client);
 
     expect(item?.status).toBe("in_review");
+    expect(client.calls[0]?.sql).toContain("FOR UPDATE SKIP LOCKED");
+    expect(client.calls[0]?.sql).toContain("SET status = 'in_review'");
+  });
+
+  it("claims approved review candidates before batch apply", async () => {
+    const client = new ReviewChangeDbClient();
+
+    const items = await claimApprovedReviewCandidates(client, { limit: 3 });
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.status).toBe("in_review");
+    expect(items[0]?.reviewed_at).toBeDefined();
+    expect(client.calls[0]?.sql).toContain("WHERE status = 'approved'");
     expect(client.calls[0]?.sql).toContain("FOR UPDATE SKIP LOCKED");
     expect(client.calls[0]?.sql).toContain("SET status = 'in_review'");
   });

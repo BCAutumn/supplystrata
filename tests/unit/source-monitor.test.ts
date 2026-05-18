@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type pg from "pg";
 import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
 import {
+  calculateNextCheckAt,
   classifyDocumentChange,
   listDueSourceChecks,
   listSourceHealthRows,
@@ -75,6 +76,32 @@ describe("source monitor", () => {
       },
       notes: "NVIDIA official filing monitor"
     });
+  });
+
+  it("uses deterministic jitter when computing next source checks", () => {
+    const first = calculateNextCheckAt({
+      baseTime: "2026-05-17T00:00:00.000Z",
+      cadenceMinutes: 60,
+      jitterMinutes: 15,
+      jitterSeed: "sec-edgar:nvidia"
+    });
+    const second = calculateNextCheckAt({
+      baseTime: "2026-05-17T00:00:00.000Z",
+      cadenceMinutes: 60,
+      jitterMinutes: 15,
+      jitterSeed: "sec-edgar:nvidia"
+    });
+    const noJitter = calculateNextCheckAt({
+      baseTime: "2026-05-17T00:00:00.000Z",
+      cadenceMinutes: 60,
+      jitterMinutes: 0,
+      jitterSeed: "sec-edgar:nvidia"
+    });
+
+    expect(first).toBe(second);
+    expect(Date.parse(first)).toBeGreaterThanOrEqual(Date.parse("2026-05-17T01:00:00.000Z"));
+    expect(Date.parse(first)).toBeLessThanOrEqual(Date.parse("2026-05-17T01:15:00.000Z"));
+    expect(noJitter).toBe("2026-05-17T01:00:00.000Z");
   });
 
   it("keeps health and due-list queries read-only", async () => {
@@ -168,6 +195,9 @@ class SourceMonitorDbClient implements DbTxClient {
 }
 
 function rowsForStatement<T extends pg.QueryResultRow>(statement: string, failureCount: number, lastErrorMessage: string | null): T[] {
+  if (statement.includes("FROM source_policies")) {
+    return [{ check_cadence_minutes: 720, jitter_minutes: 60 }] as unknown as T[];
+  }
   if (statement.includes("FROM source_health")) {
     return [
       {

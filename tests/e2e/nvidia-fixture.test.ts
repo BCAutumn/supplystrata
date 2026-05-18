@@ -77,7 +77,7 @@ async function loadFixtureRawDocument(): Promise<RawDocument<Uint8Array>> {
   const bytes = new Uint8Array(body);
   return {
     doc_id: "DOC-E2E-NVIDIA-10K-FIXTURE",
-    source_adapter_id: "sec-edgar-fixture",
+    source_adapter_id: "sec-edgar",
     url: "fixture://sec-edgar/nvidia-10k-supply-chain-mini.html",
     fetched_at: "2026-05-16T00:00:00.000Z",
     bytes_sha256: createHash("sha256").update(bytes).digest("hex"),

@@ -73,8 +73,8 @@ export class GraphBuilder {
   }
 
   async applySqlInTransaction(client: DbTxClient, approved: ApprovedCandidate): Promise<Omit<ApplyResult, "graph_sync">> {
-    const subject = await this.#resolver.resolve(approved.candidate.subject_resolve);
-    const object = await this.#resolver.resolve(approved.candidate.object_resolve);
+    const subject = await this.#resolver.resolve(approved.candidate.subject_resolve, { client });
+    const object = await this.#resolver.resolve(approved.candidate.object_resolve, { client });
     if (subject.status !== "resolved" || subject.entity_id === undefined) {
       throw new Error(`Cannot resolve subject: ${approved.candidate.subject_resolve.surface}`);
     }

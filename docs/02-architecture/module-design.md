@@ -318,6 +318,7 @@ export interface ApplyResult {
 - 图谱中**不允许物理删除**边；只能 `validity = "deprecated"` + 写 ChangeRecord
 - 对相同 `subject + object + relation + component` 的多条 evidence，应当聚合到同一条 edge
 - `GraphBuilder.apply()` 适合单条候选；需要把多条 reviewed edge 和 review 状态作为一个原子操作提交时，业务层必须在外层事务里调用 `applySqlInTransaction()`，提交后图投影走 deferred/outbox。
+- `applySqlInTransaction(client, approved)` 会把同一个 `DbTxClient` 传给 `EntityResolver.resolve()`，实体解析查询和 edge/evidence 写入共享同一事务快照；不得在同一条应用边流程里混用外部 pool resolver。
 
 ### 6. ObjectStore
 

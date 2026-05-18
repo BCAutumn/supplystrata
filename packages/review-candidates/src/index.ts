@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { type CandidateRelation, type RelationType } from "@supplystrata/core";
+import { RELATION_TYPES, type CandidateRelation, type RelationType } from "@supplystrata/core";
 import { candidateAliases, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
 
@@ -223,9 +223,11 @@ export interface SemanticChangeReviewPayloadSnapshot {
 }
 
 export function isReviewCandidate(value: unknown): value is ReviewCandidate {
-  if (typeof value !== "object" || value === null || !("kind" in value)) return false;
-  const kind = (value as { kind: unknown }).kind;
-  return kind === "supplier_list_row" || kind === "entity_source_candidate" || kind === "semantic_change";
+  if (!isRecord(value)) return false;
+  if (value["kind"] === "supplier_list_row") return isSupplierListReviewCandidatePayload(value);
+  if (value["kind"] === "entity_source_candidate") return isEntitySourceReviewCandidatePayload(value);
+  if (value["kind"] === "semantic_change") return isSemanticChangeReviewCandidatePayload(value);
+  return false;
 }
 
 export function isSupplierListReviewCandidate(candidate: ReviewCandidate): candidate is SupplierListReviewCandidate {
@@ -407,6 +409,113 @@ function confidenceForSemanticChange(changeType: string): number {
   if (changeType.includes("REMOVED")) return 0.7;
   if (changeType.includes("CHANGED")) return 0.82;
   return 0.86;
+}
+
+function isSupplierListReviewCandidatePayload(value: Record<string, unknown>): boolean {
+  const payload = value["payload"];
+  const evidence = value["evidence"];
+  if (!hasCommonReviewFields(value) || !isRecord(payload) || !isReviewEvidenceContext(evidence)) return false;
+  return (
+    isNonEmptyString(payload["buyer_entity_id"]) &&
+    isNonEmptyString(payload["buyer_name"]) &&
+    isNonEmptyString(payload["supplier_name"]) &&
+    isNonEmptyString(payload["location_text"]) &&
+    isNonEmptyString(payload["country_or_region"]) &&
+    payload["relation_hint"] === "BUYS_FROM" &&
+    payload["facility_relation_hint"] === "MANUFACTURES_AT"
+  );
+}
+
+function isEntitySourceReviewCandidatePayload(value: Record<string, unknown>): boolean {
+  const payload = value["payload"];
+  const evidence = value["evidence"];
+  if (!hasCommonReviewFields(value) || !isRecord(payload) || !isReviewEvidenceContext(evidence)) return false;
+  const proposedAliases = payload["proposed_aliases"];
+  const candidate = payload["candidate"];
+  return (
+    isNonEmptyString(payload["surface"]) &&
+    isNonEmptyString(payload["proposed_entity_id"]) &&
+    Array.isArray(proposedAliases) &&
+    proposedAliases.every(isNonEmptyString) &&
+    isRecord(candidate) &&
+    isNonEmptyString(candidate["source_adapter_id"]) &&
+    isNonEmptyString(candidate["source_url"]) &&
+    isNonEmptyString(candidate["external_id"]) &&
+    isNonEmptyString(candidate["name"]) &&
+    isRecord(candidate["identifiers"]) &&
+    isNumber(candidate["confidence"])
+  );
+}
+
+function isSemanticChangeReviewCandidatePayload(value: Record<string, unknown>): boolean {
+  const payload = value["payload"];
+  const evidence = value["evidence"];
+  if (!hasCommonReviewFields(value) || !isRecord(payload) || !isReviewEvidenceContext(evidence)) return false;
+  return (
+    isNonEmptyString(payload["change_type"]) &&
+    isNonEmptyString(payload["semantic_relation_kind"]) &&
+    isNonEmptyString(payload["source_item_id"]) &&
+    isNonEmptyString(payload["doc_id"]) &&
+    isNonEmptyString(payload["source_adapter_id"]) &&
+    isRelationType(payload["relation"]) &&
+    isNonEmptyString(payload["subject_surface"]) &&
+    isNonEmptyString(payload["object_surface"]) &&
+    isNonEmptyString(payload["cite_text"]) &&
+    isNonEmptyString(payload["cite_locator"]) &&
+    isNonEmptyString(payload["fingerprint"]) &&
+    isNonEmptyString(payload["extractor_id"]) &&
+    isOptionalString(payload["component_id"]) &&
+    isOptionalString(payload["component"]) &&
+    isOptionalComponentSpecificity(payload["component_specificity"])
+  );
+}
+
+function hasCommonReviewFields(value: Record<string, unknown>): boolean {
+  return (
+    isNonEmptyString(value["review_id"]) &&
+    isNonEmptyString(value["candidate_key"]) &&
+    isNonEmptyString(value["title"]) &&
+    isNumber(value["confidence"]) &&
+    value["needs_review"] === true &&
+    isNonEmptyString(value["review_reason"])
+  );
+}
+
+function isReviewEvidenceContext(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    isOptionalString(value["doc_id"]) &&
+    isNonEmptyString(value["source_url"]) &&
+    isOptionalString(value["source_date"]) &&
+    isNonEmptyString(value["source_adapter_id"]) &&
+    isNonEmptyString(value["source_locator"]) &&
+    isNonEmptyString(value["source_row_text"]) &&
+    isNonEmptyString(value["normalized_record_text"])
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isRelationType(value: unknown): value is RelationType {
+  return typeof value === "string" && (RELATION_TYPES as readonly string[]).includes(value);
+}
+
+function isOptionalComponentSpecificity(value: unknown): boolean {
+  return value === undefined || value === "explicit" || value === "inferred" || value === "unspecified";
 }
 
 function proposedEntityId(candidate: EntitySourceCandidate): string {

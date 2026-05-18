@@ -20,8 +20,8 @@ import {
   type SupplierListReviewCandidate
 } from "@supplystrata/review-candidates";
 import {
+  claimApprovedReviewCandidates,
   getReviewCandidate,
-  listApprovedReviewCandidates,
   markReviewCandidateApplied,
   markReviewCandidateBlocked,
   type ReviewQueueItem
@@ -65,7 +65,7 @@ type SupplierListReviewItem = ReviewQueueItem & { candidate: SupplierListReviewC
 export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewId: string, reviewer: string): Promise<ReviewApplyResult> {
   const item = await getReviewCandidate(store, reviewId);
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
-  if (!canApplyReviewStatus(item.status))
+  if (!canApplyReviewItem(item))
     return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };
   if (isEntitySourceReviewCandidate(item.candidate)) {
     return applyEntityReviewCandidate(store, item, reviewer);
@@ -74,30 +74,36 @@ export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewI
     return applySupplierListReviewCandidate(store, { ...item, candidate: item.candidate }, reviewer);
   }
   if (isSemanticChangeReviewCandidate(item.candidate)) {
-    const draft = await upsertSemanticChangeClaimDraft(store, item.candidate, {
-      ...(item.reviewed_at === undefined ? {} : { reviewed_at: item.reviewed_at }),
-      caused_by: reviewer
+    const candidate = item.candidate;
+    return store.transaction(async (client) => {
+      const draft = await upsertSemanticChangeClaimDraft(client, candidate, {
+        ...(item.reviewed_at === undefined ? {} : { reviewed_at: item.reviewed_at }),
+        caused_by: reviewer
+      });
+      const reason = `acknowledged semantic change review candidate and created draft claim ${draft.claim_id}; no graph edge is applied by design`;
+      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+      return { status: "acknowledged", review_id: item.review_id, kind: "semantic_change", claim_id: draft.claim_id, reason };
     });
-    const reason = `acknowledged semantic change review candidate and created draft claim ${draft.claim_id}; no graph edge is applied by design`;
-    await markReviewCandidateApplied(store, { reviewId: item.review_id, reason });
-    return { status: "acknowledged", review_id: item.review_id, kind: "semantic_change", claim_id: draft.claim_id, reason };
   }
   return blockReviewCandidate(store, reviewId, `unsupported review candidate kind: ${item.kind}`);
 }
 
-function canApplyReviewStatus(status: ReviewQueueItem["status"]): boolean {
-  // blocked 候选允许人工补 seed/entity 后重试；批处理仍只扫描 approved。
-  return status === "approved" || status === "blocked";
+function canApplyReviewItem(item: ReviewQueueItem): boolean {
+  // blocked 候选允许人工补 seed/entity 后重试；批处理领取 approved 后会转成带 reviewed_at 的 in_review。
+  return item.status === "approved" || item.status === "blocked" || (item.status === "in_review" && item.reviewed_at !== undefined);
 }
 
 async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
   if (!isEntitySourceReviewCandidate(item.candidate)) {
     return blockReviewCandidate(store, item.review_id, `unsupported entity review candidate kind: ${item.kind}`);
   }
-  const importResult = await applyEntitySourceReviewCandidate(store, item.candidate, reviewer);
-  if (importResult.status === "blocked") return blockReviewCandidate(store, item.review_id, importResult.reason);
-  await markReviewCandidateApplied(store, { reviewId: item.review_id, reason: `imported entity ${importResult.entity_id}` });
-  return { status: "entity_applied", review_id: item.review_id, import_result: importResult };
+  const candidate = item.candidate;
+  return store.transaction(async (client) => {
+    const importResult = await applyEntitySourceReviewCandidate(client, candidate, reviewer);
+    if (importResult.status === "blocked") return blockReviewCandidate(client, item.review_id, importResult.reason);
+    await markReviewCandidateApplied(client, { reviewId: item.review_id, reason: `imported entity ${importResult.entity_id}` });
+    return { status: "entity_applied", review_id: item.review_id, import_result: importResult };
+  });
 }
 
 async function applySupplierListReviewCandidate(store: DatabaseStore, item: SupplierListReviewItem, reviewer: string): Promise<ReviewApplyResult> {
@@ -299,13 +305,25 @@ async function blockReviewCandidate(
 }
 
 export async function applyApprovedReviewCandidates(store: DatabaseStore, input: { reviewer: string; limit: number }): Promise<ReviewApplyBatchSummary> {
-  const items = await listApprovedReviewCandidates(store, { limit: input.limit });
+  const items = await store.transaction((client) => claimApprovedReviewCandidates(client, { limit: input.limit }));
   const results: ReviewApplyBatchItem[] = [];
   for (const item of items) {
     try {
       results.push(await applyApprovedReviewCandidate(store, item.review_id, input.reviewer));
     } catch (error) {
-      results.push({ status: "error", review_id: item.review_id, reason: messageFromUnknown(error) });
+      const reason = messageFromUnknown(error);
+      try {
+        // 批处理已经把 approved 领取成 in_review；异常时必须显式落到 blocked，避免候选永远卡在领取态。
+        await store.transaction((client) => markReviewCandidateBlocked(client, { reviewId: item.review_id, reason }));
+      } catch (blockError) {
+        results.push({
+          status: "error",
+          review_id: item.review_id,
+          reason: `${reason}; additionally failed to block candidate: ${messageFromUnknown(blockError)}`
+        });
+        continue;
+      }
+      results.push({ status: "error", review_id: item.review_id, reason });
     }
   }
   const appliedItems = results.filter((item) => item.status === "applied");
