@@ -2,6 +2,8 @@ import {
   getClaim,
   getEvidence,
   listChangeTimeline,
+  listEdgeFreshness,
+  listEdgeStrengthEstimates,
   listDraftClaims,
   listEvidenceForEdges,
   listUnknownItems,
@@ -13,7 +15,17 @@ import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-
 import { buildCompanyChainView } from "@supplystrata/chain-view-builder";
 import { listSourceHealthRows } from "@supplystrata/source-monitor";
 import { planSourcesForComponents, type SourcePlanItem } from "@supplystrata/source-plan";
-import { RELATION_TYPES, type ClaimType, type EvidenceLevel, type ExtractionMethod, type RelationType } from "@supplystrata/core";
+import {
+  RELATION_TYPES,
+  type ClaimType,
+  type EdgeFreshnessDecayModel,
+  type EdgeFreshnessRecord,
+  type EdgeStrengthEstimateRecord,
+  type EdgeStrengthKind,
+  type EvidenceLevel,
+  type ExtractionMethod,
+  type RelationType
+} from "@supplystrata/core";
 
 export interface WorkbenchExportInput {
   company: string;
@@ -126,6 +138,35 @@ export interface WorkbenchSourceHealth {
   policy_notes: string | null;
 }
 
+export interface WorkbenchEdgeStrength {
+  strength_id: string;
+  edge_id: string;
+  strength_kind: EdgeStrengthKind;
+  value: string | null;
+  lower_bound: string | null;
+  upper_bound: string | null;
+  unit: string | null;
+  evidence_id: string | null;
+  method: string;
+  valid_from: string | null;
+  valid_to: string | null;
+}
+
+export interface WorkbenchEdgeFreshness {
+  edge_id: string;
+  last_verified_at: string;
+  decay_model: EdgeFreshnessDecayModel;
+  age_days: number;
+  freshness_score: number;
+  computed_at: string;
+  source_evidence_id: string | null;
+}
+
+export interface WorkbenchIntelligenceContext {
+  edge_strengths: WorkbenchEdgeStrength[];
+  edge_freshness: WorkbenchEdgeFreshness[];
+}
+
 export interface WorkbenchModel {
   schema_version: "1.0.0";
   generated_at: string;
@@ -143,9 +184,11 @@ export interface WorkbenchModel {
   sources: WorkbenchSourceHealth[];
   source_plan: SourcePlanItem[];
   changes: ChangeTimelineItem[];
+  intelligence: WorkbenchIntelligenceContext;
 }
 
 export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExportInput): Promise<WorkbenchModel> {
+  const generatedAt = new Date().toISOString();
   const rootEntityId = await resolveEntityId(client, input.company);
   const chain = await buildCompanyChainView(client, { query: rootEntityId, depth: input.depth ?? 2, generated_by: "workbench-export.v1" });
   const edgeSegments = chain.segments.filter(isEdgeSegment);
@@ -156,6 +199,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
   const claims = await loadClaims(client, claimIds);
   const draftClaims = (await listDraftClaims(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.draftClaimLimit ?? 25 })).map(claimToDto);
   const evidences = await loadWorkbenchEvidences(client, { evidenceIds, edgeIds });
+  const intelligence = await loadWorkbenchIntelligence(client, { edgeIds, computedAt: generatedAt });
   const unknownItems = (await listUnknownItems(client, rootEntityId)).map(unknownItemToDto);
   const sources = (await listSourceHealthRows(client)).slice(0, input.sourceLimit ?? 50).map(sourceHealthToDto);
   const sourcePlan = planSourcesForComponents({
@@ -171,7 +215,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
 
   return {
     schema_version: "1.0.0",
-    generated_at: new Date().toISOString(),
+    generated_at: generatedAt,
     selected_company_id: rootEntityId,
     companies: companiesFromChain(chain, rootEntityId),
     chain,
@@ -185,7 +229,8 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     unknown_items: unknownItems,
     sources,
     source_plan: sourcePlan,
-    changes
+    changes,
+    intelligence
   };
 }
 
@@ -266,6 +311,17 @@ async function loadWorkbenchEvidences(client: DbClient, input: { evidenceIds: re
     byId.set(evidence.evidence_id, evidence);
   }
   return [...byId.values()].sort(compareWorkbenchEvidence);
+}
+
+async function loadWorkbenchIntelligence(client: DbClient, input: { edgeIds: readonly string[]; computedAt: string }): Promise<WorkbenchIntelligenceContext> {
+  const [strengths, freshness] = await Promise.all([
+    listEdgeStrengthEstimates(client, input.edgeIds),
+    listEdgeFreshness(client, { edgeIds: input.edgeIds, computedAt: input.computedAt })
+  ]);
+  return {
+    edge_strengths: strengths.map(edgeStrengthToDto),
+    edge_freshness: freshness.map(edgeFreshnessToDto)
+  };
 }
 
 function compareWorkbenchEvidence(left: WorkbenchEvidence, right: WorkbenchEvidence): number {
@@ -443,6 +499,34 @@ function sourceHealthToDto(row: SourceHealthDbShape): WorkbenchSourceHealth {
     next_check_at: toNullableIsoString(row.next_check_at),
     policy_config_source: row.policy_config_source,
     policy_notes: row.policy_notes
+  };
+}
+
+function edgeStrengthToDto(row: EdgeStrengthEstimateRecord): WorkbenchEdgeStrength {
+  return {
+    strength_id: row.strength_id,
+    edge_id: row.edge_id,
+    strength_kind: row.strength_kind,
+    value: row.value ?? null,
+    lower_bound: row.lower_bound ?? null,
+    upper_bound: row.upper_bound ?? null,
+    unit: row.unit ?? null,
+    evidence_id: row.evidence_id ?? null,
+    method: row.method,
+    valid_from: row.valid_from ?? null,
+    valid_to: row.valid_to ?? null
+  };
+}
+
+function edgeFreshnessToDto(row: EdgeFreshnessRecord): WorkbenchEdgeFreshness {
+  return {
+    edge_id: row.edge_id,
+    last_verified_at: row.last_verified_at,
+    decay_model: row.decay_model,
+    age_days: row.age_days,
+    freshness_score: row.freshness_score,
+    computed_at: row.computed_at,
+    source_evidence_id: row.source_evidence_id ?? null
   };
 }
 

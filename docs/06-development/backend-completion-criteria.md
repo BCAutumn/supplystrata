@@ -143,6 +143,8 @@ packages/risk-view
 
 目标：事实边从“有/无”升级到“有多重要、多久没验证”。
 
+当前状态：第一版 schema 和导出契约已经落地。`edge_strength_estimates` 用显式业务身份键做幂等 upsert，`edge_freshness` 保存确定性的 `methodology.v1` 新鲜度结果；`@supplystrata/workbench-export` 会把两者作为 `intelligence.edge_strengths / intelligence.edge_freshness` 导出。它们仍然是 intelligence context，不改变 `edges.evidence_level`。
+
 必须新增或等价实现：
 
 ```text
@@ -174,6 +176,8 @@ edge_freshness
 完成标准：
 
 ```text
+[x] edge_strength_estimates / edge_freshness schema 已落库
+[x] WorkbenchModel 可导出 strength / freshness context
 [ ] Level 4/5 fact edge 至少 40% 有 strength 或 explicit unknown
 [ ] 过期/未复核边在 risk view 中自动降权
 [ ] CompanyCard / ChainView 能显示“强关系”和“弱关系”的区别

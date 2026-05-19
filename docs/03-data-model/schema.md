@@ -445,6 +445,39 @@ chain_segments
 - `@supplystrata/chain-view` 第一版已经能把上游 fact edge、active claim、company/component observations、open leads 和 unknown items 组装成前端可消费的 `CompanyChainViewModel`；observation / lead / unknown 是 context segment，不带 `evidence_level`，不改事实边语义。
 - `@supplystrata/workbench-export` 会把当前研究公司 scope 内 `status='draft'` 的 claim 作为 `draft_claims` 独立输出；draft claim 不进入 ChainView 主链路。
 
+## Intelligence Context
+
+`edge_strength_estimates` 与 `edge_freshness` 是事实边之外的分析上下文。它们回答“关系有多重要”和“多久没被重新验证”，但不改变事实边本身的证据等级。
+
+```text
+edge_strength_estimates
+  strength_id
+  identity_key
+  edge_id
+  strength_kind: share | spend_band | dependency | capacity | qualitative
+  value / lower_bound / upper_bound
+  unit
+  evidence_id
+  method
+  valid_from / valid_to
+
+edge_freshness
+  edge_id
+  last_verified_at
+  decay_model
+  age_days
+  freshness_score
+  computed_at
+  source_evidence_id
+```
+
+约束：
+
+- `identity_key` 是强度估计的业务唯一键，用来支持幂等写入；不要把 SQL 表达式索引细节泄漏到调用方。
+- `strength_kind='share'` 必须有可追溯来源；没有 share 时宁可输出 unknown，也不能均分或猜测。
+- `freshness_score` 只能进入 workbench / risk view / intelligence view，不能反向降低或提高 `evidence_level`。
+- `@supplystrata/workbench-export` 把这部分导出为 `intelligence.edge_strengths / intelligence.edge_freshness`，前端和宿主 app 应把它当作上下文，而不是新事实边。
+
 ## Neo4j 模型
 
 ### 节点 labels

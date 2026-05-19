@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   CHAIN_ENDPOINT_KINDS,
   CLAIM_TYPES,
+  EDGE_FRESHNESS_DECAY_MODELS,
+  EDGE_STRENGTH_KINDS,
   EXTRACTOR_ID_PREFIXES,
   LEAD_TYPES,
   OBSERVATION_TYPES,
   SEMANTIC_LAYERS,
+  calculateEdgeFreshness,
   createId,
   inferExtractionMethod
 } from "@supplystrata/core";
@@ -61,5 +64,17 @@ describe("core intelligence-network contract constants", () => {
     expect(createId("LEAD")).toMatch(/^LEAD-/);
     expect(createId("CHAIN")).toMatch(/^CHAIN-/);
     expect(createId("SEG")).toMatch(/^SEG-/);
+    expect(createId("STR")).toMatch(/^STR-/);
+  });
+
+  it("keeps relation strength and freshness methodology explicit", () => {
+    expect(EDGE_STRENGTH_KINDS).toEqual(["share", "spend_band", "dependency", "capacity", "qualitative"]);
+    expect(EDGE_FRESHNESS_DECAY_MODELS).toEqual(["methodology.v1"]);
+    expect(
+      calculateEdgeFreshness({
+        last_verified_at: "2026-01-01T00:00:00.000Z",
+        computed_at: "2026-07-15T00:00:00.000Z"
+      })
+    ).toEqual({ age_days: 195, freshness_score: 0.85, decay_model: "methodology.v1" });
   });
 });

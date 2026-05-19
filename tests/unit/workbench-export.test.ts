@@ -99,6 +99,12 @@ describe("workbench-export", () => {
     expect(model.edges[0]?.evidence_ids).toEqual(["EV-PRIMARY"]);
     expect(model.evidences.map((item) => item.evidence_id)).toEqual(["EV-PRIMARY", "EV-OLD"]);
     expect(model.evidences[1]?.superseded_by).toBe("EV-PRIMARY");
+    expect(model.intelligence.edge_strengths[0]).toMatchObject({ edge_id: "EDGE-NVIDIA-TSMC", strength_kind: "qualitative" });
+    expect(model.intelligence.edge_freshness[0]).toMatchObject({
+      edge_id: "EDGE-NVIDIA-TSMC",
+      decay_model: "methodology.v1",
+      freshness_score: 1
+    });
   });
 });
 
@@ -134,6 +140,36 @@ function rowsForWorkbench<T extends pg.QueryResultRow>(sql: string, params: read
   if (input.includeEdgeEvidence && sql.includes("FROM evidence ev") && sql.includes("WHERE ev.edge_id = ANY")) {
     expect(params).toEqual([["EDGE-NVIDIA-TSMC"]]);
     return evidenceRows() as unknown as T[];
+  }
+  if (input.includeEdgeEvidence && sql.includes("FROM edge_strength_estimates")) {
+    return [
+      {
+        strength_id: "STR-QUALITATIVE-1",
+        edge_id: "EDGE-NVIDIA-TSMC",
+        strength_kind: "qualitative",
+        value: "1",
+        lower_bound: null,
+        upper_bound: null,
+        unit: null,
+        evidence_id: "EV-PRIMARY",
+        method: "manual-reviewed.v1",
+        valid_from: null,
+        valid_to: null,
+        attrs: {}
+      }
+    ] as unknown as T[];
+  }
+  if (input.includeEdgeEvidence && sql.includes("FROM edge_freshness")) {
+    return [] as T[];
+  }
+  if (input.includeEdgeEvidence && sql.includes("FROM edges") && sql.includes("last_verified_at")) {
+    return [
+      {
+        edge_id: "EDGE-NVIDIA-TSMC",
+        last_verified_at: new Date("2026-02-01T00:00:00.000Z"),
+        primary_evidence_id: "EV-PRIMARY"
+      }
+    ] as unknown as T[];
   }
   if (sql.includes("FROM claims") && sql.includes("WHERE status = 'draft'")) {
     expect(sql).toContain("(subject_id = $1 OR object_id = $1)");

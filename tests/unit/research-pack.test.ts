@@ -88,7 +88,8 @@ describe("research-pack", () => {
       unknown_items: [],
       sources: [],
       source_plan: [],
-      changes: []
+      changes: [],
+      intelligence: { edge_strengths: [], edge_freshness: [] }
     };
 
     const pack = buildResearchPackFromWorkbench({ workbench, components: ["COMP-HBM"], depth: 3 });

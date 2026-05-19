@@ -515,10 +515,11 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 
 验收：
 
-- [x] JSON 含 `companies / chain_segments / claims / draft_claims / evidences / unknown_items / sources / changes`。
+- [x] JSON 含 `companies / chain_segments / claims / draft_claims / evidences / unknown_items / sources / changes / intelligence`。
 - [x] `apps/research-preview` 只读这个 JSON。
 - [x] Canvas 第一版能显示 fact edge、observation、lead、unknown boundary。
 - [x] research-preview 侧栏能展示 `draft_claims`，不把草稿画进 fact edge lane。
+- [x] WorkbenchModel 带出 `edge_strengths / edge_freshness`，先作为 intelligence context 供后续工作台和 risk view 消费。
 
 ### PR H：research-pack 研究包
 

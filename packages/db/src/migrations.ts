@@ -11,6 +11,7 @@ import { migration0009ReviewQueueHardeningSql } from "./migration-sql/0009_revie
 import { migration0010GraphProjectionJobsSql } from "./migration-sql/0010_graph_projection_jobs.js";
 import { sql as migration0011GraphProjectionInProgressSql } from "./migration-sql/0011_graph_projection_in_progress.js";
 import { sql as migration0012ObservationTypeContractSql } from "./migration-sql/0012_observation_type_contract.js";
+import { sql as migration0013EdgeIntelligenceContextSql } from "./migration-sql/0013_edge_intelligence_context.js";
 
 interface Migration {
   readonly id: string;
@@ -78,6 +79,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0012_observation_type_contract",
     description: "Synchronize observations.observation_type check constraint with core OBSERVATION_TYPES.",
     sql: migration0012ObservationTypeContractSql
+  },
+  {
+    id: "0013_edge_intelligence_context",
+    description: "Create edge strength and freshness context tables for intelligence views.",
+    sql: migration0013EdgeIntelligenceContextSql
   }
 ];
 

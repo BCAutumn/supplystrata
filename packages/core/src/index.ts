@@ -84,6 +84,14 @@ export const CLAIM_TYPES = [
 
 export type ClaimType = (typeof CLAIM_TYPES)[number];
 
+export const EDGE_STRENGTH_KINDS = ["share", "spend_band", "dependency", "capacity", "qualitative"] as const;
+
+export type EdgeStrengthKind = (typeof EDGE_STRENGTH_KINDS)[number];
+
+export const EDGE_FRESHNESS_DECAY_MODELS = ["methodology.v1"] as const;
+
+export type EdgeFreshnessDecayModel = (typeof EDGE_FRESHNESS_DECAY_MODELS)[number];
+
 export const OBSERVATION_TYPES = [
   "TRADE_FLOW_OBSERVATION",
   "PORT_ACTIVITY_OBSERVATION",
@@ -327,6 +335,32 @@ export interface LeadObservationRecord {
   status: "open" | "in_review" | "promoted" | "rejected" | "closed";
 }
 
+export interface EdgeStrengthEstimateRecord {
+  strength_id: string;
+  edge_id: string;
+  strength_kind: EdgeStrengthKind;
+  value?: string;
+  lower_bound?: string;
+  upper_bound?: string;
+  unit?: string;
+  evidence_id?: string;
+  method: string;
+  valid_from?: string;
+  valid_to?: string;
+  attrs: Record<string, unknown>;
+}
+
+export interface EdgeFreshnessRecord {
+  edge_id: string;
+  last_verified_at: string;
+  decay_model: EdgeFreshnessDecayModel;
+  age_days: number;
+  freshness_score: number;
+  computed_at: string;
+  source_evidence_id?: string;
+  attrs: Record<string, unknown>;
+}
+
 export interface ChainSegmentRecord {
   segment_id: string;
   chain_id: string;
@@ -358,9 +392,30 @@ export interface ChainViewRecord {
 }
 
 export function createId(
-  prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS" | "CLM" | "OBS" | "LEAD" | "CHAIN" | "SEG" | "GPJ"
+  prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS" | "CLM" | "OBS" | "LEAD" | "CHAIN" | "SEG" | "GPJ" | "STR"
 ): string {
   return `${prefix}-${randomUUID()}`;
+}
+
+export function calculateEdgeFreshness(input: { last_verified_at: string; computed_at: string; recent_corroboration_within_180d?: boolean }): {
+  age_days: number;
+  freshness_score: number;
+  decay_model: EdgeFreshnessDecayModel;
+} {
+  const lastVerifiedAt = Date.parse(input.last_verified_at);
+  const computedAt = Date.parse(input.computed_at);
+  if (!Number.isFinite(lastVerifiedAt)) throw new Error(`Invalid last_verified_at: ${input.last_verified_at}`);
+  if (!Number.isFinite(computedAt)) throw new Error(`Invalid computed_at: ${input.computed_at}`);
+  const ageDays = Math.max(0, Math.floor((computedAt - lastVerifiedAt) / (24 * 60 * 60 * 1000)));
+  if (ageDays <= 180) return { age_days: ageDays, freshness_score: 1, decay_model: "methodology.v1" };
+  if (ageDays <= 365) return { age_days: ageDays, freshness_score: 0.85, decay_model: "methodology.v1" };
+  if (ageDays <= 730) return { age_days: ageDays, freshness_score: 0.7, decay_model: "methodology.v1" };
+  return {
+    age_days: ageDays,
+    // 近期有独立再确认时，不把老证据本身降权到最低；真正降权只发生在 risk view。
+    freshness_score: input.recent_corroboration_within_180d === true ? 0.7 : 0.5,
+    decay_model: "methodology.v1"
+  };
 }
 
 export function normalizeAlias(input: string): string {

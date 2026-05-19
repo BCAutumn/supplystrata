@@ -85,10 +85,16 @@
 
 Phase 3 如果进入持续监控，再引入 `pg-boss`（基于 Postgres 的轻量队列，不引入 Redis）。届时所有跨阶段调用必须通过"作业 + 事件"，不允许函数直接 import 调用。这样将来要拆成 worker / API / 调度器很容易。
 
-### 2. 每个 Source Adapter 是独立 package
+### 2. Source Adapter 按业务内聚，不按数量机械拆包
 
-强制隔离。一个 source 改了 schema 不能影响别的。
-所有 source adapter 实现 `packages/core` 里定义的同一接口（详见 [module-design.md](./module-design.md)）。
+早期文档要求“每个 Source Adapter 独立 package”。实践后发现这会让包数量膨胀，反而增加维护成本。新的规则是：
+
+- adapter 的公共契约仍然统一走 `source-adapter-spec`。
+- fetch / rate limit / snapshot runtime 统一走 `source-adapter-runtime`。
+- 具体免费源的抓取、预览、监控 connector 编排优先放在 `source-workflows` 的对应 feature 内。
+- 只有当某个源有独立发布价值、复杂依赖或明显不同生命周期时，才单独拆 package。
+
+隔离靠接口、registry 和 contract test，而不是靠“每个源一个包”。
 
 ### 3. Entity Resolver 是单点真相
 

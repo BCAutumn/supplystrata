@@ -69,7 +69,21 @@ supplystrata/
     └── xbrl-py/                            # Python: arelle / sec-api 适配
 ```
 
-每个 `packages/*` 都有独立 `package.json`、独立 `tsconfig.json`、独立 README。
+每个 `packages/*` 都有独立 `package.json`、独立 `tsconfig.json`、独立 README。包不是越细越好：只有当一个模块有清晰的发布边界、独立依赖、独立生命周期或需要被宿主 app 单独消费时，才保持独立 package。薄壳包、只做一两个函数转发的包、同一业务 domain 内高度共同变更的包，应优先合并到同一 domain package 的 feature 目录中。
+
+## 包合并策略
+
+当前 `packages/` 数量已经偏多，后续重构按下面规则收敛：
+
+| 候选                                                           | 处理方向                                                                                            | 原因                                                         |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `source-connectors` / `source-management` / `source-workflows` | 保留短期边界，后续评估合并为 `source-workflows` 下的 `features/connectors` 与 `features/management` | 三者都服务“可配置数据源管理”，共同变更概率高                 |
+| `observation-store` / `observation-extractor`                  | 暂不合并                                                                                            | 一个是写入边界，一个是抽取规则；生命周期不同                 |
+| `chain-view` / `chain-view-builder`                            | 暂不合并                                                                                            | `chain-view` 必须保持纯 DTO，builder 可依赖 DB；这是有意防腐 |
+| `graph-store` / `graph`                                        | 暂不合并                                                                                            | `graph-store` 是可插拔接口，`graph` 是 Neo4j adapter         |
+| `research-pack` / `workbench-export`                           | 暂不合并                                                                                            | 前者是研究目录产物编排，后者是稳定 JSON 契约                 |
+
+合并包前必须先做依赖检查和调用点盘点，避免把原本清晰的 port / adapter 边界揉成新的上帝包。
 
 ## 依赖方向（必须严格遵守）
 

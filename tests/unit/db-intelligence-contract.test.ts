@@ -1,8 +1,9 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
-import { OBSERVATION_TYPES } from "@supplystrata/core";
+import { EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS, OBSERVATION_TYPES } from "@supplystrata/core";
 import type { DbClient } from "@supplystrata/db";
 import { sql as migration0012ObservationTypeContractSql } from "../../packages/db/src/migration-sql/0012_observation_type_contract.js";
+import { sql as migration0013EdgeIntelligenceContextSql } from "../../packages/db/src/migration-sql/0013_edge_intelligence_context.js";
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
@@ -16,6 +17,7 @@ import {
   insertClaim,
   insertLeadObservation,
   insertObservation,
+  upsertEdgeStrengthEstimate,
   recordSemanticChange,
   resolveUnknownItem,
   upsertClaim,
@@ -91,6 +93,15 @@ describe("db intelligence-network repositories", () => {
   it("keeps DB observation type constraint synchronized with core observation types", () => {
     for (const observationType of OBSERVATION_TYPES) {
       expect(migration0012ObservationTypeContractSql).toContain(`'${observationType}'`);
+    }
+  });
+
+  it("keeps DB edge intelligence constraints synchronized with core methodology types", () => {
+    for (const strengthKind of EDGE_STRENGTH_KINDS) {
+      expect(migration0013EdgeIntelligenceContextSql).toContain(`'${strengthKind}'`);
+    }
+    for (const decayModel of EDGE_FRESHNESS_DECAY_MODELS) {
+      expect(migration0013EdgeIntelligenceContextSql).toContain(`'${decayModel}'`);
     }
   });
 
@@ -226,6 +237,24 @@ describe("db intelligence-network repositories", () => {
 
     expect(client.calls[0]?.sql).toContain("provenance = observations.provenance || EXCLUDED.provenance");
     expect(client.calls[0]?.sql).toContain("attrs = observations.attrs || EXCLUDED.attrs");
+  });
+
+  it("upserts edge strength through an explicit business identity key", async () => {
+    const client = new RecordingDbClient();
+
+    const strength = await upsertEdgeStrengthEstimate(client, {
+      edge_id: "EDGE-TEST",
+      strength_kind: "qualitative",
+      value: "1",
+      evidence_id: "EV-TEST",
+      method: "manual-reviewed.v1"
+    });
+
+    expect(strength.strength_id).toMatch(/^STR-/);
+    expect(strength.edge_id).toBe("EDGE-TEST");
+    expect(client.calls[0]?.sql).toContain("identity_key");
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (identity_key)");
+    expect(client.calls[0]?.params[1]).toBe("EDGE-TEST\u001Fqualitative\u001FEV-TEST\u001Fmanual-reviewed.v1\u001F\u001F");
   });
 
   it("records semantic changes without touching fact edges", async () => {
@@ -399,6 +428,24 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
   }
   if (sql.includes("RETURNING lead_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ lead_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING strength_id") && typeof params[0] === "string") {
+    return [
+      {
+        strength_id: params[0],
+        edge_id: "EDGE-TEST",
+        strength_kind: "qualitative",
+        value: "1",
+        lower_bound: null,
+        upper_bound: null,
+        unit: null,
+        evidence_id: "EV-TEST",
+        method: "manual-reviewed.v1",
+        valid_from: null,
+        valid_to: null,
+        attrs: {}
+      }
+    ] as unknown as T[];
   }
   return [];
 }

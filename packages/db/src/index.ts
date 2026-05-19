@@ -5,6 +5,7 @@ export * from "./client.js";
 export * from "./documents.js";
 export * from "./edges.js";
 export * from "./graph-projection-jobs.js";
+export * from "./intelligence.js";
 export * from "./migrations.js";
 export * from "./observations.js";
 export * from "./pending.js";

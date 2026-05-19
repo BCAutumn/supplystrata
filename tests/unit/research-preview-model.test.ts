@@ -12,6 +12,12 @@ describe("research-preview workbench model parser", () => {
     model.evidences[0] = { ...model.evidences[0], confidence: "high" };
     expect(() => parseWorkbenchModel(JSON.stringify(model))).toThrow(/evidences\[0\]\.confidence/);
   });
+
+  it("rejects malformed intelligence context before rendering", () => {
+    const model = validWorkbenchModel();
+    model["intelligence"] = { edge_strengths: [], edge_freshness: [{ edge_id: "EDGE-1", freshness_score: "fresh" }] };
+    expect(() => parseWorkbenchModel(JSON.stringify(model))).toThrow(/intelligence\.edge_freshness\[0\]/);
+  });
 });
 
 function validWorkbenchModel(): Record<string, unknown> & { evidences: Record<string, unknown>[] } {
@@ -173,6 +179,34 @@ function validWorkbenchModel(): Record<string, unknown> & { evidences: Record<st
         caused_by: "test",
         requires_attention: false
       }
-    ]
+    ],
+    intelligence: {
+      edge_strengths: [
+        {
+          strength_id: "STR-1",
+          edge_id: "EDGE-1",
+          strength_kind: "qualitative",
+          value: "1",
+          lower_bound: null,
+          upper_bound: null,
+          unit: null,
+          evidence_id: "EV-1",
+          method: "manual-reviewed.v1",
+          valid_from: null,
+          valid_to: null
+        }
+      ],
+      edge_freshness: [
+        {
+          edge_id: "EDGE-1",
+          last_verified_at: "2026-01-01T00:00:00.000Z",
+          decay_model: "methodology.v1",
+          age_days: 0,
+          freshness_score: 1,
+          computed_at: "2026-01-01T00:00:00.000Z",
+          source_evidence_id: "EV-1"
+        }
+      ]
+    }
   };
 }

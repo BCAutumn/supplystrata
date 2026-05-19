@@ -6,7 +6,18 @@
 
 例：要接入 UN Comtrade（Phase 3，MVP 通过后）。
 
-### 1.1 新建包
+### 1.1 选择归属位置
+
+不要默认“一个数据源一个 package”。先判断它属于哪种情况：
+
+| 情况                                           | 推荐位置                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------------- |
+| HTML snapshot / 公司 IR / 简单官方网页         | `source-workflows` 内新增 feature，复用 `source-adapter-runtime` |
+| 与已有官方披露源同生命周期、同依赖             | 扩展已有 source feature                                          |
+| 有独立复杂依赖、独立发布价值或明显不同生命周期 | 才新建独立 package                                               |
+| 只产生 observation / lead 的宏观源             | 新增 connector + normalizer，不进入 fact pipeline                |
+
+如果确实需要独立 package，可以使用下面结构：
 
 ```
 packages/sources/un-comtrade/

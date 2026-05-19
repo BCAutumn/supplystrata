@@ -1,4 +1,5 @@
 import type { WorkbenchModel } from "./index.js";
+import { EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS } from "@supplystrata/core";
 
 export function parseWorkbenchModel(text: string): WorkbenchModel {
   const parsed: unknown = JSON.parse(text);
@@ -47,12 +48,15 @@ function validateWorkbenchModel(value: unknown, path: string, errors: string[]):
   validateArrayField(value, "sources", path, errors, validateSourceHealth);
   validateArrayField(value, "source_plan", path, errors, validateSourcePlanItem);
   validateArrayField(value, "changes", path, errors, validateChange);
+  validateIntelligenceContext(value["intelligence"], `${path}.intelligence`, errors);
 }
 
 function normalizeWorkbenchModelJson(value: unknown): void {
   if (!isRecord(value)) return;
   // 旧版 Workbench 在 claim draft 落地前没有 draft_claims；契约层统一补为空数组。
   if (value["draft_claims"] === undefined) value["draft_claims"] = [];
+  // 旧版 Workbench 没有关系强度和新鲜度上下文；前端用空对象维持稳定读取路径。
+  if (value["intelligence"] === undefined) value["intelligence"] = { edge_strengths: [], edge_freshness: [] };
   normalizeClaimArray(value["claims"]);
   normalizeClaimArray(value["draft_claims"]);
 }
@@ -258,6 +262,38 @@ function validateChange(value: unknown, path: string, errors: string[]): void {
   expectString(value, "occurred_at", path, errors);
   expectString(value, "caused_by", path, errors);
   expectBoolean(value, "requires_attention", path, errors);
+}
+
+function validateIntelligenceContext(value: unknown, path: string, errors: string[]): void {
+  if (!isRecordAt(value, path, errors)) return;
+  validateArrayField(value, "edge_strengths", path, errors, validateEdgeStrength);
+  validateArrayField(value, "edge_freshness", path, errors, validateEdgeFreshness);
+}
+
+function validateEdgeStrength(value: unknown, path: string, errors: string[]): void {
+  if (!isRecordAt(value, path, errors)) return;
+  expectString(value, "strength_id", path, errors);
+  expectString(value, "edge_id", path, errors);
+  expectEnum(value, "strength_kind", EDGE_STRENGTH_KINDS, path, errors);
+  expectNullableString(value, "value", path, errors);
+  expectNullableString(value, "lower_bound", path, errors);
+  expectNullableString(value, "upper_bound", path, errors);
+  expectNullableString(value, "unit", path, errors);
+  expectNullableString(value, "evidence_id", path, errors);
+  expectString(value, "method", path, errors);
+  expectNullableString(value, "valid_from", path, errors);
+  expectNullableString(value, "valid_to", path, errors);
+}
+
+function validateEdgeFreshness(value: unknown, path: string, errors: string[]): void {
+  if (!isRecordAt(value, path, errors)) return;
+  expectString(value, "edge_id", path, errors);
+  expectString(value, "last_verified_at", path, errors);
+  expectEnum(value, "decay_model", EDGE_FRESHNESS_DECAY_MODELS, path, errors);
+  expectNumber(value, "age_days", path, errors);
+  expectNumber(value, "freshness_score", path, errors);
+  expectString(value, "computed_at", path, errors);
+  expectNullableString(value, "source_evidence_id", path, errors);
 }
 
 function validateArrayField(
