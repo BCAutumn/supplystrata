@@ -21,12 +21,17 @@ export function registerResearchCommands(program: Command): void {
     .option("--since <date>", "ISO date/time lower bound for changes")
     .option("--change-limit <count>", "max changes", "50")
     .option("--source-limit <count>", "max source health rows", "50")
+    .option("--intelligence-limit <count>", "max Level 4/5 fact edges to refresh for intelligence context", "1000")
     .option("--trade-month <yyyy-mm>", "emit Census Trade target suggestions for this month")
     .option("--trade-country <code>", "optional Census partner country code for trade target suggestions")
     .option("--trade-directions <directions>", "comma-separated trade directions", "imports,exports")
+    .option("--official-year <yyyy>", "emit official IR disclosure target suggestions for this year")
     .option("--material-year <yyyy>", "emit annual material observation target suggestions")
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
+    .option("--source-target-namespace <name>", "optional namespace used when matching research source-plan targets to source_check_targets")
     .option("--skip-claims", "do not build active claims before exporting")
+    .option("--skip-intelligence-refresh", "do not refresh edge strength/freshness context before exporting")
+    .option("--skip-component-risk-refresh", "do not refresh component risk baselines before exporting")
     .option("--out <dir>", "output directory", "reports/research-pack")
     .description("build a full local research pack from existing truth-store data")
     .action(
@@ -37,12 +42,17 @@ export function registerResearchCommands(program: Command): void {
         since?: string;
         changeLimit: string;
         sourceLimit: string;
+        intelligenceLimit: string;
         tradeMonth?: string;
         tradeCountry?: string;
         tradeDirections: string;
+        officialYear?: string;
         materialYear?: string;
         commodityMonth?: string;
+        sourceTargetNamespace?: string;
         skipClaims?: boolean;
+        skipIntelligenceRefresh?: boolean;
+        skipComponentRiskRefresh?: boolean;
         out: string;
       }) => {
         await withDatabase(async (store) => {
@@ -65,6 +75,7 @@ export function registerResearchCommands(program: Command): void {
     .option("--trade-month <yyyy-mm>", "emit Census Trade target suggestions for this month")
     .option("--trade-country <code>", "optional Census partner country code for trade target suggestions")
     .option("--trade-directions <directions>", "comma-separated trade directions", "imports,exports")
+    .option("--official-year <yyyy>", "emit official IR disclosure target suggestions for this year")
     .option("--material-year <yyyy>", "emit annual material observation target suggestions")
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
     .option("--out <dir>", "output directory", "reports/research-pack-snapshot")
@@ -77,6 +88,7 @@ export function registerResearchCommands(program: Command): void {
         tradeMonth?: string;
         tradeCountry?: string;
         tradeDirections: string;
+        officialYear?: string;
         materialYear?: string;
         commodityMonth?: string;
         out: string;
@@ -93,6 +105,7 @@ export function registerResearchCommands(program: Command): void {
                 ...(options.tradeCountry === undefined ? {} : { tradeObservationCountryCode: options.tradeCountry }),
                 tradeObservationDirections: parseTradeDirections(options.tradeDirections)
               }),
+          ...(options.officialYear === undefined ? {} : { officialDisclosureYear: options.officialYear }),
           ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
           ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth })
         });
@@ -113,12 +126,17 @@ function researchPackInputFromOptions(options: {
   since?: string;
   changeLimit: string;
   sourceLimit: string;
+  intelligenceLimit: string;
   tradeMonth?: string;
   tradeCountry?: string;
   tradeDirections: string;
+  officialYear?: string;
   materialYear?: string;
   commodityMonth?: string;
+  sourceTargetNamespace?: string;
   skipClaims?: boolean;
+  skipIntelligenceRefresh?: boolean;
+  skipComponentRiskRefresh?: boolean;
 }): ResearchPackInput {
   return {
     company: options.company,
@@ -127,7 +145,10 @@ function researchPackInputFromOptions(options: {
     ...(options.since === undefined ? {} : { since: parseSince(options.since) }),
     changeLimit: parseLimit(options.changeLimit),
     sourceLimit: parseLimit(options.sourceLimit),
+    intelligenceLimit: parseLimit(options.intelligenceLimit),
     buildClaims: options.skipClaims === true ? false : true,
+    refreshIntelligence: options.skipIntelligenceRefresh === true ? false : true,
+    refreshComponentRisk: options.skipComponentRiskRefresh === true ? false : true,
     ...(options.tradeMonth === undefined
       ? {}
       : {
@@ -135,8 +156,10 @@ function researchPackInputFromOptions(options: {
           ...(options.tradeCountry === undefined ? {} : { tradeObservationCountryCode: options.tradeCountry }),
           tradeObservationDirections: parseTradeDirections(options.tradeDirections)
         }),
+    ...(options.officialYear === undefined ? {} : { officialDisclosureYear: options.officialYear }),
     ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
-    ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth })
+    ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
+    ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace })
   };
 }
 

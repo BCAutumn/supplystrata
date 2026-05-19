@@ -7,6 +7,9 @@
       "check_cadence_minutes": 720,
       "jitter_minutes": 60,
       "priority": 10,
+      "max_attempts": 4,
+      "backoff_base_minutes": 2,
+      "backoff_max_minutes": 90,
       "notes": "SEC 是核心官方披露源；MVP 以后可提升到每日多次。"
     },
     {
@@ -80,6 +83,12 @@
       "target_kind": "sec-company-filings",
       "enabled": true,
       "priority": 10,
+      "next_check_at": "2026-05-19T00:00:00.000Z",
+      "check_cadence_minutes": 360,
+      "jitter_minutes": 30,
+      "max_attempts": 5,
+      "backoff_base_minutes": 2,
+      "backoff_max_minutes": 120,
       "subject_entity_id": "ENT-NVIDIA",
       "target_config": {
         "cik": "0001045810",
@@ -88,6 +97,96 @@
         "limit": 3
       },
       "notes": "示例目标；真实部署时把这里换成你要监控的上市公司。"
+    },
+    {
+      "check_target_id": "sec-edgar:nvidia-companyfacts",
+      "source_adapter_id": "sec-edgar",
+      "target_kind": "sec-company-facts",
+      "enabled": true,
+      "priority": 11,
+      "next_check_at": "2026-05-19T00:00:00.000Z",
+      "check_cadence_minutes": 720,
+      "jitter_minutes": 60,
+      "subject_entity_id": "ENT-NVIDIA",
+      "target_config": {
+        "cik": "0001045810",
+        "entity_id": "ENT-NVIDIA",
+        "metrics": ["inventory", "cost_of_revenue", "capital_expenditures", "accounts_payable", "purchase_obligations", "revenue"],
+        "max_periods": 12
+      },
+      "notes": "SEC company facts 结构化财报指标；只写 FINANCIAL_METRIC_OBSERVATION，不解析 PDF，不生成事实边。"
+    },
+    {
+      "check_target_id": "sec-edgar:amd-companyfacts",
+      "source_adapter_id": "sec-edgar",
+      "target_kind": "sec-company-facts",
+      "enabled": true,
+      "priority": 12,
+      "next_check_at": "2026-05-19T00:10:00.000Z",
+      "check_cadence_minutes": 720,
+      "jitter_minutes": 60,
+      "subject_entity_id": "ENT-AMD",
+      "target_config": {
+        "cik": "0000002488",
+        "entity_id": "ENT-AMD",
+        "metrics": ["inventory", "cost_of_revenue", "capital_expenditures", "accounts_payable", "purchase_obligations", "revenue"],
+        "max_periods": 12
+      },
+      "notes": "SEC company facts 结构化财报指标；用于 AMD 跨期前导指标，不解析 PDF，不生成事实边。"
+    },
+    {
+      "check_target_id": "sec-edgar:micron-companyfacts",
+      "source_adapter_id": "sec-edgar",
+      "target_kind": "sec-company-facts",
+      "enabled": true,
+      "priority": 13,
+      "next_check_at": "2026-05-19T00:20:00.000Z",
+      "check_cadence_minutes": 720,
+      "jitter_minutes": 60,
+      "subject_entity_id": "ENT-MICRON",
+      "target_config": {
+        "cik": "0000723125",
+        "entity_id": "ENT-MICRON",
+        "metrics": ["inventory", "cost_of_revenue", "capital_expenditures", "accounts_payable", "purchase_obligations", "revenue"],
+        "max_periods": 12
+      },
+      "notes": "SEC company facts 结构化财报指标；用于 Micron memory 链路前导指标，不解析 PDF，不生成事实边。"
+    },
+    {
+      "check_target_id": "sec-edgar:intel-companyfacts",
+      "source_adapter_id": "sec-edgar",
+      "target_kind": "sec-company-facts",
+      "enabled": true,
+      "priority": 14,
+      "next_check_at": "2026-05-19T00:30:00.000Z",
+      "check_cadence_minutes": 720,
+      "jitter_minutes": 60,
+      "subject_entity_id": "ENT-INTEL",
+      "target_config": {
+        "cik": "0000050863",
+        "entity_id": "ENT-INTEL",
+        "metrics": ["inventory", "cost_of_revenue", "capital_expenditures", "accounts_payable", "purchase_obligations", "revenue"],
+        "max_periods": 12
+      },
+      "notes": "SEC company facts 结构化财报指标；用于 Intel foundry/semiconductor 链路前导指标，不解析 PDF，不生成事实边。"
+    },
+    {
+      "check_target_id": "sec-edgar:microsoft-companyfacts",
+      "source_adapter_id": "sec-edgar",
+      "target_kind": "sec-company-facts",
+      "enabled": true,
+      "priority": 15,
+      "next_check_at": "2026-05-19T00:40:00.000Z",
+      "check_cadence_minutes": 720,
+      "jitter_minutes": 60,
+      "subject_entity_id": "ENT-MICROSOFT",
+      "target_config": {
+        "cik": "0000789019",
+        "entity_id": "ENT-MICROSOFT",
+        "metrics": ["inventory", "cost_of_revenue", "capital_expenditures", "accounts_payable", "purchase_obligations", "revenue"],
+        "max_periods": 12
+      },
+      "notes": "SEC company facts 结构化财报指标；用于 Microsoft AI infrastructure/capex 前导指标，不解析 PDF，不生成事实边。"
     },
     {
       "check_target_id": "tsmc-ir:annual-report",
@@ -147,7 +246,6 @@
       "target_kind": "trade-flow-observation",
       "enabled": false,
       "priority": 120,
-      "subject_entity_id": null,
       "target_config": {
         "direction": "imports",
         "time": "2025-12",
@@ -164,7 +262,6 @@
       "target_kind": "facility-search",
       "enabled": false,
       "priority": 110,
-      "subject_entity_id": null,
       "target_config": {
         "query": "memory semiconductor",
         "country_code": "TW",

@@ -1,4 +1,5 @@
-import type { EvidenceLevel, ObservationType, RelationType } from "@supplystrata/core";
+import type { EvidenceLevel, ObservationType, RelationType, RiskMetricKind } from "@supplystrata/core";
+import { appendEdgeIntelligence, appendObservationAnomaly, type EdgeIntelligenceSummary, type ObservationAnomalySummary } from "./company.js";
 import type { OutputFormat } from "./types.js";
 import type { UnknownMapItem } from "./unknown.js";
 
@@ -32,6 +33,7 @@ export interface ComponentEvidenceEdge {
   cite_text: string | null;
   source_url: string | null;
   source_date: string | null;
+  intelligence?: EdgeIntelligenceSummary;
 }
 
 export interface ComponentTradeCode {
@@ -78,7 +80,38 @@ export interface ComponentObservation {
   confidence: number;
   provenance: Record<string, unknown>;
   attrs: Record<string, unknown>;
+  anomaly: ObservationAnomalySummary | null;
   created_at: string;
+}
+
+export interface ComponentLinkedCompanyObservations {
+  entity_id: string;
+  entity_name: string;
+  role: "supplier" | "consumer";
+  edge_ids: string[];
+  observations: ComponentObservation[];
+}
+
+export interface ComponentRiskMetric {
+  metric_id: string;
+  metric_kind: RiskMetricKind;
+  subject_kind: string;
+  subject_id: string;
+  component_id: string | null;
+  value: string | null;
+  confidence: number;
+  provenance: Record<string, unknown>;
+  attrs: Record<string, unknown>;
+}
+
+export interface ComponentRiskView {
+  risk_view_id: string;
+  generated_at: string;
+  model_version: string;
+  inputs_fingerprint: string;
+  summary: Record<string, unknown>;
+  attrs: Record<string, unknown>;
+  metrics: ComponentRiskMetric[];
 }
 
 export interface ComponentCardModel {
@@ -93,6 +126,8 @@ export interface ComponentCardModel {
   };
   trade_taxonomy: ComponentTradeTaxonomyModel;
   related_observations: ComponentObservation[];
+  linked_company_observations: ComponentLinkedCompanyObservations[];
+  risk_view: ComponentRiskView | null;
   unknown_map: UnknownMapItem[];
 }
 
@@ -108,6 +143,8 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
         source_coverage: card.source_coverage,
         trade_taxonomy: card.trade_taxonomy,
         related_observations: card.related_observations,
+        linked_company_observations: card.linked_company_observations,
+        risk_view: card.risk_view,
         unknown_map: card.unknown_map
       },
       null,
@@ -133,6 +170,10 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
   appendTradeTaxonomy(lines, card.trade_taxonomy);
   lines.push("", "## Related observations", "");
   appendRelatedObservations(lines, card.related_observations);
+  lines.push("", "## Linked company financial signals", "");
+  appendLinkedCompanyObservations(lines, card.linked_company_observations);
+  lines.push("", "## Risk baseline", "");
+  appendComponentRiskView(lines, card.risk_view);
   lines.push("", "## Source coverage", "");
   appendSourceCoverage(lines, card.source_coverage);
   lines.push("", "## Unknown map", "");
@@ -145,6 +186,27 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
     }
   }
   return lines.join("\n");
+}
+
+function appendComponentRiskView(lines: string[], riskView: ComponentRiskView | null): void {
+  if (riskView === null) {
+    lines.push("(no component risk baseline generated yet)");
+    return;
+  }
+  lines.push(`- View: ${riskView.risk_view_id}`);
+  lines.push(`  Model: ${riskView.model_version}; generated ${riskView.generated_at}`);
+  lines.push(`  Inputs: ${riskView.inputs_fingerprint.slice(0, 12)}`);
+  for (const metric of riskView.metrics) {
+    const value = metric.value ?? "unknown";
+    lines.push(`- ${metric.metric_kind}: ${value} (conf ${metric.confidence.toFixed(2)})`);
+    const shareUnknown = metric.attrs["share_unknown"] === true;
+    if (shareUnknown) lines.push("  Share unknown: yes");
+    const strengthUnknown = metric.attrs["strength_unknown"] === true;
+    const freshnessMissing = metric.attrs["freshness_missing"] === true;
+    if (strengthUnknown || freshnessMissing) {
+      lines.push(`  Gaps: strength ${strengthUnknown ? "unknown" : "known"}, freshness ${freshnessMissing ? "missing" : "available"}`);
+    }
+  }
 }
 
 function appendTradeTaxonomy(lines: string[], taxonomy: ComponentTradeTaxonomyModel): void {
@@ -192,6 +254,7 @@ function appendComponentEvidenceEdges(lines: string[], edges: readonly Component
     if (edge.source_date !== null) lines.push(`  Source date: ${edge.source_date.slice(0, 10)}`);
     if (edge.cite_text !== null) lines.push(`  "${edge.cite_text}"`);
     if (edge.primary_evidence_id !== null) lines.push(`  Evidence: ${edge.primary_evidence_id}`);
+    appendEdgeIntelligence(lines, edge.intelligence);
   }
 }
 
@@ -204,7 +267,38 @@ function appendRelatedObservations(lines: string[], observations: readonly Compo
     lines.push(`- ${observation.observation_type}: ${observation.metric_name}`);
     lines.push(`  Scope: ${observation.scope_kind}:${observation.scope_id}; source: ${observation.source_adapter_id}`);
     lines.push(`  Value: ${observation.metric_value ?? "(n/a)"}${observation.metric_unit === null ? "" : ` ${observation.metric_unit}`}`);
+    if (observation.baseline_value !== null && observation.change_percent !== null) {
+      const changeValue = observation.change_value === null ? "" : `; delta ${observation.change_value}`;
+      lines.push(`  Change: ${observation.change_percent.toFixed(2)}% vs baseline ${observation.baseline_value}${changeValue}`);
+    }
     lines.push(`  Confidence: ${observation.confidence.toFixed(3)}`);
+    appendObservationAnomaly(lines, observation.anomaly);
+  }
+}
+
+function appendLinkedCompanyObservations(lines: string[], items: readonly ComponentLinkedCompanyObservations[]): void {
+  if (items.length === 0) {
+    lines.push("(no company-scoped financial signals linked to current component edges yet)");
+    return;
+  }
+  for (const item of items) {
+    lines.push(`- ${item.entity_name} [${item.entity_id}] as ${item.role}`);
+    lines.push(`  Linked edges: ${item.edge_ids.join(", ")}`);
+    if (item.observations.length === 0) {
+      lines.push("  Financial observations: none recorded yet");
+      continue;
+    }
+    for (const observation of item.observations) {
+      lines.push(
+        `  - ${observation.metric_name}: ${observation.metric_value ?? "(n/a)"}${observation.metric_unit === null ? "" : ` ${observation.metric_unit}`}`
+      );
+      if (observation.time_window_end !== null) lines.push(`    Period end: ${observation.time_window_end.slice(0, 10)}`);
+      if (observation.baseline_value !== null && observation.change_percent !== null) {
+        const changeValue = observation.change_value === null ? "" : `; delta ${observation.change_value}`;
+        lines.push(`    Change: ${observation.change_percent.toFixed(2)}% vs baseline ${observation.baseline_value}${changeValue}`);
+      }
+      appendObservationAnomaly(lines, observation.anomaly);
+    }
   }
 }
 

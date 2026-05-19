@@ -1,9 +1,16 @@
 import type { DatabaseStore } from "@supplystrata/db";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
-import { asmlIrAdapter, createAsmlIrAdapterContext, type AsmlIrInput } from "@supplystrata/sources-asml-ir";
-import { createSamsungIrAdapterContext, samsungIrAdapter, type SamsungIrInput } from "@supplystrata/sources-samsung-ir";
-import { createSkHynixIrAdapterContext, skHynixIrAdapter, type SkHynixIrInput } from "@supplystrata/sources-skhynix-ir";
-import { createTsmcIrAdapterContext, tsmcIrAdapter, type TsmcIrInput } from "@supplystrata/sources-tsmc-ir";
+import {
+  asmlIrAdapter,
+  createOfficialIrAdapterContext,
+  samsungIrAdapter,
+  skHynixIrAdapter,
+  tsmcIrAdapter,
+  type AsmlIrInput,
+  type SamsungIrInput,
+  type SkHynixIrInput,
+  type TsmcIrInput
+} from "./official-ir-adapters.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 
 export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<DatabaseStore, SourceCheckSummary>[] = [
@@ -15,7 +22,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: tsmcIrAdapter,
         adapterInput: tsmcIrInputFromConfig(target.target_config),
-        context: createTsmcIrAdapterContext(),
+        context: createOfficialIrAdapterContext(),
         options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.tsmc-ir" }
       });
     }
@@ -28,7 +35,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: samsungIrAdapter,
         adapterInput: samsungIrInputFromConfig(target.target_config),
-        context: createSamsungIrAdapterContext(),
+        context: createOfficialIrAdapterContext(),
         options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.samsung-ir" }
       });
     }
@@ -41,7 +48,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: skHynixIrAdapter,
         adapterInput: skHynixIrInputFromConfig(target.target_config),
-        context: createSkHynixIrAdapterContext(),
+        context: createOfficialIrAdapterContext(),
         options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.skhynix-ir" }
       });
     }
@@ -54,7 +61,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: asmlIrAdapter,
         adapterInput: asmlIrInputFromConfig(target.target_config),
-        context: createAsmlIrAdapterContext(),
+        context: createOfficialIrAdapterContext(),
         options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.asml-ir" }
       });
     }

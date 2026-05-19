@@ -15,7 +15,10 @@
     "@supplystrata/core": "workspace:*",
     "@supplystrata/data-quality": "workspace:*",
     "@supplystrata/db": "workspace:*",
+    "@supplystrata/evidence-maintenance": "workspace:*",
     "@supplystrata/render": "workspace:*",
+    "@supplystrata/source-management": "workspace:*",
+    "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/source-plan": "workspace:*",
     "@supplystrata/workbench-export": "workspace:*"
   },

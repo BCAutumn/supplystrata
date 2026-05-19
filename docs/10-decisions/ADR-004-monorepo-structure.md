@@ -106,10 +106,10 @@ supplystrata/
 │   └── sources/
 │       ├── sec-edgar/
 │       ├── company-ir/
-│       │   ├── tsmc-ir/
-│       │   ├── samsung-ir/
-│       │   ├── skhynix-ir/
-│       │   ├── asml-ir/
+│       │   ├── tsmc-ir/                  # 历史结构；当前薄 HTML IR adapter 已合并进 source-workflows
+│       │   ├── samsung-ir/               # 历史结构；当前薄 HTML IR adapter 已合并进 source-workflows
+│       │   ├── skhynix-ir/               # 历史结构；当前薄 HTML IR adapter 已合并进 source-workflows
+│       │   ├── asml-ir/                  # 历史结构；当前薄 HTML IR adapter 已合并进 source-workflows
 │       │   └── ...
 │       ├── apple-suppliers/
 │       ├── opencorporates/

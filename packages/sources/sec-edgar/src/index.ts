@@ -9,6 +9,19 @@ import {
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
+import { normalizeCik } from "./cik.js";
+
+export { normalizeCik } from "./cik.js";
+export {
+  companyFactsTask,
+  parseSecCompanyFactObservations,
+  secCompanyFactsAdapter,
+  SEC_COMPANY_FACT_METRIC_DEFINITIONS,
+  SEC_COMPANY_FACT_METRIC_NAMES,
+  type SecCompanyFactMetricName,
+  type SecCompanyFactObservationDraft,
+  type SecCompanyFactsInput
+} from "./company-facts.js";
 
 export type SecEdgarFormType = SecFormType;
 
@@ -89,12 +102,6 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
 };
 
 export const secEdgarAdapter = createRateLimitedSourceAdapter(secEdgarAdapterBase);
-
-export function normalizeCik(cik: string): string {
-  const digits = cik.replace(/\D/g, "");
-  if (digits.length === 0 || digits.length > 10) throw new Error(`Invalid CIK: ${cik}`);
-  return digits.padStart(10, "0");
-}
 
 export function createAdapterContext(): AdapterContext {
   const env = loadEnv();

@@ -123,6 +123,8 @@ packages/risk-view
 
 目标：年报财报不只是抽几句供应商文本，而是变成可比较的供应链前导指标。
 
+当前状态：SEC companyfacts JSON 第一版已落地为 `sec-edgar/sec-company-facts` source-check target。它读取官方 `https://data.sec.gov/api/xbrl/companyfacts/CIK<10-digit>.json`，按指标 catalog 解析 inventory、cost of revenue、capex、purchase obligations、accounts payable 和 revenue，并写入 company-scoped `FINANCIAL_METRIC_OBSERVATION`。同一 metric/unit 会保留上一期 observation 作为 `baseline_value` 并计算 `change_value / change_percent`，供 observation anomaly 和研究输出复用。`config/source-policies.example.json` 已配置 NVIDIA / AMD / Micron / Intel / Microsoft 五家公司 companyfacts target，并由 source-management 单测校验 target 可运行。`segment_revenue` 和 customer concentration 不用总收入 tag 伪造，后续需要维度/文本证据增强。该路径只消费结构化 JSON，不解析 PDF，不写 fact edge；每个 observation provenance 记录 accession、form、filed、taxonomy tag 和 source URL。`@supplystrata/evidence-maintenance` 已提供 `refreshFinancialMetricPeerComparisonViews()`：它只比较同 metric、unit 和 fiscal period 的公司级观测；缺 fiscal period 的旧观测才退回到精确 time window 对齐。样本数达到阈值后写入 `financial_metric_peer_zscore` risk metric，并在 attrs 中保存 percentile、rank、peer_count、mean/stddev 和 peer ids。CompanyCard / research-pack 会把这些指标作为 financial peer position 带进 JSON/Markdown。该结果是同行位置上下文，不是事实边、不是风险分，也不推断供应关系。
+
 必须完成：
 
 - SEC companyfacts / XBRL company facts 结构化读取。
@@ -134,9 +136,11 @@ packages/risk-view
 完成标准：
 
 ```text
-[ ] NVIDIA / AMD / Micron / Intel / Microsoft 至少 5 家公司有财报指标时序
-[ ] ComponentCard 能展示相关财报指标变化，而不是只展示文本边
-[ ] changes timeline 能展示指标拐点或显著变化
+[x] NVIDIA / AMD / Micron / Intel / Microsoft 至少 5 家公司有财报指标时序
+[x] ComponentCard 能展示相关财报指标变化，而不是只展示文本边
+[x] changes timeline 能展示指标拐点或显著变化
+[x] 同一指标同一期间能生成 deterministic peer z-score / percentile
+[x] CompanyCard / research-pack 能展示 company financial peer position
 ```
 
 ### Gate 3 — 关系强度与时间衰减
@@ -144,6 +148,15 @@ packages/risk-view
 目标：事实边从“有/无”升级到“有多重要、多久没验证”。
 
 当前状态：第一版 schema 和导出契约已经落地。`edge_strength_estimates` 用显式业务身份键做幂等 upsert，`edge_freshness` 保存确定性的 `methodology.v1` 新鲜度结果；`@supplystrata/workbench-export` 会把两者作为 `intelligence.edge_strengths / intelligence.edge_freshness` 导出。它们仍然是 intelligence context，不改变 `edges.evidence_level`。
+
+新增后端可运行路径：
+
+```bash
+pnpm cli intelligence refresh --min-evidence-level 4 --limit 1000
+pnpm cli research run --company nvidia --depth 3 --out reports/nvidia-research-pack
+```
+
+`intelligence refresh` 是薄 CLI 入口，业务编排在 `@supplystrata/evidence-maintenance`。`research run` 默认会先刷新 edge intelligence context，再筛出当前研究包里已有 Level 4/5 component fact edge 的 eligible 组件刷新 component risk baseline，最后导出 Workbench / CompanyCard / ComponentCard / ChainView / question readiness；需要完全只读打包时同时使用 `--skip-intelligence-refresh --skip-component-risk-refresh`。
 
 必须新增或等价实现：
 
@@ -178,9 +191,9 @@ edge_freshness
 ```text
 [x] edge_strength_estimates / edge_freshness schema 已落库
 [x] WorkbenchModel 可导出 strength / freshness context
-[ ] Level 4/5 fact edge 至少 40% 有 strength 或 explicit unknown
+[x] Level 4/5 fact edge 可通过 refresh 获得 strength 或 edge-scoped explicit unknown
 [ ] 过期/未复核边在 risk view 中自动降权
-[ ] CompanyCard / ChainView 能显示“强关系”和“弱关系”的区别
+[x] CompanyCard / ComponentCard / ChainView / research-pack 能显示 strength、freshness 和 strength unknown context
 ```
 
 ### Gate 4 — Claim 层多源融合
@@ -256,8 +269,18 @@ PROCUREMENT_OBSERVATION
 [ ] observations 有统一 source_item / time_window / metric / geography / component_id
 [ ] observations 不会被 graph-builder 当成 fact edge
 [ ] 至少 3 类 observation 能在 ComponentCard / ChainView 中显示
-[ ] 至少 1 类 observation 有变化检测
+[x] 至少 1 类 observation 有变化检测
 ```
+
+当前新增：`FINANCIAL_METRIC_OBSERVATION` 已由 SEC companyfacts 结构化 JSON 写入，source item / doc / time window / metric / company scope / provenance 均走 observation-store，不进入 graph-builder。
+
+当前状态：`@supplystrata/evidence-maintenance` 提供 `refreshObservationAnomalyViews()`，薄 CLI 入口如下：
+
+```bash
+pnpm cli intelligence observation-anomalies --limit 1000 --threshold-percent 25 --z-threshold 3.5
+```
+
+该能力优先读取已有 `baseline_value / change_percent` 或可由 `metric_value / baseline_value` 复算的 observation；没有显式 baseline 时，会批量查找同一 observation type、scope、geography、component、metric 和 unit 的可比较历史点，用 trailing median/MAD 计算 z-like anomaly。输出写入 observation-scoped `risk_views / risk_metrics`，metric kind 为 `observation_anomaly`。真实异常会幂等写入 `OBSERVATION_ANOMALY` semantic change，供 changes timeline / alert rules 消费；timeline 会展示 metric、observation scope、baseline、change percent、severity 和 source/doc 上下文。它不写 `edges`，不把 observation 升级成事实关系。CompanyCard / ComponentCard / research-pack 在已有 anomaly view 时展示 anomaly summary；ComponentCard 还会把当前组件 Level 4/5 fact edges 上的 supplier/consumer 公司财务 observations 作为 linked company financial signals 带入组件上下文。历史不足或不可比较的 observation 继续保持普通 observation，而不是伪造异常。
 
 ### Gate 6 — 图算法与风险派生视图
 
@@ -279,11 +302,12 @@ risk_metrics
   risk_view_id
   metric_kind:
     supplier_concentration_hhi
-    betweenness_centrality
-    path_redundancy
     single_source_exposure
-    node_knockout_reach
+    path_redundancy
     freshness_adjusted_exposure
+    betweenness_centrality
+    node_knockout_reach
+    node_knockout_weighted_impact
   subject_kind
   subject_id
   component_id
@@ -294,11 +318,14 @@ risk_metrics
 
 第一版算法：
 
-- HHI by component。
-- path redundancy / alternate supplier count。
-- betweenness centrality。
-- node knockout reachability。
-- freshness-adjusted exposure。
+- HHI by component：已实现 deterministic baseline；只有完整 share 输入时写数值，缺 share 时写 explicit unknown context。
+- single-source exposure：已实现 component baseline，来自单一供应商 topology 或明确 `dependency=single_source`。
+- path redundancy / alternate supplier count：已实现 direct component supplier baseline；多跳 chain graph redundancy 仍待补。
+- freshness-adjusted exposure：已实现 experimental baseline，消费 edge strength + freshness，不污染事实层。
+- node knockout reachability：已实现 directed component fact-edge reachability baseline。
+- node knockout weighted impact：已实现 strength/freshness max-product propagation baseline；缺权重边显式暴露，不补值。
+- betweenness centrality：已实现 directed component fact-edge graph baseline；加权多跳传播仍待补。
+- risk metric semantic change：已实现 component risk view 对上一版指标的稳定 key 对比；超过每类指标绝对阈值或 25% 相对阈值时，写入 `RISK_METRIC_CHANGED`，供 timeline / alert rules 后续消费。
 
 规则：
 
@@ -309,9 +336,9 @@ risk_metrics
 完成标准：
 
 ```text
-[ ] ComponentCard 能显示集中度和单点失效候选
-[ ] CompanyCard 能显示 top exposure nodes
-[ ] risk metrics 可重算且结果 determinism test 通过
+[x] ComponentCard 能显示集中度和单点失效候选
+[x] CompanyCard 能显示 top exposure nodes
+[x] risk metrics 可重算且结果 determinism test 通过
 ```
 
 ### Gate 7 — 持续监控与告警
@@ -324,16 +351,24 @@ risk_metrics
 - source_check_targets 支持 per target cadence、jitter、priority、failure policy。
 - semantic change events：`EDGE_ADDED`、`EDGE_UPDATED`、`EDGE_DEPRECATED`、`CLAIM_CHANGED`、`OBSERVATION_ANOMALY`、`SOURCE_FAILED`。
 - alert rules：基于 observation、risk metric、source failure、new official filing。
+- alert lifecycle：`open / acknowledged / resolved / suppressed` 的状态变更必须可审计。
 - dead-letter / retry / backoff。
 
 完成标准：
 
 ```text
-[ ] sources run-due 不再是人工 CLI 主路径，而有 worker loop
-[ ] 任一 source failure 不会被 cached fallback 误记为成功
-[ ] changes timeline 能区分 raw document change、semantic change、risk change
-[ ] alerts 只引用 risk_view / observation，不直接改变事实层
+[x] sources run-due 不再是人工 CLI 主路径，而有常驻 worker loop
+[x] 任一 source failure 不会被 cached fallback 误记为成功
+[x] changes timeline 能区分 raw document change、semantic change、risk change
+[x] source check 有 durable job/outbox、claim、retry/backoff 和 dead 状态
+[x] 持续监控 cadence、jitter、priority、初始检查时间和 retry/backoff 统一由外部 source policy config 配置
+[x] due/run-due 支持按 source-plan namespace、check_target_id 或 source adapter 小批量过滤，避免一次运行全局 due 队列
+[x] source target coverage 能区分 succeeded 与 degraded，避免 cached fallback / 源退化被误读成完全成功
+[x] alerts 只引用 risk_view / observation，不直接改变事实层
+[x] alert 状态维护会记录 `ALERT_STATUS_CHANGED` semantic change
 ```
+
+当前状态：`source_check_jobs` 已提供 Postgres-backed durable job/outbox；`sources run-due` 会先 enqueue due target，再用 `FOR UPDATE SKIP LOCKED` claim job，失败写入 `failed` 并按 backoff 重试，超过 `max_attempts` 进入 `dead`。`sources due/run-due` 支持按 `source-plan.json + namespace`、`check_target_id` 或 source adapter 过滤小批量目标；过滤只限制 enqueue/claim 范围，不改变 source policy 或 target config。`apps/worker` 已提供常驻 source-check worker loop，负责按固定 poll interval 复用同一条 `runDueSourceChecks()` 业务路径；CLI 不再是唯一执行入口。cadence、jitter、priority、初始 `next_check_at`、max attempts 和 backoff 已统一收口到外部 source policy config：source policy 提供默认值，target 可覆盖，enqueue 阶段不再接受调用方绕过配置传入 retry 参数。cached fallback 会记录 `SOURCE_DEGRADED`，不会被误记为成功；coverage 会把 latest event 为 `SOURCE_DEGRADED` 的 target 标成 `degraded`，即使 job 本身已完成，也不会被解释为完全成功。`OBSERVATION_ANOMALY` 已由 observation anomaly refresh 幂等写入 `change_records`，并被 changes timeline 标记为 requires attention。`RISK_METRIC_CHANGED` 已由 component risk refresh 在新版 risk view 与上一版指标存在实质变化时写入，changes timeline 会把它归为 risk family。`refreshAlertCandidates()` 已能从 observation anomaly、source failure 和 component risk metric 生成 `alert_candidates`，并通过 `dedupe_key` 去重；alert 只引用 `observation / risk_view / risk_metric / change / source_event`，不写事实边。`updateAlertCandidateStatus()` 和 CLI `intelligence alert-status` 已支持状态维护，并用 `scope_kind='alert'` 写入 `ALERT_STATUS_CHANGED` semantic change。通知通道仍未完成。
 
 ### Gate 8 — API 与嵌入契约
 
@@ -361,6 +396,11 @@ POST /review/:id/reject
 - JSON schema / OpenAPI 版本化。
 - WorkbenchModel 继续保留离线导出能力。
 - GraphStore / DatabaseStore 可由宿主 app 注入。
+- research-pack 输出 `question-readiness.json/md`，把核心问题标为 ready / partial / blocked，并列出 supporting refs、missing requirements 和 unknown ids；它只评估可答性，不生成自然语言结论。
+- research-pack 输出 `investigation-backlog.json/md`，把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 汇总为可审计调查任务；它只规划，不抓取、不落库、不写事实边。
+- source-plan 支持在显式 `officialDisclosureYear` 存在时，把已注册官方 IR connector 生成 runnable `official-html-disclosure` target；无年份时保持 planned，避免猜默认披露期。
+- source-management 提供 `source-plan.json` 到 `source_check_targets` 的稳定转换；CLI 只做 `sources policy sync-plan-targets` / `enable-plan-targets` 薄入口，默认 disabled，审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并统一写入 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。
+- source-monitor 通过 `source_change_events.check_target_id` 保留 target 级事件链；research-pack 输出 `source-target-coverage.json/md`，把 runnable target 的 sync、enable、due、job、event、observation 状态回流到研究包，并让 `investigation-backlog` 的 action 随 coverage 状态变化。
 
 完成标准：
 
@@ -368,6 +408,14 @@ POST /review/:id/reject
 [ ] apps/api 有 contract tests
 [ ] research-preview 或未来正式前端只消费 API/Workbench DTO
 [ ] 无 Docker snapshot path 与 DB-backed path 都保留
+[x] research-pack 能输出 question readiness matrix
+[x] research-pack 能输出 investigation backlog，供人工或后续安全 agent 消费
+[x] research-pack/source-plan 能把官方 IR 年份配置转成 runnable target suggestions
+[x] runnable source-plan target suggestions 能同步到 source_check_targets，并复用统一监控频率/重试配置入口
+[x] 已同步 source-plan target 能在审计后受控启用，并把调度参数继续收口到 source policy/target config
+[x] research-pack 能输出 source target coverage，展示 runnable target 是否已同步、启用、due、运行、失败或产出 observation
+[x] investigation-backlog 能消费 source target coverage，把下一步 action 从通用 source check 提示细化为同步、启用、运行、等待、排错或 review observation
+[x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 
 ### Gate 9 — Agent / LLM 安全接入
@@ -428,8 +476,9 @@ POST /review/:id/reject
 [ ] 事实层 Level 4/5 precision 已校准
 [ ] observation time series 足够长
 [ ] relation strength / freshness 已稳定
-[ ] risk_view 已有确定性 baseline
-[ ] 有人工 review gold set 可用于 calibration
+[x] risk_view 已有确定性 baseline
+[x] 有人工 review gold label/run 契约可用于 calibration
+[ ] 人工 gold set 样本量足够并完成季度 precision 校准
 ```
 
 边界：
@@ -443,19 +492,19 @@ POST /review/:id/reject
 
 ## 当前状态盘点
 
-| 能力                        | 当前状态                           | 判断                              |
-| --------------------------- | ---------------------------------- | --------------------------------- |
-| SEC / 10-K 事实边           | 已可用                             | 事实底座成立                      |
-| 10-Q / 8-K plan/fetch       | 已接入                             | 尚需深度语义变化                  |
-| Apple Supplier review/apply | 纵向链路已通                       | 设施边需要继续做厚                |
-| IR 年报页面                 | TSMC/Samsung/SK hynix/ASML preview | 官方上下文可用，事实边偏薄        |
-| Claim / Observation / Lead  | 已建骨架                           | 需要时序、融合、风险派生          |
-| ChainView / Workbench       | 已可视化第一版                     | 不是正式前端，不是完整分析系统    |
-| Census / WorldBank          | 第一版 observation target          | 需要变化检测与 ComponentCard 深接 |
-| DART / EDINET               | 未实现                             | 官方披露覆盖短板                  |
-| 新闻 / 政策 / 制裁          | registry/计划层                    | 信号层短板                        |
-| 图算法 / 风险视图           | 未实现                             | 监控系统核心缺口                  |
-| API / 告警 / worker         | 未实现                             | 产品化后端缺口                    |
+| 能力                        | 当前状态                           | 判断                                                 |
+| --------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| SEC / 10-K 事实边           | 已可用                             | 事实底座成立                                         |
+| 10-Q / 8-K plan/fetch       | 已接入                             | 尚需深度语义变化                                     |
+| Apple Supplier review/apply | 纵向链路已通                       | 设施边需要继续做厚                                   |
+| IR 年报页面                 | TSMC/Samsung/SK hynix/ASML preview | 官方上下文可用，事实边偏薄                           |
+| Claim / Observation / Lead  | 已建骨架                           | 需要时序、融合、风险派生                             |
+| ChainView / Workbench       | 已可视化第一版                     | 不是正式前端，不是完整分析系统                       |
+| Census / WorldBank          | 第一版 observation target          | 需要变化检测与 ComponentCard 深接                    |
+| DART / EDINET               | 未实现                             | 官方披露覆盖短板                                     |
+| 新闻 / 政策 / 制裁          | registry/计划层                    | 信号层短板                                           |
+| 图算法 / 风险视图           | deterministic baseline 已实现      | 多跳冗余、weighted centrality 和样本校准仍是核心缺口 |
+| API / 告警 / worker         | 告警/worker baseline 已实现        | API 与通知通道仍是产品化后端缺口                     |
 
 ## 后续执行顺序
 

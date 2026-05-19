@@ -2,25 +2,33 @@ import type { ComponentSpecificity, EvidenceLevel, RelationType } from "@supplys
 import { getComponentTradeTaxonomy } from "@supplystrata/component-context";
 import {
   getEvidence,
+  listEdgeFreshness,
+  listEdgeStrengthEstimates,
   listObservationsByScope,
   listUnknownItems,
   resolveEntityId,
   type DbClient,
   type DbRow,
-  type ObservationRow,
   type UnknownItemRow
 } from "@supplystrata/db";
 import { buildCompanyChainView } from "@supplystrata/chain-view-builder";
 import type { ChainViewModel } from "@supplystrata/chain-view";
+import { loadCompanyTopExposureNodes } from "./company-risk.js";
+import { loadCompanyFinancialPeerMetrics } from "./financial-peer.js";
+import { companyObservationFromRowWithAnomaly, componentObservationFromRowWithAnomaly } from "./observation-anomaly.js";
+import { loadComponentRiskView } from "./risk-view.js";
 import type {
   CompanyCardModel,
   CompanyCardEdge,
   CompanyCardEntity,
+  CompanyObservation,
   ComponentCardModel,
   ComponentEvidenceEdge,
   ComponentHeader,
+  ComponentLinkedCompanyObservations,
   ComponentObservation,
   ComponentParticipant,
+  EdgeIntelligenceSummary,
   EvidenceCardModel,
   UnknownMapItem,
   UnknownMapModel
@@ -81,11 +89,18 @@ export async function loadCompanyCard(client: DbClient, query: string): Promise<
   const header = await loadCompanyHeader(client, entityId);
   const upstreamEdges = await loadCompanyEdges(client, entityId, "upstream");
   const downstreamEdges = await loadCompanyEdges(client, entityId, "downstream");
+  const intelligenceByEdgeId = await loadEdgeIntelligence(
+    client,
+    [...upstreamEdges, ...downstreamEdges].map((edge) => edge.edge_id)
+  );
   const unknownItems = await listUnknownItems(client, entityId);
   return {
     entity: companyEntityFromRow(header),
-    directly_disclosed_upstream: upstreamEdges.map(companyEdgeFromRow),
-    directly_disclosed_downstream: downstreamEdges.map(companyEdgeFromRow),
+    directly_disclosed_upstream: upstreamEdges.map((edge) => companyEdgeFromRow(edge, intelligenceByEdgeId)),
+    directly_disclosed_downstream: downstreamEdges.map((edge) => companyEdgeFromRow(edge, intelligenceByEdgeId)),
+    related_observations: await loadCompanyObservations(client, entityId),
+    financial_peer_metrics: await loadCompanyFinancialPeerMetrics(client, entityId),
+    top_exposure_nodes: await loadCompanyTopExposureNodes(client, upstreamEdges),
     unknown_map: unknownItems.map(unknownMapItemFromRow)
   };
 }
@@ -93,7 +108,12 @@ export async function loadCompanyCard(client: DbClient, query: string): Promise<
 export async function loadComponentCard(client: DbClient, query: string): Promise<ComponentCardModel> {
   const component = await resolveComponent(client, query);
   const edges = await loadComponentEdges(client, component);
-  const evidenceEdges = edges.map(toComponentEvidenceEdge);
+  const intelligenceByEdgeId = await loadEdgeIntelligence(
+    client,
+    edges.map((edge) => edge.edge_id)
+  );
+  const evidenceEdges = edges.map((edge) => toComponentEvidenceEdge(edge, intelligenceByEdgeId));
+  const riskView = await loadComponentRiskView(client, component.component_id);
   return {
     component: componentHeaderFromRow(component),
     known_suppliers: summarizeComponentParticipants(evidenceEdges, "supplier"),
@@ -101,9 +121,9 @@ export async function loadComponentCard(client: DbClient, query: string): Promis
     evidence_edges: evidenceEdges,
     source_coverage: summarizeComponentSourceCoverage(evidenceEdges),
     trade_taxonomy: componentTradeTaxonomyFromCatalog(component.component_id),
-    related_observations: (await listObservationsByScope(client, { scope_kind: "component", scope_id: component.component_id, limit: 10 })).map(
-      observationFromRow
-    ),
+    related_observations: await loadComponentObservations(client, component.component_id),
+    linked_company_observations: await loadLinkedCompanyObservations(client, evidenceEdges),
+    risk_view: riskView,
     unknown_map: (await listUnknownItems(client, component.component_id)).map(unknownMapItemFromRow)
   };
 }
@@ -202,8 +222,59 @@ function companyEntityFromRow(row: CompanyHeaderRow): CompanyCardEntity {
   return { entity_id: row.entity_id, canonical_name: row.canonical_name, display_name: row.display_name };
 }
 
-function companyEdgeFromRow(row: CompanyEdgeRow): CompanyCardEdge {
-  return { ...row, source_date: row.source_date === null ? null : row.source_date.toISOString() };
+async function loadEdgeIntelligence(client: DbClient, edgeIds: readonly string[]): Promise<Map<string, EdgeIntelligenceSummary>> {
+  const uniqueEdgeIds = [...new Set(edgeIds)].sort();
+  const output = new Map<string, EdgeIntelligenceSummary>();
+  if (uniqueEdgeIds.length === 0) return output;
+
+  const [strengths, freshness] = await Promise.all([
+    listEdgeStrengthEstimates(client, uniqueEdgeIds),
+    listEdgeFreshness(client, { edgeIds: uniqueEdgeIds, computedAt: new Date().toISOString() })
+  ]);
+  const strengthsByEdgeId = groupByEdgeId(strengths);
+  const freshnessByEdgeId = new Map(freshness.map((item) => [item.edge_id, item]));
+
+  for (const edgeId of uniqueEdgeIds) {
+    const unknowns = await listUnknownItems(client, edgeId);
+    const freshnessRecord = freshnessByEdgeId.get(edgeId);
+    output.set(edgeId, {
+      strengths: (strengthsByEdgeId.get(edgeId) ?? []).map((strength) => ({
+        strength_kind: strength.strength_kind,
+        value: strength.value ?? null,
+        unit: strength.unit ?? null,
+        method: strength.method,
+        evidence_id: strength.evidence_id ?? null
+      })),
+      freshness:
+        freshnessRecord === undefined
+          ? null
+          : {
+              last_verified_at: freshnessRecord.last_verified_at,
+              age_days: freshnessRecord.age_days,
+              freshness_score: freshnessRecord.freshness_score,
+              decay_model: freshnessRecord.decay_model
+            },
+      unknowns: unknowns.map(unknownMapItemFromRow)
+    });
+  }
+
+  return output;
+}
+
+function groupByEdgeId<T extends { edge_id: string }>(items: readonly T[]): Map<string, T[]> {
+  const output = new Map<string, T[]>();
+  for (const item of items) {
+    const group = output.get(item.edge_id) ?? [];
+    group.push(item);
+    output.set(item.edge_id, group);
+  }
+  return output;
+}
+
+function companyEdgeFromRow(row: CompanyEdgeRow, intelligenceByEdgeId: ReadonlyMap<string, EdgeIntelligenceSummary>): CompanyCardEdge {
+  const base = { ...row, source_date: row.source_date === null ? null : row.source_date.toISOString() };
+  const intelligence = intelligenceByEdgeId.get(row.edge_id);
+  return intelligence === undefined ? base : { ...base, intelligence };
 }
 
 function componentHeaderFromRow(row: ComponentHeaderRow): ComponentHeader {
@@ -218,9 +289,9 @@ function componentTradeTaxonomyFromCatalog(componentId: string): ComponentCardMo
   };
 }
 
-function toComponentEvidenceEdge(row: ComponentEdgeRow): ComponentEvidenceEdge {
+function toComponentEvidenceEdge(row: ComponentEdgeRow, intelligenceByEdgeId: ReadonlyMap<string, EdgeIntelligenceSummary>): ComponentEvidenceEdge {
   const direction = componentEdgeDirection(row);
-  return {
+  const base = {
     edge_id: row.edge_id,
     relation: row.relation,
     supplier_id: direction.supplier_id,
@@ -235,6 +306,8 @@ function toComponentEvidenceEdge(row: ComponentEdgeRow): ComponentEvidenceEdge {
     source_url: row.source_url,
     source_date: row.source_date === null ? null : row.source_date.toISOString()
   };
+  const intelligence = intelligenceByEdgeId.get(row.edge_id);
+  return intelligence === undefined ? base : { ...base, intelligence };
 }
 
 function componentEdgeDirection(row: ComponentEdgeRow): {
@@ -304,13 +377,76 @@ function summarizeComponentSourceCoverage(edges: readonly ComponentEvidenceEdge[
   };
 }
 
-function observationFromRow(row: ObservationRow): ComponentObservation {
-  return {
-    ...row,
-    time_window_start: row.time_window_start === null ? null : row.time_window_start.toISOString(),
-    time_window_end: row.time_window_end === null ? null : row.time_window_end.toISOString(),
-    created_at: row.created_at.toISOString()
-  };
+async function loadCompanyObservations(client: DbClient, entityId: string): Promise<CompanyObservation[]> {
+  const observations = await listObservationsByScope(client, { scope_kind: "company", scope_id: entityId, limit: 10 });
+  return Promise.all(observations.map((observation) => companyObservationFromRowWithAnomaly(client, observation)));
+}
+
+async function loadComponentObservations(client: DbClient, componentId: string): Promise<ComponentObservation[]> {
+  const observations = await listObservationsByScope(client, { scope_kind: "component", scope_id: componentId, limit: 10 });
+  return Promise.all(observations.map((observation) => componentObservationFromRowWithAnomaly(client, observation)));
+}
+
+async function loadLinkedCompanyObservations(client: DbClient, edges: readonly ComponentEvidenceEdge[]): Promise<ComponentLinkedCompanyObservations[]> {
+  const contexts = linkedCompanyContexts(edges);
+  const output: ComponentLinkedCompanyObservations[] = [];
+  for (const context of contexts) {
+    const observations = await listObservationsByScope(client, {
+      scope_kind: "company",
+      scope_id: context.entity_id,
+      observation_type: "FINANCIAL_METRIC_OBSERVATION",
+      limit: 5
+    });
+    output.push({
+      ...context,
+      observations: await Promise.all(observations.map((observation) => componentObservationFromRowWithAnomaly(client, observation)))
+    });
+  }
+  return output;
+}
+
+function linkedCompanyContexts(edges: readonly ComponentEvidenceEdge[]): Array<Omit<ComponentLinkedCompanyObservations, "observations">> {
+  const byKey = new Map<string, Omit<ComponentLinkedCompanyObservations, "observations">>();
+  for (const edge of edges) {
+    upsertLinkedCompanyContext(byKey, {
+      entity_id: edge.supplier_id,
+      entity_name: edge.supplier_name,
+      role: "supplier",
+      edge_id: edge.edge_id
+    });
+    upsertLinkedCompanyContext(byKey, {
+      entity_id: edge.consumer_id,
+      entity_name: edge.consumer_name,
+      role: "consumer",
+      edge_id: edge.edge_id
+    });
+  }
+  return [...byKey.values()].sort(
+    (left, right) =>
+      roleRank(left.role) - roleRank(right.role) || left.entity_name.localeCompare(right.entity_name) || left.entity_id.localeCompare(right.entity_id)
+  );
+}
+
+function upsertLinkedCompanyContext(
+  byKey: Map<string, Omit<ComponentLinkedCompanyObservations, "observations">>,
+  input: { entity_id: string; entity_name: string; role: ComponentLinkedCompanyObservations["role"]; edge_id: string }
+): void {
+  const key = `${input.role}:${input.entity_id}`;
+  const existing = byKey.get(key);
+  if (existing === undefined) {
+    byKey.set(key, {
+      entity_id: input.entity_id,
+      entity_name: input.entity_name,
+      role: input.role,
+      edge_ids: [input.edge_id]
+    });
+    return;
+  }
+  if (!existing.edge_ids.includes(input.edge_id)) existing.edge_ids.push(input.edge_id);
+}
+
+function roleRank(role: ComponentLinkedCompanyObservations["role"]): number {
+  return role === "supplier" ? 0 : 1;
 }
 
 function unknownMapItemFromRow(row: UnknownItemRow): UnknownMapItem {

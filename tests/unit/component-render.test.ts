@@ -11,11 +11,20 @@ describe("ComponentCard renderer", () => {
     expect(output).toContain("## Known consumers");
     expect(output).toContain("NVIDIA [ENT-NVIDIA]");
     expect(output).toContain("SK Hynix -> NVIDIA via BUYS_FROM");
+    expect(output).toContain("Intelligence: dependency=1 dependency_index; freshness 0.85");
     expect(output).toContain("## Trade and material taxonomy");
     expect(output).toContain("HS 854232");
     expect(output).toContain("Proxy only: yes");
     expect(output).toContain("## Related observations");
     expect(output).toContain("INVENTORY_OBSERVATION: inventory_days");
+    expect(output).toContain("Anomaly: within baseline; change 5.00% vs baseline");
+    expect(output).toContain("## Linked company financial signals");
+    expect(output).toContain("Micron [ENT-MICRON] as supplier");
+    expect(output).toContain("revenue: 30391000000 USD");
+    expect(output).toContain("Change: 260.08% vs baseline 8440000000; delta 21951000000");
+    expect(output).toContain("## Risk baseline");
+    expect(output).toContain("supplier_concentration_hhi: unknown");
+    expect(output).toContain("Share unknown: yes");
     expect(output).toContain("Exact allocation by HBM generation");
   });
 
@@ -26,7 +35,9 @@ describe("ComponentCard renderer", () => {
       known_suppliers: unknown[];
       evidence_edges: unknown[];
       trade_taxonomy: { hs_codes: unknown[]; materials: unknown[] };
-      related_observations: unknown[];
+      related_observations: Array<{ anomaly: { is_anomaly: boolean } | null }>;
+      linked_company_observations: Array<{ entity_id: string; observations: unknown[] }>;
+      risk_view: { risk_view_id: string; metrics: unknown[] } | null;
     };
 
     expect(parsed.schema_version).toBe("1.0.0");
@@ -35,6 +46,11 @@ describe("ComponentCard renderer", () => {
     expect(parsed.evidence_edges).toHaveLength(1);
     expect(parsed.trade_taxonomy.hs_codes).toHaveLength(1);
     expect(parsed.related_observations).toHaveLength(1);
+    expect(parsed.related_observations[0]?.anomaly?.is_anomaly).toBe(false);
+    expect(parsed.linked_company_observations).toHaveLength(1);
+    expect(parsed.linked_company_observations[0]?.entity_id).toBe("ENT-MICRON");
+    expect(parsed.linked_company_observations[0]?.observations).toHaveLength(1);
+    expect(parsed.risk_view?.metrics).toHaveLength(1);
   });
 });
 
@@ -80,7 +96,25 @@ function componentCardFixture(): ComponentCardModel {
         primary_evidence_id: "EV-1",
         cite_text: "We purchase memory from SK Hynix.",
         source_url: "https://example.com/10k",
-        source_date: "2026-02-25T00:00:00.000Z"
+        source_date: "2026-02-25T00:00:00.000Z",
+        intelligence: {
+          strengths: [
+            {
+              strength_kind: "dependency",
+              value: "1",
+              unit: "dependency_index",
+              method: "intelligence-refresh.dependency-text.v1",
+              evidence_id: "EV-1"
+            }
+          ],
+          freshness: {
+            last_verified_at: "2026-02-25T00:00:00.000Z",
+            age_days: 200,
+            freshness_score: 0.85,
+            decay_model: "methodology.v1"
+          },
+          unknowns: []
+        }
       }
     ],
     source_coverage: {
@@ -132,9 +166,90 @@ function componentCardFixture(): ComponentCardModel {
         confidence: 0.7,
         provenance: { fixture: true },
         attrs: {},
+        anomaly: {
+          risk_view_id: "RSK-OBS-1",
+          model_version: "observation-anomaly-baseline.v1",
+          generated_at: "2026-05-19T00:00:00.000Z",
+          metric_id: "RKM-OBS-1",
+          is_anomaly: false,
+          severity: "none",
+          direction: "increase",
+          change_percent: 5,
+          threshold_percent: 25,
+          method: "observation-anomaly.baseline-change-percent.v1"
+        },
         created_at: "2026-02-25T00:00:00.000Z"
       }
     ],
+    linked_company_observations: [
+      {
+        entity_id: "ENT-MICRON",
+        entity_name: "Micron",
+        role: "supplier",
+        edge_ids: ["EDGE-1"],
+        observations: [
+          {
+            observation_id: "OBS-FIN-1",
+            observation_type: "FINANCIAL_METRIC_OBSERVATION",
+            source_adapter_id: "sec-edgar",
+            source_item_id: "SRCITEM-1",
+            doc_id: "DOC-MICRON",
+            scope_kind: "company",
+            scope_id: "ENT-MICRON",
+            geography_kind: null,
+            geography_id: null,
+            component_id: null,
+            metric_name: "revenue",
+            metric_value: "30391000000",
+            metric_unit: "USD",
+            time_window_start: "2024-08-30T00:00:00.000Z",
+            time_window_end: "2025-08-28T00:00:00.000Z",
+            baseline_value: "8440000000",
+            change_value: "21951000000",
+            change_percent: 260.082938,
+            confidence: 0.9,
+            provenance: { accession: "0000723125-25-000064", xbrl_tag: "Revenues" },
+            attrs: { semantic_layer: "observation" },
+            anomaly: {
+              risk_view_id: "RSK-OBS-FIN-1",
+              model_version: "observation-anomaly-baseline.v2",
+              generated_at: "2026-05-19T00:00:00.000Z",
+              metric_id: "RKM-OBS-FIN-1",
+              is_anomaly: true,
+              severity: "critical",
+              direction: "increase",
+              change_percent: 260.082938,
+              threshold_percent: 25,
+              baseline_method: "explicit_baseline",
+              baseline_value: "8440000000",
+              method: "observation-anomaly.baseline-change-percent.v1"
+            },
+            created_at: "2026-05-19T00:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    risk_view: {
+      risk_view_id: "RSK-COMP-1",
+      generated_at: "2026-05-19T00:00:00.000Z",
+      model_version: "component-risk-baseline.v1",
+      inputs_fingerprint: "0123456789abcdef",
+      summary: { share_unknown: true },
+      attrs: { experimental: true },
+      metrics: [
+        {
+          metric_id: "RKM-1",
+          metric_kind: "supplier_concentration_hhi",
+          subject_kind: "component",
+          subject_id: "COMP-MEMORY",
+          component_id: "COMP-MEMORY",
+          value: null,
+          confidence: 0,
+          provenance: { input_edges: ["EDGE-1"] },
+          attrs: { share_unknown: true, missing_share_edge_ids: ["EDGE-1"] }
+        }
+      ]
+    },
     unknown_map: [
       {
         unknown_id: "UNK-1",

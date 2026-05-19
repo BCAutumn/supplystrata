@@ -1,11 +1,18 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   assertValidSourceManagementConfig,
+  buildSourceCheckTargetIdsFromPlan,
   buildSourceManagementCatalog,
+  buildSourcePolicyConfigFromPlanTargets,
+  parseManagedSourcePlanDocument,
   validateSourceManagementConfig,
   type SourceManagementConfig
 } from "@supplystrata/source-management";
 import type { SourceCheckConnectorCapability } from "@supplystrata/source-connectors";
+import { parseSourcePolicyConfig } from "@supplystrata/source-monitor";
+import { planSourcesForComponents } from "@supplystrata/source-plan";
+import { listRegisteredSourceCheckConnectorCapabilities } from "@supplystrata/source-workflows";
 
 const CONNECTORS: SourceCheckConnectorCapability[] = [
   {
@@ -144,6 +151,110 @@ describe("source-management", () => {
       expect.objectContaining({
         code: "SOURCE_REQUIRES_KEY",
         source_adapter_id: "osh"
+      })
+    ]);
+  });
+
+  it("keeps the example source policy runnable and covers five SEC company facts targets", () => {
+    const config = parseSourcePolicyConfig(readFileSync(new URL("../../config/source-policies.example.json", import.meta.url), "utf8"));
+    const result = assertValidSourceManagementConfig(config, {
+      connector_capabilities: listRegisteredSourceCheckConnectorCapabilities()
+    });
+    const companyFactTargets = config.check_targets.filter((target) => target.source_adapter_id === "sec-edgar" && target.target_kind === "sec-company-facts");
+
+    expect(result.errors).toEqual([]);
+    expect(companyFactTargets.map((target) => target.subject_entity_id).sort()).toEqual(["ENT-AMD", "ENT-INTEL", "ENT-MICRON", "ENT-MICROSOFT", "ENT-NVIDIA"]);
+    expect(companyFactTargets.every((target) => target.enabled && target.target_config["max_periods"] === 12)).toBe(true);
+  });
+
+  it("turns runnable research source-plan suggestions into disabled monitor targets by default", () => {
+    const sourcePlan = planSourcesForComponents({
+      component_ids: ["COMP-MEMORY"],
+      maxTierDepth: 3,
+      officialDisclosureYear: "2025"
+    });
+
+    const config = buildSourcePolicyConfigFromPlanTargets({
+      source_plan: sourcePlan,
+      namespace: "NVIDIA Memory 2025"
+    });
+
+    expect(config.policies).toEqual([]);
+    expect(config.check_targets.map((target) => target.source_adapter_id).sort()).toEqual(["samsung-ir", "skhynix-ir"]);
+    expect(config.check_targets.every((target) => target.enabled === false)).toBe(true);
+    expect(buildSourceCheckTargetIdsFromPlan({ source_plan: sourcePlan, namespace: "NVIDIA Memory 2025" })).toEqual(
+      config.check_targets.map((target) => target.check_target_id)
+    );
+    expect(config.check_targets.every((target) => target.check_target_id.startsWith("plan:nvidia-memory-2025:"))).toBe(true);
+    expect(config.check_targets.find((target) => target.source_adapter_id === "samsung-ir")).toEqual(
+      expect.objectContaining({
+        target_kind: "official-html-disclosure",
+        priority: 10,
+        subject_entity_id: "ENT-SAMSUNG-ELECTRONICS",
+        target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 }
+      })
+    );
+    expect(assertValidSourceManagementConfig(config, { connector_capabilities: listRegisteredSourceCheckConnectorCapabilities() }).errors).toEqual([]);
+  });
+
+  it("parses source-plan JSON and preserves explicit scheduling overrides for generated monitor targets", () => {
+    const document = parseManagedSourcePlanDocument(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        source_plan: [
+          {
+            source_id: "census-trade",
+            priority: "P1",
+            reasons: ["COMP-MEMORY has HS proxy coverage"],
+            suggested_check_targets: [
+              {
+                source_adapter_id: "census-trade",
+                target_kind: "trade-flow-observation",
+                runnable: true,
+                target_config: {
+                  direction: "imports",
+                  time: "2025-12",
+                  commodity_code: "854232",
+                  component_id: "COMP-MEMORY",
+                  scope_kind: "component",
+                  scope_id: "COMP-MEMORY"
+                },
+                reason: "COMP-MEMORY uses HS 854232 as an observation-only trade proxy"
+              }
+            ]
+          }
+        ]
+      })
+    );
+
+    const config = buildSourcePolicyConfigFromPlanTargets({
+      source_plan: document.source_plan,
+      namespace: "memory-trade",
+      enabled: true,
+      next_check_at: "2026-01-01T00:00:00Z",
+      check_cadence_minutes: 1440,
+      jitter_minutes: 60,
+      max_attempts: 4
+    });
+
+    expect(config.check_targets).toEqual([
+      expect.objectContaining({
+        source_adapter_id: "census-trade",
+        target_kind: "trade-flow-observation",
+        enabled: true,
+        priority: 30,
+        next_check_at: "2026-01-01T00:00:00.000Z",
+        check_cadence_minutes: 1440,
+        jitter_minutes: 60,
+        max_attempts: 4,
+        target_config: {
+          commodity_code: "854232",
+          component_id: "COMP-MEMORY",
+          direction: "imports",
+          scope_id: "COMP-MEMORY",
+          scope_kind: "component",
+          time: "2025-12"
+        }
       })
     ]);
   });

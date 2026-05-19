@@ -92,7 +92,41 @@ export const EDGE_FRESHNESS_DECAY_MODELS = ["methodology.v1"] as const;
 
 export type EdgeFreshnessDecayModel = (typeof EDGE_FRESHNESS_DECAY_MODELS)[number];
 
+export const RISK_METRIC_KINDS = [
+  "supplier_concentration_hhi",
+  "single_source_exposure",
+  "path_redundancy",
+  "node_knockout_reach",
+  "node_knockout_weighted_impact",
+  "betweenness_centrality",
+  "freshness_adjusted_exposure",
+  "observation_anomaly",
+  "financial_metric_peer_zscore"
+] as const;
+
+export type RiskMetricKind = (typeof RISK_METRIC_KINDS)[number];
+
+export const ALERT_KINDS = ["observation_anomaly", "source_failure", "component_risk"] as const;
+
+export type AlertKind = (typeof ALERT_KINDS)[number];
+
+export const EDGE_CALIBRATION_LABELS = ["correct", "incorrect", "uncertain"] as const;
+
+export type EdgeCalibrationLabel = (typeof EDGE_CALIBRATION_LABELS)[number];
+
+export const EDGE_CALIBRATION_ERROR_CATEGORIES = [
+  "extraction_error",
+  "entity_resolution_error",
+  "source_error",
+  "staleness_error",
+  "semantic_misread",
+  "other"
+] as const;
+
+export type EdgeCalibrationErrorCategory = (typeof EDGE_CALIBRATION_ERROR_CATEGORIES)[number];
+
 export const OBSERVATION_TYPES = [
+  "FINANCIAL_METRIC_OBSERVATION",
   "TRADE_FLOW_OBSERVATION",
   "PORT_ACTIVITY_OBSERVATION",
   "ROUTE_OBSERVATION",

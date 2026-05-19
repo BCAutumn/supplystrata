@@ -77,15 +77,21 @@ pnpm --silent cli sources due --format markdown
 pnpm --silent cli sources check --source sec-edgar --cik 0001045810 --entity ENT-NVIDIA --forms 10-Q,8-K --limit 3
 pnpm --silent cli sources policy sync --file config/source-policies.example.json
 pnpm --silent cli sources run-due --limit 5 --format markdown
+pnpm --silent worker --once --limit 5
+pnpm --silent worker --interval-ms 60000 --limit 10
 ```
 
 `@supplystrata/source-monitor` 是唯一允许计算 source item change type 和 source policy cadence 的包；pipeline 只调用它，不在各 adapter 里自己判断“新/旧/变化”。
 
 `sources check` 是当前 monitoring 的单目标执行入口：它运行 source adapter 的 `plan/fetch/normalize`，保存文档，记录 source event，并抽取 observation；它不会自动写 graph edge。
 
-`sources run-due` 是调度入口：它读取 `source_check_targets` 中已经到期的目标，并通过 `@supplystrata/source-connectors` 的 connector registry 分发到对应 runner。当前已注册 `sec-edgar / sec-company-filings`，`tsmc-ir`、`samsung-ir`、`skhynix-ir`、`asml-ir` 的 `official-html-disclosure`，`census-trade / trade-flow-observation`，以及 `osh / facility-search`。监控目标和 cadence 分离后，同一个 adapter 可以同时监控 NVIDIA、AMD、Apple、Tesla 等不同公司、不同组件或不同设施查询，而一次成功或失败只推进对应 target 的 `next_check_at`，不会误跳过同源下的其它目标。新增免费源时应新增 connector，不在 `run-due` 主循环里继续加 source-specific 分支。
+`sources run-due` 是调度入口：它读取 `source_check_targets` 中已经到期的目标，先写入 `source_check_jobs`，再 claim due job，并通过 `@supplystrata/source-connectors` 的 connector registry 分发到对应 runner。当前已注册 `sec-edgar / sec-company-filings`，`tsmc-ir`、`samsung-ir`、`skhynix-ir`、`asml-ir` 的 `official-html-disclosure`，`census-trade / trade-flow-observation`，以及 `osh / facility-search`。监控目标和 cadence 分离后，同一个 adapter 可以同时监控 NVIDIA、AMD、Apple、Tesla 等不同公司、不同组件或不同设施查询，而一次成功或失败只推进对应 target 的 `next_check_at`，不会误跳过同源下的其它目标。失败 job 会进入 `failed` 并按 backoff 重试，超过 `max_attempts` 进入 `dead`，后续真正 worker loop 会复用同一套 claim/mark 语义。新增免费源时应新增 connector，不在 `run-due` 主循环里继续加 source-specific 分支。
 
 `sources catalog` 是配置前的统一管理视图：它把 source registry 与已注册 connector 能力、`target_config` 字段契约合并展示，不需要数据库。外部 `sources policy sync --file ...` 在写库前会用同一套校验拦截不存在的 source、不可运行的 target kind、字段错误的 target_config 和 manual-only 自动化配置。这样用户自由配置数据源时，错误会停在管理层，而不是进入调度表后才失败。
+
+持续监控参数只从外部 source policy config 进入：source 级 `policies[]` 提供默认 cadence、jitter、priority、`next_check_at`、max attempts 和 backoff；target 级 `check_targets[]` 可以覆盖这些参数。运行时 enqueue job 使用 target 覆盖后的有效值，worker/CLI 不再单独接收重试策略参数，避免同一目标在不同入口表现不一致。
+
+`pnpm worker` 是常驻 source-check worker 入口。它只负责循环、退出信号和每轮 claim 数量；每轮实际执行仍调用 `source-workflows.runDueSourceChecks()`，因此与 `sources run-due` 共用同一套 durable job、connector、retry/backoff 和 dead-letter 语义。生产环境应优先运行 worker；CLI `sources run-due` 保留为手工排查和一次性运维入口。
 
 `census-trade` 是第一条宏观贸易观测 connector：它需要 `CENSUS_API_KEY`，保存 `trade_dataset` 文档，并把 HS code 月度进口/出口值写成 `TRADE_FLOW_OBSERVATION`。它不会写 `edges`，也不会把国家-商品流量推断成公司-公司关系。
 
@@ -94,6 +100,10 @@ pnpm --silent cli sources run-due --limit 5 --format markdown
 当同一个 source item 的官方披露文档内容变化时，pipeline 会对固定语义 section 做 fingerprint diff，并写入 `CUSTOMER_CONCENTRATION_CHANGED`、`INVENTORY_CHANGED`、`BACKLOG_CHANGED`、`CAPEX_CHANGED`、`PROCUREMENT_CHANGED` 或对应 `*_SECTION_ADDED / *_SECTION_REMOVED`。这不是自然语言报告 diff，而是可复现的披露信号 diff。
 
 同一条 source check 还会对规则抽取出的候选关系做 fingerprint diff，写入 `SUPPLIER_RELATION_ADDED / REMOVED`、`CUSTOMER_RELATION_ADDED / REMOVED`、`FOUNDRY_RELATION_ADDED / REMOVED`。采购义务、产能预留、单一供应商风险会进一步拆成 `PURCHASE_OBLIGATION_*`、`CAPACITY_RESERVATION_*`、`SINGLE_SOURCE_RISK_*`。这些事件属于 semantic layer：用于提醒研究员“披露里的关系候选变了”，不会绕过 review/scoring 直接写 graph fact edge。每条 relation semantic change 会同步进入 `review_candidates(kind='semantic_change')`；approve/apply 只是 acknowledge 这次变化，不会生成事实边。
+
+`refreshComponentRiskView()` 还会把新版 component risk view 与上一版指标做稳定 key 对比；超过阈值的派生指标变化写成 `RISK_METRIC_CHANGED`，在 changes timeline 中归为 risk family。它只用于监控和审计 risk 派生层变化，不会修改 fact edge 或 evidence level。
+
+人工校准样本通过 `intelligence calibration-label` 进入 `edge_calibration_labels`；`intelligence calibration-run` 会输出 Level 4/5 fact edge precision、confidence reliability buckets 和错误分类汇总。这个结果用于观察 evidence scoring 是否可靠，不会自动修边，也不会自动改 evidence level。
 
 ```sql
 CREATE VIEW v_pipeline_stats AS

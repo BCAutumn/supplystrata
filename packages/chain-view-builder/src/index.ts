@@ -275,6 +275,7 @@ async function loadContextSegments(
   const componentLeads = componentUpstreamLeadSegments(input.rows, input.maxDepth);
   const leads = await listLeadObservationsByScope(client, { scope_kind: "company", scope_id: input.root.id, status: "open", limit: 10 });
   const unknowns = await listUnknownItems(client, input.root.id);
+  const edgeUnknowns = await loadEdgeUnknowns(client, input.rows);
   const segments: ChainViewSegmentModel[] = [];
   let sequenceIndex = input.sequenceStart;
   for (const observation of [...rootObservations, ...componentObservations]) {
@@ -293,7 +294,21 @@ async function loadContextSegments(
     segments.push(segmentFromUnknown(unknown, { root: input.root, sequence_index: sequenceIndex }));
     sequenceIndex += 1;
   }
+  for (const unknown of edgeUnknowns) {
+    segments.push(segmentFromUnknown(unknown, { root: input.root, sequence_index: sequenceIndex }));
+    sequenceIndex += 1;
+  }
   return segments;
+}
+
+async function loadEdgeUnknowns(client: DbClient, rows: readonly ChainFactRow[]): Promise<UnknownItemRow[]> {
+  const byUnknownId = new Map<string, UnknownItemRow>();
+  for (const edgeId of [...new Set(rows.map((row) => row.edge_id))].sort()) {
+    for (const unknown of await listUnknownItems(client, edgeId)) {
+      byUnknownId.set(unknown.unknown_id, unknown);
+    }
+  }
+  return [...byUnknownId.values()];
 }
 
 function componentUpstreamLeadSegments(rows: readonly ChainFactRow[], maxDepth: number): ChainViewSegmentModel[] {

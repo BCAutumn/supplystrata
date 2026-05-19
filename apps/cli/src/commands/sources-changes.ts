@@ -9,14 +9,22 @@ import {
   type DueSourceCheckRunResult,
   type SourceCheckSummary
 } from "@supplystrata/source-workflows";
-import { assertValidSourceManagementConfig, buildSourceManagementCatalog } from "@supplystrata/source-management";
+import {
+  assertValidSourceManagementConfig,
+  buildSourceCheckTargetIdsFromPlan,
+  buildSourceManagementCatalog,
+  buildSourcePolicyConfigFromPlanTargets,
+  parseManagedSourcePlanDocument
+} from "@supplystrata/source-management";
 import { renderChangeTimelineItems } from "@supplystrata/render";
 import {
   listDueSourceChecks,
   listSourceHealthRows,
   parseSourcePolicyConfig,
+  enableSourceCheckTargets,
   syncSourceHealthRegistry,
-  syncSourcePolicyConfig
+  syncSourcePolicyConfig,
+  type SourcePolicyConfig
 } from "@supplystrata/source-monitor";
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
@@ -86,22 +94,32 @@ export function registerSourcesAndChangesCommands(program: Command): void {
   sources
     .command("due")
     .option("--limit <count>", "max due sources", "50")
+    .option("--check-target-id <ids>", "comma-separated source_check_targets ids to include")
+    .option("--source <ids>", "comma-separated source adapter ids to include")
+    .option("--source-plan <path>", "research-pack source-plan.json; requires --namespace")
+    .option("--namespace <name>", "stable namespace used with --source-plan")
     .option("--format <format>", "markdown or json", "markdown")
     .description("list sources whose configured check time is due")
-    .action(async (options: { limit: string; format: string }) => {
+    .action(async (options: { limit: string; checkTargetId?: string; source?: string; sourcePlan?: string; namespace?: string; format: string }) => {
       await withDatabase(async (pool) => {
-        const due = await listDueSourceChecks(pool, { limit: parseLimit(options.limit) });
+        const selection = await buildSourceCheckSelectionOptions(options);
+        const due = await listDueSourceChecks(pool, { limit: parseLimit(options.limit), ...selection });
         write(renderDueSources(due, parseFormat(options.format)));
       });
     });
   sources
     .command("run-due")
     .option("--limit <count>", "max due source targets to run", "10")
+    .option("--check-target-id <ids>", "comma-separated source_check_targets ids to include")
+    .option("--source <ids>", "comma-separated source adapter ids to include")
+    .option("--source-plan <path>", "research-pack source-plan.json; requires --namespace")
+    .option("--namespace <name>", "stable namespace used with --source-plan")
     .option("--format <format>", "markdown or json", "markdown")
     .description("run due source check targets and record monitoring events")
-    .action(async (options: { limit: string; format: string }) => {
+    .action(async (options: { limit: string; checkTargetId?: string; source?: string; sourcePlan?: string; namespace?: string; format: string }) => {
       await withDatabase(async (pool) => {
-        const result = await runDueSourceChecks(pool, { limit: parseLimit(options.limit) });
+        const selection = await buildSourceCheckSelectionOptions(options);
+        const result = await runDueSourceChecks(pool, { limit: parseLimit(options.limit), ...selection });
         if (parseFormat(options.format) === "json") {
           writeJson({ schema_version: "1.0.0", ...result });
           return;
@@ -168,6 +186,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .option("--trade-directions <directions>", "comma-separated trade directions for target suggestions", "imports,exports")
     .option("--material-year <yyyy>", "also emit annual material observation target suggestions for USGS/IEA-style sources")
     .option("--commodity-month <yyyy-mm>", "also emit monthly commodity price observation target suggestions for World Bank-style sources")
+    .option("--official-year <yyyy>", "also emit official IR disclosure target suggestions for this year")
     .option("--format <format>", "markdown or json", "markdown")
     .description("plan free/public data sources for component upstream research")
     .action(
@@ -180,6 +199,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         tradeDirections: string;
         materialYear?: string;
         commodityMonth?: string;
+        officialYear?: string;
         format: string;
       }) => {
         const componentIds = parseComponentIds(options.component);
@@ -196,7 +216,8 @@ export function registerSourcesAndChangesCommands(program: Command): void {
                 tradeObservationDirections: parseTradeDirections(options.tradeDirections)
               }),
           ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
-          ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth })
+          ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
+          ...(options.officialYear === undefined ? {} : { officialDisclosureYear: options.officialYear })
         });
         write(renderSourcePlan(plan, parseFormat(options.format)));
       }
@@ -217,6 +238,120 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         writeJson({ ok: true, validation_warnings: validation.warnings, ...result });
       });
     });
+  sourcePolicy
+    .command("sync-plan-targets")
+    .requiredOption("--source-plan <path>", "research-pack source-plan.json")
+    .requiredOption("--namespace <name>", "stable namespace for generated check_target_id values, e.g. nvidia-memory-2025")
+    .option("--enable", "enable generated targets immediately", false)
+    .option("--next-check-at <iso>", "optional initial next_check_at for generated targets")
+    .option("--check-cadence-minutes <minutes>", "optional target-level cadence override")
+    .option("--jitter-minutes <minutes>", "optional target-level jitter override")
+    .option("--max-attempts <count>", "optional target-level retry limit")
+    .option("--backoff-base-minutes <minutes>", "optional target-level retry backoff base")
+    .option("--backoff-max-minutes <minutes>", "optional target-level retry backoff max")
+    .description("sync runnable target suggestions from a research-pack source-plan into source_check_targets")
+    .action(
+      async (options: {
+        sourcePlan: string;
+        namespace: string;
+        enable: boolean;
+        nextCheckAt?: string;
+        checkCadenceMinutes?: string;
+        jitterMinutes?: string;
+        maxAttempts?: string;
+        backoffBaseMinutes?: string;
+        backoffMaxMinutes?: string;
+      }) => {
+        const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
+        const config = buildSourcePolicyConfigFromPlanTargets({
+          source_plan: sourcePlanDocument.source_plan,
+          namespace: options.namespace,
+          enabled: options.enable,
+          ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
+          ...(options.checkCadenceMinutes === undefined
+            ? {}
+            : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
+          ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
+          ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
+          ...(options.backoffBaseMinutes === undefined
+            ? {}
+            : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
+          ...(options.backoffMaxMinutes === undefined
+            ? {}
+            : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") })
+        });
+        await withDatabase(async (pool) => {
+          const validation = assertValidSourceManagementConfig(config, {
+            connector_capabilities: listRegisteredSourceCheckConnectorCapabilities()
+          });
+          const sourcePolicyConfig: SourcePolicyConfig = {
+            schema_version: "1.0.0",
+            policies: [],
+            check_targets: [...config.check_targets]
+          };
+          const result = await syncSourcePolicyConfig(pool, { config: sourcePolicyConfig, configSource: options.sourcePlan });
+          writeJson({
+            ok: true,
+            schema_version: "1.0.0",
+            generated_targets: config.check_targets.length,
+            enabled_targets: config.check_targets.filter((target) => target.enabled).length,
+            validation_warnings: validation.warnings,
+            ...result
+          });
+        });
+      }
+    );
+  sourcePolicy
+    .command("enable-plan-targets")
+    .requiredOption("--source-plan <path>", "research-pack source-plan.json")
+    .requiredOption("--namespace <name>", "stable namespace used when the plan targets were synced")
+    .option("--next-check-at <iso>", "optional target-level initial next_check_at")
+    .option("--check-cadence-minutes <minutes>", "optional target-level cadence override")
+    .option("--jitter-minutes <minutes>", "optional target-level jitter override")
+    .option("--max-attempts <count>", "optional target-level retry limit")
+    .option("--backoff-base-minutes <minutes>", "optional target-level retry backoff base")
+    .option("--backoff-max-minutes <minutes>", "optional target-level retry backoff max")
+    .option("--notes <text>", "optional notes written to enabled targets")
+    .description("enable already-synced runnable targets from a research-pack source-plan")
+    .action(
+      async (options: {
+        sourcePlan: string;
+        namespace: string;
+        nextCheckAt?: string;
+        checkCadenceMinutes?: string;
+        jitterMinutes?: string;
+        maxAttempts?: string;
+        backoffBaseMinutes?: string;
+        backoffMaxMinutes?: string;
+        notes?: string;
+      }) => {
+        const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
+        const checkTargetIds = buildSourceCheckTargetIdsFromPlan({
+          source_plan: sourcePlanDocument.source_plan,
+          namespace: options.namespace
+        });
+        await withDatabase(async (pool) => {
+          const result = await enableSourceCheckTargets(pool, {
+            check_target_ids: checkTargetIds,
+            config_source: options.sourcePlan,
+            ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
+            ...(options.checkCadenceMinutes === undefined
+              ? {}
+              : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
+            ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
+            ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
+            ...(options.backoffBaseMinutes === undefined
+              ? {}
+              : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
+            ...(options.backoffMaxMinutes === undefined
+              ? {}
+              : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") }),
+            ...(options.notes === undefined ? {} : { notes: options.notes })
+          });
+          writeJson({ ok: true, schema_version: "1.0.0", ...result });
+        });
+      }
+    );
 
   program
     .command("changes")
@@ -266,6 +401,38 @@ function parseTradeDirections(value: string): ("imports" | "exports")[] {
     unique.push(direction);
   }
   return unique.sort();
+}
+
+async function buildSourceCheckSelectionOptions(options: {
+  checkTargetId?: string;
+  source?: string;
+  sourcePlan?: string;
+  namespace?: string;
+}): Promise<{ check_target_ids?: string[]; source_adapter_ids?: string[] }> {
+  const directCheckTargetIds = options.checkTargetId === undefined ? [] : parseCommaSeparated(options.checkTargetId);
+  const planCheckTargetIds =
+    options.sourcePlan === undefined
+      ? []
+      : buildSourceCheckTargetIdsFromPlan({
+          source_plan: await readSourcePlanDocument(options.sourcePlan),
+          namespace: requireNamespace(options)
+        });
+  const checkTargetIds = [...new Set([...directCheckTargetIds, ...planCheckTargetIds])].sort();
+  const sourceAdapterIds = options.source === undefined ? [] : parseCommaSeparated(options.source).sort();
+  if (options.sourcePlan === undefined && options.namespace !== undefined) throw new Error("--namespace requires --source-plan");
+  return {
+    ...(checkTargetIds.length === 0 ? {} : { check_target_ids: checkTargetIds }),
+    ...(sourceAdapterIds.length === 0 ? {} : { source_adapter_ids: sourceAdapterIds })
+  };
+}
+
+async function readSourcePlanDocument(sourcePlanPath: string): Promise<ReturnType<typeof parseManagedSourcePlanDocument>["source_plan"]> {
+  return parseManagedSourcePlanDocument(await readFile(sourcePlanPath, "utf8")).source_plan;
+}
+
+function requireNamespace(options: { namespace?: string }): string {
+  if (options.namespace === undefined) throw new Error("--source-plan requires --namespace");
+  return options.namespace;
 }
 
 function renderSourceCheckSummary(sourceAdapterId: string, summaries: readonly SourceCheckSummary[]): string {
@@ -321,11 +488,41 @@ function parseCommaSeparated(value: string): string[] {
   return [...new Set(items)];
 }
 
+function parseOptionalPositiveInteger(value: string, label: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${label} must be a positive integer`);
+  return parsed;
+}
+
+function parseOptionalNonNegativeInteger(value: string, label: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} must be a non-negative integer`);
+  return parsed;
+}
+
+function parseIsoDateTime(value: string, label: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`${label} must be an ISO date/time string`);
+  return parsed.toISOString();
+}
+
 function renderDueSourceCheckRun(result: DueSourceCheckRunResult): string {
-  const lines = ["# Due Source Check Run", "", `Due targets: ${result.due_targets}`, `Checked targets: ${result.checked_targets}`];
+  const lines = [
+    "# Due Source Check Run",
+    "",
+    `Due targets: ${result.due_targets}`,
+    `Enqueued jobs: ${result.enqueued_jobs}`,
+    `Skipped active jobs: ${result.skipped_active_jobs}`,
+    `Claimed jobs: ${result.claimed_jobs}`,
+    `Checked targets: ${result.checked_targets}`,
+    `Failed targets: ${result.failed_targets}`,
+    `Dead jobs: ${result.dead_jobs}`
+  ];
   for (const item of result.items) {
     lines.push("", `- ${item.check_target_id} (${item.source_adapter_id})`);
-    lines.push(`  Kind: ${item.target_kind}; subject: ${item.subject_entity_id ?? "n/a"}`);
+    lines.push(`  Kind: ${item.target_kind}; subject: ${item.subject_entity_id ?? "n/a"}; status: ${item.status}`);
+    if (item.job_id !== undefined) lines.push(`  Job: ${item.job_id}`);
+    if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
     lines.push(`  Documents checked: ${item.checked_documents}`);
     for (const summary of item.summaries) {
       lines.push(

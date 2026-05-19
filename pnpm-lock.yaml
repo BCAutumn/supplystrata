@@ -142,6 +142,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/workbench-export
 
+  apps/worker:
+    dependencies:
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@supplystrata/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@supplystrata/source-workflows':
+        specifier: workspace:*
+        version: link:../../packages/source-workflows
+
   packages/card-builder:
     dependencies:
       '@supplystrata/chain-view':
@@ -488,9 +500,18 @@ importers:
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../db
+      '@supplystrata/evidence-maintenance':
+        specifier: workspace:*
+        version: link:../evidence-maintenance
       '@supplystrata/render':
         specifier: workspace:*
         version: link:../render
+      '@supplystrata/source-management':
+        specifier: workspace:*
+        version: link:../source-management
+      '@supplystrata/source-monitor':
+        specifier: workspace:*
+        version: link:../source-monitor
       '@supplystrata/source-plan':
         specifier: workspace:*
         version: link:../source-plan
@@ -644,6 +665,9 @@ importers:
       '@supplystrata/signal-extractor':
         specifier: workspace:*
         version: link:../signal-extractor
+      '@supplystrata/source-adapter-runtime':
+        specifier: workspace:*
+        version: link:../source-adapter-runtime
       '@supplystrata/source-adapter-spec':
         specifier: workspace:*
         version: link:../source-adapter-spec
@@ -653,12 +677,12 @@ importers:
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../source-normalizers
       '@supplystrata/sources-apple-suppliers':
         specifier: workspace:*
         version: link:../sources/apple-suppliers
-      '@supplystrata/sources-asml-ir':
-        specifier: workspace:*
-        version: link:../sources/asml-ir
       '@supplystrata/sources-census-trade':
         specifier: workspace:*
         version: link:../sources/census-trade
@@ -671,18 +695,9 @@ importers:
       '@supplystrata/sources-osh':
         specifier: workspace:*
         version: link:../sources/osh
-      '@supplystrata/sources-samsung-ir':
-        specifier: workspace:*
-        version: link:../sources/samsung-ir
       '@supplystrata/sources-sec-edgar':
         specifier: workspace:*
         version: link:../sources/sec-edgar
-      '@supplystrata/sources-skhynix-ir':
-        specifier: workspace:*
-        version: link:../sources/skhynix-ir
-      '@supplystrata/sources-tsmc-ir':
-        specifier: workspace:*
-        version: link:../sources/tsmc-ir
       '@supplystrata/sources-worldbank-pink':
         specifier: workspace:*
         version: link:../sources/worldbank-pink
@@ -704,21 +719,6 @@ importers:
       '@supplystrata/supplier-list':
         specifier: workspace:*
         version: link:../../supplier-list
-
-  packages/sources/asml-ir:
-    dependencies:
-      '@supplystrata/config':
-        specifier: workspace:*
-        version: link:../../config
-      '@supplystrata/core':
-        specifier: workspace:*
-        version: link:../../core
-      '@supplystrata/source-adapter-runtime':
-        specifier: workspace:*
-        version: link:../../source-adapter-runtime
-      '@supplystrata/source-normalizers':
-        specifier: workspace:*
-        version: link:../../source-normalizers
 
   packages/sources/census-trade:
     dependencies:
@@ -786,52 +786,7 @@ importers:
         specifier: workspace:*
         version: link:../../source-normalizers
 
-  packages/sources/samsung-ir:
-    dependencies:
-      '@supplystrata/config':
-        specifier: workspace:*
-        version: link:../../config
-      '@supplystrata/core':
-        specifier: workspace:*
-        version: link:../../core
-      '@supplystrata/source-adapter-runtime':
-        specifier: workspace:*
-        version: link:../../source-adapter-runtime
-      '@supplystrata/source-normalizers':
-        specifier: workspace:*
-        version: link:../../source-normalizers
-
   packages/sources/sec-edgar:
-    dependencies:
-      '@supplystrata/config':
-        specifier: workspace:*
-        version: link:../../config
-      '@supplystrata/core':
-        specifier: workspace:*
-        version: link:../../core
-      '@supplystrata/source-adapter-runtime':
-        specifier: workspace:*
-        version: link:../../source-adapter-runtime
-      '@supplystrata/source-normalizers':
-        specifier: workspace:*
-        version: link:../../source-normalizers
-
-  packages/sources/skhynix-ir:
-    dependencies:
-      '@supplystrata/config':
-        specifier: workspace:*
-        version: link:../../config
-      '@supplystrata/core':
-        specifier: workspace:*
-        version: link:../../core
-      '@supplystrata/source-adapter-runtime':
-        specifier: workspace:*
-        version: link:../../source-adapter-runtime
-      '@supplystrata/source-normalizers':
-        specifier: workspace:*
-        version: link:../../source-normalizers
-
-  packages/sources/tsmc-ir:
     dependencies:
       '@supplystrata/config':
         specifier: workspace:*

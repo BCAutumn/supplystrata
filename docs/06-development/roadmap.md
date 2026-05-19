@@ -84,8 +84,7 @@ Phase 1 出场。
 - [x] `packages/graph-builder`：apply / rebuild
 - [x] `packages/graph-builder`：graph check（Postgres truth vs Neo4j 物化视图计数）
 - [x] `packages/sources/apple-suppliers`：半自动候选 CSV 预览流程（review/apply 入图仍待接）
-- [x] `packages/sources/company-ir/tsmc-ir`（已接入无库预览链路；完整 review/apply 待主链路统一接入）
-- [x] `packages/sources/company-ir/{samsung-ir,skhynix-ir,asml-ir}`（已接入无库预览链路；Samsung 官网当前网络可用性不稳定，已做可解释降级）
+- [x] `packages/source-workflows/src/official-ir-adapters.ts`：TSMC / Samsung / SK hynix / ASML 官方 IR HTML adapter 已合并进 source workflow；保留原 adapter id 和 `official-html-disclosure` connector 契约。
 - [x] `packages/render`：CompanyCard / EvidenceCard / UnknownMap markdown + json
 - [x] `packages/render`：ComponentCard markdown + json
 - [x] `packages/graph-builder`：deprecate

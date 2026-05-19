@@ -159,6 +159,28 @@ OpenCorporates / Companies House 这类源不产生供应链边，而是产生 `
 
 ---
 
+## 扩展场景 1.9：新增关系强度规则
+
+关系强度不是事实边字段，新增规则时不要改 `edges` schema，也不要改 evidence scoring。
+
+标准位置：
+
+```text
+packages/evidence-maintenance/src/index.ts
+  inferEdgeStrengthDrafts()
+```
+
+规则要求：
+
+- 输入只能是已审核或规则确认的 Level 4/5 fact edge 与 primary evidence。
+- 必须能从原文 `cite_text` 中确定性解释，且文本必须命名 counterparty。
+- `share` 必须有明确百分比或数值；匿名 customer concentration 只能生成 observation 或 unknown。
+- `dependency / capacity / qualitative` 必须来自明确措辞，例如 single-source、capacity reservation、strategic supplier。
+- 无法判断时新增或保留 explicit unknown，不允许 fallback 成默认强度。
+- 新规则必须补 unit test，至少包含一个正例和一个匿名/含糊反例。
+
+---
+
 ## 扩展场景 2：加一种新关系类型
 
 例：要加 `OPERATES_DATA_CENTER_AT`。

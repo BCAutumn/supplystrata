@@ -3,10 +3,16 @@ import type pg from "pg";
 import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
 import {
   calculateNextCheckAt,
+  claimDueSourceCheckJobs,
+  enableSourceCheckTargets,
   classifyDocumentChange,
+  enqueueDueSourceCheckJobs,
   ensureSourceCheckTarget,
   listDueSourceChecks,
   listSourceHealthRows,
+  listSourceTargetCoverage,
+  markSourceCheckJobFailed,
+  markSourceCheckJobSucceeded,
   parseSourcePolicyConfig,
   recordDocumentObservation,
   recordSourceDegraded,
@@ -31,6 +37,10 @@ describe("source monitor", () => {
             check_cadence_minutes: 720,
             jitter_minutes: 60,
             priority: 10,
+            next_check_at: "2026-05-19T00:00:00.000Z",
+            max_attempts: 4,
+            backoff_base_minutes: 2,
+            backoff_max_minutes: 90,
             notes: "twice daily"
           }
         ],
@@ -41,6 +51,12 @@ describe("source monitor", () => {
             target_kind: "sec-company-filings",
             enabled: true,
             priority: 10,
+            next_check_at: "2026-05-19T00:30:00.000Z",
+            check_cadence_minutes: 180,
+            jitter_minutes: 15,
+            max_attempts: 5,
+            backoff_base_minutes: 3,
+            backoff_max_minutes: 120,
             subject_entity_id: "ENT-NVIDIA",
             target_config: {
               cik: "0001045810",
@@ -60,6 +76,10 @@ describe("source monitor", () => {
       check_cadence_minutes: 720,
       jitter_minutes: 60,
       priority: 10,
+      next_check_at: "2026-05-19T00:00:00.000Z",
+      max_attempts: 4,
+      backoff_base_minutes: 2,
+      backoff_max_minutes: 90,
       notes: "twice daily"
     });
     expect(config.check_targets[0]).toEqual({
@@ -68,6 +88,12 @@ describe("source monitor", () => {
       target_kind: "sec-company-filings",
       enabled: true,
       priority: 10,
+      next_check_at: "2026-05-19T00:30:00.000Z",
+      check_cadence_minutes: 180,
+      jitter_minutes: 15,
+      max_attempts: 5,
+      backoff_base_minutes: 3,
+      backoff_max_minutes: 120,
       subject_entity_id: "ENT-NVIDIA",
       target_config: {
         cik: "0001045810",
@@ -131,6 +157,24 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("failure_count = failure_count + 1"))).toBe(true);
   });
 
+  it("links source change events back to source check targets when available", async () => {
+    const client = new SourceMonitorDbClient({ failureCount: 0 });
+
+    await recordDocumentObservation(client, {
+      source_adapter_id: "samsung-ir",
+      source_url: "https://www.samsung.com/global/ir/example",
+      doc_id: "DOC-SAMSUNG",
+      bytes_sha256: "sha-samsung",
+      storage_key: "samsung/example.html",
+      observed_at: "2026-05-17T01:00:00.000Z",
+      check_target_id: "plan:nvidia:samsung-ir:official-html-disclosure:abc"
+    });
+
+    const eventInsert = client.calls.find((call) => call.sql.includes("INSERT INTO source_change_events") && call.params.includes("DOCUMENT_NEW"));
+    expect(eventInsert?.sql).toContain("check_target_id");
+    expect(eventInsert?.params).toContain("plan:nvidia:samsung-ir:official-html-disclosure:abc");
+  });
+
   it("records recovery when a successful document observation follows failures", async () => {
     const client = new SourceMonitorDbClient({ failureCount: 2, lastErrorMessage: "HTTP 503" });
 
@@ -189,11 +233,138 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_check_targets"))).toBe(true);
     expect(client.calls.some((call) => call.params.includes("lead:apple-suppliers"))).toBe(true);
   });
+
+  it("enqueues and claims due source check jobs with row locks", async () => {
+    const client = new SourceCheckJobDbClient();
+
+    const enqueued = await enqueueDueSourceCheckJobs(client, {
+      now: "2026-05-19T00:00:00.000Z",
+      limit: 10,
+      check_target_ids: ["sec-edgar:nvidia"],
+      source_adapter_ids: ["sec-edgar"]
+    });
+    const jobs = await claimDueSourceCheckJobs(client, { limit: 5, check_target_ids: ["sec-edgar:nvidia"], source_adapter_ids: ["sec-edgar"] });
+
+    expect(enqueued).toEqual({ due_targets: 1, enqueued_jobs: 1, skipped_active_jobs: 0 });
+    expect(jobs[0]?.job_id).toBe("SCJ-TEST");
+    expect(jobs[0]?.check_target_id).toBe("sec-edgar:nvidia");
+    expect(client.calls.some((call) => call.sql.includes("FOR UPDATE SKIP LOCKED"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("t.check_target_id = ANY") && call.params.some(isSecEdgarNvidiaFilter))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_check_jobs"))).toBe(true);
+    expect(client.calls.some((call) => call.params.includes(5) && call.params.includes(3) && call.params.includes(120))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("SET status = 'in_progress'"))).toBe(true);
+  });
+
+  it("marks source check jobs succeeded or failed without touching source facts", async () => {
+    const client = new SourceCheckJobDbClient();
+
+    await markSourceCheckJobSucceeded(client, { job_id: "SCJ-TEST" });
+    const failed = await markSourceCheckJobFailed(client, { job_id: "SCJ-TEST", error_message: "HTTP 503" });
+
+    expect(failed.status).toBe("failed");
+    expect(failed.attempts).toBe(1);
+    expect(client.calls.some((call) => call.sql.includes("SET status = 'succeeded'"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("status = CASE WHEN attempts + 1 >= max_attempts"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("backoff_base_minutes * (attempts + 1) * (attempts + 1)"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("enables already synced source-plan targets with explicit target-level cadence", async () => {
+    const client = new SourceCheckTargetEnableDbClient();
+
+    const result = await enableSourceCheckTargets(client, {
+      check_target_ids: ["plan:nvidia:samsung-ir:official-html-disclosure:abc", "plan:nvidia:samsung-ir:official-html-disclosure:abc", "missing-target"],
+      config_source: "reports/nvidia-coverage-pack/source-plan.json",
+      next_check_at: "2026-05-19T00:00:00.000Z",
+      check_cadence_minutes: 10080,
+      jitter_minutes: 120,
+      max_attempts: 3,
+      backoff_base_minutes: 5,
+      backoff_max_minutes: 180,
+      notes: "controlled official IR monitoring rollout"
+    });
+
+    expect(result).toEqual({
+      requested_targets: 2,
+      updated_targets: 1,
+      missing_targets: 1,
+      blocked_targets: 0,
+      credential_required_targets: 0,
+      enabled_check_target_ids: ["plan:nvidia:samsung-ir:official-html-disclosure:abc"],
+      missing_check_target_ids: ["missing-target"],
+      blocked_check_target_ids: [],
+      credential_required_check_target_ids: []
+    });
+    const enableCall = client.calls.find((call) => call.sql.includes("UPDATE source_check_targets t") && call.sql.includes("SET enabled = true"));
+    expect(enableCall?.params).toContain("2026-05-19T00:00:00.000Z");
+    expect(enableCall?.params).toContain(10080);
+    expect(enableCall?.params).toContain("reports/nvidia-coverage-pack/source-plan.json");
+    expect(enableCall?.params).toContain("controlled official IR monitoring rollout");
+  });
+
+  it("reports target-level coverage from synced targets, jobs, events, and observations", async () => {
+    const client = new SourceTargetCoverageDbClient();
+
+    const coverage = await listSourceTargetCoverage(client, {
+      now: "2026-05-19T00:00:00.000Z",
+      expected_targets: [
+        {
+          check_target_id: "plan:nvidia:samsung-ir:official-html-disclosure:abc",
+          source_adapter_id: "samsung-ir",
+          target_kind: "official-html-disclosure",
+          enabled: false,
+          target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 }
+        },
+        {
+          check_target_id: "plan:nvidia:skhynix-ir:official-html-disclosure:def",
+          source_adapter_id: "skhynix-ir",
+          target_kind: "official-html-disclosure",
+          enabled: false,
+          target_config: { entity_id: "ENT-SKHYNIX", year: 2025 }
+        },
+        {
+          check_target_id: "plan:nvidia:tsmc-ir:official-html-disclosure:ghi",
+          source_adapter_id: "tsmc-ir",
+          target_kind: "official-html-disclosure",
+          enabled: false,
+          target_config: { entity_id: "ENT-TSMC", year: 2025 }
+        }
+      ]
+    });
+
+    expect(coverage[0]).toMatchObject({
+      synced: true,
+      match_kind: "check_target_id",
+      state: "succeeded",
+      observations: 3
+    });
+    expect(coverage[0]?.latest_event?.event_type).toBe("DOCUMENT_CHANGED");
+    expect(coverage[0]?.latest_job?.status).toBe("succeeded");
+    expect(coverage[1]).toMatchObject({
+      synced: false,
+      match_kind: "none",
+      state: "not_synced",
+      observations: 0
+    });
+    expect(coverage[2]).toMatchObject({
+      synced: true,
+      match_kind: "check_target_id",
+      state: "degraded",
+      observations: 0
+    });
+    expect(coverage[2]?.latest_event?.event_type).toBe("SOURCE_DEGRADED");
+    expect(coverage[2]?.latest_job?.status).toBe("succeeded");
+    expect(client.calls.every((call) => call.sql.trimStart().startsWith("WITH matched_target"))).toBe(true);
+  });
 });
 
 interface QueryCall {
   sql: string;
   params: readonly unknown[];
+}
+
+function isSecEdgarNvidiaFilter(value: unknown): boolean {
+  return Array.isArray(value) && value.length === 1 && value[0] === "sec-edgar:nvidia";
 }
 
 class SourceMonitorDbClient implements DbTxClient {
@@ -219,7 +390,133 @@ class SourceMonitorDbClient implements DbTxClient {
   }
 }
 
+class SourceCheckJobDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(statement: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql: statement, params });
+    const rows = rowsForSourceCheckJobStatement<T>(statement);
+    return {
+      command: statement.trimStart().startsWith("SELECT") ? "SELECT" : "MOCK",
+      rowCount: statement.includes("INSERT INTO source_check_jobs") ? 1 : rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
+class SourceCheckTargetEnableDbClient implements DbClient {
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(statement: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql: statement, params });
+    const rows =
+      statement.includes("WITH requested AS") && statement.includes("UPDATE source_check_targets t")
+        ? [
+            {
+              check_target_id: "plan:nvidia:samsung-ir:official-html-disclosure:abc",
+              status: "enabled",
+              requires_key: false
+            },
+            {
+              check_target_id: "missing-target",
+              status: "missing",
+              requires_key: null
+            }
+          ]
+        : [];
+    return {
+      command: statement.trimStart().startsWith("SELECT") ? "SELECT" : "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows: rows as unknown as T[]
+    };
+  }
+}
+
+class SourceTargetCoverageDbClient implements DbClient {
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(statement: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql: statement, params });
+    const rows = sourceTargetCoverageRows(params[0]);
+    return {
+      command: "SELECT",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows: rows as unknown as T[]
+    };
+  }
+}
+
+function sourceTargetCoverageRows(value: unknown): pg.QueryResultRow[] {
+  if (value === "plan:nvidia:samsung-ir:official-html-disclosure:abc") {
+    return [
+      {
+        check_target_id: "plan:nvidia:samsung-ir:official-html-disclosure:abc",
+        target_enabled: true,
+        policy_enabled: true,
+        next_check_at: new Date("2026-05-26T00:00:00.000Z"),
+        effective_check_cadence_minutes: 10080,
+        effective_jitter_minutes: 120,
+        job_id: "SCJ-COVERAGE",
+        job_status: "succeeded",
+        job_attempts: 0,
+        job_last_error: null,
+        job_next_attempt_at: new Date("2026-05-19T00:00:00.000Z"),
+        job_completed_at: new Date("2026-05-19T00:01:00.000Z"),
+        job_created_at: new Date("2026-05-19T00:00:00.000Z"),
+        job_updated_at: new Date("2026-05-19T00:01:00.000Z"),
+        event_id: "SEV-COVERAGE",
+        event_type: "DOCUMENT_CHANGED",
+        event_doc_id: "DOC-SAMSUNG",
+        event_detected_at: new Date("2026-05-19T00:00:30.000Z"),
+        event_caused_by: "pipeline",
+        observation_count: "3",
+        latest_observation_at: new Date("2026-05-19T00:00:40.000Z"),
+        match_rank: 0
+      }
+    ];
+  }
+  if (value === "plan:nvidia:tsmc-ir:official-html-disclosure:ghi") {
+    return [
+      {
+        check_target_id: "plan:nvidia:tsmc-ir:official-html-disclosure:ghi",
+        target_enabled: true,
+        policy_enabled: true,
+        next_check_at: new Date("2026-05-26T00:00:00.000Z"),
+        effective_check_cadence_minutes: 10080,
+        effective_jitter_minutes: 120,
+        job_id: "SCJ-DEGRADED",
+        job_status: "succeeded",
+        job_attempts: 0,
+        job_last_error: null,
+        job_next_attempt_at: new Date("2026-05-19T00:00:00.000Z"),
+        job_completed_at: new Date("2026-05-19T00:01:00.000Z"),
+        job_created_at: new Date("2026-05-19T00:00:00.000Z"),
+        job_updated_at: new Date("2026-05-19T00:01:00.000Z"),
+        event_id: "SEV-DEGRADED",
+        event_type: "SOURCE_DEGRADED",
+        event_doc_id: null,
+        event_detected_at: new Date("2026-05-19T00:00:30.000Z"),
+        event_caused_by: "source-check.tsmc-ir",
+        observation_count: "0",
+        latest_observation_at: null,
+        match_rank: 0
+      }
+    ];
+  }
+  return [];
+}
+
 function rowsForStatement<T extends pg.QueryResultRow>(statement: string, failureCount: number, lastErrorMessage: string | null): T[] {
+  if (statement.includes("FROM source_check_targets t") && statement.includes("COALESCE(t.check_cadence_minutes")) {
+    return [{ check_cadence_minutes: 720, jitter_minutes: 60 }] as unknown as T[];
+  }
   if (statement.includes("FROM source_policies")) {
     return [{ check_cadence_minutes: 720, jitter_minutes: 60 }] as unknown as T[];
   }
@@ -234,6 +531,74 @@ function rowsForStatement<T extends pg.QueryResultRow>(statement: string, failur
   }
   if (statement.includes("FROM source_items")) return [];
   return [];
+}
+
+function rowsForSourceCheckJobStatement<T extends pg.QueryResultRow>(statement: string): T[] {
+  if (statement.includes("FROM source_check_targets") && statement.includes("FOR UPDATE SKIP LOCKED")) {
+    return [dueSourceCheckRow()] as unknown as T[];
+  }
+  if (statement.includes("UPDATE source_check_jobs jobs")) {
+    return [sourceCheckJobRow()] as unknown as T[];
+  }
+  if (statement.includes("UPDATE source_check_jobs") && statement.includes("RETURNING job_id, status")) {
+    return [
+      {
+        job_id: "SCJ-TEST",
+        status: "failed",
+        attempts: 1,
+        max_attempts: 3,
+        backoff_base_minutes: 3,
+        backoff_max_minutes: 120,
+        last_error: "HTTP 503",
+        next_attempt_at: new Date("2026-05-19T00:01:00.000Z"),
+        completed_at: null
+      }
+    ] as unknown as T[];
+  }
+  return [];
+}
+
+function dueSourceCheckRow(): pg.QueryResultRow {
+  return {
+    check_target_id: "sec-edgar:nvidia",
+    source_adapter_id: "sec-edgar",
+    target_kind: "sec-company-filings",
+    subject_entity_id: "ENT-NVIDIA",
+    target_config: { cik: "0001045810", entity_id: "ENT-NVIDIA", form_types: ["10-K"], limit: 1 },
+    target_enabled: true,
+    target_priority: 10,
+    target_config_source: "unit-test",
+    target_notes: "fixture",
+    policy_enabled: true,
+    check_cadence_minutes: 720,
+    jitter_minutes: 60,
+    effective_check_cadence_minutes: 180,
+    effective_jitter_minutes: 15,
+    effective_max_attempts: 5,
+    effective_backoff_base_minutes: 3,
+    effective_backoff_max_minutes: 120,
+    policy_priority: 10,
+    policy_config_source: "unit-test",
+    next_check_at: new Date("2026-05-19T00:00:00.000Z"),
+    policy_notes: "fixture"
+  };
+}
+
+function sourceCheckJobRow(): pg.QueryResultRow {
+  return {
+    ...dueSourceCheckRow(),
+    job_id: "SCJ-TEST",
+    job_status: "in_progress",
+    attempts: 0,
+    max_attempts: 5,
+    backoff_base_minutes: 3,
+    backoff_max_minutes: 120,
+    last_error: null,
+    claimed_at: new Date("2026-05-19T00:00:00.000Z"),
+    completed_at: null,
+    created_at: new Date("2026-05-19T00:00:00.000Z"),
+    updated_at: new Date("2026-05-19T00:00:00.000Z")
+  };
 }
 
 function recordingClient(): { client: DbClient; sql: string[] } {

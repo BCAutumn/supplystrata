@@ -65,6 +65,7 @@ export interface SourcePlanForComponentsInput {
   tradeObservationMonth?: string;
   tradeObservationCountryCode?: string;
   tradeObservationDirections?: readonly TradeObservationDirection[];
+  officialDisclosureYear?: string;
   materialObservationYear?: string;
   commodityObservationMonth?: string;
 }
@@ -79,8 +80,13 @@ interface SourcePlanDraft {
 
 interface SourcePlanContext {
   entityIds: ReadonlySet<string>;
+  officialDisclosure?: OfficialDisclosureContext;
   tradeObservation?: TradeObservationContext;
   materialObservation?: MaterialObservationContext;
+}
+
+interface OfficialDisclosureContext {
+  year: string;
 }
 
 export interface TradeObservationContext {
@@ -240,12 +246,20 @@ function createContext(
     | "tradeObservationMonth"
     | "tradeObservationCountryCode"
     | "tradeObservationDirections"
+    | "officialDisclosureYear"
     | "materialObservationYear"
     | "commodityObservationMonth"
   >
 ): SourcePlanContext {
   return {
     entityIds: new Set(input.entity_ids ?? []),
+    ...(input.officialDisclosureYear === undefined
+      ? {}
+      : {
+          officialDisclosure: {
+            year: normalizeOfficialDisclosureYear(input.officialDisclosureYear)
+          }
+        }),
     ...(input.tradeObservationMonth === undefined
       ? {}
       : {
@@ -337,7 +351,34 @@ function buildSuggestedCheckTargets(
       }
     }
   }
+  if (context?.officialDisclosure !== undefined) {
+    const suggestion = officialDisclosureSuggestionForSource(sourceId, context.officialDisclosure);
+    if (suggestion !== undefined) suggestions.push(suggestion);
+  }
   return dedupeSuggestions(suggestions);
+}
+
+function officialDisclosureSuggestionForSource(sourceId: string, context: OfficialDisclosureContext): SourcePlanCheckTargetSuggestion | undefined {
+  const entityId = officialDisclosureEntityId(sourceId);
+  if (entityId === undefined) return undefined;
+  return {
+    source_adapter_id: sourceId,
+    target_kind: "official-html-disclosure",
+    runnable: true,
+    target_config: {
+      entity_id: entityId,
+      year: Number.parseInt(context.year, 10)
+    },
+    reason: `${sourceId} has a registered official disclosure connector for ${context.year}; output must remain observation/review context until evidence is reviewed.`
+  };
+}
+
+function officialDisclosureEntityId(sourceId: string): string | undefined {
+  if (sourceId === "tsmc-ir") return "ENT-TSMC";
+  if (sourceId === "samsung-ir") return "ENT-SAMSUNG-ELECTRONICS";
+  if (sourceId === "skhynix-ir") return "ENT-SKHYNIX";
+  if (sourceId === "asml-ir") return "ENT-ASML";
+  return undefined;
 }
 
 function toCensusTradeSuggestion(
@@ -491,5 +532,11 @@ function normalizeTradeObservationDirections(value: readonly TradeObservationDir
 function normalizeMaterialObservationYear(value: string): string {
   const trimmed = value.trim();
   if (!/^[0-9]{4}$/.test(trimmed)) throw new Error(`material observation year must use YYYY format: ${value}`);
+  return trimmed;
+}
+
+function normalizeOfficialDisclosureYear(value: string): string {
+  const trimmed = value.trim();
+  if (!/^[0-9]{4}$/.test(trimmed)) throw new Error(`official disclosure year must use YYYY format: ${value}`);
   return trimmed;
 }

@@ -77,6 +77,22 @@ describe("source-plan", () => {
     expect(plan.every((item) => item.suggested_check_targets.length === 0)).toBe(true);
   });
 
+  it("emits runnable official IR disclosure target suggestions only when a year is provided", () => {
+    const withoutYear = planSourcesForComponents({ component_ids: ["COMP-WAFER"], maxTierDepth: 2 });
+    const withYear = planSourcesForComponents({ component_ids: ["COMP-WAFER"], maxTierDepth: 2, officialDisclosureYear: "2025" });
+    const tsmcTarget = withYear.find((item) => item.source_id === "tsmc-ir")?.suggested_check_targets[0];
+    const asmlTarget = withYear.find((item) => item.source_id === "asml-ir")?.suggested_check_targets[0];
+
+    expect(withoutYear.find((item) => item.source_id === "tsmc-ir")?.suggested_check_targets).toEqual([]);
+    expect(tsmcTarget).toMatchObject({
+      source_adapter_id: "tsmc-ir",
+      target_kind: "official-html-disclosure",
+      runnable: true,
+      target_config: { entity_id: "ENT-TSMC", year: 2025 }
+    });
+    expect(asmlTarget?.target_config["entity_id"]).toBe("ENT-ASML");
+  });
+
   it("emits material observation targets for USGS and runnable World Bank commodity prices without promoting them to facts", () => {
     const plan = planSourcesForComponents({
       component_ids: ["COMP-HBM"],

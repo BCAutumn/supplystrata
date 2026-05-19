@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { secEdgarAdapter, normalizeCik } from "@supplystrata/sources-sec-edgar";
+import { normalizeCik, parseSecCompanyFactObservations, secCompanyFactsAdapter, secEdgarAdapter } from "@supplystrata/sources-sec-edgar";
 
 describe("SEC EDGAR adapter helpers", () => {
   afterEach(() => {
@@ -78,6 +78,106 @@ describe("SEC EDGAR adapter helpers", () => {
     expect(normalized.metadata["parser_version"]).toBe("html-parser-v1");
     expect(normalized.text).toContain("NVIDIA filed a current report");
     expect(normalized.chunks.length).toBeGreaterThan(0);
+  });
+
+  it("parses SEC company facts JSON into financial metric observations without text/PDF parsing", async () => {
+    const payload = new TextEncoder().encode(
+      JSON.stringify({
+        cik: 1045810,
+        entityName: "NVIDIA CORP",
+        facts: {
+          "us-gaap": {
+            InventoryNet: {
+              units: {
+                USD: [
+                  { val: 1000, end: "2026-01-25", filed: "2026-02-24", form: "10-K", accn: "0001045810-26-000010", fy: 2026, fp: "FY" },
+                  { val: 900, end: "2025-10-26", filed: "2025-11-20", form: "10-Q", accn: "0001045810-25-000030", fy: 2026, fp: "Q3" }
+                ]
+              }
+            },
+            AccountsPayableCurrent: {
+              units: {
+                USD: [{ val: 500, end: "2026-01-25", filed: "2026-02-24", form: "10-K", accn: "0001045810-26-000010", fy: 2026, fp: "FY" }]
+              }
+            }
+          }
+        }
+      })
+    );
+
+    const observations = parseSecCompanyFactObservations(payload, { metrics: ["inventory", "accounts_payable"], maxPeriods: 1 });
+
+    expect(observations).toHaveLength(2);
+    expect(observations[0]).toMatchObject({
+      observation_type: "FINANCIAL_METRIC_OBSERVATION",
+      metric_name: "inventory",
+      metric_value: "1000",
+      metric_unit: "USD",
+      time_window_end: "2026-01-25",
+      baseline_value: "900",
+      change_value: "100",
+      change_percent: 11.111111,
+      confidence: 0.9
+    });
+    expect(observations[0]?.provenance).toMatchObject({
+      cik: 1045810,
+      entity_name: "NVIDIA CORP",
+      taxonomy: "us-gaap",
+      xbrl_tag: "InventoryNet",
+      accession: "0001045810-26-000010",
+      official_structured_source: true,
+      no_company_edge: true
+    });
+    expect(
+      observations.every((observation) => observation.attrs["observation_policy"] === "sec_companyfacts_financial_metric_cannot_create_company_edge")
+    ).toBe(true);
+  });
+
+  it("plans and normalizes SEC company facts as a company_facts JSON document", async () => {
+    const tasks = [];
+    for await (const task of secCompanyFactsAdapter.plan({ cik: "1045810", entityId: "ENT-NVIDIA" }, adapterContext())) {
+      tasks.push(task);
+    }
+
+    const normalized = await secCompanyFactsAdapter.normalize(
+      {
+        doc_id: "DOC-COMPANYFACTS",
+        source_adapter_id: "sec-edgar",
+        url: tasks[0]?.url ?? "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+        fetched_at: "2026-05-19T00:00:00.000Z",
+        bytes_sha256: "sha",
+        storage_key: "sec-edgar/companyfacts/ENT-NVIDIA/sha.json",
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            facts: {
+              "us-gaap": {
+                Revenues: {
+                  units: {
+                    USD: [{ val: 100, start: "2025-01-27", end: "2026-01-25", filed: "2026-02-24", form: "10-K", accn: "0001045810-26-000010" }]
+                  }
+                }
+              }
+            }
+          })
+        ),
+        metadata: {
+          document_type: "company_facts",
+          primary_entity_id: "ENT-NVIDIA",
+          source_date: "2026-05-19"
+        }
+      },
+      adapterContext()
+    );
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({
+      task_id: "sec-companyfacts-0001045810",
+      expected_format: "json",
+      hint: { entity_id: "ENT-NVIDIA", document_type: "company_facts" }
+    });
+    expect(normalized.document_type).toBe("company_facts");
+    expect(normalized.primary_entity_id).toBe("ENT-NVIDIA");
+    expect(normalized.text).toContain("revenue: 100 USD");
   });
 });
 

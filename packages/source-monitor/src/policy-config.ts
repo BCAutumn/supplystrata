@@ -22,6 +22,10 @@ function parseSourcePolicyInput(value: unknown): SourcePolicyInput {
   const checkCadenceMinutes = requirePositiveInteger(value, "check_cadence_minutes");
   const jitterMinutes = optionalNonNegativeInteger(value, "jitter_minutes");
   const priority = optionalNonNegativeInteger(value, "priority");
+  const nextCheckAt = optionalIsoDateTime(value, "next_check_at");
+  const maxAttempts = optionalPositiveInteger(value, "max_attempts");
+  const backoffBaseMinutes = optionalPositiveInteger(value, "backoff_base_minutes");
+  const backoffMaxMinutes = optionalPositiveInteger(value, "backoff_max_minutes");
   const notes = optionalString(value, "notes");
   return {
     source_adapter_id: sourceAdapterId,
@@ -29,6 +33,10 @@ function parseSourcePolicyInput(value: unknown): SourcePolicyInput {
     check_cadence_minutes: checkCadenceMinutes,
     ...(jitterMinutes === undefined ? {} : { jitter_minutes: jitterMinutes }),
     ...(priority === undefined ? {} : { priority }),
+    ...(nextCheckAt === undefined ? {} : { next_check_at: nextCheckAt }),
+    ...(maxAttempts === undefined ? {} : { max_attempts: maxAttempts }),
+    ...(backoffBaseMinutes === undefined ? {} : { backoff_base_minutes: backoffBaseMinutes }),
+    ...(backoffMaxMinutes === undefined ? {} : { backoff_max_minutes: backoffMaxMinutes }),
     ...(notes === undefined ? {} : { notes })
   };
 }
@@ -40,6 +48,12 @@ function parseSourceCheckTargetInput(value: unknown): SourceCheckTargetInput {
   const targetKind = requireString(value, "target_kind");
   const enabled = requireBoolean(value, "enabled");
   const priority = optionalNonNegativeInteger(value, "priority");
+  const nextCheckAt = optionalIsoDateTime(value, "next_check_at");
+  const checkCadenceMinutes = optionalPositiveInteger(value, "check_cadence_minutes");
+  const jitterMinutes = optionalNonNegativeInteger(value, "jitter_minutes");
+  const maxAttempts = optionalPositiveInteger(value, "max_attempts");
+  const backoffBaseMinutes = optionalPositiveInteger(value, "backoff_base_minutes");
+  const backoffMaxMinutes = optionalPositiveInteger(value, "backoff_max_minutes");
   const subjectEntityId = optionalString(value, "subject_entity_id");
   const targetConfig = requireRecord(value, "target_config");
   const notes = optionalString(value, "notes");
@@ -50,6 +64,12 @@ function parseSourceCheckTargetInput(value: unknown): SourceCheckTargetInput {
     enabled,
     target_config: targetConfig,
     ...(priority === undefined ? {} : { priority }),
+    ...(nextCheckAt === undefined ? {} : { next_check_at: nextCheckAt }),
+    ...(checkCadenceMinutes === undefined ? {} : { check_cadence_minutes: checkCadenceMinutes }),
+    ...(jitterMinutes === undefined ? {} : { jitter_minutes: jitterMinutes }),
+    ...(maxAttempts === undefined ? {} : { max_attempts: maxAttempts }),
+    ...(backoffBaseMinutes === undefined ? {} : { backoff_base_minutes: backoffBaseMinutes }),
+    ...(backoffMaxMinutes === undefined ? {} : { backoff_max_minutes: backoffMaxMinutes }),
     ...(subjectEntityId === undefined ? {} : { subject_entity_id: subjectEntityId }),
     ...(notes === undefined ? {} : { notes })
   };
@@ -88,6 +108,20 @@ function optionalNonNegativeInteger(value: Record<string, unknown>, key: string)
   if (item === undefined) return undefined;
   if (typeof item !== "number" || !Number.isInteger(item) || item < 0) throw new Error(`source policy ${key} must be a non-negative integer`);
   return item;
+}
+
+function optionalPositiveInteger(value: Record<string, unknown>, key: string): number | undefined {
+  const item = value[key];
+  if (item === undefined) return undefined;
+  if (typeof item !== "number" || !Number.isInteger(item) || item < 1) throw new Error(`source policy ${key} must be a positive integer`);
+  return item;
+}
+
+function optionalIsoDateTime(value: Record<string, unknown>, key: string): string | undefined {
+  const item = value[key];
+  if (item === undefined) return undefined;
+  if (typeof item !== "string" || Number.isNaN(Date.parse(item))) throw new Error(`source policy ${key} must be an ISO date/time string`);
+  return new Date(item).toISOString();
 }
 
 function optionalString(value: Record<string, unknown>, key: string): string | undefined {

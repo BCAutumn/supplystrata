@@ -50,10 +50,44 @@ export interface DueSourceCheckRow extends pg.QueryResultRow {
   policy_enabled: boolean;
   check_cadence_minutes: number;
   jitter_minutes: number;
+  effective_check_cadence_minutes: number;
+  effective_jitter_minutes: number;
+  effective_max_attempts: number;
+  effective_backoff_base_minutes: number;
+  effective_backoff_max_minutes: number;
   policy_priority: number;
   policy_config_source: string;
   next_check_at: Date | null;
   policy_notes: string | null;
+}
+
+export type SourceCheckJobStatus = "pending" | "in_progress" | "failed" | "succeeded" | "dead";
+
+export interface SourceCheckJobRow extends DueSourceCheckRow {
+  job_id: string;
+  job_status: SourceCheckJobStatus;
+  attempts: number;
+  max_attempts: number;
+  backoff_base_minutes: number;
+  backoff_max_minutes: number;
+  last_error: string | null;
+  next_attempt_at: Date;
+  claimed_at: Date | null;
+  completed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SourceCheckJobStateRow extends pg.QueryResultRow {
+  job_id: string;
+  status: SourceCheckJobStatus;
+  attempts: number;
+  max_attempts: number;
+  backoff_base_minutes: number;
+  backoff_max_minutes: number;
+  last_error: string | null;
+  next_attempt_at: Date;
+  completed_at: Date | null;
 }
 
 export interface SourcePolicyInput {
@@ -62,6 +96,10 @@ export interface SourcePolicyInput {
   check_cadence_minutes: number;
   jitter_minutes?: number;
   priority?: number;
+  next_check_at?: string;
+  max_attempts?: number;
+  backoff_base_minutes?: number;
+  backoff_max_minutes?: number;
   notes?: string;
 }
 
@@ -71,6 +109,12 @@ export interface SourceCheckTargetInput {
   target_kind: string;
   enabled: boolean;
   priority?: number;
+  next_check_at?: string;
+  check_cadence_minutes?: number;
+  jitter_minutes?: number;
+  max_attempts?: number;
+  backoff_base_minutes?: number;
+  backoff_max_minutes?: number;
   subject_entity_id?: string;
   target_config: Record<string, unknown>;
   notes?: string;
@@ -80,6 +124,35 @@ export interface SourcePolicyConfig {
   schema_version: "1.0.0";
   policies: SourcePolicyInput[];
   check_targets: SourceCheckTargetInput[];
+}
+
+export interface SourceCheckTargetSelection {
+  check_target_ids?: readonly string[];
+  source_adapter_ids?: readonly string[];
+}
+
+export interface SourceCheckTargetEnableInput {
+  check_target_ids: readonly string[];
+  config_source: string;
+  next_check_at?: string;
+  check_cadence_minutes?: number;
+  jitter_minutes?: number;
+  max_attempts?: number;
+  backoff_base_minutes?: number;
+  backoff_max_minutes?: number;
+  notes?: string;
+}
+
+export interface SourceCheckTargetEnableResult {
+  requested_targets: number;
+  updated_targets: number;
+  missing_targets: number;
+  blocked_targets: number;
+  credential_required_targets: number;
+  enabled_check_target_ids: string[];
+  missing_check_target_ids: string[];
+  blocked_check_target_ids: string[];
+  credential_required_check_target_ids: string[];
 }
 
 export interface DocumentObservationInput {

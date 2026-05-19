@@ -1,9 +1,24 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
-import { EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS, OBSERVATION_TYPES } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import {
+  ALERT_KINDS,
+  EDGE_CALIBRATION_ERROR_CATEGORIES,
+  EDGE_CALIBRATION_LABELS,
+  EDGE_FRESHNESS_DECAY_MODELS,
+  EDGE_STRENGTH_KINDS,
+  OBSERVATION_TYPES,
+  RISK_METRIC_KINDS
+} from "@supplystrata/core";
+import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
 import { sql as migration0012ObservationTypeContractSql } from "../../packages/db/src/migration-sql/0012_observation_type_contract.js";
 import { sql as migration0013EdgeIntelligenceContextSql } from "../../packages/db/src/migration-sql/0013_edge_intelligence_context.js";
+import { sql as migration0014RiskViewsSql } from "../../packages/db/src/migration-sql/0014_risk_views.js";
+import { sql as migration0015AlertCandidatesSql } from "../../packages/db/src/migration-sql/0015_alert_candidates.js";
+import { sql as migration0018EdgeCalibrationSql } from "../../packages/db/src/migration-sql/0018_edge_calibration.js";
+import { sql as migration0019RiskMetricKindContractSql } from "../../packages/db/src/migration-sql/0019_risk_metric_kind_contract.js";
+import { sql as migration0020WeightedNodeKnockoutMetricSql } from "../../packages/db/src/migration-sql/0020_weighted_node_knockout_metric.js";
+import { sql as migration0021FinancialMetricObservationTypeSql } from "../../packages/db/src/migration-sql/0021_financial_metric_observation_type.js";
+import { sql as migration0022FinancialPeerMetricKindSql } from "../../packages/db/src/migration-sql/0022_financial_peer_metric_kind.js";
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
@@ -26,9 +41,15 @@ import {
   linkClaimEvidence,
   linkClaimUnknown,
   listChainSegments,
+  listAlertCandidates,
   listClaimsByScope,
   listLeadObservationsByScope,
-  listObservationsByScope
+  listObservationsByScope,
+  replaceRiskView,
+  updateAlertCandidateStatus,
+  upsertAlertCandidate,
+  upsertEdgeCalibrationLabel,
+  replaceEdgeCalibrationRun
 } from "@supplystrata/db";
 
 interface QueryCall {
@@ -89,10 +110,27 @@ class EdgeDeprecationDbClient extends RecordingDbClient {
   }
 }
 
+class AlertStatusDbClient extends RecordingDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
+
+  override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    const rows = rowsForAlertStatusUpdate<T>(sql, params);
+    return {
+      command: "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
 describe("db intelligence-network repositories", () => {
   it("keeps DB observation type constraint synchronized with core observation types", () => {
     for (const observationType of OBSERVATION_TYPES) {
       expect(migration0012ObservationTypeContractSql).toContain(`'${observationType}'`);
+      expect(migration0021FinancialMetricObservationTypeSql).toContain(`'${observationType}'`);
     }
   });
 
@@ -102,6 +140,30 @@ describe("db intelligence-network repositories", () => {
     }
     for (const decayModel of EDGE_FRESHNESS_DECAY_MODELS) {
       expect(migration0013EdgeIntelligenceContextSql).toContain(`'${decayModel}'`);
+    }
+  });
+
+  it("keeps DB risk metric constraints synchronized with core methodology types", () => {
+    for (const metricKind of RISK_METRIC_KINDS) {
+      expect(migration0014RiskViewsSql).toContain(`'${metricKind}'`);
+      expect(migration0019RiskMetricKindContractSql).toContain(`'${metricKind}'`);
+      expect(migration0020WeightedNodeKnockoutMetricSql).toContain(`'${metricKind}'`);
+      expect(migration0022FinancialPeerMetricKindSql).toContain(`'${metricKind}'`);
+    }
+  });
+
+  it("keeps DB alert constraints synchronized with core alert kinds", () => {
+    for (const alertKind of ALERT_KINDS) {
+      expect(migration0015AlertCandidatesSql).toContain(`'${alertKind}'`);
+    }
+  });
+
+  it("keeps DB calibration constraints synchronized with core calibration labels", () => {
+    for (const label of EDGE_CALIBRATION_LABELS) {
+      expect(migration0018EdgeCalibrationSql).toContain(`'${label}'`);
+    }
+    for (const category of EDGE_CALIBRATION_ERROR_CATEGORIES) {
+      expect(migration0018EdgeCalibrationSql).toContain(`'${category}'`);
     }
   });
 
@@ -417,6 +479,143 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[0]?.sql).toContain("SET status = 'in_progress'");
     expect(client.calls[0]?.params).toEqual([25]);
   });
+
+  it("replaces risk view metrics without touching fact edges", async () => {
+    const client = new RecordingDbClient();
+
+    const result = await replaceRiskView(client, {
+      risk_view_id: "RSK-TEST",
+      scope_kind: "component",
+      scope_id: "COMP-MEMORY",
+      generated_at: "2026-05-19T00:00:00.000Z",
+      model_version: "component-risk-baseline.v1",
+      inputs_fingerprint: "fingerprint",
+      summary: { share_unknown: true },
+      metrics: [
+        {
+          metric_id: "RKM-TEST",
+          metric_kind: "supplier_concentration_hhi",
+          subject_kind: "component",
+          subject_id: "COMP-MEMORY",
+          component_id: "COMP-MEMORY",
+          confidence: 0,
+          provenance: { input_edges: ["EDGE-TEST"] },
+          attrs: { share_unknown: true }
+        }
+      ]
+    });
+
+    expect(result).toEqual({ risk_view_id: "RSK-TEST", metrics: 1 });
+    expect(client.calls[0]?.sql).toContain("INSERT INTO risk_views");
+    expect(client.calls[1]?.sql).toContain("DELETE FROM risk_metrics");
+    expect(client.calls[2]?.sql).toContain("INSERT INTO risk_metrics");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("upserts alert candidates through a dedupe key without touching fact edges", async () => {
+    const client = new RecordingDbClient();
+
+    const result = await upsertAlertCandidate(client, {
+      alert_id: "ALT-TEST",
+      alert_kind: "observation_anomaly",
+      severity: "high",
+      scope_kind: "observation",
+      scope_id: "OBS-TEST",
+      title: "Observation anomaly",
+      summary: "An observation breached its anomaly rule.",
+      dedupe_key: "observation_anomaly:OBS-TEST:RSK-TEST",
+      observation_id: "OBS-TEST",
+      risk_view_id: "RSK-TEST",
+      change_id: "CHG-TEST",
+      detected_at: "2026-05-19T00:00:00.000Z",
+      provenance: { rule: "unit-test" }
+    });
+
+    expect(result).toEqual({ alert_id: "ALT-TEST", inserted: true });
+    expect(client.calls[0]?.sql).toContain("INSERT INTO alert_candidates");
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (dedupe_key)");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("keeps alert candidate queries read-only", async () => {
+    const client = new RecordingDbClient();
+
+    await listAlertCandidates(client, { status: "open", limit: 25 });
+
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0]?.sql.trimStart().startsWith("SELECT")).toBe(true);
+    expect(client.calls[0]?.params).toEqual(["open", 25]);
+  });
+
+  it("updates alert candidate status through an auditable semantic change", async () => {
+    const client = new AlertStatusDbClient();
+
+    const result = await updateAlertCandidateStatus(client, {
+      alert_id: "ALT-TEST",
+      status: "acknowledged",
+      reviewer: "unit-test",
+      reason: "reviewed in daily monitor"
+    });
+
+    expect(result.alert.status).toBe("acknowledged");
+    expect(result.changed).toBe(true);
+    expect(result.change_id).toMatch(/^CHG-/);
+    expect(client.calls[0]?.sql).toContain("FOR UPDATE");
+    expect(client.calls[1]?.sql).toContain("UPDATE alert_candidates");
+    expect(client.calls[1]?.sql).toContain("last_status_change");
+    expect(client.calls[2]?.sql).toContain("INSERT INTO change_records");
+    expect(client.calls[2]?.params).toContain("ALERT_STATUS_CHANGED");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("records edge calibration labels and runs without mutating fact edges", async () => {
+    const client = new RecordingDbClient();
+
+    const label = await upsertEdgeCalibrationLabel(client, {
+      edge_id: "EDGE-TEST",
+      evidence_id: "EV-TEST",
+      label: "incorrect",
+      error_category: "entity_resolution_error",
+      reviewer: "unit-test",
+      reviewed_at: "2026-05-19T00:00:00.000Z",
+      rationale: "Wrong counterparty."
+    });
+    const run = await replaceEdgeCalibrationRun(client, {
+      run_id: "CAL-RUN-TEST",
+      generated_at: "2026-05-19T00:05:00.000Z",
+      model_version: "edge-calibration-baseline.v1",
+      inputs_fingerprint: "fingerprint",
+      min_evidence_level: 4,
+      sample_size: 1,
+      evaluated_count: 1,
+      correct_count: 0,
+      incorrect_count: 1,
+      uncertain_count: 0,
+      precision: 0,
+      reliability_buckets: [{ bucket: "0.9-1.0", empirical_precision: 0 }],
+      error_summary: { entity_resolution_error: 1 },
+      items: [
+        {
+          label_id: label.label_id,
+          edge_id: "EDGE-TEST",
+          evidence_id: "EV-TEST",
+          evidence_level: 5,
+          predicted_confidence: 0.93,
+          confidence_bucket: "0.9-1.0",
+          label: "incorrect",
+          error_category: "entity_resolution_error"
+        }
+      ]
+    });
+
+    expect(label.label_id).toMatch(/^CAL-LABEL-/);
+    expect(run).toEqual({ run_id: "CAL-RUN-TEST", items: 1 });
+    expect(client.calls[0]?.sql).toContain("INSERT INTO edge_calibration_labels");
+    expect(client.calls[1]?.sql).toContain("INSERT INTO edge_calibration_runs");
+    expect(client.calls[2]?.sql).toContain("DELETE FROM edge_calibration_run_items");
+    expect(client.calls[3]?.sql).toContain("INSERT INTO edge_calibration_run_items");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
 });
 
 function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
@@ -447,5 +646,50 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
       }
     ] as unknown as T[];
   }
+  if (sql.includes("RETURNING risk_view_id") && typeof params[0] === "string") {
+    return [{ risk_view_id: params[0] }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING alert_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ alert_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING label_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+    return [{ label_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING run_id") && typeof params[0] === "string") {
+    return [{ run_id: params[0] }] as unknown as T[];
+  }
   return [];
+}
+
+function rowsForAlertStatusUpdate<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("FROM alert_candidates") && sql.includes("FOR UPDATE") && params[0] === "ALT-TEST") {
+    return [alertCandidateRow("open")] as unknown as T[];
+  }
+  if (sql.includes("UPDATE alert_candidates") && params[0] === "ALT-TEST") {
+    return [alertCandidateRow("acknowledged")] as unknown as T[];
+  }
+  return [];
+}
+
+function alertCandidateRow(status: "open" | "acknowledged"): pg.QueryResultRow {
+  return {
+    alert_id: "ALT-TEST",
+    alert_kind: "observation_anomaly",
+    severity: "high",
+    status,
+    scope_kind: "observation",
+    scope_id: "OBS-TEST",
+    title: "Observation anomaly",
+    summary: "An observation breached its anomaly rule.",
+    dedupe_key: "observation_anomaly:OBS-TEST:RSK-TEST",
+    observation_id: "OBS-TEST",
+    risk_view_id: "RSK-TEST",
+    risk_metric_id: null,
+    change_id: "CHG-ANOMALY",
+    source_event_id: null,
+    source_adapter_id: null,
+    detected_at: new Date("2026-05-19T00:00:00.000Z"),
+    provenance: { rule: "unit-test" },
+    attrs: {}
+  };
 }

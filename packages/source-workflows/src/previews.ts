@@ -17,13 +17,20 @@ import {
   extractAppleSupplierCandidates,
   type AppleSuppliersInput
 } from "@supplystrata/sources-apple-suppliers";
-import { asmlIrAdapter, createAsmlIrAdapterContext, type AsmlIrInput } from "@supplystrata/sources-asml-ir";
-import { createSamsungIrAdapterContext, samsungIrAdapter, type SamsungIrInput } from "@supplystrata/sources-samsung-ir";
 import type { SecEdgarInput } from "@supplystrata/sources-sec-edgar";
-import { createSkHynixIrAdapterContext, skHynixIrAdapter, type SkHynixIrInput } from "@supplystrata/sources-skhynix-ir";
-import { createTsmcIrAdapterContext, tsmcIrAdapter, type TsmcIrInput } from "@supplystrata/sources-tsmc-ir";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { isValidCandidate as validateCandidate } from "@supplystrata/pipeline";
+import {
+  asmlIrAdapter,
+  createOfficialIrAdapterContext,
+  samsungIrAdapter,
+  skHynixIrAdapter,
+  tsmcIrAdapter,
+  type AsmlIrInput,
+  type SamsungIrInput,
+  type SkHynixIrInput,
+  type TsmcIrInput
+} from "./official-ir-adapters.js";
 import { fetchAndNormalizeFirstTask, fetchAndParseSecEdgar } from "./source-documents.js";
 import type {
   AppleSuppliersPreview,
@@ -86,7 +93,7 @@ export async function previewTsmcIr(input: TsmcIrInput = { year: 2025, entityId:
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: tsmcIrAdapter,
     input,
-    context: createTsmcIrAdapterContext(),
+    context: createOfficialIrAdapterContext(),
     logLabel: "TSMC IR annual report"
   });
   return {
@@ -114,7 +121,7 @@ export async function previewSamsungIr(input: SamsungIrInput = { year: 2025, ent
   return previewOfficialDisclosure({
     adapter: samsungIrAdapter,
     input,
-    context: createSamsungIrAdapterContext(),
+    context: createOfficialIrAdapterContext(),
     logLabel: "Samsung official disclosure",
     extractSignals: extractSamsungSignalsFromText
   });
@@ -124,7 +131,7 @@ export async function previewSkHynixIr(input: SkHynixIrInput = { year: 2025, ent
   return previewOfficialDisclosure({
     adapter: skHynixIrAdapter,
     input,
-    context: createSkHynixIrAdapterContext(),
+    context: createOfficialIrAdapterContext(),
     logLabel: "SK hynix official disclosure",
     extractSignals: extractSkHynixSignalsFromText
   });
@@ -134,7 +141,7 @@ export async function previewAsmlIr(input: AsmlIrInput = { year: 2025, entityId:
   return previewOfficialDisclosure({
     adapter: asmlIrAdapter,
     input,
-    context: createAsmlIrAdapterContext(),
+    context: createOfficialIrAdapterContext(),
     logLabel: "ASML annual report",
     extractSignals: extractAsmlSignalsFromText
   });

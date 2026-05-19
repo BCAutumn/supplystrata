@@ -108,6 +108,7 @@ pnpm cli company nvidia --format markdown
 pnpm cli evidence <EV-id> --format markdown
 pnpm cli unknown-map nvidia --format markdown
 pnpm cli ingest sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K
+pnpm worker --once --limit 5
 ```
 
 `pipeline nvidia` 默认 `--graph-sync defer`，也就是只写 Postgres truth store，不等待 Neo4j。需要边写边同步 Neo4j 时再显式传：
@@ -117,6 +118,8 @@ pnpm cli pipeline nvidia --graph-sync sync
 ```
 
 这个设计是为了未来嵌入 TS 桌面端或 agent 产品：宿主只需要提供 `DatabaseStore`（内置实现是 Postgres，也可以由宿主包装自己的兼容 SQL truth store），即可跑研究链路和 workbench export；Neo4j 可以作为可选的图查询加速层。
+
+`pnpm worker --once --limit 5` 会跑一轮 source-check worker cycle；本地排查时用 `--once`，持续运行时用 `pnpm worker --interval-ms 60000 --limit 10`。监控频率和重试策略来自 `sources policy sync` 写入的配置，不在 worker 命令里临时覆盖。
 
 ### 测试
 
@@ -133,6 +136,8 @@ pnpm smoke:local                   # 无数据库 CLI smoke
 pnpm smoke:local --with-db         # 本地 DB + seed + graph 同步
 pnpm smoke:network                 # 额外跑 SEC/NVIDIA 联网研究切片
 ```
+
+合并或移动 workspace package 依赖后，不要只更新 lockfile；还要跑一次 `pnpm install` 刷新本地 workspace symlink。`pnpm build` 会按独立 package 编译，依赖的是 `node_modules` 中的 workspace 链接，链接陈旧时会出现 type-check 通过但 build 找不到内部包的情况。
 
 `test:integration` 和 `test:e2e` 会先探测 `POSTGRES_URL`。没有本地 Postgres 时会自动 skip，需要真实端到端写库验证时再启动你自己的 Postgres 服务；Docker 只是可选的本地启动方式，不是项目运行前提。
 

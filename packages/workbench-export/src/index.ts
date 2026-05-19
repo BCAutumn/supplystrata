@@ -200,7 +200,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
   const draftClaims = (await listDraftClaims(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.draftClaimLimit ?? 25 })).map(claimToDto);
   const evidences = await loadWorkbenchEvidences(client, { evidenceIds, edgeIds });
   const intelligence = await loadWorkbenchIntelligence(client, { edgeIds, computedAt: generatedAt });
-  const unknownItems = (await listUnknownItems(client, rootEntityId)).map(unknownItemToDto);
+  const unknownItems = (await loadWorkbenchUnknowns(client, { rootEntityId, edgeIds })).map(unknownItemToDto);
   const sources = (await listSourceHealthRows(client)).slice(0, input.sourceLimit ?? 50).map(sourceHealthToDto);
   const sourcePlan = planSourcesForComponents({
     component_ids: componentIdsFromSegments(chain.segments),
@@ -322,6 +322,19 @@ async function loadWorkbenchIntelligence(client: DbClient, input: { edgeIds: rea
     edge_strengths: strengths.map(edgeStrengthToDto),
     edge_freshness: freshness.map(edgeFreshnessToDto)
   };
+}
+
+async function loadWorkbenchUnknowns(client: DbClient, input: { rootEntityId: string; edgeIds: readonly string[] }): Promise<UnknownDbShape[]> {
+  const byId = new Map<string, UnknownDbShape>();
+  for (const unknown of await listUnknownItems(client, input.rootEntityId)) {
+    byId.set(unknown.unknown_id, unknown);
+  }
+  for (const edgeId of input.edgeIds) {
+    for (const unknown of await listUnknownItems(client, edgeId)) {
+      byId.set(unknown.unknown_id, unknown);
+    }
+  }
+  return [...byId.values()];
 }
 
 function compareWorkbenchEvidence(left: WorkbenchEvidence, right: WorkbenchEvidence): number {

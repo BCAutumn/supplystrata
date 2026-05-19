@@ -130,6 +130,8 @@ const SITE_RULES: Record<string, SiteRule> = {
 fetch("https://data.sec.gov/api/xbrl/companyfacts/CIK<10digit>.json");
 ```
 
+当前 TypeScript 路径已经通过 `sec-edgar/sec-company-facts` source-check target 消费该 JSON，并把 inventory、cost of revenue、capex、purchase obligations、accounts payable 和 revenue 写为 company-scoped `FINANCIAL_METRIC_OBSERVATION`。同一 metric/unit 会用上一期作为显式 baseline，写入 `baseline_value / change_value / change_percent`，方便后续 anomaly 与 research-pack 展示。这不是 PDF/XBRL instance 解析，也不会写 fact edge；segment revenue 和 customer concentration 后续需要维度/文本证据增强，完整 taxonomy / instance 解析仍留给 Phase 3 sidecar。
+
 输出：财务指标时间序列。这层数据**不**直接生成关系边，但可以作为 entity 的 attrs 与时间序列信号。
 
 ### Phase 3 阶段

@@ -1,0 +1,272 @@
+import type { Command } from "commander";
+import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
+import {
+  recordEdgeCalibrationLabel,
+  refreshAlertCandidates,
+  refreshComponentRiskView,
+  refreshEdgeIntelligenceContext,
+  refreshEdgeCalibrationRun,
+  refreshFinancialMetricPeerComparisonViews,
+  listRefreshableComponentRiskComponentIds,
+  refreshObservationAnomalyViews
+} from "@supplystrata/evidence-maintenance";
+import { listAlertCandidates, updateAlertCandidateStatus, type AlertStatus } from "@supplystrata/db";
+import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
+
+export function registerIntelligenceCommands(program: Command): void {
+  const intelligence = program.command("intelligence").description("derived intelligence context commands");
+
+  intelligence
+    .command("calibration-label")
+    .argument("<edgeId>", "fact edge id being reviewed for calibration")
+    .requiredOption("--label <label>", "correct, incorrect, or uncertain")
+    .requiredOption("--reviewer <name>", "reviewer name")
+    .option("--evidence <evidenceId>", "specific evidence id supporting the reviewed edge")
+    .option("--error-category <category>", "required when label=incorrect")
+    .option("--reviewed-at <date>", "ISO date/time for the human review")
+    .option("--rationale <text>", "short reviewer rationale")
+    .description("record a human calibration label for a fact edge")
+    .action(
+      async (
+        edgeId: string,
+        options: { label: string; reviewer: string; evidence?: string; errorCategory?: string; reviewedAt?: string; rationale?: string }
+      ) => {
+        await withDatabase(async (store) => {
+          const result = await store.transaction((client) =>
+            recordEdgeCalibrationLabel(client, {
+              edge_id: edgeId,
+              ...(options.evidence === undefined ? {} : { evidence_id: options.evidence }),
+              label: parseCalibrationLabel(options.label),
+              reviewer: options.reviewer,
+              ...(options.errorCategory === undefined ? {} : { error_category: parseCalibrationErrorCategory(options.errorCategory) }),
+              ...(options.reviewedAt === undefined ? {} : { reviewed_at: parseSince(options.reviewedAt) }),
+              ...(options.rationale === undefined ? {} : { rationale: options.rationale })
+            })
+          );
+          writeJson({ ok: true, ...result });
+        });
+      }
+    );
+
+  intelligence
+    .command("calibration-run")
+    .option("--min-evidence-level <level>", "minimum fact edge evidence level", "4")
+    .option("--limit <count>", "max reviewed calibration labels to evaluate", "1000")
+    .option("--generated-at <date>", "ISO date/time used for calibration run generation")
+    .description("compute deterministic edge precision and reliability buckets from human calibration labels")
+    .action(async (options: { minEvidenceLevel: string; limit: string; generatedAt?: string }) => {
+      await withDatabase(async (store) => {
+        const summary = await store.transaction((client) =>
+          refreshEdgeCalibrationRun(client, {
+            min_evidence_level: parseCalibrationEvidenceLevel(options.minEvidenceLevel),
+            limit: parseLimit(options.limit),
+            ...(options.generatedAt === undefined ? {} : { generated_at: parseSince(options.generatedAt) })
+          })
+        );
+        writeJson({ ok: true, ...summary });
+      });
+    });
+
+  intelligence
+    .command("refresh")
+    .option("--min-evidence-level <level>", "minimum fact edge evidence level", "4")
+    .option("--limit <count>", "max current fact edges to refresh", "1000")
+    .option("--computed-at <date>", "ISO date/time used for freshness computation")
+    .option("--skip-unknowns", "do not create explicit unknowns for edges without strength evidence")
+    .description("refresh deterministic edge strength, freshness, and strength-unknown context")
+    .action(async (options: { minEvidenceLevel: string; limit: string; computedAt?: string; skipUnknowns?: boolean }) => {
+      await withDatabase(async (store) => {
+        const summary = await store.transaction((client) =>
+          refreshEdgeIntelligenceContext(client, {
+            min_evidence_level: parseEvidenceLevel(options.minEvidenceLevel),
+            limit: parseLimit(options.limit),
+            ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) }),
+            create_unknowns: options.skipUnknowns === true ? false : true
+          })
+        );
+        writeJson({ ok: true, ...summary });
+      });
+    });
+
+  intelligence
+    .command("component-risk")
+    .requiredOption("--component <componentId>", "component_id to refresh")
+    .option("--computed-at <date>", "ISO date/time used for freshness-adjusted exposure")
+    .description("refresh deterministic component risk baseline from fact edges, strength, and freshness")
+    .action(async (options: { component: string; computedAt?: string }) => {
+      await withDatabase(async (store) => {
+        const componentId = options.component.trim();
+        const eligibleComponents = await listRefreshableComponentRiskComponentIds(store, [componentId]);
+        if (!eligibleComponents.includes(componentId)) {
+          writeJson({
+            ok: true,
+            skipped: true,
+            component_id: componentId,
+            reason: "no_current_level_4_or_5_component_fact_edges"
+          });
+          return;
+        }
+        const summary = await store.transaction((client) =>
+          refreshComponentRiskView(client, {
+            component_id: componentId,
+            ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) })
+          })
+        );
+        writeJson({ ok: true, ...summary });
+      });
+    });
+
+  intelligence
+    .command("observation-anomalies")
+    .option("--limit <count>", "max baseline-backed observations to evaluate", "1000")
+    .option("--threshold-percent <percent>", "absolute percent-change threshold for anomaly flag", "25")
+    .option("--z-threshold <score>", "z-like threshold for trailing median/MAD anomaly flag", "3.5")
+    .option("--history-periods <count>", "max comparable prior observations used for time-series baseline", "12")
+    .option("--min-history-points <count>", "minimum comparable prior observations required for time-series baseline", "5")
+    .option("--computed-at <date>", "ISO date/time used for risk view generation")
+    .description("refresh deterministic observation anomaly views from explicit baselines or comparable history")
+    .action(
+      async (options: {
+        limit: string;
+        thresholdPercent: string;
+        zThreshold: string;
+        historyPeriods: string;
+        minHistoryPoints: string;
+        computedAt?: string;
+      }) => {
+        await withDatabase(async (store) => {
+          const summary = await store.transaction((client) =>
+            refreshObservationAnomalyViews(client, {
+              limit: parseLimit(options.limit),
+              threshold_percent: parsePositivePercent(options.thresholdPercent),
+              z_threshold: parsePositiveNumber(options.zThreshold, "z threshold"),
+              history_periods: parseLimit(options.historyPeriods),
+              min_history_points: parseLimit(options.minHistoryPoints),
+              ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) })
+            })
+          );
+          writeJson({ ok: true, ...summary });
+        });
+      }
+    );
+
+  intelligence
+    .command("financial-peers")
+    .option("--limit <count>", "max financial observations to compare", "1000")
+    .option("--min-peer-count <count>", "minimum same-period peer observations required", "3")
+    .option("--computed-at <date>", "ISO date/time used for peer comparison generation")
+    .description("refresh deterministic same-period financial metric peer comparison views")
+    .action(async (options: { limit: string; minPeerCount: string; computedAt?: string }) => {
+      await withDatabase(async (store) => {
+        const summary = await store.transaction((client) =>
+          refreshFinancialMetricPeerComparisonViews(client, {
+            limit: parseLimit(options.limit),
+            min_peer_count: parseLimit(options.minPeerCount),
+            ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) })
+          })
+        );
+        writeJson({ ok: true, ...summary });
+      });
+    });
+
+  intelligence
+    .command("alerts")
+    .option("--since <date>", "ISO date/time lower bound for alert rules")
+    .option("--limit <count>", "max source events/risk signals to scan per rule family", "1000")
+    .description("refresh deterministic alert candidates from changes, source failures, and risk metrics")
+    .action(async (options: { since?: string; limit: string }) => {
+      await withDatabase(async (store) => {
+        const summary = await store.transaction((client) =>
+          refreshAlertCandidates(client, {
+            limit: parseLimit(options.limit),
+            ...(options.since === undefined ? {} : { since: parseSince(options.since) })
+          })
+        );
+        writeJson({ ok: true, ...summary });
+      });
+    });
+
+  intelligence
+    .command("alert-list")
+    .option("--status <status>", "open, acknowledged, resolved, or suppressed", "open")
+    .option("--limit <count>", "max alert candidates to list", "50")
+    .description("list alert candidates for operational review")
+    .action(async (options: { status: string; limit: string }) => {
+      await withDatabase(async (store) => {
+        const alerts = await listAlertCandidates(store, { status: parseAlertStatus(options.status), limit: parseLimit(options.limit) });
+        writeJson({ ok: true, alerts });
+      });
+    });
+
+  intelligence
+    .command("alert-status")
+    .argument("<alertId>", "alert candidate id")
+    .requiredOption("--status <status>", "open, acknowledged, resolved, or suppressed")
+    .requiredOption("--reviewer <name>", "reviewer or automation name")
+    .option("--reason <reason>", "status change reason")
+    .description("update an alert candidate status and record an auditable semantic change")
+    .action(async (alertId: string, options: { status: string; reviewer: string; reason?: string }) => {
+      await withDatabase(async (store) => {
+        const result = await store.transaction((client) =>
+          updateAlertCandidateStatus(client, {
+            alert_id: alertId,
+            status: parseAlertStatus(options.status),
+            reviewer: options.reviewer,
+            ...(options.reason === undefined ? {} : { reason: options.reason })
+          })
+        );
+        writeJson({ ok: true, ...result });
+      });
+    });
+}
+
+function parseEvidenceLevel(value: string): 4 | 5 {
+  if (value === "4") return 4;
+  if (value === "5") return 5;
+  throw new Error(`Unsupported intelligence evidence level: ${value}`);
+}
+
+function parsePositivePercent(value: string): number {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`Expected a positive percent value, received: ${value}`);
+  return parsed;
+}
+
+function parsePositiveNumber(value: string, label: string): number {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`Expected a positive ${label}, received: ${value}`);
+  return parsed;
+}
+
+function parseAlertStatus(value: string): AlertStatus {
+  if (value === "open" || value === "acknowledged" || value === "resolved" || value === "suppressed") return value;
+  throw new Error(`Unsupported alert status: ${value}`);
+}
+
+function parseCalibrationEvidenceLevel(value: string): EvidenceLevel {
+  if (value === "1") return 1;
+  if (value === "2") return 2;
+  if (value === "3") return 3;
+  if (value === "4") return 4;
+  if (value === "5") return 5;
+  throw new Error(`Unsupported calibration evidence level: ${value}`);
+}
+
+function parseCalibrationLabel(value: string): EdgeCalibrationLabel {
+  if (value === "correct" || value === "incorrect" || value === "uncertain") return value;
+  throw new Error(`Unsupported calibration label: ${value}`);
+}
+
+function parseCalibrationErrorCategory(value: string): EdgeCalibrationErrorCategory {
+  if (
+    value === "extraction_error" ||
+    value === "entity_resolution_error" ||
+    value === "source_error" ||
+    value === "staleness_error" ||
+    value === "semantic_misread" ||
+    value === "other"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported calibration error category: ${value}`);
+}

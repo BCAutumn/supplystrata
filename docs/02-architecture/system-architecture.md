@@ -70,8 +70,18 @@
                                   │
                                   ▼
 ┌──────────────────────────────────────────────────────────────────────┐
+│             Intelligence Maintenance / Derived Context               │
+│  - edge_freshness: 根据 last_verified_at 计算确定性新鲜度                    │
+│  - edge_strength_estimates: 只从明确 evidence 文本写强度                      │
+│  - explicit unknown: strength 缺失时记录公开数据盲区                          │
+│  禁止：写 fact edge、改 evidence_level、用 observation/LLM 伪造关系             │
+└──────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
 │                Query Layer                                            │
 │  CLI (MVP only)  →  Markdown/JSON renderers                          │
+│  Worker → source_check_jobs 常驻消费                                  │
 │  REST API (Phase 3)                                                  │
 │  Web UI (Phase 4+)                                                   │
 └──────────────────────────────────────────────────────────────────────┘
@@ -125,7 +135,13 @@ candidate → review (optional) → approved → graph
 
 当前内置 GraphStore adapter 是 Neo4j，适合本地图探索和路径查询。嵌入其它 TS 桌面端或 agent 产品时，可以由宿主提供自己的 GraphStore adapter；pipeline 不直接依赖 Neo4j。
 
-### 7. LLM 用作"抽取助手"而非"事实生成器"
+### 7. Intelligence context 是派生层，不反写事实层
+
+`edge_strength_estimates`、`edge_freshness`、strength unknown 和第一版 component `risk_views / risk_metrics` 由 `@supplystrata/evidence-maintenance` 维护。它们服务 Workbench、research-pack、card-builder 和未来 risk view，用来解释“关系重要不重要、多久没验证、哪里还不知道、当前派生风险能算到哪一步”。
+
+这层只消费事实边、evidence、strength、freshness 和 unknown map，不允许写 `edges`，也不允许改变 `evidence_level`。没有明确 strength 时必须生成 explicit unknown 或在 risk metric attrs 中暴露不确定性，不能用均分、LLM 判断或 observation 代替事实证据。
+
+### 8. LLM 用作"抽取助手"而非"事实生成器"
 
 LLM 调用全部通过 `packages/llm-bridge`。三件事必须做：
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { extractAsmlSignalsFromText, extractSkHynixSignalsFromText, extractTsmcIrSignalsFromText } from "@supplystrata/signal-extractor";
-import { annualReportUrl, tsmcIrAdapter } from "@supplystrata/sources-tsmc-ir";
+import { tsmcAnnualReportUrl, tsmcIrAdapter } from "@supplystrata/source-workflows";
 
 describe("TSMC IR preview", () => {
   it("uses the official 2025 annual report URL shape", () => {
-    expect(annualReportUrl(2025)).toBe("https://investor.tsmc.com/static/annualReports/2025/english/index.html");
+    expect(tsmcAnnualReportUrl(2025)).toBe("https://investor.tsmc.com/static/annualReports/2025/english/index.html");
   });
 
   it("normalizes official disclosure HTML into complete document text and chunks", async () => {

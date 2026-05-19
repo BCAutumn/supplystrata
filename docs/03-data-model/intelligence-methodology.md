@@ -82,6 +82,15 @@ strength = value + evidence_id + method + time_window
 UNKNOWN: exact allocation / exact share / contract price / capacity reservation quantity
 ```
 
+当前后端第一版由 `@supplystrata/evidence-maintenance` 的 `refreshEdgeIntelligenceContext()` 执行，规则刻意保守：
+
+- 只扫描 `current`、非 inferred、Level 4/5 且有 primary evidence 的事实边。
+- `share` 只来自命名 counterparty 的明确百分比披露，例如“Sales to Microsoft accounted for 18% ...”；匿名“one customer accounted for ...”不能写到命名边。
+- `dependency` 只来自 `sole supplier / single-source / limited suppliers` 等明确措辞。
+- `capacity` 只来自 `capacity reservation / purchase obligation / take-or-pay / long-term supply agreement` 等明确合同或产能承诺措辞。
+- `qualitative` 只来自 `primary / strategic / key / major / significant` 等明确强弱语义，且文本必须提到该 counterparty。
+- 没有明确 strength 时，生成 `scope_kind='edge'` 的 explicit unknown，说明缺少 allocation、share、contract price 或 capacity schedule；不得用均分或 LLM 猜测补齐。
+
 禁止：
 
 - 用新闻推测占比。
@@ -172,10 +181,30 @@ mad = median_absolute_deviation
 z_like_score = (current - baseline) / max(mad, epsilon)
 ```
 
+当前已落地的 deterministic baseline 是 `refreshObservationAnomalyViews()`：
+
+- 它优先消费已经带有 `baseline_value` 且能得到 `change_percent` 的 observation；如果没有显式 baseline，则查询同一 `observation_type / scope / geography / component / metric / unit` 的历史 observation，用 trailing median/MAD 计算 baseline 和 z-like score。
+- 输出写入 `scope_kind='observation'` 的 `risk_views / risk_metrics`，metric kind 为 `observation_anomaly`。
+- 显式 baseline 路径用绝对百分比变化阈值，默认 `25%`；历史窗口路径用 z-like 阈值，默认 `3.5`，默认最多看 12 个历史点，至少需要 5 个可比较历史点。
+- `severity` 只表达相对阈值的变化幅度，不是全局风险分。
+- 输入指纹包含 observation id、类型、scope、metric、baseline/change 或历史点 id、confidence、阈值和模型参数；同一输入应得到稳定 view / metric id。
+- CompanyCard / ComponentCard / research-pack 会在已有 observation anomaly view 时把 anomaly summary 带进 JSON/Markdown 输出；ComponentCard 还会基于当前组件的 Level 4/5 fact edges，显示 supplier/consumer 公司级 `FINANCIAL_METRIC_OBSERVATION`，作为 linked company financial signals。
+- `is_anomaly=true` 时会幂等写入 `OBSERVATION_ANOMALY` semantic change；该事件只引用 observation/risk_view，并把 observation scope、metric、baseline、change percent、severity 和 direction 写入 `after`，用于 timeline 和后续 alert rules，不改变事实层。
+
+第一版同行横向比较由 `refreshFinancialMetricPeerComparisonViews()` 生成：
+
+- 输入只使用 company-scoped `FINANCIAL_METRIC_OBSERVATION`，并且要求 `metric_name / metric_unit` 一致；优先按 `fiscal_year / fiscal_period` 对齐，缺 fiscal period 时才要求 `time_window_start / time_window_end` 完全一致。
+- 默认至少 3 家公司才计算，样本不足时跳过，不用行业均值、空值或手写 fallback 补造 peer baseline。
+- 输出写入 `scope_kind='financial_metric_peer_group'` 的 `risk_views / risk_metrics`，metric kind 为 `financial_metric_peer_zscore`。
+- `value` 保存 signed population z-score；`attrs.percentile / rank_descending / peer_count / mean / standard_deviation / peer_company_ids` 保存可解释上下文。
+- CompanyCard / research-pack 会把 company subject 上已有的 `financial_metric_peer_zscore` 带进 JSON/Markdown 的 financial peer position；Markdown 是研究可读输出，正式消费仍以 JSON DTO 为准。
+- 该结果只表达同一期间的同行位置，不是 risk score，不会写入 `edges`，也不能作为供应关系或客户关系证据。
+
 规则：
 
 - 没有足够历史窗口时，只记录 observation，不给 anomaly。
 - anomaly 只能进入 risk view / alert，不写 fact edge。
+- peer comparison 只能比较同单位、同 fiscal period 的财务 observation；没有 fiscal period 的 observation 必须使用完全相同的 time window，不可比期间必须拆成不同 peer group。
 - 同一 observation 必须记录 time_window、geography、component/HS/material 映射。
 
 ### 6. Graph Risk Methodology
@@ -184,15 +213,16 @@ z_like_score = (current - baseline) / max(mad, epsilon)
 
 第一版指标：
 
-| metric                        | 意义                 | 依赖输入                  |
-| ----------------------------- | -------------------- | ------------------------- |
-| `supplier_concentration_hhi`  | 某组件供应集中度     | relation_strength         |
-| `single_source_exposure`      | 单一供应商暴露       | fact edge + strength      |
-| `path_redundancy`             | 可替代路径数量       | chain graph               |
-| `betweenness_centrality`      | 瓶颈节点             | graph topology            |
-| `node_knockout_reach`         | 节点失效影响范围     | graph topology + strength |
-| `freshness_adjusted_exposure` | 过期证据修正后的暴露 | freshness + strength      |
-| `policy_exposure`             | 管制/制裁暴露        | policy observations       |
+| metric                          | 意义                 | 依赖输入                  |
+| ------------------------------- | -------------------- | ------------------------- |
+| `supplier_concentration_hhi`    | 某组件供应集中度     | relation_strength         |
+| `single_source_exposure`        | 单一供应商暴露       | fact edge + strength      |
+| `path_redundancy`               | 可替代路径数量       | fact edge / chain graph   |
+| `betweenness_centrality`        | 瓶颈节点             | graph topology            |
+| `node_knockout_reach`           | 节点失效影响范围     | graph topology + strength |
+| `node_knockout_weighted_impact` | 节点失效加权传播影响 | strength + freshness      |
+| `freshness_adjusted_exposure`   | 过期证据修正后的暴露 | freshness + strength      |
+| `policy_exposure`               | 管制/制裁暴露        | policy observations       |
 
 HHI 公式：
 
@@ -204,6 +234,20 @@ share 未知时：
 
 - 如果有明确 single-source 文本，可按 `dependency=single_source` 处理。
 - 如果没有 share，不能均分；risk view 必须显示 `share_unknown=true`。
+
+当前已落地的 deterministic baseline 是 `refreshComponentRiskView()`：
+
+- 输入只包括 `current`、非 inferred、Level 4/5、component-scoped fact edge，以及对应 `edge_strength_estimates` / `edge_freshness`。
+- 输出写入 `risk_views` / `risk_metrics`，不写 `edges`，不改变 `evidence_level`。
+- HHI 只有在所有相关供应边都有明确 share 时才写数值；缺 share 时写 `value=NULL` 并暴露 `missing_share_edge_ids`。
+- 单点暴露来自“只有一个供应商”或明确 `dependency=single_source`，不由 LLM 或匿名风险句子推断。
+- 直接 path redundancy 当前只计算同一组件的 distinct direct supplier 数：`alternate_supplier_count = max(supplier_count - 1, 0)`；它不是多跳图路径冗余。
+- `node_knockout_reach` 当前沿 component-scoped Level 4/5 fact edge 的 supplier -> consumer 方向计算下游可达实体数；它是无权多跳 reachability baseline。
+- `node_knockout_weighted_impact` 当前沿同一有向图计算 max-product path 传播：每条边权重为可追溯 `strength_weight * freshness_score`，每个下游实体只取当前已知最强路径，最终 value 是这些实体 impact 的求和；缺 strength 或 freshness 的边只写入 `missing_weight_edge_ids`，不做均分、不做补值。
+- `betweenness_centrality` 当前使用 component-scoped Level 4/5 fact edge 的有向无权图，按 supplier -> consumer 方向计算瓶颈节点；它是 topology baseline，不包含 strength/freshness 加权传播。
+- `freshness_adjusted_exposure` 是 experimental baseline，用于让过期证据在派生视图里降权；它不是正式风险评分。
+- 同一 component 的新版 risk view 会与上一版同模型派生结果做稳定 metric key 对比；超过每类指标的绝对阈值或 25% 相对阈值时，写入 `change_records.change_type='RISK_METRIC_CHANGED'`。
+- `RISK_METRIC_CHANGED` 使用 `scope_kind='risk_metric'`，`scope_id` 为稳定 metric key；事件只记录 before/after、阈值、方向和 severity，不反写 fact edge，也不提升 evidence level。
 
 ### 7. Exposure Methodology
 
@@ -248,6 +292,14 @@ path score = edge_strength * freshness_score * observation_signal_weight
 - 错误分成：抽取错误、实体消歧错误、来源错误、过期错误、语义误判。
 
 如果没有 calibration，risk view 只能标为 experimental。
+
+当前已落地的 calibration baseline：
+
+- `edge_calibration_labels` 保存人工 gold label：`correct / incorrect / uncertain`。
+- `incorrect` 必须带错误类型；`uncertain` 不进入 precision 分母，避免把证据边界问题误算为错误。
+- `refreshEdgeCalibrationRun()` 只评估已有人工标签，输出 precision、confidence reliability buckets 和 error summary。
+- calibration run 写入 `edge_calibration_runs / edge_calibration_run_items`，带 `model_version` 和 `inputs_fingerprint`。
+- 校准结果只能用于阈值治理和方法学评估；不能自动改 edge、不能自动提升或降低 `evidence_level`。
 
 ## LLM / Agent 的方法学位置
 
@@ -311,13 +363,23 @@ Phase 6+
 后端方法学完成至少满足：
 
 ```text
-[ ] evidence_level / confidence / strength / freshness / risk_metric 分层落库或可导出
+[x] evidence_level / confidence / strength / freshness / risk_metric 分层落库或可导出
 [ ] claim fusion 有确定性算法和 fixtures
-[ ] observation anomaly 有至少一种时间序列检测
-[ ] risk_view 有 HHI、path redundancy、node knockout 三类指标
+[x] observation anomaly 有 baseline/change 与 trailing median/MAD 检测
+[x] risk_view 有 HHI、path redundancy、node knockout 三类指标
 [ ] LLM 不参与事实层自动写入
-[ ] ComponentCard / CompanyCard 能分别展示事实、观测、风险、未知
-[ ] 所有风险结论都能追溯到 fact/observation/algorithm version
+[x] ComponentCard / CompanyCard 能分别展示事实、观测、风险、未知
+[x] research-pack 能输出 question readiness matrix，区分 ready / partial / blocked
+[x] research-pack 能输出 investigation backlog，把 gap / unknown / source-plan 转成下一步调查任务
+[x] runnable source-plan target 能同步到 source_check_targets，并进入统一 due/worker 监控链路
+[x] 审计后的 runnable source-plan target 能受控启用，并继续使用统一 target 级 cadence / jitter / retry / next_check_at 配置
+[x] research-pack 能输出 source target coverage，把 target 级 job/event/observation 状态回流到数据准备进度
+[x] source target coverage 能把 SOURCE_DEGRADED 标为 degraded，避免把缓存回退或源退化误读成完全成功
+[x] investigation backlog action 能随 source target coverage 细化为同步、启用、运行、等待、排错或 review observation
+[x] 所有风险结论都能追溯到 fact/observation/algorithm version
+[x] calibration run 能从人工 edge labels 计算 precision / reliability buckets / error summary
 ```
+
+说明：ComponentCard 已能展示 component risk baseline、component-scoped observation anomaly summary，以及由当前组件事实边关联到 supplier/consumer 的 company financial signals；CompanyCard 已能展示 company-scoped observations、observation anomaly summary，并基于 component risk metrics 聚合出 top exposure nodes。research-pack 默认会刷新当前包内 eligible component risk baseline，但 eligible 的前提是已有可审计 Level 4/5 component fact edge；只有 taxonomy、source-plan 或 observation 的组件必须继续保留为 coverage gap，不能写空风险结论。`investigation-backlog` 是 question readiness 的后续规划层，只把 gap / unknown / source-plan 转成可审计任务；runnable source-plan target 可以通过 source-management 同步到 `source_check_targets`，默认 disabled，审计后用 `enable-plan-targets` 受控启用并写入统一 target 级调度参数，随后才进入 due/worker。`source-target-coverage` 会把 target 级 sync、enable、due、job、event、degraded、observation 状态回流到研究包，说明数据准备卡在哪里；backlog action 会消费这些状态，给出同步、启用、运行、等待、排错或 review observation 的具体下一步。该路径只调度源检查，不自动生成事实边。当前 anomaly 支持显式 baseline/change 和同一序列的 trailing median/MAD；component risk refresh 已能把派生指标的实质变化写成 `RISK_METRIC_CHANGED`，供 changes timeline 区分 risk change。多跳 node knockout reachability 已有无权 baseline，weighted impact 已能用 strength/freshness 做 max-product propagation；多跳 path redundancy、weighted centrality 和 alternate-path aggregation 仍未完成。
 
 没有这些，只能说“事实图谱后端可用”，不能说“供应链监控后端完成”。

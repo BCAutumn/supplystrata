@@ -12,6 +12,17 @@ import { migration0010GraphProjectionJobsSql } from "./migration-sql/0010_graph_
 import { sql as migration0011GraphProjectionInProgressSql } from "./migration-sql/0011_graph_projection_in_progress.js";
 import { sql as migration0012ObservationTypeContractSql } from "./migration-sql/0012_observation_type_contract.js";
 import { sql as migration0013EdgeIntelligenceContextSql } from "./migration-sql/0013_edge_intelligence_context.js";
+import { sql as migration0014RiskViewsSql } from "./migration-sql/0014_risk_views.js";
+import { sql as migration0015AlertCandidatesSql } from "./migration-sql/0015_alert_candidates.js";
+import { sql as migration0016SourceCheckJobsSql } from "./migration-sql/0016_source_check_jobs.js";
+import { sql as migration0017SourceMonitoringControlsSql } from "./migration-sql/0017_source_monitoring_controls.js";
+import { sql as migration0018EdgeCalibrationSql } from "./migration-sql/0018_edge_calibration.js";
+import { sql as migration0019RiskMetricKindContractSql } from "./migration-sql/0019_risk_metric_kind_contract.js";
+import { sql as migration0020WeightedNodeKnockoutMetricSql } from "./migration-sql/0020_weighted_node_knockout_metric.js";
+import { sql as migration0021FinancialMetricObservationTypeSql } from "./migration-sql/0021_financial_metric_observation_type.js";
+import { sql as migration0022FinancialPeerMetricKindSql } from "./migration-sql/0022_financial_peer_metric_kind.js";
+import { sql as migration0023SourceEventCheckTargetSql } from "./migration-sql/0023_source_event_check_target.js";
+import { sql as migration0024SourceEventCheckTargetLooseRefSql } from "./migration-sql/0024_source_event_check_target_loose_ref.js";
 
 interface Migration {
   readonly id: string;
@@ -84,6 +95,61 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0013_edge_intelligence_context",
     description: "Create edge strength and freshness context tables for intelligence views.",
     sql: migration0013EdgeIntelligenceContextSql
+  },
+  {
+    id: "0014_risk_views",
+    description: "Create deterministic risk view and metric tables.",
+    sql: migration0014RiskViewsSql
+  },
+  {
+    id: "0015_alert_candidates",
+    description: "Create deterministic alert candidate table.",
+    sql: migration0015AlertCandidatesSql
+  },
+  {
+    id: "0016_source_check_jobs",
+    description: "Create durable source check worker jobs.",
+    sql: migration0016SourceCheckJobsSql
+  },
+  {
+    id: "0017_source_monitoring_controls",
+    description: "Add configurable source monitoring cadence and retry controls.",
+    sql: migration0017SourceMonitoringControlsSql
+  },
+  {
+    id: "0018_edge_calibration",
+    description: "Create edge calibration labels, runs, and reliability buckets.",
+    sql: migration0018EdgeCalibrationSql
+  },
+  {
+    id: "0019_risk_metric_kind_contract",
+    description: "Synchronize risk_metrics.metric_kind check constraint with core RISK_METRIC_KINDS.",
+    sql: migration0019RiskMetricKindContractSql
+  },
+  {
+    id: "0020_weighted_node_knockout_metric",
+    description: "Allow weighted node knockout propagation metrics in risk views.",
+    sql: migration0020WeightedNodeKnockoutMetricSql
+  },
+  {
+    id: "0021_financial_metric_observation_type",
+    description: "Allow SEC company facts financial metric observations.",
+    sql: migration0021FinancialMetricObservationTypeSql
+  },
+  {
+    id: "0022_financial_peer_metric_kind",
+    description: "Allow financial peer comparison metrics in risk views.",
+    sql: migration0022FinancialPeerMetricKindSql
+  },
+  {
+    id: "0023_source_event_check_target",
+    description: "Link source change events back to source check targets.",
+    sql: migration0023SourceEventCheckTargetSql
+  },
+  {
+    id: "0024_source_event_check_target_loose_ref",
+    description: "Keep source change event target refs compatible with manual source checks.",
+    sql: migration0024SourceEventCheckTargetLooseRefSql
   }
 ];
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { connectorKey, validateSourceCheckTargetConfig, type SourceCheckConnectorCapability, type SourceCheckTargetRow } from "@supplystrata/source-connectors";
 import { listSources, type SourceRegistryEntry } from "@supplystrata/source-registry";
 
@@ -11,7 +12,16 @@ export interface SourceManagementTargetInput {
   source_adapter_id: string;
   target_kind: string;
   enabled: boolean;
+  priority?: number;
+  next_check_at?: string;
+  check_cadence_minutes?: number;
+  jitter_minutes?: number;
+  max_attempts?: number;
+  backoff_base_minutes?: number;
+  backoff_max_minutes?: number;
+  subject_entity_id?: string;
   target_config: Record<string, unknown>;
+  notes?: string;
 }
 
 export interface SourceManagementConfig {
@@ -61,6 +71,45 @@ export interface SourceManagementInput {
   connector_capabilities?: readonly SourceCheckConnectorCapability[];
 }
 
+export type ManagedSourcePlanPriority = "P0" | "P1" | "P2" | "manual";
+
+export interface ManagedSourcePlanTargetSuggestion {
+  source_adapter_id: string;
+  target_kind: string;
+  runnable: boolean;
+  target_config: Record<string, string | number | boolean | string[]>;
+  reason: string;
+}
+
+export interface ManagedSourcePlanItem {
+  source_id: string;
+  priority: ManagedSourcePlanPriority;
+  reasons: readonly string[];
+  suggested_check_targets: readonly ManagedSourcePlanTargetSuggestion[];
+}
+
+export interface ManagedSourcePlanDocument {
+  schema_version: "1.0.0";
+  source_plan: readonly ManagedSourcePlanItem[];
+}
+
+export interface SourceTargetsFromPlanInput {
+  source_plan: readonly ManagedSourcePlanItem[];
+  namespace: string;
+  enabled?: boolean;
+  next_check_at?: string;
+  check_cadence_minutes?: number;
+  jitter_minutes?: number;
+  max_attempts?: number;
+  backoff_base_minutes?: number;
+  backoff_max_minutes?: number;
+}
+
+export interface SourcePlanTargetIdInput {
+  source_plan: readonly ManagedSourcePlanItem[];
+  namespace: string;
+}
+
 // 统一数据源管理面的核心入口：只汇总能力，不抓取、不写库，方便 CLI、宿主 App 和后续 UI 复用。
 export function buildSourceManagementCatalog(input: SourceManagementInput = {}): SourceManagementCatalog {
   const sources = input.sources ?? listSources();
@@ -74,6 +123,62 @@ export function buildSourceManagementCatalog(input: SourceManagementInput = {}):
       .map((connector) => connector.key)
       .sort()
   };
+}
+
+export function parseManagedSourcePlanDocument(text: string): ManagedSourcePlanDocument {
+  const parsed: unknown = JSON.parse(text);
+  if (!isRecord(parsed)) throw new Error("source plan document must be an object");
+  if (parsed["schema_version"] !== "1.0.0") throw new Error("source plan document schema_version must be 1.0.0");
+  const sourcePlan = parsed["source_plan"];
+  if (!Array.isArray(sourcePlan)) throw new Error("source plan document source_plan must be an array");
+  return {
+    schema_version: "1.0.0",
+    source_plan: sourcePlan.map((item, index) => parseManagedSourcePlanItem(item, `source_plan[${index}]`))
+  };
+}
+
+export function buildSourcePolicyConfigFromPlanTargets(input: SourceTargetsFromPlanInput): SourceManagementConfig {
+  return {
+    schema_version: "1.0.0",
+    policies: [],
+    check_targets: buildSourceCheckTargetsFromPlan(input)
+  };
+}
+
+export function buildSourceCheckTargetIdsFromPlan(input: SourcePlanTargetIdInput): string[] {
+  return buildSourceCheckTargetsFromPlan({
+    source_plan: input.source_plan,
+    namespace: input.namespace
+  }).map((target) => target.check_target_id);
+}
+
+export function buildSourceCheckTargetsFromPlan(input: SourceTargetsFromPlanInput): SourceManagementTargetInput[] {
+  const namespace = normalizeNamespace(input.namespace);
+  const targets: SourceManagementTargetInput[] = [];
+  const seen = new Set<string>();
+  for (const item of input.source_plan) {
+    for (const suggestion of item.suggested_check_targets) {
+      if (!suggestion.runnable) continue;
+      const target = toSourceCheckTargetInput(item, suggestion, {
+        namespace,
+        enabled: input.enabled ?? false,
+        ...(input.next_check_at === undefined ? {} : { next_check_at: normalizeIsoDateTime(input.next_check_at, "next_check_at") }),
+        ...(input.check_cadence_minutes === undefined
+          ? {}
+          : { check_cadence_minutes: requirePositiveInteger(input.check_cadence_minutes, "check_cadence_minutes") }),
+        ...(input.jitter_minutes === undefined ? {} : { jitter_minutes: requireNonNegativeInteger(input.jitter_minutes, "jitter_minutes") }),
+        ...(input.max_attempts === undefined ? {} : { max_attempts: requirePositiveInteger(input.max_attempts, "max_attempts") }),
+        ...(input.backoff_base_minutes === undefined
+          ? {}
+          : { backoff_base_minutes: requirePositiveInteger(input.backoff_base_minutes, "backoff_base_minutes") }),
+        ...(input.backoff_max_minutes === undefined ? {} : { backoff_max_minutes: requirePositiveInteger(input.backoff_max_minutes, "backoff_max_minutes") })
+      });
+      if (seen.has(target.check_target_id)) continue;
+      seen.add(target.check_target_id);
+      targets.push(target);
+    }
+  }
+  return targets.sort(compareSourceManagementTargets);
 }
 
 export function validateSourceManagementConfig(config: SourceManagementConfig, input: SourceManagementInput = {}): SourceManagementValidationResult {
@@ -209,4 +314,198 @@ function compareConnectorCapabilities(
   right: Pick<SourceCheckTargetRow, "source_adapter_id" | "target_kind">
 ): number {
   return connectorKey(left).localeCompare(connectorKey(right));
+}
+
+function parseManagedSourcePlanItem(value: unknown, label: string): ManagedSourcePlanItem {
+  if (!isRecord(value)) throw new Error(`${label} must be an object`);
+  const sourceId = requireNonEmptyString(value, "source_id", label);
+  const priority = requireSourcePlanPriority(value, "priority", label);
+  const reasons = requireStringArray(value, "reasons", label);
+  const suggestions = value["suggested_check_targets"];
+  if (!Array.isArray(suggestions)) throw new Error(`${label}.suggested_check_targets must be an array`);
+  return {
+    source_id: sourceId,
+    priority,
+    reasons,
+    suggested_check_targets: suggestions.map((item, index) => parseManagedSourcePlanTargetSuggestion(item, `${label}.suggested_check_targets[${index}]`))
+  };
+}
+
+function parseManagedSourcePlanTargetSuggestion(value: unknown, label: string): ManagedSourcePlanTargetSuggestion {
+  if (!isRecord(value)) throw new Error(`${label} must be an object`);
+  return {
+    source_adapter_id: requireNonEmptyString(value, "source_adapter_id", label),
+    target_kind: requireNonEmptyString(value, "target_kind", label),
+    runnable: requireBoolean(value, "runnable", label),
+    target_config: requireTargetConfig(value, "target_config", label),
+    reason: requireNonEmptyString(value, "reason", label)
+  };
+}
+
+function toSourceCheckTargetInput(
+  item: ManagedSourcePlanItem,
+  suggestion: ManagedSourcePlanTargetSuggestion,
+  options: {
+    namespace: string;
+    enabled: boolean;
+    next_check_at?: string;
+    check_cadence_minutes?: number;
+    jitter_minutes?: number;
+    max_attempts?: number;
+    backoff_base_minutes?: number;
+    backoff_max_minutes?: number;
+  }
+): SourceManagementTargetInput {
+  const targetConfig = copyTargetConfig(suggestion.target_config);
+  const subjectEntityId = subjectEntityIdFromConfig(targetConfig);
+  return {
+    check_target_id: buildPlanCheckTargetId({
+      namespace: options.namespace,
+      sourceAdapterId: suggestion.source_adapter_id,
+      targetKind: suggestion.target_kind,
+      targetConfig
+    }),
+    source_adapter_id: suggestion.source_adapter_id,
+    target_kind: suggestion.target_kind,
+    enabled: options.enabled,
+    priority: priorityForSourcePlanItem(item),
+    target_config: targetConfig,
+    notes: buildPlanTargetNotes(item, suggestion),
+    ...(subjectEntityId === undefined ? {} : { subject_entity_id: subjectEntityId }),
+    ...(options.next_check_at === undefined ? {} : { next_check_at: options.next_check_at }),
+    ...(options.check_cadence_minutes === undefined ? {} : { check_cadence_minutes: options.check_cadence_minutes }),
+    ...(options.jitter_minutes === undefined ? {} : { jitter_minutes: options.jitter_minutes }),
+    ...(options.max_attempts === undefined ? {} : { max_attempts: options.max_attempts }),
+    ...(options.backoff_base_minutes === undefined ? {} : { backoff_base_minutes: options.backoff_base_minutes }),
+    ...(options.backoff_max_minutes === undefined ? {} : { backoff_max_minutes: options.backoff_max_minutes })
+  };
+}
+
+function buildPlanCheckTargetId(input: { namespace: string; sourceAdapterId: string; targetKind: string; targetConfig: Record<string, unknown> }): string {
+  const key = `${input.namespace}:${input.sourceAdapterId}:${input.targetKind}:${stableUnknownConfigKey(input.targetConfig)}`;
+  const digest = createHash("sha256").update(key).digest("hex").slice(0, 16);
+  return `plan:${input.namespace}:${input.sourceAdapterId}:${input.targetKind}:${digest}`;
+}
+
+function buildPlanTargetNotes(item: ManagedSourcePlanItem, suggestion: ManagedSourcePlanTargetSuggestion): string {
+  const primaryReason = item.reasons[0] ?? "source-plan runnable target";
+  return `Generated from source-plan. ${suggestion.reason} Plan reason: ${primaryReason}`;
+}
+
+function priorityForSourcePlanItem(item: ManagedSourcePlanItem): number {
+  if (item.priority === "P0") return 10;
+  if (item.priority === "P1") return 30;
+  if (item.priority === "P2") return 60;
+  return 100;
+}
+
+function subjectEntityIdFromConfig(config: Record<string, unknown>): string | undefined {
+  const entityId = config["entity_id"];
+  return typeof entityId === "string" && entityId.trim().length > 0 ? entityId : undefined;
+}
+
+function copyTargetConfig(config: Record<string, string | number | boolean | string[]>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config).sort(([left], [right]) => left.localeCompare(right))) {
+    output[key] = Array.isArray(value) ? [...value] : value;
+  }
+  return output;
+}
+
+function compareSourceManagementTargets(left: SourceManagementTargetInput, right: SourceManagementTargetInput): number {
+  return (
+    left.source_adapter_id.localeCompare(right.source_adapter_id) ||
+    left.target_kind.localeCompare(right.target_kind) ||
+    left.check_target_id.localeCompare(right.check_target_id)
+  );
+}
+
+function normalizeNamespace(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (normalized.length === 0) throw new Error("source target namespace must include at least one alphanumeric character");
+  return normalized;
+}
+
+function normalizeIsoDateTime(value: string, label: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`${label} must be an ISO date/time string`);
+  return parsed.toISOString();
+}
+
+function stableUnknownConfigKey(config: Record<string, unknown>): string {
+  return Object.entries(config)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${stableUnknownValue(value)}`)
+    .join(";");
+}
+
+function stableUnknownValue(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableUnknownValue).join(",")}]`;
+  if (isRecord(value)) return `{${stableUnknownConfigKey(value)}}`;
+  return String(value);
+}
+
+function requireSourcePlanPriority(value: Record<string, unknown>, key: string, label: string): ManagedSourcePlanPriority {
+  const item = requireNonEmptyString(value, key, label);
+  if (item === "P0" || item === "P1" || item === "P2" || item === "manual") return item;
+  throw new Error(`${label}.${key} must be one of P0, P1, P2, manual`);
+}
+
+function requireTargetConfig(value: Record<string, unknown>, key: string, label: string): Record<string, string | number | boolean | string[]> {
+  const item = value[key];
+  if (!isRecord(item)) throw new Error(`${label}.${key} must be an object`);
+  const output: Record<string, string | number | boolean | string[]> = {};
+  for (const [configKey, configValue] of Object.entries(item)) {
+    if (typeof configValue === "string" || typeof configValue === "number" || typeof configValue === "boolean") {
+      output[configKey] = configValue;
+      continue;
+    }
+    if (Array.isArray(configValue) && configValue.every((entry) => typeof entry === "string")) {
+      output[configKey] = configValue;
+      continue;
+    }
+    throw new Error(`${label}.${key}.${configKey} must be a string, number, boolean, or string array`);
+  }
+  return output;
+}
+
+function requireStringArray(value: Record<string, unknown>, key: string, label: string): string[] {
+  const item = value[key];
+  if (!Array.isArray(item)) throw new Error(`${label}.${key} must be a string array`);
+  const values: string[] = [];
+  for (const entry of item) {
+    if (typeof entry !== "string") throw new Error(`${label}.${key} must be a string array`);
+    values.push(entry);
+  }
+  return values;
+}
+
+function requireNonEmptyString(value: Record<string, unknown>, key: string, label: string): string {
+  const item = value[key];
+  if (typeof item !== "string" || item.trim().length === 0) throw new Error(`${label}.${key} must be a non-empty string`);
+  return item;
+}
+
+function requireBoolean(value: Record<string, unknown>, key: string, label: string): boolean {
+  const item = value[key];
+  if (typeof item !== "boolean") throw new Error(`${label}.${key} must be a boolean`);
+  return item;
+}
+
+function requirePositiveInteger(value: number, label: string): number {
+  if (!Number.isInteger(value) || value < 1) throw new Error(`${label} must be a positive integer`);
+  return value;
+}
+
+function requireNonNegativeInteger(value: number, label: string): number {
+  if (!Number.isInteger(value) || value < 0) throw new Error(`${label} must be a non-negative integer`);
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -48,6 +48,7 @@ supplystrata/
 │   │   ├── llm/
 │   │   └── corroborator/
 │   ├── evidence-scorer/
+│   ├── evidence-maintenance/             # evidence trace / intelligence context 等 truth-store 维护 use-case
 │   ├── signal-extractor/                   # 官方披露 signal 抽取；不写图、不评级
 │   ├── observation-extractor/              # 官方披露 observation 草稿；不写图、不产事实边
 │   ├── observation-store/                  # observation / lead 幂等写入边界
@@ -64,7 +65,7 @@ supplystrata/
 │   └── render/                             # markdown / json 输出
 ├── apps/
 │   ├── cli/                                # supplystrata 命令
-│   └── worker/                             # 后台抽取 worker
+│   └── worker/                             # 常驻 source-check worker；复用 source-workflows，不写业务规则
 └── sidecars/
     └── xbrl-py/                            # Python: arelle / sec-api 适配
 ```
@@ -75,13 +76,22 @@ supplystrata/
 
 当前 `packages/` 数量已经偏多，后续重构按下面规则收敛：
 
-| 候选                                                           | 处理方向                                                                                            | 原因                                                         |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `source-connectors` / `source-management` / `source-workflows` | 保留短期边界，后续评估合并为 `source-workflows` 下的 `features/connectors` 与 `features/management` | 三者都服务“可配置数据源管理”，共同变更概率高                 |
-| `observation-store` / `observation-extractor`                  | 暂不合并                                                                                            | 一个是写入边界，一个是抽取规则；生命周期不同                 |
-| `chain-view` / `chain-view-builder`                            | 暂不合并                                                                                            | `chain-view` 必须保持纯 DTO，builder 可依赖 DB；这是有意防腐 |
-| `graph-store` / `graph`                                        | 暂不合并                                                                                            | `graph-store` 是可插拔接口，`graph` 是 Neo4j adapter         |
-| `research-pack` / `workbench-export`                           | 暂不合并                                                                                            | 前者是研究目录产物编排，后者是稳定 JSON 契约                 |
+| 候选                                                                 | 处理方向                                                                                            | 原因                                                                                                       |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `packages/sources/asml-ir` / `samsung-ir` / `skhynix-ir` / `tsmc-ir` | 已合并到 `packages/source-workflows/src/official-ir-adapters.ts`                                    | 原包都是薄 HTML snapshot adapter 壳，依赖相同、生命周期相同、只被 official IR workflow 消费                |
+| `source-connectors` / `source-management` / `source-workflows`       | 保留短期边界，后续评估合并为 `source-workflows` 下的 `features/connectors` 与 `features/management` | 三者都服务“可配置数据源管理”，共同变更概率高                                                               |
+| `observation-store` / `observation-extractor`                        | 暂不合并                                                                                            | 一个是写入边界，一个是抽取规则；生命周期不同                                                               |
+| `chain-view` / `chain-view-builder`                                  | 暂不合并                                                                                            | `chain-view` 必须保持纯 DTO，builder 可依赖 DB；这是有意防腐                                               |
+| `graph-store` / `graph`                                              | 暂不合并                                                                                            | `graph-store` 是可插拔接口，`graph` 是 Neo4j adapter                                                       |
+| `research-pack` / `workbench-export`                                 | 暂不合并                                                                                            | 前者是研究目录产物编排，后者是稳定 JSON 契约                                                               |
+| `evidence-maintenance`                                               | 暂保留独立，后续观察是否并入 `db` 的 maintenance feature 或 research workflow                       | 目前承载可重复维护任务，会写 intelligence / risk 派生上下文但不写事实边；与只读 card/research 输出职责不同 |
+
+轻量审计结论：
+
+- 必须保留独立：`graph-store` / `graph`，因为前者是 port、后者是 Neo4j adapter；`chain-view` / `chain-view-builder`，因为前者是纯 DTO、后者可依赖 DB；`workbench-export` / `research-pack`，因为前者是稳定 JSON 契约，后者是研究目录编排；`render`，因为它必须保持纯格式化。
+- 已完成第一轮合并：四个官方 IR HTML adapter 包 `sources/asml-ir`、`sources/samsung-ir`、`sources/skhynix-ir`、`sources/tsmc-ir` 已收敛到 `source-workflows` 的 official IR adapter 文件。外部仍使用 `tsmc-ir`、`samsung-ir`、`skhynix-ir`、`asml-ir` adapter id 和 `official-html-disclosure` connector 契约，避免影响监控目标、source plan 和 research-pack 输出。
+- 可以继续观察合并：`source-connectors` / `source-management` / `source-workflows` 都围绕 source domain 的连接器、配置和运行编排，后续可收敛到 `source-workflows/features/connectors` 与 `source-workflows/features/management`，但需要等 official IR 薄包合并稳定后再动，避免一次重构跨太多边界。
+- 暂不建议合并：`observation-store` / `observation-extractor`，一个是写入边界，一个是抽取规则；`evidence-maintenance` / `db`，前者包含维护编排和方法学规则，后者应保持 repository / migration 边界。
 
 合并包前必须先做依赖检查和调用点盘点，避免把原本清晰的 port / adapter 边界揉成新的上帝包。
 
@@ -103,6 +113,7 @@ observation-store ← pipeline / 后续 source monitor 消费；只写 observati
 source-plan ← CLI / 后续 workbench 消费；读取 source-registry + component-context，只输出 source plan
 source-connectors ← source-workflows 消费；集中注册 source check target runner，不抓源、不写库
 source-management ← CLI / 后续 host app 消费；读取 source-registry + source-connectors 能力，只做 catalog 与配置校验
+evidence-maintenance ← CLI / research-pack 消费；只做 truth-store 维护编排，可写 evidence 派生字段、edge_strength、edge_freshness、unknown、risk_views/risk_metrics、risk metric semantic changes、edge calibration runs、alert_candidates，不写 fact edge；alert 状态维护留在 db repository，因为它是 alert 自身生命周期，不属于信号生成规则
 card-builder ← apps/cli / 后续 API 消费；负责从 DbClient 组装 CompanyCard / ComponentCard / ChainCard / EvidenceCard / UnknownMap DTO
 research-pack ← CLI / 后续 host app 消费；编排已有 truth-store 数据，导出 workbench、cards、source plan、quality report，不抓新源、不写事实边
 runtime-profile ← CLI / 后续 host app 消费；只评估 preview / snapshot / truth store / graph projection 运行形态，不读文件、不连数据库
@@ -121,13 +132,17 @@ CI 里加 dependency-cruiser 校验。
 
 `pipeline` 是 normalized document engine：它接收已经标准化的 `NormalizedDocument`，调用 extractor/scorer/resolver/graph-builder，记录文档 observation，并把官方披露 observation draft 交给 `observation-store` 幂等写入。内部按职责拆分：`run.ts` 处理 normalized document 到事实边的纵向链路，`document-observations.ts` 处理文档监控和 observation 入库，`citation-location.ts` 负责把候选证据精确映射到唯一持久化 chunk。pipeline 不直接依赖 `sources/*`，也不直接维护具体数据源的抓取、预览、实体 registry 查询、Apple Supplier List enqueue 或 source check connector registry。
 
-`source-workflows` 是具体免费/公开源的 use-case 编排层：SEC EDGAR 纵向切片、Apple Supplier List review enqueue、Companies House / OpenCorporates entity lookup、官方 IR preview、Census / OSH source check connector 都放在这里。它可以依赖 `sources/*`、`source-connectors` 和 `pipeline`，但只把标准化文档交给 pipeline 内核；新增 DART、EDINET、Open Supply Hub、Comtrade 等源时应扩展 `source-workflows` 或独立 feature workflow 包，而不是改 `pipeline`。
+`source-workflows` 是具体免费/公开源的 use-case 编排层：SEC EDGAR 纵向切片、Apple Supplier List review enqueue、Companies House / OpenCorporates entity lookup、官方 IR preview、Census / OSH source check connector 都放在这里。它可以依赖 `sources/*`、`source-connectors` 和 `pipeline`，但只把标准化文档交给 pipeline 内核；`runDueSourceChecks()` 只负责 enqueue / claim `source_check_jobs` 并分发 connector，持续监控 cadence / jitter / retry/backoff 只能来自 source policy config，后续常驻 worker 也复用这条路径。新增 DART、EDINET、Open Supply Hub、Comtrade 等源时应扩展 `source-workflows` 或独立 feature workflow 包，而不是改 `pipeline`。
 
 `source-plan` 是二/三级链路扩源的边界：它把 `component-context` 里的上游 lead 映射到 `source-registry` 里的免费/公开数据源，并标明 `edge / observation / lead / entity` 输出层与自动化策略。它不抓取、不解析、不写 Postgres，也不允许把 Comtrade/AIS/能源/新闻这类弱源升级成事实边。
 
 `source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验和 unsupported target 错误。具体源例如 SEC EDGAR 在 `source-workflows` 侧提供 connector 实现；`sources check` 和 `run-due` 都只走 connector registry，不在 CLI 或调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
 
 `source-management` 是统一数据源管理面：它把 `source-registry` 的权威来源清单、`source-connectors` 的可运行 target kind、connector 声明的 `target_config` 字段契约、外部 `source policy` 配置校验收口到一个纯模块。它不抓取、不写库、不读取环境变量；CLI、未来 TS 桌面端或 agent 宿主可以先调用它展示“哪些源可配置、哪些字段必填、哪些只登记未实现、哪些需要 key、哪些只能手工”，再决定是否同步到 Postgres。用户自定义 source policy 必须先通过这个模块校验，避免把不存在的 source/target 或字段错误的 target_config 写进调度表。
+
+`evidence-maintenance` 是 truth-store 维护型 use-case 层。第一版包含 evidence trace backfill 和 edge intelligence refresh。它可以消费 `db` repository，并按方法学写入 `edge_strength_estimates`、`edge_freshness` 和 explicit unknown；它不得写 `edges`、不得提升 `evidence_level`、不得把 LLM / observation / lead 结果包装成事实关系。CLI 只能作为薄入口调用它，`research-pack` 可以在导出前调用它让研究输出带上最新派生上下文。
+
+`apps/worker` 是常驻后台进程入口。当前只运行 source-check worker loop：解析运行参数、连接 `DatabaseStore`、处理 SIGINT/SIGTERM，并循环调用 `source-workflows.runDueSourceChecks()`。它不得重新实现 due target 查询、connector 分发、retry/backoff 或 alert 规则；这些能力必须留在 domain/use-case package 中，保证 CLI、worker 和未来宿主 app 共享同一条业务路径。
 
 `relation-extractor/rule` 的 counterparty / component 识别模式放在 `patterns.ts`。新增公司、组件、制造服务供应商时优先扩展模式数据；只有新增一种抽取语义时才修改主抽取流程。
 

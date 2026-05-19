@@ -10,6 +10,9 @@ export type ChangeTimelineScope =
   | { kind: "observation"; id: string }
   | { kind: "lead"; id: string }
   | { kind: "unknown"; id: string }
+  | { kind: "alert"; id: string }
+  | { kind: "risk_view"; id: string }
+  | { kind: "risk_metric"; id: string }
   | { kind: "review"; id: string }
   | { kind: "source"; id: string };
 
@@ -24,7 +27,7 @@ export interface ChangeTimelineInput {
 
 export interface ChangeTimelineItem {
   event_id: string;
-  event_family: "graph" | "source" | "semantic";
+  event_family: "graph" | "source" | "semantic" | "risk";
   event_type: string;
   occurred_at: string;
   scope_kind?: string;
@@ -41,6 +44,16 @@ export interface ChangeTimelineItem {
   object_name?: string;
   relation?: RelationType;
   component?: string;
+  observation_scope_kind?: string;
+  observation_scope_id?: string;
+  metric_name?: string;
+  metric_value?: string;
+  metric_unit?: string;
+  baseline_method?: string;
+  baseline_value?: string;
+  change_percent?: number;
+  anomaly_severity?: string;
+  anomaly_direction?: string;
   caused_by: string;
   requires_attention: boolean;
   before?: Record<string, unknown>;
@@ -196,9 +209,10 @@ function graphChangeRowToItem(row: GraphChangeRow): ChangeTimelineItem {
     caused_by: row.caused_by,
     requires_attention: graphChangeRequiresAttention(row.change_type)
   };
-  return withOptionalChangeFields(item, {
+  const docId = row.doc_id ?? stringValue(row.after, "doc_id") ?? stringValue(row.before, "doc_id") ?? null;
+  const timelineItem = withOptionalChangeFields(item, {
     source_adapter_id: row.source_adapter_id,
-    doc_id: row.doc_id,
+    doc_id: docId,
     edge_id: row.edge_id,
     evidence_id: row.evidence_id,
     evidence_level: row.evidence_level,
@@ -211,6 +225,7 @@ function graphChangeRowToItem(row: GraphChangeRow): ChangeTimelineItem {
     before: row.before,
     after: row.after
   });
+  return withSemanticChangeFields(timelineItem, row);
 }
 
 function sourceChangeRowToItem(row: SourceChangeRow): ChangeTimelineItem {
@@ -268,6 +283,32 @@ function withOptionalChangeFields(
   return output;
 }
 
+function withSemanticChangeFields(item: ChangeTimelineItem, row: GraphChangeRow): ChangeTimelineItem {
+  if (row.change_type !== "OBSERVATION_ANOMALY") return item;
+  const output = { ...item };
+  const observationScopeKind = stringValue(row.after, "observation_scope_kind");
+  const observationScopeId = stringValue(row.after, "observation_scope_id");
+  const metricName = stringValue(row.after, "metric_name");
+  const metricValue = stringValue(row.after, "metric_value");
+  const metricUnit = stringValue(row.after, "metric_unit");
+  const baselineMethod = stringValue(row.after, "baseline_method");
+  const baselineValue = stringValue(row.after, "baseline_value");
+  const changePercent = numberValue(row.after, "change_percent");
+  const severity = stringValue(row.after, "severity");
+  const direction = stringValue(row.after, "direction");
+  if (observationScopeKind !== undefined) output.observation_scope_kind = observationScopeKind;
+  if (observationScopeId !== undefined) output.observation_scope_id = observationScopeId;
+  if (metricName !== undefined) output.metric_name = metricName;
+  if (metricValue !== undefined) output.metric_value = metricValue;
+  if (metricUnit !== undefined) output.metric_unit = metricUnit;
+  if (baselineMethod !== undefined) output.baseline_method = baselineMethod;
+  if (baselineValue !== undefined) output.baseline_value = baselineValue;
+  if (changePercent !== undefined) output.change_percent = changePercent;
+  if (severity !== undefined) output.anomaly_severity = severity;
+  if (direction !== undefined) output.anomaly_direction = direction;
+  return output;
+}
+
 function normalizeGraphChangeType(changeType: string): string {
   if (changeType === "new_edge") return "EDGE_ADDED";
   if (changeType === "edge_evidence_added") return "EVIDENCE_ADDED";
@@ -283,16 +324,18 @@ function eventFamilyForGraphRow(scopeKind: string): ChangeTimelineItem["event_fa
     scopeKind === "observation" ||
     scopeKind === "lead" ||
     scopeKind === "unknown" ||
+    scopeKind === "alert" ||
     scopeKind === "review" ||
     scopeKind === "source"
   ) {
     return "semantic";
   }
+  if (scopeKind === "risk_view" || scopeKind === "risk_metric") return "risk";
   return "graph";
 }
 
 function graphChangeRequiresAttention(changeType: string): boolean {
-  return /changed|removed|deprecated|conflict|failed|blocked|rejected|superseded/i.test(changeType);
+  return /changed|removed|deprecated|conflict|failed|blocked|rejected|superseded|anomaly/i.test(changeType);
 }
 
 function sourceChangeRequiresAttention(eventType: string): boolean {
@@ -303,8 +346,28 @@ function matchesChangeScope(item: ChangeTimelineItem, scope: ChangeTimelineScope
   if (scope === undefined) return true;
   if (scope.kind === "source") return item.source_adapter_id === scope.id;
   if (scope.kind === "edge") return item.edge_id === scope.id || (item.scope_kind === "edge" && item.scope_id === scope.id);
-  if (scope.kind === "claim" || scope.kind === "observation" || scope.kind === "lead" || scope.kind === "unknown" || scope.kind === "review") {
+  if (item.observation_scope_kind === scope.kind && item.observation_scope_id === scope.id) return true;
+  if (
+    scope.kind === "claim" ||
+    scope.kind === "observation" ||
+    scope.kind === "lead" ||
+    scope.kind === "unknown" ||
+    scope.kind === "alert" ||
+    scope.kind === "risk_view" ||
+    scope.kind === "risk_metric" ||
+    scope.kind === "review"
+  ) {
     return item.scope_kind === scope.kind && item.scope_id === scope.id;
   }
   return item.scope_id === scope.id || item.subject_id === scope.id || item.object_id === scope.id;
+}
+
+function stringValue(source: Record<string, unknown> | null, key: string): string | undefined {
+  const value = source?.[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function numberValue(source: Record<string, unknown> | null, key: string): number | undefined {
+  const value = source?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

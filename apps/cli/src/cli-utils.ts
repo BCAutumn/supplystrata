@@ -69,7 +69,9 @@ export function parseChangeScope(value: string | undefined): ChangeTimelineScope
   if (separator < 1 || separator === value.length - 1) throw new Error(`Unsupported change scope: ${value}`);
   const kind = value.slice(0, separator);
   const id = value.slice(separator + 1);
-  if (kind === "company" || kind === "entity" || kind === "edge" || kind === "source") return { kind, id };
+  if (kind === "company" || kind === "entity" || kind === "edge" || kind === "alert" || kind === "risk_view" || kind === "risk_metric" || kind === "source") {
+    return { kind, id };
+  }
   throw new Error(`Unsupported change scope: ${value}`);
 }
 

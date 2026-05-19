@@ -1,3 +1,5 @@
+export * from "./alerts.js";
+export * from "./calibration.js";
 export * from "./changes.js";
 export * from "./chain-views.js";
 export * from "./claims.js";
@@ -10,5 +12,6 @@ export * from "./migrations.js";
 export * from "./observations.js";
 export * from "./pending.js";
 export * from "./query.js";
+export * from "./risk.js";
 export * from "./seed.js";
 export * from "./unknowns.js";

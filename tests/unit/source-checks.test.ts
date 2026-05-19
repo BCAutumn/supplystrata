@@ -8,6 +8,7 @@ describe("source check registry", () => {
     expect(listSourceCheckConnectorIds()).toEqual(
       expect.arrayContaining([
         "sec-edgar/sec-company-filings",
+        "sec-edgar/sec-company-facts",
         "census-trade/trade-flow-observation",
         "osh/facility-search",
         "worldbank-pink/commodity-price-observation"
@@ -19,6 +20,11 @@ describe("source check registry", () => {
           source_adapter_id: "sec-edgar",
           target_kind: "sec-company-filings",
           key: "sec-edgar/sec-company-filings"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "sec-edgar",
+          target_kind: "sec-company-facts",
+          key: "sec-edgar/sec-company-facts"
         })
       ])
     );

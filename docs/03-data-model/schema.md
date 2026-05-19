@@ -251,6 +251,9 @@ CREATE TABLE source_policies (
   check_cadence_minutes INT NOT NULL,
   jitter_minutes        INT NOT NULL DEFAULT 0,
   priority              INT NOT NULL DEFAULT 100,
+  max_attempts          INT NOT NULL DEFAULT 3,
+  backoff_base_minutes  INT NOT NULL DEFAULT 1,
+  backoff_max_minutes   INT NOT NULL DEFAULT 60,
   config_source         TEXT NOT NULL DEFAULT 'default',
   next_check_at         TIMESTAMPTZ,
   notes                 TEXT,
@@ -265,9 +268,32 @@ CREATE TABLE source_check_targets (
   enabled           BOOLEAN NOT NULL DEFAULT true,
   priority          INT NOT NULL DEFAULT 100,
   next_check_at     TIMESTAMPTZ,
+  check_cadence_minutes INT,
+  jitter_minutes        INT,
+  max_attempts          INT,
+  backoff_base_minutes  INT,
+  backoff_max_minutes   INT,
   target_config     JSONB NOT NULL DEFAULT '{}'::jsonb,
   config_source     TEXT NOT NULL DEFAULT 'default',
   notes             TEXT,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE source_check_jobs (
+  job_id            TEXT PRIMARY KEY,
+  check_target_id   TEXT NOT NULL REFERENCES source_check_targets(check_target_id),
+  source_adapter_id TEXT NOT NULL,
+  target_kind       TEXT NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'pending', -- pending|in_progress|failed|succeeded|dead
+  attempts          INT NOT NULL DEFAULT 0,
+  max_attempts      INT NOT NULL DEFAULT 3,
+  backoff_base_minutes INT NOT NULL DEFAULT 1,
+  backoff_max_minutes  INT NOT NULL DEFAULT 60,
+  last_error        TEXT,
+  next_attempt_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  claimed_at        TIMESTAMPTZ,
+  completed_at      TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -302,6 +328,7 @@ CREATE TABLE source_change_events (
   source_adapter_id TEXT NOT NULL,
   source_item_id    TEXT REFERENCES source_items(source_item_id),
   doc_id            TEXT REFERENCES documents(doc_id),
+  check_target_id   TEXT, -- source_check_targets.check_target_id or manual source-check id
   before            JSONB,
   after             JSONB,
   detected_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -324,7 +351,13 @@ CREATE TABLE fetch_runs (
 );
 ```
 
-这组表是 source monitoring / change detection 的底座。`source_health` 同步静态 registry；`source_policies` 保存外部可配置检查 cadence；`source_check_targets` 保存具体要检查的公司/源目标，例如 `sec-edgar:nvidia`；`source_items` 表示一个可重复观察的 URL/API item；`document_versions` 保存每次内容版本；`source_change_events` 记录新文档、未变化和内容变化事件；`fetch_runs` 记录抓取尝试本身。
+这组表是 source monitoring / change detection 的底座。`source_health` 同步静态 registry；`source_policies` 保存外部可配置的 source 级默认 cadence、jitter、priority、retry/backoff 和初始 `next_check_at`；`source_check_targets` 保存具体要检查的公司/源目标，例如 `sec-edgar:nvidia`，并可覆盖 cadence、jitter、retry/backoff 和初始检查时间；`source_check_jobs` 是到期目标的 durable worker job/outbox，使用 `pending / in_progress / failed / succeeded / dead` 状态、`FOR UPDATE SKIP LOCKED` 领取和配置化退避重试；`source_items` 表示一个可重复观察的 URL/API item；`document_versions` 保存每次内容版本；`source_change_events` 记录新文档、未变化和内容变化事件，并通过 `check_target_id` 回链到触发它的具体 monitor target；`fetch_runs` 记录抓取尝试本身。
+
+外部配置统一走 `source policy config` JSON：
+
+- `policies[]`：按 `source_adapter_id` 配置 source 级默认 `check_cadence_minutes / jitter_minutes / priority / next_check_at / max_attempts / backoff_base_minutes / backoff_max_minutes`。
+- `check_targets[]`：配置具体 target 的 connector、subject、`target_config`，并可覆盖同一组 monitoring 参数。
+- 运行时调度优先使用 target 覆盖值，缺失时回落到 source policy；调用方不能在 enqueue 阶段绕过配置传入重试参数。
 
 ### 10. unknown_items
 
@@ -440,6 +473,8 @@ chain_segments
 - `status='draft'` 只用于已确认的语义变化草稿，例如 `semantic_change` review apply 生成的 `CLM-REVIEW-*`；draft 不进入 active claim 查询，也不能被前端画成事实边。
 - `observations` 不能被 graph-builder 直接物化成 Neo4j fact edge。
 - `@supplystrata/observation-store` 第一版只做幂等写入和输入边界校验；它不调用 graph-builder，不把 observation/lead 升级为边。
+- `FINANCIAL_METRIC_OBSERVATION` 来自 SEC companyfacts 结构化 JSON，保存 company-scoped 财报指标时序；同一 metric/unit 可以用上一期写入 `baseline_value / change_value / change_percent`，provenance 必须记录 `accession / form / filed / taxonomy / xbrl_tag / source_url`，并且不得由此直接生成供应链事实边。
+- ComponentCard 的 `linked_company_observations` 是读取层 DTO，不是新表：它通过当前组件已有 Level 4/5 fact edges 找到 supplier/consumer 公司，再读取这些公司的 company-scoped `FINANCIAL_METRIC_OBSERVATION`。这个关联只用于研究上下文展示，不会把财务 observation 升级成供应关系。
 - `lead_observations` 必须进入 review 或研究队列，默认不进图谱。
 - `chain_segments.semantic_layer` 必须保留 `edge / claim / observation / lead / unknown`，供 CLI、API 和研究工作台统一消费。
 - `@supplystrata/chain-view` 第一版已经能把上游 fact edge、active claim、company/component observations、open leads 和 unknown items 组装成前端可消费的 `CompanyChainViewModel`；observation / lead / unknown 是 context segment，不带 `evidence_level`，不改事实边语义。
@@ -477,6 +512,169 @@ edge_freshness
 - `strength_kind='share'` 必须有可追溯来源；没有 share 时宁可输出 unknown，也不能均分或猜测。
 - `freshness_score` 只能进入 workbench / risk view / intelligence view，不能反向降低或提高 `evidence_level`。
 - `@supplystrata/workbench-export` 把这部分导出为 `intelligence.edge_strengths / intelligence.edge_freshness`，前端和宿主 app 应把它当作上下文，而不是新事实边。
+- `@supplystrata/evidence-maintenance` 提供 `refreshEdgeIntelligenceContext()` 后端编排：扫描 `current`、非 inferred、Level 4/5 且有 `primary_evidence_id` 的事实边，刷新 `edge_freshness`；只从 primary evidence 的命名、明确文本中确定性写入 `share / dependency / capacity / qualitative` strength；没有明确强度时写入 edge-scoped explicit unknown。
+- 该 refresh 不写 `edges`，不改变 `evidence_level`，不把 observation / lead 升级为事实边；它只写 intelligence context 和 unknown map。
+
+## Risk Views
+
+`risk_views` 与 `risk_metrics` 是 risk / intelligence 派生层。它们消费事实边、strength、freshness、observation 等可追溯输入，输出可复算指标；它们不是事实边，也不能反写 `edges`。
+
+```text
+risk_views
+  risk_view_id
+  scope_kind
+  scope_id
+  generated_at
+  model_version
+  inputs_fingerprint
+  summary
+  attrs
+
+risk_metrics
+  metric_id
+  risk_view_id
+  metric_kind: supplier_concentration_hhi | single_source_exposure | path_redundancy | node_knockout_reach | node_knockout_weighted_impact | betweenness_centrality | freshness_adjusted_exposure | observation_anomaly | financial_metric_peer_zscore
+  subject_kind
+  subject_id
+  component_id
+  value
+  confidence
+  provenance
+  attrs
+```
+
+当前第一版由 `@supplystrata/evidence-maintenance` 的 `refreshComponentRiskView()` 生成 component-scoped baseline：
+
+- 调用方在批量刷新前应先按同一事实边条件筛选 eligible component：`validity='current'`、`evidence_level>=4`、`is_inferred=false`、有 `component_id`，且 relation 属于 `BUYS_FROM / SUPPLIES_TO / USES_FOUNDRY / MANUFACTURES_AT`。research-pack 使用 `listRefreshableComponentRiskComponentIds()` 做这一步，避免给无事实边组件写空 risk view。
+- `supplier_concentration_hhi` 只有在相关供应边都有明确 `share` strength 时才写精确 `value`；缺 share 时 `value=NULL`，并在 `attrs.share_unknown=true` 和 `attrs.missing_share_edge_ids` 中显式暴露缺口。
+- `single_source_exposure` 只来自事实边 topology（仅一个供应商）或明确 `dependency=single_source` strength。
+- `path_redundancy` 当前是直接组件事实边 baseline：`value = max(distinct_supplier_count - 1, 0)`，并在 attrs 里标明 `redundancy_scope='direct_component_fact_edges'`；多跳 chain graph 冗余后续单独实现。
+- `node_knockout_reach` 当前是有向 component fact-edge 图 reachability baseline：按 supplier -> consumer 方向输出该节点失效会影响多少个下游实体。
+- `node_knockout_weighted_impact` 当前是 strength/freshness 加权传播 baseline：边权重为可追溯 `strength_weight * freshness_score`，每个下游实体取当前已知最强路径，`value` 为这些实体 impact 求和；缺 strength 或 freshness 的边写入 `attrs.missing_weight_edge_ids`，不补值、不均分。
+- `betweenness_centrality` 当前是有向 component fact-edge 图 baseline：按 supplier -> consumer 方向计算 unweighted shortest-path betweenness，只输出 raw score > 0 的瓶颈节点；加权多跳传播后续单独实现。
+- `freshness_adjusted_exposure` 以可追溯 strength weight 乘以 `freshness_score`；缺 strength 或 freshness 时不伪造数值，而是在 attrs 中标出 `strength_unknown` / `freshness_missing`。
+- 每次生成必须写 `model_version` 和 `inputs_fingerprint`，同一输入应得到稳定 risk view / metric id。
+- 新版 component risk view 会与上一版派生指标按稳定 metric key 对比；实质变化写入 `change_records.change_type='RISK_METRIC_CHANGED'`，并在 `before / after` 中记录 risk view id、指标值、方向、severity 和触发阈值。
+- risk change 是派生层事件，`scope_kind='risk_metric'`；它不能反写 `edges`，也不能作为事实关系证据。
+
+### Research Pack Readiness / Investigation Outputs
+
+`@supplystrata/research-pack` 会导出两个只读研究辅助产物：
+
+- `question-readiness.json/md`：根据当前 pack 中的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready / partial / blocked`。
+- `investigation-backlog.json/md`：把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 转成下一步调查任务。
+- `source-target-coverage.json/md`：把 runnable source-plan target 与 `source_check_targets / source_check_jobs / source_change_events / observations` 对齐，展示数据准备链路的 sync、enable、due、job、event、degraded 和 observation 状态。
+
+这些产物不对应事实表，不写 `edges`，也不改变 `risk_views / observations / unknown_items`。它们的作用是让人工或后续安全 agent 知道下一步该查什么、为什么查、关联哪些 source / unknown / component / edge，以及已经同步/运行/失败/退化在哪里。`investigation-backlog` 会消费 coverage 状态，把 action 从笼统的“去跑 source”细化为“先同步 target / 启用 target / 跑 due target / 等待 active job / 排查 failed/degraded job / review observation”。正式系统需要持久化时，应另建 agent/review 层契约，不能把 backlog item 或 coverage item 当成事实证据。
+
+`source-plan` 只有在调用方显式提供时间参数时才生成 runnable target：例如 `tradeObservationMonth` 生成 Census Trade target，`commodityObservationMonth` 生成 World Bank commodity target，`officialDisclosureYear` 生成 TSMC / Samsung / SK hynix / ASML 的 `official-html-disclosure` target。缺少时间参数时保持 planned，不能猜默认 period。`source-management` 会把 runnable suggestions 转换为 `source_check_targets`：`check_target_id` 由 namespace、source、target kind 和 target_config 稳定生成，默认 `enabled=false`。审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并写入 target 级 cadence、jitter、retry 和 `next_check_at` 覆盖值；启用后才由 `sources due/run-due` 或 worker 执行。该转换和启用流程都不抓源、不写事实边，只把研究计划接到统一监控配置层。
+
+同一 package 也提供 `refreshObservationAnomalyViews()` 生成 observation-scoped baseline：
+
+- 输入优先使用已有 `baseline_value`，且有 `change_percent` 或可由 `metric_value / baseline_value` 复算变化率的 observation。
+- 没有显式 baseline 时，会查询同一 `observation_type / scope / geography / component / metric / unit` 的历史 observation，用 trailing median/MAD 生成 baseline、MAD 和 z-like score。
+- `metric_kind='observation_anomaly'`，`subject_kind='observation'`，`subject_id=observation_id`。
+- 显式 baseline 路径的 `value` 保存绝对变化百分比；历史窗口路径的 `value` 保存绝对 z-like score。`attrs.is_anomaly / severity / direction / baseline_method / threshold_percent / z_threshold / change_percent / z_like_score / baseline_observation_ids` 保存可解释上下文。
+- 没有 baseline 且历史点不足时，不写 anomaly view；不能用空历史补造趋势。
+- `is_anomaly=true` 时可写入 `change_records.change_type='OBSERVATION_ANOMALY'`，用于 timeline / alert rules；该事件以 `scope_kind='observation'` 引用原 observation，并在 `after.risk_view_id` 里指向派生视图。`after` 还应包含 `observation_scope_kind / observation_scope_id / metric_name / metric_value / metric_unit / baseline_method / baseline_value / change_percent / severity / direction`，让 changes timeline 能在 company/component scope 下展示可审计的指标拐点。
+- 该 view 仍是派生层，不写 `edges`，不改变 observation 本身，也不能作为 fact edge 证据。
+
+同一 package 也提供 `refreshFinancialMetricPeerComparisonViews()` 生成财务同行横向比较：
+
+- 输入只读取 `observation_type='FINANCIAL_METRIC_OBSERVATION'` 且 `scope_kind='company'` 的 observation。
+- peer group 的业务键优先使用 `metric_name / metric_unit / fiscal_year / fiscal_period`；缺 fiscal period 时使用 `metric_name / metric_unit / time_window_start / time_window_end`。不完全一致的期间或单位不能混合比较。
+- 默认至少 3 家公司才写 risk view；样本不足保持普通 observation，不补造行业均值。
+- `metric_kind='financial_metric_peer_zscore'`，`subject_kind='company'`，`subject_id=company entity id`。
+- `value` 保存 signed z-score；`attrs.percentile / rank_descending / peer_count / mean / standard_deviation / peer_company_ids / metric_value` 保存同行位置上下文。
+- CompanyCard DTO 的 `financial_peer_metrics` 是读取层字段，不是新表；research-pack 的 `company.json/company.md` 会自然带出这些同行位置指标。
+- 该 view 只说明同期间 peer position，不是风险分，不写 `edges`，不推断供应商/客户关系。
+
+## Alert Candidates
+
+`alert_candidates` 是持续监控层的候选告警表。它不是事实层，也不是通知系统；它只把已有 source event、semantic change、risk metric 变成可去重、可审核、可展示的 alert candidate。
+
+```text
+alert_candidates
+  alert_id
+  alert_kind: observation_anomaly | source_failure | component_risk
+  severity: low | medium | high | critical
+  status: open | acknowledged | resolved | suppressed
+  scope_kind / scope_id
+  title / summary
+  dedupe_key
+  observation_id
+  risk_view_id
+  risk_metric_id
+  change_id
+  source_event_id
+  source_adapter_id
+  detected_at
+  provenance
+  attrs
+```
+
+第一版由 `refreshAlertCandidates()` 生成：
+
+- `observation_anomaly` 来自 `change_records.change_type='OBSERVATION_ANOMALY'`，必须引用 observation 和 risk view。
+- `source_failure` 来自 `source_change_events.event_type='SOURCE_FAILED'`，必须引用 source event 和 source adapter。
+- `component_risk` 来自 `risk_metrics` 中的 `single_source_exposure`、高 HHI 或 node knockout baseline，必须引用 risk view / metric。
+- `dedupe_key` 是业务幂等键；重复 refresh 只能更新同一 alert candidate，不能刷出重复告警。
+- `status` 是 alert 自身的维护状态；`open / acknowledged / resolved / suppressed` 的变更必须通过 alert lifecycle repository 写入，并记录 `change_records.change_type='ALERT_STATUS_CHANGED'`。
+- `ALERT_STATUS_CHANGED` 使用 `scope_kind='alert'` / `scope_id=alert_id`，用于 changes timeline 审计“谁在什么原因下处理了这个告警”。
+- alert candidate 不写 `edges`，不改变 `evidence_level`，不自动 approve review，也不等同于正式通知。
+
+## Edge Calibration
+
+`edge_calibration_labels` / `edge_calibration_runs` / `edge_calibration_run_items` 是事实边精度校准层。它们消费人工 review gold labels，评估 Level 4/5 fact edge 的预测 confidence 与实际正确率是否匹配；它们不写事实边，也不能自动修改 `evidence_level`。
+
+```text
+edge_calibration_labels
+  label_id
+  edge_id
+  evidence_id
+  label: correct | incorrect | uncertain
+  error_category: extraction_error | entity_resolution_error | source_error | staleness_error | semantic_misread | other
+  reviewer
+  reviewed_at
+  rationale
+  attrs
+
+edge_calibration_runs
+  run_id
+  generated_at
+  model_version
+  inputs_fingerprint
+  min_evidence_level
+  sample_size
+  evaluated_count
+  correct_count
+  incorrect_count
+  uncertain_count
+  precision
+  reliability_buckets
+  error_summary
+  attrs
+
+edge_calibration_run_items
+  run_id
+  label_id
+  edge_id
+  evidence_id
+  evidence_level
+  predicted_confidence
+  confidence_bucket
+  label
+  error_category
+```
+
+当前第一版由 `recordEdgeCalibrationLabel()` 和 `refreshEdgeCalibrationRun()` 提供：
+
+- `incorrect` label 必须有 `error_category`；`correct / uncertain` 不能带错误类型，避免把不确定样本误当作负样本。
+- `precision = correct / (correct + incorrect)`；`uncertain` 进入样本量和 bucket，但不进入 precision 分母。
+- `reliability_buckets` 按 edge confidence 的 0.1 桶聚合，记录每桶样本数、经验正确率和平均 confidence。
+- `error_summary` 只统计 incorrect 样本，用于区分抽取错误、实体消歧错误、来源错误、过期错误和语义误判。
+- calibration run 有 `model_version` 和 `inputs_fingerprint`，同一 gold label 输入应得到稳定 `run_id`。
+- 校准结果只能用于方法学评估、阈值调整和后续人工治理；不得自动 rewrite fact edge。
 
 ## Neo4j 模型
 
