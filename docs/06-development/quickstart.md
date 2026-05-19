@@ -117,9 +117,18 @@ pnpm release:check --with-db
 pnpm --silent cli preview nvidia --format markdown
 pnpm --silent cli preview report nvidia --format markdown --lang zh
 pnpm --silent cli preview apple-suppliers --limit 10 --format markdown
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --out reports/nvidia-research-snapshot
+pnpm --silent cli runtime doctor
 ```
 
-这条路径不会落库，也不会写 GraphStore，适合未来嵌入 TS 桌面端或 agent 产品。需要 review 队列、source health、changes timeline 或 Postgres truth store 时，需要连接 Postgres；需要图数据库物化视图、`graph rebuild/check` 或 Neo4j Browser 探索时，才需要 Neo4j adapter。
+这条路径不会落库，也不会写 GraphStore，适合未来嵌入 TS 桌面端或 agent 产品。`research from-workbench` 只消费已有 `WorkbenchModel` JSON，可以把一次 DB-backed 研究结果重新打包成静态目录；`preview` 则重新走抓取/解析/规则抽取。需要 review 队列、source health、changes timeline 或 Postgres truth store 时，需要连接 Postgres；需要图数据库物化视图、`graph rebuild/check` 或 Neo4j Browser 探索时，才需要 Neo4j adapter。
+
+如果不确定自己该跑哪条路径：
+
+```bash
+pnpm --silent cli runtime doctor --format markdown
+pnpm --silent cli runtime doctor --check-db --format json
+```
 
 ## 常见失败
 

@@ -22,7 +22,8 @@ export default defineConfig({
 function loadTsconfigAliases(): Record<string, string> {
   const tsconfig = readTsconfigAliases(resolve(rootDir, "tsconfig.base.json"));
   const aliases: Record<string, string> = {};
-  for (const [packageName, targets] of Object.entries(tsconfig.paths)) {
+  const entries = Object.entries(tsconfig.paths).sort(([left], [right]) => right.length - left.length);
+  for (const [packageName, targets] of entries) {
     const firstTarget = targets[0];
     if (firstTarget === undefined) throw new Error(`tsconfig path alias has no target: ${packageName}`);
     aliases[packageName] = resolve(rootDir, tsconfig.baseUrl, firstTarget);

@@ -520,7 +520,7 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 
 ### PR H：research-pack 研究包
 
-状态：已落地第一版。`@supplystrata/research-pack` 负责把现有 DB 数据打包成目录，`apps/cli research run` 负责调用并写入本地文件。
+状态：已落地第一版。`@supplystrata/research-pack` 负责把现有 DB 数据打包成目录，`apps/cli research run` 负责调用并写入本地文件。无数据库路径也已落地：`apps/cli research from-workbench` 可以只消费既有 `WorkbenchModel` JSON，输出静态 research snapshot；它不要求 Docker、Postgres 或 Neo4j，适合后续嵌入其它 TS app 或把研究结果发给轻量工作台。
 
 验收：
 
@@ -528,6 +528,8 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 - [x] 支持显式加入组件，并为组件输出 `components/*.md` 与 `components/*.json`。
 - [x] 默认先刷新 active claims，但不抓新源、不写事实边。
 - [x] Host app 可以直接调用 package API，不需要 shell 到 CLI。
+- [x] `research from-workbench` 支持无数据库静态打包。
+- [x] `WorkbenchModel` 运行时校验上移到 `@supplystrata/workbench-export/schema`，前端和静态 research snapshot 共用同一契约。
 - [x] Evidence Inspector 从只看 primary evidence 扩到多 evidence / supersession chain。
 - [ ] 公司切换仍需等多公司 export/fixture 完善后补。
 

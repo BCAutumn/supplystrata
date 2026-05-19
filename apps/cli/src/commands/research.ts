@@ -1,5 +1,13 @@
+import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
-import { buildResearchPack, writeResearchPack, type ResearchPackInput } from "@supplystrata/research-pack";
+import {
+  buildResearchPack,
+  buildResearchPackFromWorkbench,
+  writeResearchPack,
+  writeWorkbenchSnapshotPack,
+  type ResearchPackInput
+} from "@supplystrata/research-pack";
+import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerResearchCommands(program: Command): void {
@@ -45,6 +53,54 @@ export function registerResearchCommands(program: Command): void {
             out_dir: written.out_dir,
             manifest: written.manifest
           });
+        });
+      }
+    );
+
+  research
+    .command("from-workbench")
+    .requiredOption("--workbench <file>", "existing Workbench JSON export")
+    .option("--component <ids>", "optional comma-separated component ids to force into the source plan")
+    .option("--depth <count>", "source-plan traversal depth; defaults to the workbench chain depth")
+    .option("--trade-month <yyyy-mm>", "emit Census Trade target suggestions for this month")
+    .option("--trade-country <code>", "optional Census partner country code for trade target suggestions")
+    .option("--trade-directions <directions>", "comma-separated trade directions", "imports,exports")
+    .option("--material-year <yyyy>", "emit annual material observation target suggestions")
+    .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
+    .option("--out <dir>", "output directory", "reports/research-pack-snapshot")
+    .description("build a no-database research snapshot from an existing workbench JSON")
+    .action(
+      async (options: {
+        workbench: string;
+        component?: string;
+        depth?: string;
+        tradeMonth?: string;
+        tradeCountry?: string;
+        tradeDirections: string;
+        materialYear?: string;
+        commodityMonth?: string;
+        out: string;
+      }) => {
+        const workbench = parseWorkbenchModel(await readFile(options.workbench, "utf8"));
+        const pack = buildResearchPackFromWorkbench({
+          workbench,
+          ...(options.component === undefined ? {} : { components: parseCsv(options.component) }),
+          ...(options.depth === undefined ? {} : { depth: parseLimit(options.depth) }),
+          ...(options.tradeMonth === undefined
+            ? {}
+            : {
+                tradeObservationMonth: options.tradeMonth,
+                ...(options.tradeCountry === undefined ? {} : { tradeObservationCountryCode: options.tradeCountry }),
+                tradeObservationDirections: parseTradeDirections(options.tradeDirections)
+              }),
+          ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
+          ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth })
+        });
+        const written = await writeWorkbenchSnapshotPack(options.out, pack);
+        writeJson({
+          ok: true,
+          out_dir: written.out_dir,
+          manifest: written.manifest
         });
       }
     );

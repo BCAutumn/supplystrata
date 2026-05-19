@@ -92,9 +92,15 @@ pnpm --silent cli preview nvidia --format markdown
 pnpm --silent cli preview report nvidia --format markdown --lang zh
 pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-Q --format markdown
 pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 8-K --format markdown
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --out reports/nvidia-research-snapshot
+pnpm --silent cli runtime doctor
 ```
 
 `preview` 命令执行 source adapter `plan/fetch/normalize`、规则抽取、seed 实体消歧和证据评分；适合未来嵌入 TS 桌面端或 agent 产品。当前切片走规则抽取路径，LLM 扩展遵循 [ADR-003](./docs/10-decisions/ADR-003-llm-strategy.md)。
+
+`research from-workbench` 只消费既有 `WorkbenchModel` JSON，重新生成 chain/source-plan/evidence snapshot，不连接 Postgres / Neo4j，也不要求 Docker。它适合把 DB-backed 研究结果交给其它 app、桌面端或静态工作台继续展示。
+
+`runtime doctor` 会列出当前环境可用的运行形态：无数据库 preview、静态 workbench snapshot、Postgres truth store、可选 GraphStore 投影。
 
 需要累积证据、审计、review/apply 和图谱重建时，接入 DatabaseStore；仓库内置 Postgres adapter，也允许宿主 app 注入兼容的 truth store 生命周期。需要本地图谱物化检查时，再接入某个 GraphStore adapter。仓库内置 Neo4j adapter；嵌入其它 app 时可以由宿主提供自己的 GraphStore。Docker 是本地开发的可选启动方式；也可以使用已有的 Postgres / Neo4j 服务并改 `.env` 连接串。
 

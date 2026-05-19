@@ -1,5 +1,5 @@
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
-import { parseWorkbenchModel } from "./normalize-workbench-model.js";
+import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 
 export async function loadWorkbenchModelFromFile(file: File, signal?: AbortSignal): Promise<WorkbenchModel> {
   return parseWorkbenchModel(await readFileText(file, signal));

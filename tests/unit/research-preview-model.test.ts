@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWorkbenchModel } from "../../apps/research-preview/src/data/normalize-workbench-model.js";
+import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 
 describe("research-preview workbench model parser", () => {
   it("accepts a structurally valid workbench export", () => {

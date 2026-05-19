@@ -1,7 +1,8 @@
-import type { WorkbenchModel } from "@supplystrata/workbench-export";
+import type { WorkbenchModel } from "./index.js";
 
 export function parseWorkbenchModel(text: string): WorkbenchModel {
   const parsed: unknown = JSON.parse(text);
+  normalizeWorkbenchModelJson(parsed);
   assertWorkbenchModel(parsed);
   return parsed;
 }
@@ -46,6 +47,23 @@ function validateWorkbenchModel(value: unknown, path: string, errors: string[]):
   validateArrayField(value, "sources", path, errors, validateSourceHealth);
   validateArrayField(value, "source_plan", path, errors, validateSourcePlanItem);
   validateArrayField(value, "changes", path, errors, validateChange);
+}
+
+function normalizeWorkbenchModelJson(value: unknown): void {
+  if (!isRecord(value)) return;
+  // 旧版 Workbench 在 claim draft 落地前没有 draft_claims；契约层统一补为空数组。
+  if (value["draft_claims"] === undefined) value["draft_claims"] = [];
+  normalizeClaimArray(value["claims"]);
+  normalizeClaimArray(value["draft_claims"]);
+}
+
+function normalizeClaimArray(value: unknown): void {
+  if (!Array.isArray(value)) return;
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    // 旧版 Workbench 导出对非 review claim 会省略 review_id；契约层统一补成 null。
+    if (item["review_id"] === undefined) item["review_id"] = null;
+  }
 }
 
 function validateCompany(value: unknown, path: string, errors: string[]): void {
@@ -196,7 +214,15 @@ function validateSourceHealth(value: unknown, path: string, errors: string[]): v
     expectString(value, key, path, errors);
   }
   expectBoolean(value, "requires_key", path, errors);
-  for (const key of ["last_checked_at", "last_success_at", "last_failure_at", "last_change_at", "last_error_message", "policy_config_source", "policy_notes"] as const) {
+  for (const key of [
+    "last_checked_at",
+    "last_success_at",
+    "last_failure_at",
+    "last_change_at",
+    "last_error_message",
+    "policy_config_source",
+    "policy_notes"
+  ] as const) {
     expectNullableString(value, key, path, errors);
   }
   expectNumber(value, "failure_count", path, errors);

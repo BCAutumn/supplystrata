@@ -8,6 +8,7 @@
   "dependencies": {
     "@supplystrata/card-builder": "workspace:*",
     "@supplystrata/claim-builder": "workspace:*",
+    "@supplystrata/config": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/data-quality": "workspace:*",
     "@supplystrata/db": "workspace:*",
@@ -19,6 +20,7 @@
     "@supplystrata/pipeline": "workspace:*",
     "@supplystrata/render": "workspace:*",
     "@supplystrata/research-pack": "workspace:*",
+    "@supplystrata/runtime-profile": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",

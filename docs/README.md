@@ -22,6 +22,7 @@ docs/
 ├── 02-architecture/              工程架构
 │   ├── system-architecture.md    ★ 总体架构
 │   ├── module-design.md          ★ 模块拆分与接口契约（高内聚低耦合的落地）
+│   ├── embedding-runtime.md         无 Docker 与宿主 app 集成模式
 │   ├── tech-stack.md             ★ 技术选型（TS 主栈，Python sidecar）
 │   ├── data-flow.md                 数据从源到图谱的全流程
 │   └── extensibility.md             如何接入新数据源 / 新关系类型

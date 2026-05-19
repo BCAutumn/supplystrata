@@ -6,6 +6,7 @@ import { registerEntityAndReviewCommands } from "./commands/entity-review.js";
 import { registerGraphDqAndCardCommands } from "./commands/graph-dq-cards.js";
 import { registerPipelinePreviewCommands } from "./commands/pipeline-preview.js";
 import { registerResearchCommands } from "./commands/research.js";
+import { registerRuntimeCommands } from "./commands/runtime.js";
 import { registerSourcesAndChangesCommands } from "./commands/sources-changes.js";
 import { registerWorkbenchCommands } from "./commands/workbench.js";
 import { formatCliError } from "./cli-utils.js";
@@ -22,6 +23,7 @@ registerGraphDqAndCardCommands(program);
 registerClaimCommands(program);
 registerWorkbenchCommands(program);
 registerResearchCommands(program);
+registerRuntimeCommands(program);
 
 try {
   await program.parseAsync(process.argv);

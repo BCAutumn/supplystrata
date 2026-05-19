@@ -34,6 +34,7 @@ export interface ResearchPackInput {
 
 export interface ResearchPackManifest {
   schema_version: "1.0.0";
+  mode: "truth_store" | "workbench_snapshot";
   generated_at: string;
   company_query: string;
   selected_company_id: string;
@@ -81,6 +82,24 @@ export interface ResearchPackModel {
   data_quality: DataQualitySummary;
 }
 
+export interface WorkbenchSnapshotPackInput {
+  workbench: WorkbenchModel;
+  components?: readonly string[];
+  depth?: number;
+  tradeObservationMonth?: string;
+  tradeObservationCountryCode?: string;
+  tradeObservationDirections?: readonly TradeObservationDirection[];
+  materialObservationYear?: string;
+  commodityObservationMonth?: string;
+}
+
+export interface WorkbenchSnapshotPackModel {
+  manifest: ResearchPackManifest;
+  workbench: WorkbenchModel;
+  chain: ChainViewModel;
+  source_plan: SourcePlanItem[];
+}
+
 export interface WrittenResearchPack {
   out_dir: string;
   manifest: ResearchPackManifest;
@@ -116,6 +135,40 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     claimBuild
   });
   return { manifest, workbench, company, chain, components: componentCards, source_plan: sourcePlan, data_quality: dataQuality };
+}
+
+export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput): WorkbenchSnapshotPackModel {
+  const depth = input.depth ?? input.workbench.chain.max_depth;
+  const components = collectResearchComponentIds(input.workbench, input.components ?? []);
+  const sourcePlan = components.length === 0 ? input.workbench.source_plan : planSourcesForComponents(sourcePlanInput(input, components, depth));
+  const dataQuality = emptyStaticDataQualitySummary();
+  const generatedAt = new Date().toISOString();
+  const staticInput: ResearchPackInput = {
+    company: input.workbench.selected_company_id,
+    components,
+    depth,
+    ...(input.tradeObservationMonth === undefined
+      ? {}
+      : {
+          tradeObservationMonth: input.tradeObservationMonth,
+          ...(input.tradeObservationCountryCode === undefined ? {} : { tradeObservationCountryCode: input.tradeObservationCountryCode }),
+          ...(input.tradeObservationDirections === undefined ? {} : { tradeObservationDirections: input.tradeObservationDirections })
+        }),
+    ...(input.materialObservationYear === undefined ? {} : { materialObservationYear: input.materialObservationYear }),
+    ...(input.commodityObservationMonth === undefined ? {} : { commodityObservationMonth: input.commodityObservationMonth })
+  };
+  const manifest = manifestFromModel({
+    generatedAt,
+    input: staticInput,
+    depth,
+    workbench: input.workbench,
+    components,
+    sourcePlan,
+    dataQuality,
+    claimBuild: null,
+    mode: "workbench_snapshot"
+  });
+  return { manifest, workbench: input.workbench, chain: input.workbench.chain, source_plan: sourcePlan };
 }
 
 export async function writeResearchPack(outDir: string, pack: ResearchPackModel): Promise<WrittenResearchPack> {
@@ -156,6 +209,33 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
 
   const manifest = { ...pack.manifest, files: sortFiles(files) };
   await writeJsonFile(outDir, "manifest.json", manifest, "Research pack manifest");
+  return { out_dir: outDir, manifest };
+}
+
+export async function writeWorkbenchSnapshotPack(outDir: string, pack: WorkbenchSnapshotPackModel): Promise<WrittenResearchPack> {
+  await mkdir(outDir, { recursive: true });
+  const files: ResearchPackFile[] = [
+    await writeJsonFile(outDir, "manifest.json", pack.manifest, "Research snapshot manifest"),
+    await writeJsonFile(outDir, "workbench.json", pack.workbench, "Workbench JSON consumed by apps/research-preview"),
+    await writeJsonFile(outDir, "chain.json", pack.chain, "ChainView JSON copied from the Workbench export"),
+    await writeMarkdownFile(outDir, "chain.md", renderChainCard(pack.chain, "markdown"), "ChainView markdown"),
+    await writeJsonFile(
+      outDir,
+      "source-plan.json",
+      { schema_version: "1.0.0", source_plan: pack.source_plan },
+      "Source plan derived from the Workbench components"
+    ),
+    await writeJsonFile(
+      outDir,
+      "evidence-index.json",
+      { schema_version: "1.0.0", evidences: pack.workbench.evidences },
+      "Evidence records included in the Workbench export"
+    ),
+    await writeMarkdownFile(outDir, "README.md", renderWorkbenchSnapshotReadme(pack), "Research snapshot table of contents")
+  ];
+
+  const manifest = { ...pack.manifest, files: sortFiles(files) };
+  await writeJsonFile(outDir, "manifest.json", manifest, "Research snapshot manifest");
   return { out_dir: outDir, manifest };
 }
 
@@ -204,7 +284,14 @@ async function loadComponentCards(client: DbClient, componentIds: readonly strin
   return cards;
 }
 
-function sourcePlanInput(input: ResearchPackInput, componentIds: readonly string[], depth: number): Parameters<typeof planSourcesForComponents>[0] {
+function sourcePlanInput(
+  input: Pick<
+    ResearchPackInput,
+    "tradeObservationMonth" | "tradeObservationCountryCode" | "tradeObservationDirections" | "materialObservationYear" | "commodityObservationMonth"
+  >,
+  componentIds: readonly string[],
+  depth: number
+): Parameters<typeof planSourcesForComponents>[0] {
   return {
     component_ids: componentIds,
     entity_ids: [],
@@ -230,9 +317,11 @@ function manifestFromModel(input: {
   sourcePlan: readonly SourcePlanItem[];
   dataQuality: DataQualitySummary;
   claimBuild: ResearchPackClaimBuild | null;
+  mode?: ResearchPackManifest["mode"];
 }): ResearchPackManifest {
   return {
     schema_version: "1.0.0",
+    mode: input.mode ?? "truth_store",
     generated_at: input.generatedAt,
     company_query: input.input.company,
     selected_company_id: input.workbench.selected_company_id,
@@ -284,6 +373,44 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `quality.json` records data-quality checks for audit."
   ];
   return lines.join("\n");
+}
+
+function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string {
+  const lines = [
+    `# Research Snapshot ${pack.workbench.chain.root.name}`,
+    "",
+    `Generated at: ${pack.manifest.generated_at}`,
+    `Company: ${pack.workbench.chain.root.name} [${pack.manifest.selected_company_id}]`,
+    `Depth: ${pack.manifest.depth}`,
+    "",
+    "This pack was built from an existing Workbench JSON export. It does not refresh the SQL truth store, rebuild claims, or run data-quality checks.",
+    "",
+    "## Stats",
+    "",
+    `- Fact edges: ${pack.manifest.stats.fact_edges}`,
+    `- Claims: ${pack.manifest.stats.claims}`,
+    `- Evidence records: ${pack.manifest.stats.evidences}`,
+    `- Unknown items: ${pack.manifest.stats.unknown_items}`,
+    `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
+    `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
+    "",
+    "## Files",
+    "",
+    "- `workbench.json` feeds the TypeScript research preview.",
+    "- `chain.md` is a human-readable chain view.",
+    "- `source-plan.json` lists existing free/public source checks suggested by the components in this workbench.",
+    "- `evidence-index.json` contains the evidence records carried by the workbench export."
+  ];
+  return lines.join("\n");
+}
+
+function emptyStaticDataQualitySummary(): DataQualitySummary {
+  return {
+    checked_at: new Date().toISOString(),
+    ok: true,
+    counts: { error: 0, warn: 0, info: 0 },
+    issues: []
+  };
 }
 
 async function writeJsonFile(outDir: string, relativePath: string, value: unknown, description: string): Promise<ResearchPackFile> {
