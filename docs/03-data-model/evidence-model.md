@@ -2,6 +2,8 @@
 
 **这是整个系统的灵魂**。如果证据等级不严谨，图谱就是一张漂亮但虚假的网。
 
+注意：`evidence_level` 只描述证据来源强度，不描述供应链风险强度。关系重要性、时间新鲜度、外部观测和风险传播属于派生方法学，详见 [intelligence-methodology.md](./intelligence-methodology.md)。
+
 ## 五级证据等级（evidence_level）
 
 | Level | 含义                                               | 默认 `is_inferred` | 默认 `needs_review` | MVP 输出                    |
@@ -165,8 +167,11 @@ MVP 实现里 `extraction_method` 从 `extractor_id` 前缀派生：`rule.*` →
    未来时态 / 推测语气 → 直接降到 2
 
 5. 跨证据 corroboration：
-   同一关系 ≥ 2 个独立来源 → 可在原 level 上 +1（封顶 5）
-   独立来源定义：不同 source_adapter_id
+   单条 scorer 不做跨证据升级。多源印证进入 claim fusion / risk view 方法学：
+   - 同一关系 ≥ 2 个独立来源 → 可以提升 claim confidence
+   - 独立来源定义不能只看 source_adapter_id，还要考虑同一文件、同一 chunk、同一发布主体
+   - fact edge 的 evidence_level 仍由实际挂载的最高等级 evidence 决定
+   - 是否把新证据升级成更高等级 evidence，必须按 source authority 和 review 规则单独判断
 
 6. 反向证据：
    有 superseding evidence → 当前边 deprecate
@@ -186,6 +191,17 @@ MVP 实现里 `extraction_method` 从 `extractor_id` 前缀派生：`rule.*` →
 | 是否影响默认输出过滤 | 是                   | 不直接（但低置信会显式标注） |
 
 详见 [confidence-scoring.md](./confidence-scoring.md)。
+
+## 与风险方法学的边界
+
+禁止把 `evidence_level` 直接送进风险排序。Level 5 只说明“这条事实有强证据”，不说明“这条关系很关键”。例如：
+
+```text
+Level 5: A 从 B 采购某组件。
+仍然未知：采购占比、替代供应商、切换成本、合同期限、是否过期。
+```
+
+这些未知必须进入 relation strength / freshness / risk view，而不是修改 evidence level。
 
 ## 边的 evidence_level 计算
 

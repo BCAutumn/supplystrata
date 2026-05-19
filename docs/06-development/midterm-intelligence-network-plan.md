@@ -1,5 +1,7 @@
 # Midterm Intelligence Network Plan — 公开供应链情报网中期骨架
 
+> 本文记录中期骨架，很多条目已经落地。它不再代表“后端完成”。后端完成门槛已收敛到 [backend-completion-criteria.md](./backend-completion-criteria.md)：必须补齐财报结构化、关系强度、跨源融合、观测信号、风险派生、持续监控和 API。
+
 本文把 SupplyStrata 从“证据图谱 alpha”升级到“公开供应链情报网”的中期目标拆成可执行工程路线。
 
 核心判断：

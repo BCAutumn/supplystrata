@@ -32,6 +32,7 @@ docs/
 │   ├── relation-model.md         ★ 关系类型与语义
 │   ├── evidence-model.md         ★ 证据等级模型（Level 1-5）
 │   ├── confidence-scoring.md        置信度打分规则
+│   ├── intelligence-methodology.md  供应链情报方法学：强度、融合、信号、风险派生
 │   └── schema.md                 ★ Postgres + Neo4j schema
 │
 ├── 04-data-sources/              数据源
@@ -59,6 +60,7 @@ docs/
 │
 ├── 06-development/               开发流程
 │   ├── roadmap.md                ★ 阶段化路线图（Phase 0-5，不承诺自然周）
+│   ├── backend-completion-criteria.md ★ 后端完成门槛：事实层、观测层、风险派生层
 │   ├── phase-2-upgrade-plan.md   ★ 公开 alpha 后的可信度优先升级计划
 │   ├── multi-tier-chain-logistics-plan.md ★ 多级链路 / 原材料 / 物流追踪计划
 │   ├── midterm-intelligence-network-plan.md ★ Claim / Observation / ChainView 中期骨架
@@ -123,16 +125,25 @@ docs/
 
 ### 公开 alpha 后继续 Phase 2 前必读
 
-1. [06-development/v0.2-alpha-plan.md](./06-development/v0.2-alpha-plan.md)
-2. [06-development/release-criteria.md](./06-development/release-criteria.md)
-3. [06-development/phase-2-upgrade-plan.md](./06-development/phase-2-upgrade-plan.md)
-4. [06-development/midterm-intelligence-network-plan.md](./06-development/midterm-intelligence-network-plan.md)
-5. [04-data-sources/source-roi-matrix.md](./04-data-sources/source-roi-matrix.md)
-6. [03-data-model/evidence-model.md](./03-data-model/evidence-model.md)
-7. [03-data-model/relation-model.md](./03-data-model/relation-model.md)
-8. [05-modules/entity-resolution.md](./05-modules/entity-resolution.md)
-9. [05-modules/evidence-scoring.md](./05-modules/evidence-scoring.md)
-10. [04-data-sources/source-registry.md](./04-data-sources/source-registry.md)
+1. [06-development/backend-completion-criteria.md](./06-development/backend-completion-criteria.md)
+2. [06-development/v0.2-alpha-plan.md](./06-development/v0.2-alpha-plan.md)
+3. [06-development/release-criteria.md](./06-development/release-criteria.md)
+4. [06-development/phase-2-upgrade-plan.md](./06-development/phase-2-upgrade-plan.md)
+5. [06-development/midterm-intelligence-network-plan.md](./06-development/midterm-intelligence-network-plan.md)
+6. [04-data-sources/source-roi-matrix.md](./04-data-sources/source-roi-matrix.md)
+7. [03-data-model/evidence-model.md](./03-data-model/evidence-model.md)
+8. [03-data-model/relation-model.md](./03-data-model/relation-model.md)
+9. [05-modules/entity-resolution.md](./05-modules/entity-resolution.md)
+10. [05-modules/evidence-scoring.md](./05-modules/evidence-scoring.md)
+11. [04-data-sources/source-registry.md](./04-data-sources/source-registry.md)
+
+### 判断“后端完成”前必读
+
+1. [06-development/backend-completion-criteria.md](./06-development/backend-completion-criteria.md)
+2. [06-development/roadmap.md](./06-development/roadmap.md)
+3. [04-data-sources/coverage-research-2026-05.md](./04-data-sources/coverage-research-2026-05.md)
+4. [03-data-model/intelligence-methodology.md](./03-data-model/intelligence-methodology.md)
+5. [06-development/code-quality-hardening.md](./06-development/code-quality-hardening.md)
 
 ### 接入新数据源前必读
 

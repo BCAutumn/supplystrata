@@ -2,6 +2,8 @@
 
 关系是图谱的"边"。设计原则：**关系类型尽量少而正交**。宁可少一类关系不抽，也不要多一类语义重叠的关系把图谱搞乱。
 
+关系模型只负责表达“关系是否有证据存在”。关系强度、供应集中度、时间衰减和风险传播不直接塞进 `relation` 枚举，必须走 [intelligence-methodology.md](./intelligence-methodology.md) 定义的 strength / freshness / risk view。
+
 ## MVP 关系清单
 
 只在 MVP 中实际写入图谱的关系类型：
@@ -83,6 +85,19 @@ interface Edge {
 - `evidence_level` 取该边所有 evidence 的最高 level（不是平均）
 - `confidence` 是综合分（见 [confidence-scoring.md](./confidence-scoring.md)）
 - 一条边只有"deprecated"或"current"，不允许逻辑删除以外的删除
+- `attrs` 可以保存原始关系属性，但不能保存不可追溯的风险结论；风险派生结果应进入 `risk_views` / `risk_metrics`
+
+## 关系强度不是关系类型
+
+不要为了表达“强供应商”“核心客户”“瓶颈节点”新增一堆关系类型。正确做法：
+
+```text
+BUYS_FROM + edge_strength_estimates
+SUPPLIES_TO + customer_concentration observation
+USES_FOUNDRY + capacity/dependency strength
+```
+
+这样事实层保持稳定，风险层可以独立演进。
 
 ## 主体/客体合法类型矩阵
 

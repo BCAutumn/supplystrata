@@ -2,6 +2,8 @@
 
 `confidence` 是一个 0..1 的浮点数，作为 evidence_level（离散）之外的连续维度。本文给出可重现的打分函数。
 
+注意：本文的 `confidence` 是证据/抽取置信度，不是风险概率。供应链暴露、集中度、单点失效和异常信号的计算见 [intelligence-methodology.md](./intelligence-methodology.md)。
+
 ## 设计原则
 
 1. **可重现**：相同输入必须给出相同输出。不允许引入 wall-clock 时间作为输入。
@@ -193,6 +195,7 @@ edge.confidence = max(evidence_confidences)
 - **不**直接做投资决策权重
 - **不**用来排序"哪些公司更值得关注"
 - **不**用来代替 evidence_level 过滤
+- **不**用作 supplier risk score、exposure score 或 alert priority
 
 confidence 是辅助信号，给研究员看的，不是给自动化决策用的。
 

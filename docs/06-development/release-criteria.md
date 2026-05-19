@@ -1,5 +1,7 @@
 # Release Criteria — 发布验收标准
 
+> 本文只定义 v0.2-alpha 与 Phase 2 full acceptance。它不是后端完成标准。后端完成必须以 [backend-completion-criteria.md](./backend-completion-criteria.md) 为准。
+
 本文区分两个概念：
 
 ```text

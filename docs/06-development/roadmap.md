@@ -1,6 +1,8 @@
 # Roadmap — 阶段化开发计划
 
 > **不承诺自然周**。原始的 Week 1-6 设计在实际工程中**几乎肯定会延期**，尤其是关系抽取和实体消歧。本文用 Phase 表示阶段，不写日期。每个 Phase 都有明确的入场 / 出场标准。
+>
+> 本路线图记录阶段推进，不再用来判断“后端是否完成”。后端完成需要事实层、观测层、风险派生层、持续监控、API 与质量门槛全部过关，详见 [backend-completion-criteria.md](./backend-completion-criteria.md)。
 
 ## Phase 0 — Pre-flight（动工前）
 
@@ -232,6 +234,8 @@ Phase 3 出场。
 ### 入场条件
 
 Phase 4 出场，且 ADR 通过"开放 Level 1-3 自动入图"。
+
+> 注意：Phase 5 的名称保留历史语境。新的方向不是让弱推断污染事实层，而是在事实层之外建立 `risk_view` / intelligence layer。任何风险、投资、agent 派生结果都必须消费事实层和观测层，不能反向提升 `evidence_level` 或写入未经 review 的事实边。
 
 ### 任务
 
