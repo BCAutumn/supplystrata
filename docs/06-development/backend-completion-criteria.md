@@ -507,6 +507,7 @@ POST /review/:id/reject
 [x] official-disclosure readiness 能输出 Gate 1 scorecard，区分 data progress 与 source path progress
 [x] official-disclosure readiness 能输出 edge-level corroboration queue，逐条标出 single-source edge 的二源检查路径或 explicit disposition 缺口
 [x] investigation-backlog 能消费 corroboration queue，生成逐 edge `corroboration_review` 任务并继承 source target coverage / preflight 状态
+[x] investigation-backlog / research-pack manifest 能汇总 corroboration review 的 runnable / sync / enable / due / preflight / credential / disposition-only 状态
 [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 

@@ -128,6 +128,17 @@ export interface ResearchPackStats {
   investigation_backlog_p0: number;
   investigation_backlog_p1: number;
   investigation_backlog_corroboration_reviews: number;
+  investigation_backlog_corroboration_review_runnable_targets: number;
+  investigation_backlog_corroboration_review_with_source_target_coverage: number;
+  investigation_backlog_corroboration_review_explicit_disposition_only: number;
+  investigation_backlog_corroboration_review_need_sync: number;
+  investigation_backlog_corroboration_review_need_enable: number;
+  investigation_backlog_corroboration_review_due: number;
+  investigation_backlog_corroboration_review_failed_preflight: number;
+  investigation_backlog_corroboration_review_missing_credentials: number;
+  investigation_backlog_corroboration_review_invalid_config: number;
+  investigation_backlog_corroboration_review_unsupported_connector: number;
+  investigation_backlog_corroboration_review_source_unreachable: number;
   investigation_backlog_runnable_targets: number;
   source_target_expected_targets: number;
   source_target_synced_targets: number;
@@ -839,7 +850,19 @@ function manifestFromModel(input: {
       investigation_backlog_items: input.investigationBacklog.summary.open_items,
       investigation_backlog_p0: input.investigationBacklog.summary.p0,
       investigation_backlog_p1: input.investigationBacklog.summary.p1,
-      investigation_backlog_corroboration_reviews: input.investigationBacklog.items.filter((item) => item.kind === "corroboration_review").length,
+      investigation_backlog_corroboration_reviews: input.investigationBacklog.summary.corroboration_reviews,
+      investigation_backlog_corroboration_review_runnable_targets: input.investigationBacklog.summary.corroboration_review_runnable_targets,
+      investigation_backlog_corroboration_review_with_source_target_coverage:
+        input.investigationBacklog.summary.corroboration_review_with_source_target_coverage,
+      investigation_backlog_corroboration_review_explicit_disposition_only: input.investigationBacklog.summary.corroboration_review_explicit_disposition_only,
+      investigation_backlog_corroboration_review_need_sync: input.investigationBacklog.summary.corroboration_review_need_sync,
+      investigation_backlog_corroboration_review_need_enable: input.investigationBacklog.summary.corroboration_review_need_enable,
+      investigation_backlog_corroboration_review_due: input.investigationBacklog.summary.corroboration_review_due,
+      investigation_backlog_corroboration_review_failed_preflight: input.investigationBacklog.summary.corroboration_review_failed_preflight,
+      investigation_backlog_corroboration_review_missing_credentials: input.investigationBacklog.summary.corroboration_review_missing_credentials,
+      investigation_backlog_corroboration_review_invalid_config: input.investigationBacklog.summary.corroboration_review_invalid_config,
+      investigation_backlog_corroboration_review_unsupported_connector: input.investigationBacklog.summary.corroboration_review_unsupported_connector,
+      investigation_backlog_corroboration_review_source_unreachable: input.investigationBacklog.summary.corroboration_review_source_unreachable,
       investigation_backlog_runnable_targets: input.investigationBacklog.summary.runnable_check_targets,
       source_target_expected_targets: input.sourceTargetCoverage?.summary.expected_targets ?? 0,
       source_target_synced_targets: input.sourceTargetCoverage?.summary.synced_targets ?? 0,
@@ -935,7 +958,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
-    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews`,
+    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_due_targets} due`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
@@ -998,7 +1021,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
-    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews`,
+    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,

@@ -961,7 +961,6 @@ describe("research-pack", () => {
         intelligence: { edge_strengths: [], edge_freshness: [] }
       }
     });
-
     const backlog = buildInvestigationBacklog({
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
@@ -1021,6 +1020,39 @@ describe("research-pack", () => {
         intelligence: { edge_strengths: [], edge_freshness: [] }
       }
     });
+    const failedPreflight = parseSourceTargetPreflightReport(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        summary: {
+          requested_targets: 1,
+          selected_targets: 1,
+          checked_targets: 0,
+          failed_targets: 1,
+          skipped_targets: 0,
+          planned_tasks: 0,
+          fetched_documents: 0,
+          normalized_documents: 0,
+          degraded_documents: 0,
+          by_source: { "samsung-ir": 1 }
+        },
+        items: [
+          {
+            check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6",
+            source_adapter_id: "samsung-ir",
+            target_kind: "official-html-disclosure",
+            status: "failed",
+            planned_tasks: 0,
+            fetched_documents: 0,
+            normalized_documents: 0,
+            degraded_documents: 0,
+            documents: [],
+            issue_kind: "missing_credentials",
+            error_message: "fixture source unavailable",
+            missing_credentials: [{ env_key: "SAMSUNG_IR_TOKEN", required: true, description: "Fixture credential." }]
+          }
+        ]
+      })
+    );
 
     const backlog = buildInvestigationBacklog({
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -1029,10 +1061,18 @@ describe("research-pack", () => {
       components: [],
       source_plan: [officialSourcePlanItem()],
       source_target_coverage: officialSourceTargetCoverage("disabled"),
+      source_target_preflight: failedPreflight,
       question_readiness: readyQuestionReadiness(),
       official_disclosure_readiness: officialDisclosureReadiness
     });
 
+    expect(backlog.summary.corroboration_reviews).toBe(1);
+    expect(backlog.summary.corroboration_review_runnable_targets).toBe(1);
+    expect(backlog.summary.corroboration_review_with_source_target_coverage).toBe(1);
+    expect(backlog.summary.corroboration_review_need_enable).toBe(1);
+    expect(backlog.summary.corroboration_review_failed_preflight).toBe(1);
+    expect(backlog.summary.corroboration_review_missing_credentials).toBe(1);
+    expect(backlog.summary.corroboration_review_explicit_disposition_only).toBe(0);
     const corroborationItem = backlog.items.find((item) => item.kind === "corroboration_review");
     expect(corroborationItem).toEqual(
       expect.objectContaining({
@@ -1054,8 +1094,10 @@ describe("research-pack", () => {
     expect(corroborationItem?.source_target_coverage).toEqual([
       expect.objectContaining({ source_adapter_id: "samsung-ir", target_kind: "official-html-disclosure", state: "disabled" })
     ]);
-    expect(corroborationItem?.action).toContain("Enable the synced source-check targets");
+    expect(corroborationItem?.action).toContain("Configure required source credentials");
+    expect(corroborationItem?.action).toContain("SAMSUNG_IR_TOKEN");
     expect(renderInvestigationBacklogMarkdown(backlog)).toContain("corroboration_review");
+    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("failed preflight 1");
   });
 });
 
