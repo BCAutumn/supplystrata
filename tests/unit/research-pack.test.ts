@@ -237,6 +237,8 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.official_disclosure_l4_l5_edges).toBe(1);
     expect(pack.manifest.stats.official_disclosure_traceable_edges).toBe(1);
     expect(pack.manifest.stats.official_disclosure_gate1_overall_progress).toBe(pack.official_disclosure_readiness.scorecard.overall_progress);
+    expect(pack.manifest.stats.official_disclosure_corroboration_queue_items).toBe(pack.official_disclosure_readiness.summary.corroboration_queue_items);
+    expect(pack.official_disclosure_readiness.corroboration_queue.length).toBeGreaterThan(0);
     expect(pack.official_disclosure_readiness.scorecard.status).toBe("partial");
     expect(pack.official_disclosure_readiness.scorecard.criteria.map((criterion) => criterion.criterion_id)).toEqual([
       "core_node_official_coverage",
@@ -254,6 +256,7 @@ describe("research-pack", () => {
     expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Not synced");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Gate 1 scorecard");
+    expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Corroboration queue");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Target profile: ai-compute-memory.v0");
   });
 
@@ -302,6 +305,16 @@ describe("research-pack", () => {
     expect(report.summary.traceable_edges).toBe(1);
     expect(report.summary.cross_source_edges).toBe(0);
     expect(report.summary.single_source_edges).toBe(1);
+    expect(report.summary.corroboration_queue_items).toBe(1);
+    expect(report.summary.corroboration_queue_needing_disposition).toBe(1);
+    expect(report.corroboration_queue[0]).toEqual(
+      expect.objectContaining({
+        edge_id: "EDGE-OFFICIAL-1",
+        disposition: "needs_explicit_single_source_disposition",
+        existing_source_adapters: ["sec-edgar"],
+        unknown_ids: []
+      })
+    );
     expect(report.summary.visible_research_nodes).toBe(5);
     expect(report.summary.nodes_with_fact_edges).toBe(3);
     expect(report.summary.nodes_with_runnable_official_targets).toBe(2);

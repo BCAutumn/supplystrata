@@ -35,6 +35,9 @@ export interface OfficialDisclosureReadinessSummary {
   single_source_edges: number;
   missing_evidence_edges: number;
   corroboration_ratio: number;
+  corroboration_queue_items: number;
+  corroboration_queue_with_runnable_targets: number;
+  corroboration_queue_needing_disposition: number;
   edges_with_strength: number;
   edges_with_freshness: number;
   edges_missing_strength: number;
@@ -107,6 +110,31 @@ export interface OfficialDisclosureReadinessEdge {
   has_strength: boolean;
   has_freshness: boolean;
   unknown_ids: string[];
+}
+
+export type OfficialDisclosureCorroborationDisposition =
+  | "needs_counterparty_check"
+  | "needs_counterparty_source_target"
+  | "needs_explicit_single_source_disposition"
+  | "needs_traceability_backfill";
+
+export interface OfficialDisclosureCorroborationQueueItem {
+  edge_id: string;
+  priority: "P1" | "P2";
+  disposition: OfficialDisclosureCorroborationDisposition;
+  reason: string;
+  from_id: string;
+  from_name: string;
+  to_id: string;
+  to_name: string;
+  component_id: string | null;
+  existing_source_adapters: string[];
+  candidate_node_ids: string[];
+  candidate_source_ids: string[];
+  source_plan_refs: string[];
+  source_targets: OfficialDisclosureReadinessSourceTarget[];
+  unknown_ids: string[];
+  action: string;
 }
 
 export interface OfficialDisclosureReadinessGap {
@@ -249,6 +277,7 @@ export interface OfficialDisclosureReadinessReport {
   nodes: OfficialDisclosureReadinessNode[];
   profile_expansion_candidates: OfficialDisclosureProfileExpansionCandidate[];
   expected_source_coverage: OfficialDisclosureExpectedSourceCoverage[];
+  corroboration_queue: OfficialDisclosureCorroborationQueueItem[];
   edges: OfficialDisclosureReadinessEdge[];
   source_plan_items: OfficialDisclosureReadinessSourcePlanItem[];
   gaps: OfficialDisclosureReadinessGap[];
@@ -326,19 +355,21 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     sourcePlanItems
   });
   const expectedSourceCoverage = buildExpectedSourceCoverage({ nodes, edges });
+  const corroborationQueue = buildCorroborationQueue({ edges, nodes });
   const summary = readinessSummary({
     nodes,
     edges,
     unknownItems: input.workbench.unknown_items.length,
     sourcePlanItems,
-    expectedSourceCoverage
+    expectedSourceCoverage,
+    corroborationQueue
   });
   const scorecard = gate1Scorecard({ targets, summary });
   const profileExpansionCandidates = buildProfileExpansionCandidates({
     nodes,
     hasTargetProfile: input.target_nodes !== undefined && input.target_nodes.length > 0
   });
-  const gaps = readinessGaps({ targets, summary, nodes, edges, componentIds, sourcePlanItems, expectedSourceCoverage });
+  const gaps = readinessGaps({ targets, summary, nodes, edges, componentIds, sourcePlanItems, expectedSourceCoverage, corroborationQueue });
 
   return {
     schema_version: "1.0.0",
@@ -352,6 +383,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     nodes,
     profile_expansion_candidates: profileExpansionCandidates,
     expected_source_coverage: expectedSourceCoverage,
+    corroboration_queue: corroborationQueue,
     edges,
     source_plan_items: sourcePlanItems,
     gaps
@@ -429,6 +461,29 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
             .join(", ")}`
         );
       }
+    }
+  }
+
+  lines.push("", "## Corroboration queue", "");
+  if (report.corroboration_queue.length === 0) {
+    lines.push("No single-source official edges require corroboration or disposition in this pack.");
+  } else {
+    for (const item of report.corroboration_queue.slice(0, 40)) {
+      lines.push(`- ${item.priority} ${item.disposition} ${item.edge_id}: ${item.from_name} -> ${item.to_name}`);
+      lines.push(`  Why: ${item.reason}`);
+      lines.push(`  Action: ${item.action}`);
+      lines.push(`  Existing sources: ${item.existing_source_adapters.length === 0 ? "none" : item.existing_source_adapters.join(", ")}`);
+      if (item.candidate_source_ids.length > 0) lines.push(`  Candidate sources: ${item.candidate_source_ids.join(", ")}`);
+      if (item.source_plan_refs.length > 0) lines.push(`  Source plan: ${item.source_plan_refs.slice(0, 10).join(", ")}`);
+      if (item.source_targets.length > 0) {
+        lines.push(
+          `  Targets: ${item.source_targets
+            .slice(0, 10)
+            .map((target) => `${target.source_adapter_id}/${target.target_kind}=${target.state ?? "planned"}`)
+            .join(", ")}`
+        );
+      }
+      if (item.unknown_ids.length > 0) lines.push(`  Unknowns: ${item.unknown_ids.join(", ")}`);
     }
   }
 
@@ -590,6 +645,7 @@ function readinessSummary(input: {
   unknownItems: number;
   sourcePlanItems: readonly OfficialDisclosureReadinessSourcePlanItem[];
   expectedSourceCoverage: readonly OfficialDisclosureExpectedSourceCoverage[];
+  corroborationQueue: readonly OfficialDisclosureCorroborationQueueItem[];
 }): OfficialDisclosureReadinessSummary {
   const edgeCount = input.edges.length;
   const crossSourceEdges = input.edges.filter((edge) => edge.corroboration_state === "cross_source").length;
@@ -620,6 +676,9 @@ function readinessSummary(input: {
     single_source_edges: input.edges.filter((edge) => edge.corroboration_state === "single_source").length,
     missing_evidence_edges: input.edges.filter((edge) => edge.corroboration_state === "missing_evidence").length,
     corroboration_ratio: edgeCount === 0 ? 0 : roundSix(crossSourceEdges / edgeCount),
+    corroboration_queue_items: input.corroborationQueue.length,
+    corroboration_queue_with_runnable_targets: input.corroborationQueue.filter((item) => item.source_targets.some((target) => target.runnable)).length,
+    corroboration_queue_needing_disposition: input.corroborationQueue.filter((item) => item.disposition === "needs_explicit_single_source_disposition").length,
     edges_with_strength: input.edges.filter((edge) => edge.has_strength).length,
     edges_with_freshness: input.edges.filter((edge) => edge.has_freshness).length,
     edges_missing_strength: input.edges.filter((edge) => !edge.has_strength).length,
@@ -807,6 +866,7 @@ function readinessGaps(input: {
   componentIds: readonly string[];
   sourcePlanItems: readonly OfficialDisclosureReadinessSourcePlanItem[];
   expectedSourceCoverage: readonly OfficialDisclosureExpectedSourceCoverage[];
+  corroborationQueue: readonly OfficialDisclosureCorroborationQueueItem[];
 }): OfficialDisclosureReadinessGap[] {
   const gaps: OfficialDisclosureReadinessGap[] = [];
   const sourceTargets = input.sourcePlanItems.flatMap((item) => item.source_targets);
@@ -886,8 +946,7 @@ function readinessGaps(input: {
       source_targets: []
     });
   }
-  const singleSourceEdges = input.edges.filter((edge) => edge.corroboration_state !== "cross_source");
-  if (input.summary.corroboration_ratio < input.targets.corroboration_ratio && singleSourceEdges.length > 0) {
+  if (input.summary.corroboration_ratio < input.targets.corroboration_ratio && input.corroborationQueue.length > 0) {
     gaps.push({
       gap_id: "official-disclosure:cross-source-corroboration",
       priority: "P1",
@@ -896,11 +955,11 @@ function readinessGaps(input: {
       rationale: `Cross-source ratio is ${formatPercent(input.summary.corroboration_ratio)}; target is ${formatPercent(input.targets.corroboration_ratio)}.`,
       action:
         "For single-source edges, check counterparty official disclosures first; if no second source is expected, record an explicit unknown/disposition instead of treating silence as corroboration.",
-      edge_ids: singleSourceEdges.map((edge) => edge.edge_id),
-      component_ids: uniqueSorted(singleSourceEdges.flatMap((edge) => (edge.component_id === null ? [] : [edge.component_id]))),
-      source_adapters: uniqueSorted(singleSourceEdges.flatMap((edge) => edge.source_adapters)),
-      source_plan_refs: sourcePlanRefs,
-      source_targets: sourceTargets
+      edge_ids: input.corroborationQueue.map((item) => item.edge_id),
+      component_ids: uniqueSorted(input.corroborationQueue.flatMap((item) => (item.component_id === null ? [] : [item.component_id]))),
+      source_adapters: uniqueSorted(input.corroborationQueue.flatMap((item) => [...item.existing_source_adapters, ...item.candidate_source_ids])),
+      source_plan_refs: uniqueSorted(input.corroborationQueue.flatMap((item) => item.source_plan_refs)),
+      source_targets: uniqueSourceTargets(input.corroborationQueue.flatMap((item) => item.source_targets))
     });
   }
   const missingStrengthEdges = input.edges.filter((edge) => !edge.has_strength);
@@ -1058,6 +1117,109 @@ function buildExpectedSourceCoverage(input: {
       )
     )
     .sort(compareExpectedSourceCoverage);
+}
+
+function buildCorroborationQueue(input: {
+  edges: readonly OfficialDisclosureReadinessEdge[];
+  nodes: readonly OfficialDisclosureReadinessNode[];
+}): OfficialDisclosureCorroborationQueueItem[] {
+  const nodesById = new Map(input.nodes.map((node) => [node.node_id, node]));
+  return input.edges
+    .filter((edge) => edge.corroboration_state !== "cross_source")
+    .map((edge) => corroborationQueueItemForEdge(edge, nodesById))
+    .sort(compareCorroborationQueueItems);
+}
+
+function corroborationQueueItemForEdge(
+  edge: OfficialDisclosureReadinessEdge,
+  nodesById: ReadonlyMap<string, OfficialDisclosureReadinessNode>
+): OfficialDisclosureCorroborationQueueItem {
+  const candidateNodes = corroborationCandidateNodes(edge, nodesById);
+  const existingSources = new Set(edge.source_adapters);
+  const candidateSourceIds = uniqueSorted(candidateNodes.flatMap((node) => node.expected_source_ids).filter((sourceId) => !existingSources.has(sourceId)));
+  const sourceTargets = uniqueSourceTargets(
+    candidateNodes.flatMap((node) => node.source_targets).filter((target) => !existingSources.has(target.source_adapter_id))
+  );
+  const sourcePlanRefs = uniqueSorted(candidateNodes.flatMap((node) => node.source_plan_refs));
+  const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets });
+  return {
+    edge_id: edge.edge_id,
+    priority: candidateNodes.some((node) => node.target_priority === "P0") ? "P1" : "P2",
+    disposition,
+    reason: corroborationReason(edge, candidateSourceIds, sourceTargets),
+    from_id: edge.from_id,
+    from_name: edge.from_name,
+    to_id: edge.to_id,
+    to_name: edge.to_name,
+    component_id: edge.component_id,
+    existing_source_adapters: edge.source_adapters,
+    candidate_node_ids: candidateNodes.map((node) => node.node_id),
+    candidate_source_ids: candidateSourceIds,
+    source_plan_refs: sourcePlanRefs,
+    source_targets: sourceTargets,
+    unknown_ids: edge.unknown_ids,
+    action: corroborationAction(disposition, sourceTargets)
+  };
+}
+
+function corroborationCandidateNodes(
+  edge: OfficialDisclosureReadinessEdge,
+  nodesById: ReadonlyMap<string, OfficialDisclosureReadinessNode>
+): OfficialDisclosureReadinessNode[] {
+  const companyCandidates = [nodesById.get(edge.to_id), nodesById.get(edge.from_id)].filter(
+    (node): node is OfficialDisclosureReadinessNode => node !== undefined && nodeHasCorroborationPath(node)
+  );
+  if (companyCandidates.length > 0) return uniqueNodes(companyCandidates).sort(compareNodes);
+
+  // 只有边两端公司都没有可见官方路径时，才退到组件级来源。
+  // 否则组件 profile 的通用来源会污染具体 counterparty 的二源检查清单。
+  const componentNode = edge.component_id === null ? undefined : nodesById.get(edge.component_id);
+  if (componentNode === undefined || !nodeHasCorroborationPath(componentNode)) return [];
+  return [componentNode];
+}
+
+function nodeHasCorroborationPath(node: OfficialDisclosureReadinessNode): boolean {
+  return node.expected_source_ids.length > 0 || node.source_plan_refs.length > 0 || node.source_targets.length > 0;
+}
+
+function uniqueNodes(nodes: readonly OfficialDisclosureReadinessNode[]): OfficialDisclosureReadinessNode[] {
+  return [...new Map(nodes.map((node) => [node.node_id, node])).values()];
+}
+
+function corroborationDisposition(input: {
+  edge: OfficialDisclosureReadinessEdge;
+  candidateSourceIds: readonly string[];
+  sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[];
+}): OfficialDisclosureCorroborationDisposition {
+  if (input.edge.corroboration_state === "missing_evidence") return "needs_traceability_backfill";
+  if (input.sourceTargets.length > 0) return "needs_counterparty_check";
+  if (input.candidateSourceIds.length > 0) return "needs_counterparty_source_target";
+  return "needs_explicit_single_source_disposition";
+}
+
+function corroborationReason(
+  edge: OfficialDisclosureReadinessEdge,
+  candidateSourceIds: readonly string[],
+  sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[]
+): string {
+  if (edge.corroboration_state === "missing_evidence") return "This Level 4/5 edge has no active official evidence visible in the pack.";
+  if (sourceTargets.length > 0)
+    return "A non-edge official source path exists for one of the counterparties/components and should be checked before disposition.";
+  if (candidateSourceIds.length > 0)
+    return "The target profile names candidate official sources, but this edge does not yet have a concrete counterparty source target.";
+  return "No profile-backed second-source path is visible; silence must be captured as an explicit single-source disposition or unknown.";
+}
+
+function corroborationAction(
+  disposition: OfficialDisclosureCorroborationDisposition,
+  sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[]
+): string {
+  if (disposition === "needs_traceability_backfill") return "Backfill active official evidence and trace context before attempting corroboration.";
+  if (disposition === "needs_counterparty_check")
+    return `${actionForOfficialTargets(sourceTargets)} If the counterparty source confirms the relation, add it through evidence review; if not, keep an explicit single-source disposition.`;
+  if (disposition === "needs_counterparty_source_target")
+    return "Create node-specific source-plan targets for the candidate official sources, then run them before changing corroboration state.";
+  return "Record an explicit single-source unknown/disposition so the edge is not silently treated as corroborated.";
 }
 
 function expectedSourceCoverageForNode(input: {
@@ -1405,6 +1567,14 @@ function compareExpectedSourceCoverage(left: OfficialDisclosureExpectedSourceCov
   );
 }
 
+function compareCorroborationQueueItems(left: OfficialDisclosureCorroborationQueueItem, right: OfficialDisclosureCorroborationQueueItem): number {
+  return (
+    priorityOrder(left.priority) - priorityOrder(right.priority) ||
+    corroborationDispositionOrder(left.disposition) - corroborationDispositionOrder(right.disposition) ||
+    left.edge_id.localeCompare(right.edge_id)
+  );
+}
+
 function expectedSourceCoverageOrder(state: OfficialDisclosureExpectedSourceCoverageState): number {
   if (state === "missing_source_mapping") return 0;
   if (state === "source_registered_unimplemented") return 1;
@@ -1414,6 +1584,13 @@ function expectedSourceCoverageOrder(state: OfficialDisclosureExpectedSourceCove
   if (state === "official_target_synced") return 5;
   if (state === "official_target_with_observation") return 6;
   return 7;
+}
+
+function corroborationDispositionOrder(disposition: OfficialDisclosureCorroborationDisposition): number {
+  if (disposition === "needs_traceability_backfill") return 0;
+  if (disposition === "needs_counterparty_check") return 1;
+  if (disposition === "needs_counterparty_source_target") return 2;
+  return 3;
 }
 
 function priorityOrder(priority: OfficialDisclosureReadinessGap["priority"]): number {

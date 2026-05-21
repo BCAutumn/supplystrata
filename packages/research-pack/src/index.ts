@@ -165,6 +165,9 @@ export interface ResearchPackStats {
   official_disclosure_traceable_edges: number;
   official_disclosure_cross_source_edges: number;
   official_disclosure_corroboration_ratio: number;
+  official_disclosure_corroboration_queue_items: number;
+  official_disclosure_corroboration_queue_with_runnable_targets: number;
+  official_disclosure_corroboration_queue_needing_disposition: number;
   official_disclosure_gaps: number;
   official_disclosure_p0_gaps: number;
   official_disclosure_runnable_targets: number;
@@ -874,6 +877,9 @@ function manifestFromModel(input: {
       official_disclosure_traceable_edges: input.officialDisclosureReadiness.summary.traceable_edges,
       official_disclosure_cross_source_edges: input.officialDisclosureReadiness.summary.cross_source_edges,
       official_disclosure_corroboration_ratio: input.officialDisclosureReadiness.summary.corroboration_ratio,
+      official_disclosure_corroboration_queue_items: input.officialDisclosureReadiness.summary.corroboration_queue_items,
+      official_disclosure_corroboration_queue_with_runnable_targets: input.officialDisclosureReadiness.summary.corroboration_queue_with_runnable_targets,
+      official_disclosure_corroboration_queue_needing_disposition: input.officialDisclosureReadiness.summary.corroboration_queue_needing_disposition,
       official_disclosure_gaps: input.officialDisclosureReadiness.gaps.length,
       official_disclosure_p0_gaps: input.officialDisclosureReadiness.gaps.filter((gap) => gap.priority === "P0").length,
       official_disclosure_runnable_targets: input.officialDisclosureReadiness.summary.runnable_official_targets,
@@ -915,6 +921,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
     `- Gate 1 scorecard: overall ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_overall_progress)}, data ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_data_progress)}, source paths ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_source_path_progress)}`,
     `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
+    `- Official disclosure corroboration queue: ${pack.manifest.stats.official_disclosure_corroboration_queue_items} edges; ${pack.manifest.stats.official_disclosure_corroboration_queue_with_runnable_targets} with runnable target; ${pack.manifest.stats.official_disclosure_corroboration_queue_needing_disposition} need explicit disposition`,
     `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
     `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
     `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,
@@ -977,6 +984,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
     `- Gate 1 scorecard: overall ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_overall_progress)}, data ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_data_progress)}, source paths ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_source_path_progress)}`,
     `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
+    `- Official disclosure corroboration queue: ${pack.manifest.stats.official_disclosure_corroboration_queue_items} edges; ${pack.manifest.stats.official_disclosure_corroboration_queue_with_runnable_targets} with runnable target; ${pack.manifest.stats.official_disclosure_corroboration_queue_needing_disposition} need explicit disposition`,
     `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
     `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
     `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,

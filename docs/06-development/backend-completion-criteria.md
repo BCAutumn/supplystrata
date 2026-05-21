@@ -143,7 +143,7 @@ packages/risk-view
 [ ] 任一 fact edge 都能追到 evidence_id、doc_id、source_url、cite_text、offset/fingerprint
 ```
 
-当前可观测能力：`research-pack` 已输出 `official-disclosure-readiness.json/md`，把当前研究包可见的逐节点覆盖状态、内置研究 target profile、显式 target node 覆盖、profile expansion candidates、Level 4/5 fact edge 数、完整 traceability、严格 cross-source corroboration、strength/freshness 覆盖、explicit unknown 和官方披露 source target 状态量化，并把未达标项转成 `investigation-backlog` 的 `official_disclosure_coverage` / `profile_expansion` 任务。该报告还内置 Gate 1 scorecard，把 core node coverage、Level 4/5 fact edge coverage、cross-source corroboration、fact edge traceability 和 expected source path coverage 拆成可重复计算的进度项；其中 data progress 只看事实/证据硬指标，source path progress 只看预期官方源是否已经接到 source-plan/target/observation 路径，不能把 connector 存在误读成事实覆盖。`ai-compute-memory.v0` 是内置确定性验收锚点，会在选中公司或组件命中 AI compute/memory 范围时自动启用；它不是全球供应链全集。不在 profile 中但已被事实边或官方 source-plan 发现的节点会作为 expansion candidate 输出，等待人工或后续安全 AI 审阅。
+当前可观测能力：`research-pack` 已输出 `official-disclosure-readiness.json/md`，把当前研究包可见的逐节点覆盖状态、内置研究 target profile、显式 target node 覆盖、profile expansion candidates、Level 4/5 fact edge 数、完整 traceability、严格 cross-source corroboration、strength/freshness 覆盖、explicit unknown 和官方披露 source target 状态量化，并把未达标项转成 `investigation-backlog` 的 `official_disclosure_coverage` / `profile_expansion` 任务。该报告还内置 Gate 1 scorecard，把 core node coverage、Level 4/5 fact edge coverage、cross-source corroboration、fact edge traceability 和 expected source path coverage 拆成可重复计算的进度项；其中 data progress 只看事实/证据硬指标，source path progress 只看预期官方源是否已经接到 source-plan/target/observation 路径，不能把 connector 存在误读成事实覆盖。针对 data progress 中最弱的 corroboration，报告会输出 edge-level corroboration queue：每条 single-source / missing-evidence L4/L5 edge 都会带出现有来源、候选 counterparty/profile source、可运行 target、linked unknown 和处置动作；没有二源路径时必须记录显式 single-source disposition，不能把单源沉默自动解释成 corroboration。`ai-compute-memory.v0` 是内置确定性验收锚点，会在选中公司或组件命中 AI compute/memory 范围时自动启用；它不是全球供应链全集。不在 profile 中但已被事实边或官方 source-plan 发现的节点会作为 expansion candidate 输出，等待人工或后续安全 AI 审阅。
 
 Gate 1 现在还会输出 `expected_source_coverage`：把每个 target node 的 `expected_source_ids` 拆成独立覆盖项，并标记为 `covered_fact`、`official_target_with_observation`、`official_target_synced`、`official_target_runnable`、`official_source_planned`、`connector_available`、`source_registered_unimplemented` 或 `missing_source_mapping`。这一步很关键：profile 写了某个官方源并不代表覆盖完成。`connector_available` 只说明后端已有该源的 source-check connector，但当前节点还没有被 source-plan/target 具体接上；`source_registered_unimplemented` 只说明来源在 registry 中，仍需要 connector 或人工 review workflow。`expected_official_source_coverage` gap 会优先提示这些缺口，防止把“期望来源清单”误读成“已监控数据源”。
 
@@ -505,6 +505,7 @@ POST /review/:id/reject
 [x] source target preflight 能输出按 source 聚合的 checked / failed / skipped / normalized / degraded / issue kind 矩阵
 [x] source-check connector capability 统一声明 target 级 credential requirements，并被 catalog / preview / smoke 复用
 [x] official-disclosure readiness 能输出 Gate 1 scorecard，区分 data progress 与 source path progress
+[x] official-disclosure readiness 能输出 edge-level corroboration queue，逐条标出 single-source edge 的二源检查路径或 explicit disposition 缺口
 [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 
