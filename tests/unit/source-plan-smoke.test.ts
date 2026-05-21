@@ -59,6 +59,17 @@ describe("source-plan connectivity smoke", () => {
       fetched_documents: 0,
       normalized_documents: 0
     });
+    expect(report.summary.by_source_status["unknown-official-source"]).toEqual({
+      selected_targets: 1,
+      checked_targets: 0,
+      failed_targets: 0,
+      skipped_targets: 1,
+      planned_tasks: 0,
+      fetched_documents: 0,
+      normalized_documents: 0,
+      degraded_documents: 0,
+      target_kinds: { "company-filings": 1 }
+    });
     const [item] = report.items;
     expect(item?.check_target_id).toBe("plan:test:unknown");
     expect(item?.status).toBe("skipped");

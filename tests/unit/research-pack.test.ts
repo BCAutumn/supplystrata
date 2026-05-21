@@ -219,9 +219,18 @@ describe("research-pack", () => {
     expect(pack.source_target_coverage.summary.not_synced).toBe(pack.source_target_coverage.summary.expected_targets);
     expect(pack.source_target_coverage.items.every((item) => item.state === "not_synced")).toBe(true);
     expect(pack.source_target_preflight?.summary.checked_targets).toBe(1);
+    expect(pack.source_target_preflight?.summary.by_source_status["sec-edgar"]).toEqual(
+      expect.objectContaining({
+        selected_targets: 1,
+        checked_targets: 1,
+        normalized_documents: 1,
+        target_kinds: { "sec-company-filings": 1 }
+      })
+    );
     expect(pack.manifest.stats.source_target_preflight_selected_targets).toBe(1);
     expect(pack.manifest.stats.source_target_preflight_checked_targets).toBe(1);
     expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Source Target Preflight");
+    expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Source Readiness Matrix");
     expect(pack.manifest.stats.source_target_expected_targets).toBe(pack.source_target_coverage.summary.expected_targets);
     expect(pack.manifest.stats.observation_records).toBe(0);
     expect(pack.manifest.stats.observation_types_present).toBe(0);

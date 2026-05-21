@@ -93,6 +93,15 @@ export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, forma
     ""
   ];
   for (const [source, count] of Object.entries(report.summary.by_source)) lines.push(`- ${source}: ${count}`);
+  lines.push("", "## Source Readiness Matrix", "");
+  for (const [source, summary] of Object.entries(report.summary.by_source_status)) {
+    const targetKinds = Object.entries(summary.target_kinds)
+      .map(([targetKind, count]) => `${targetKind}:${count}`)
+      .join(", ");
+    lines.push(
+      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}`
+    );
+  }
   lines.push("", "## Targets", "");
   for (const item of report.items) {
     lines.push(`- ${item.status} ${item.check_target_id} (${item.source_adapter_id}/${item.target_kind})`);

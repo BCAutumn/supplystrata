@@ -83,6 +83,19 @@ export interface SourcePlanSmokeSummary {
   normalized_documents: number;
   degraded_documents: number;
   by_source: Record<string, number>;
+  by_source_status: Record<string, SourcePlanSmokeSourceSummary>;
+}
+
+export interface SourcePlanSmokeSourceSummary {
+  selected_targets: number;
+  checked_targets: number;
+  failed_targets: number;
+  skipped_targets: number;
+  planned_tasks: number;
+  fetched_documents: number;
+  normalized_documents: number;
+  degraded_documents: number;
+  target_kinds: Record<string, number>;
 }
 
 export interface SourcePlanSmokeReport {
@@ -335,8 +348,33 @@ function summarizeSmokeItems(requestedTargets: number, selectedTargets: number, 
     fetched_documents: sumItems(items, (item) => item.fetched_documents),
     normalized_documents: sumItems(items, (item) => item.normalized_documents),
     degraded_documents: sumItems(items, (item) => item.degraded_documents),
-    by_source: countItemsBy(items, (item) => item.source_adapter_id)
+    by_source: countItemsBy(items, (item) => item.source_adapter_id),
+    by_source_status: summarizeItemsBySource(items)
   };
+}
+
+function summarizeItemsBySource(items: readonly SourcePlanSmokeItem[]): Record<string, SourcePlanSmokeSourceSummary> {
+  const bySource = new Map<string, SourcePlanSmokeItem[]>();
+  for (const item of items) {
+    const existing = bySource.get(item.source_adapter_id);
+    if (existing === undefined) bySource.set(item.source_adapter_id, [item]);
+    else existing.push(item);
+  }
+  const summary: Record<string, SourcePlanSmokeSourceSummary> = {};
+  for (const [source, sourceItems] of [...bySource.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    summary[source] = {
+      selected_targets: sourceItems.length,
+      checked_targets: sourceItems.filter((item) => item.status === "checked").length,
+      failed_targets: sourceItems.filter((item) => item.status === "failed").length,
+      skipped_targets: sourceItems.filter((item) => item.status === "skipped").length,
+      planned_tasks: sumItems(sourceItems, (item) => item.planned_tasks),
+      fetched_documents: sumItems(sourceItems, (item) => item.fetched_documents),
+      normalized_documents: sumItems(sourceItems, (item) => item.normalized_documents),
+      degraded_documents: sumItems(sourceItems, (item) => item.degraded_documents),
+      target_kinds: countItemsBy(sourceItems, (item) => item.target_kind)
+    };
+  }
+  return summary;
 }
 
 function normalizedSmokeDocument(task: FetchTask, raw: RawDocument<Uint8Array>, normalized: NormalizedDocument): SourcePlanSmokeDocument {

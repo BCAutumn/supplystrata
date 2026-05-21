@@ -49,6 +49,7 @@ export type {
   SourcePlanSmokeInput,
   SourcePlanSmokeItem,
   SourcePlanSmokeReport,
+  SourcePlanSmokeSourceSummary,
   SourcePlanSmokeSummary,
   SourcePlanSmokeTarget,
   SourcePlanSmokeTargetStatus
