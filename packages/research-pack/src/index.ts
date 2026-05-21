@@ -43,6 +43,7 @@ import {
   renderSourceTargetCoverageMarkdown,
   type SourceTargetCoverageReport
 } from "./source-target-coverage.js";
+import { renderSourceTargetPreflightMarkdown, type SourceTargetPreflightReport } from "./source-target-preflight.js";
 
 export * from "./investigation-backlog.js";
 export * from "./observation-coverage.js";
@@ -50,6 +51,7 @@ export * from "./official-disclosure-readiness.js";
 export * from "./question-readiness.js";
 export * from "./research-target-profile.js";
 export * from "./source-target-coverage.js";
+export * from "./source-target-preflight.js";
 
 export interface ResearchPackInput {
   company: string;
@@ -71,6 +73,7 @@ export interface ResearchPackInput {
   materialObservationYear?: string;
   commodityObservationMonth?: string;
   sourceTargetNamespace?: string;
+  sourceTargetPreflight?: SourceTargetPreflightReport;
   researchTargetProfileId?: ResearchTargetProfileOption;
   officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
 }
@@ -133,6 +136,10 @@ export interface ResearchPackStats {
   source_target_degraded_targets: number;
   source_target_dead_targets: number;
   source_target_targets_with_observations: number;
+  source_target_preflight_selected_targets: number;
+  source_target_preflight_checked_targets: number;
+  source_target_preflight_failed_targets: number;
+  source_target_preflight_degraded_documents: number;
   observation_records: number;
   observation_chain_segments: number;
   observation_types_present: number;
@@ -198,6 +205,7 @@ export interface ResearchPackModel {
   question_readiness: QuestionReadinessMatrix;
   investigation_backlog: InvestigationBacklog;
   source_target_coverage: SourceTargetCoverageReport;
+  source_target_preflight: SourceTargetPreflightReport | null;
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
 }
@@ -215,6 +223,7 @@ export interface WorkbenchSnapshotPackInput {
   researchTargetProfileId?: ResearchTargetProfileOption;
   officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
   sourceTargetNamespace?: string;
+  sourceTargetPreflight?: SourceTargetPreflightReport;
 }
 
 export interface WorkbenchSnapshotPackModel {
@@ -225,6 +234,7 @@ export interface WorkbenchSnapshotPackModel {
   question_readiness: QuestionReadinessMatrix;
   investigation_backlog: InvestigationBacklog;
   source_target_coverage: SourceTargetCoverageReport;
+  source_target_preflight: SourceTargetPreflightReport | null;
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
 }
@@ -317,6 +327,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     official_disclosure_readiness: officialDisclosureReadiness,
     source_target_coverage: sourceTargetCoverage
   });
+  const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const manifest = manifestFromModel({
     generatedAt,
     input,
@@ -325,6 +336,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     components,
     sourcePlan,
     sourceTargetCoverage,
+    sourceTargetPreflight,
     dataQuality,
     questionReadiness,
     investigationBacklog,
@@ -346,6 +358,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     question_readiness: questionReadiness,
     investigation_backlog: investigationBacklog,
     source_target_coverage: sourceTargetCoverage,
+    source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness
   };
@@ -390,6 +403,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_plan: sourcePlan,
     ...(input.sourceTargetNamespace === undefined ? {} : { namespace: input.sourceTargetNamespace })
   });
+  const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const questionReadiness = buildQuestionReadinessMatrix({
     generated_at: generatedAt,
     company_id: input.workbench.selected_company_id,
@@ -435,6 +449,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     components,
     sourcePlan,
     sourceTargetCoverage,
+    sourceTargetPreflight,
     dataQuality,
     questionReadiness,
     investigationBacklog,
@@ -454,6 +469,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     question_readiness: questionReadiness,
     investigation_backlog: investigationBacklog,
     source_target_coverage: sourceTargetCoverage,
+    source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness
   };
@@ -507,6 +523,7 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
       renderSourceTargetCoverageMarkdown(pack.source_target_coverage),
       "Source target coverage markdown"
     ),
+    ...(await sourceTargetPreflightFiles(outDir, pack.source_target_preflight)),
     await writeJsonFile(outDir, "chain.json", pack.chain, "ChainView JSON"),
     await writeMarkdownFile(outDir, "chain.md", renderChainCard(pack.chain, "markdown"), "ChainView markdown"),
     await writeMarkdownFile(outDir, "README.md", renderResearchPackReadme(pack), "Research pack table of contents")
@@ -587,6 +604,7 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
       renderSourceTargetCoverageMarkdown(pack.source_target_coverage),
       "Expected source target coverage markdown"
     ),
+    ...(await sourceTargetPreflightFiles(outDir, pack.source_target_preflight)),
     await writeJsonFile(
       outDir,
       "evidence-index.json",
@@ -764,6 +782,7 @@ function manifestFromModel(input: {
   components: readonly string[];
   sourcePlan: readonly SourcePlanItem[];
   sourceTargetCoverage?: SourceTargetCoverageReport;
+  sourceTargetPreflight?: SourceTargetPreflightReport | null;
   dataQuality: DataQualitySummary;
   questionReadiness: QuestionReadinessMatrix;
   investigationBacklog: InvestigationBacklog;
@@ -820,6 +839,10 @@ function manifestFromModel(input: {
       source_target_degraded_targets: input.sourceTargetCoverage?.summary.degraded_targets ?? 0,
       source_target_dead_targets: input.sourceTargetCoverage?.summary.dead_targets ?? 0,
       source_target_targets_with_observations: input.sourceTargetCoverage?.summary.targets_with_observations ?? 0,
+      source_target_preflight_selected_targets: input.sourceTargetPreflight?.summary.selected_targets ?? 0,
+      source_target_preflight_checked_targets: input.sourceTargetPreflight?.summary.checked_targets ?? 0,
+      source_target_preflight_failed_targets: input.sourceTargetPreflight?.summary.failed_targets ?? 0,
+      source_target_preflight_degraded_documents: input.sourceTargetPreflight?.summary.degraded_documents ?? 0,
       observation_records: input.observationCoverage.summary.typed_observations,
       observation_chain_segments: input.observationCoverage.summary.chain_observation_segments,
       observation_types_present: input.observationCoverage.summary.observation_types_present,
@@ -896,6 +919,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1)`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_due_targets} due`,
+    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
     `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
     `- Data quality errors: ${pack.manifest.stats.data_quality_errors}`,
@@ -911,6 +935,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show whether runnable source-plan targets are synced, enabled, due, running, failed, or producing observations.",
+    "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
     "- `components/*.md` contains component-level evidence, observation, strength, freshness, and unknown context.",
     "- `source-plan.json` lists which existing free/public sources should be checked next.",
     "- `quality.json` records data-quality checks for audit."
@@ -955,6 +980,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1)`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
+    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
     `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
     "",
@@ -968,6 +994,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show expected runnable targets as `not_synced` until a SQL truth store syncs them into `source_check_targets`.",
+    "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
     "- `source-plan.json` lists existing free/public source checks suggested by the components in this workbench.",
     "- `evidence-index.json` contains the evidence records carried by the workbench export."
   ];
@@ -1028,6 +1055,19 @@ function countContradictingEvidenceLinks(workbench: WorkbenchModel): number {
 
 function countClaimLifecycleWarnings(workbench: WorkbenchModel): number {
   return [...workbench.claims, ...workbench.draft_claims].reduce((count, claim) => count + claim.lifecycle_warnings.length, 0);
+}
+
+async function sourceTargetPreflightFiles(outDir: string, report: SourceTargetPreflightReport | null): Promise<ResearchPackFile[]> {
+  if (report === null) return [];
+  return [
+    await writeJsonFile(outDir, "source-target-preflight.json", report, "No-database source-plan smoke preflight report"),
+    await writeMarkdownFile(
+      outDir,
+      "source-target-preflight.md",
+      renderSourceTargetPreflightMarkdown(report),
+      "No-database source-plan smoke preflight markdown"
+    )
+  ];
 }
 
 async function writeJsonFile(outDir: string, relativePath: string, value: unknown, description: string): Promise<ResearchPackFile> {

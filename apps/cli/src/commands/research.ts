@@ -5,6 +5,7 @@ import {
   buildResearchPackFromWorkbench,
   writeResearchPack,
   writeWorkbenchSnapshotPack,
+  parseSourceTargetPreflightReport,
   type ResearchPackInput,
   type ResearchTargetProfileOption
 } from "@supplystrata/research-pack";
@@ -31,6 +32,7 @@ export function registerResearchCommands(program: Command): void {
     .option("--material-year <yyyy>", "emit annual material observation target suggestions")
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
     .option("--source-target-namespace <name>", "optional namespace used when matching research source-plan targets to source_check_targets")
+    .option("--source-target-preflight <file>", "optional source-plan smoke JSON to package without rerunning external fetches")
     .option("--skip-claims", "do not build active claims before exporting")
     .option("--skip-intelligence-refresh", "do not refresh edge strength/freshness context before exporting")
     .option("--skip-component-risk-refresh", "do not refresh component risk baselines before exporting")
@@ -53,13 +55,14 @@ export function registerResearchCommands(program: Command): void {
         materialYear?: string;
         commodityMonth?: string;
         sourceTargetNamespace?: string;
+        sourceTargetPreflight?: string;
         skipClaims?: boolean;
         skipIntelligenceRefresh?: boolean;
         skipComponentRiskRefresh?: boolean;
         out: string;
       }) => {
         await withDatabase(async (store) => {
-          const pack = await buildResearchPack(store, researchPackInputFromOptions(options));
+          const pack = await buildResearchPack(store, await researchPackInputFromOptions(options));
           const written = await writeResearchPack(options.out, pack);
           writeJson({
             ok: true,
@@ -83,6 +86,7 @@ export function registerResearchCommands(program: Command): void {
     .option("--material-year <yyyy>", "emit annual material observation target suggestions")
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
     .option("--source-target-namespace <name>", "namespace used when rendering expected source target coverage")
+    .option("--source-target-preflight <file>", "optional source-plan smoke JSON to package without rerunning external fetches")
     .option("--out <dir>", "output directory", "reports/research-pack-snapshot")
     .description("build a no-database research snapshot from an existing workbench JSON")
     .action(
@@ -98,6 +102,7 @@ export function registerResearchCommands(program: Command): void {
         materialYear?: string;
         commodityMonth?: string;
         sourceTargetNamespace?: string;
+        sourceTargetPreflight?: string;
         out: string;
       }) => {
         const workbench = parseWorkbenchModel(await readFile(options.workbench, "utf8"));
@@ -116,7 +121,10 @@ export function registerResearchCommands(program: Command): void {
           ...(options.targetProfile === undefined ? {} : { researchTargetProfileId: parseResearchTargetProfileOption(options.targetProfile) }),
           ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
           ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
-          ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace })
+          ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace }),
+          ...(options.sourceTargetPreflight === undefined
+            ? {}
+            : { sourceTargetPreflight: parseSourceTargetPreflightReport(await readFile(options.sourceTargetPreflight, "utf8")) })
         });
         const written = await writeWorkbenchSnapshotPack(options.out, pack);
         writeJson({
@@ -128,7 +136,7 @@ export function registerResearchCommands(program: Command): void {
     );
 }
 
-function researchPackInputFromOptions(options: {
+async function researchPackInputFromOptions(options: {
   company: string;
   component?: string;
   depth: string;
@@ -147,7 +155,8 @@ function researchPackInputFromOptions(options: {
   skipClaims?: boolean;
   skipIntelligenceRefresh?: boolean;
   skipComponentRiskRefresh?: boolean;
-}): ResearchPackInput {
+  sourceTargetPreflight?: string;
+}): Promise<ResearchPackInput> {
   return {
     company: options.company,
     depth: parseLimit(options.depth),
@@ -170,7 +179,10 @@ function researchPackInputFromOptions(options: {
     ...(options.targetProfile === undefined ? {} : { researchTargetProfileId: parseResearchTargetProfileOption(options.targetProfile) }),
     ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
     ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
-    ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace })
+    ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace }),
+    ...(options.sourceTargetPreflight === undefined
+      ? {}
+      : { sourceTargetPreflight: parseSourceTargetPreflightReport(await readFile(options.sourceTargetPreflight, "utf8")) })
   };
 }
 

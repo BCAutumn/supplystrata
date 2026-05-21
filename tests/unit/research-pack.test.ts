@@ -7,10 +7,12 @@ import {
   collectResearchComponentIds,
   getBuiltInResearchTargetProfile,
   listBuiltInResearchTargetProfiles,
+  parseSourceTargetPreflightReport,
   renderInvestigationBacklogMarkdown,
   renderObservationCoverageMarkdown,
   renderOfficialDisclosureReadinessMarkdown,
   renderQuestionReadinessMarkdown,
+  renderSourceTargetPreflightMarkdown,
   renderSourceTargetCoverageMarkdown,
   safeFileSegment
 } from "@supplystrata/research-pack";
@@ -150,7 +152,54 @@ describe("research-pack", () => {
       }
     };
 
-    const pack = buildResearchPackFromWorkbench({ workbench, components: ["COMP-HBM"], depth: 3, sourceTargetNamespace: "nvidia-memory-2025" });
+    const sourceTargetPreflight = parseSourceTargetPreflightReport(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        summary: {
+          requested_targets: 3,
+          selected_targets: 1,
+          checked_targets: 1,
+          failed_targets: 0,
+          skipped_targets: 0,
+          planned_tasks: 1,
+          fetched_documents: 1,
+          normalized_documents: 1,
+          degraded_documents: 0,
+          by_source: { "sec-edgar": 1 }
+        },
+        items: [
+          {
+            check_target_id: "plan:nvidia-memory-2025:sec-edgar:sec-company-filings:fixture",
+            source_adapter_id: "sec-edgar",
+            target_kind: "sec-company-filings",
+            status: "checked",
+            planned_tasks: 1,
+            fetched_documents: 1,
+            normalized_documents: 1,
+            degraded_documents: 0,
+            documents: [
+              {
+                task_id: "sec-edgar-fixture",
+                source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+                doc_id: "DOC-FIXTURE",
+                document_type: "10-K",
+                source_date: "2026-02-25",
+                text_chars: 1000,
+                chunks: 2
+              }
+            ]
+          }
+        ]
+      })
+    );
+
+    const pack = buildResearchPackFromWorkbench({
+      workbench,
+      components: ["COMP-HBM"],
+      depth: 3,
+      sourceTargetNamespace: "nvidia-memory-2025",
+      sourceTargetPreflight
+    });
     expect(pack.manifest.mode).toBe("workbench_snapshot");
     expect(pack.manifest.research_target_profile?.profile_id).toBe("ai-compute-memory.v0");
     expect(pack.manifest.stats.official_disclosure_target_nodes).toBe(25);
@@ -169,6 +218,10 @@ describe("research-pack", () => {
     expect(pack.source_target_coverage.summary.expected_targets).toBeGreaterThan(0);
     expect(pack.source_target_coverage.summary.not_synced).toBe(pack.source_target_coverage.summary.expected_targets);
     expect(pack.source_target_coverage.items.every((item) => item.state === "not_synced")).toBe(true);
+    expect(pack.source_target_preflight?.summary.checked_targets).toBe(1);
+    expect(pack.manifest.stats.source_target_preflight_selected_targets).toBe(1);
+    expect(pack.manifest.stats.source_target_preflight_checked_targets).toBe(1);
+    expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Source Target Preflight");
     expect(pack.manifest.stats.source_target_expected_targets).toBe(pack.source_target_coverage.summary.expected_targets);
     expect(pack.manifest.stats.observation_records).toBe(0);
     expect(pack.manifest.stats.observation_types_present).toBe(0);

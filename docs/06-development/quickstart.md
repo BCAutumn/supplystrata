@@ -119,7 +119,8 @@ pnpm --silent cli research run --company nvidia --depth 3 --official-year 2025 -
 
 ```bash
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --format markdown
-pnpm --silent cli sources policy smoke-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --source sec-edgar --limit 2 --format markdown
+pnpm --silent cli sources policy smoke-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --source sec-edgar --limit 2 --format json > reports/nvidia-research-pack/source-target-preflight.json
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --source-target-namespace nvidia-memory-2025 --source-target-preflight reports/nvidia-research-pack/source-target-preflight.json --out reports/nvidia-monitoring-loop-snapshot
 pnpm --silent cli sources policy sync-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025
 pnpm --silent cli sources policy sync-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --enable --check-cadence-minutes 10080 --jitter-minutes 120
 pnpm --silent cli sources policy enable-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --next-check-at 2026-05-19T00:00:00.000Z --check-cadence-minutes 10080 --jitter-minutes 120
@@ -127,7 +128,7 @@ pnpm --silent cli sources due --source-plan reports/nvidia-research-pack/source-
 pnpm --silent cli sources run-due --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --limit 4 --format markdown
 ```
 
-`preview-plan-targets` 不连接数据库，只把 source-plan 的 runnable suggestions 转成稳定 target id、按 source / target kind / priority 汇总，并用同一套 source-management validation 报出缺 connector、字段错误、manual-only 自动化或 credentials warning；适合宿主 App 先审计。`smoke-plan-targets` 也不连接数据库，但会真正执行 adapter 的 `plan / fetch / normalize`，用于提前发现外部源不可达、凭据缺失或 target config 失效；它不写 `source_check_targets`、不写 monitor event、不写 observation，也不会生成事实边。`sync-plan-targets` 默认写入 disabled target，适合先审计；显式 `--enable` 后才会被 `sources due/run-due` 和 worker 拾取。审计后如果要受控启用同一批 target，用 `enable-plan-targets` 从同一个 `source-plan.json + namespace` 重新计算 target id，只更新已同步 target 的 `enabled` 和 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。它只修改监控配置，不抓源、不解析 PDF、不写事实边；missing target 会在结果中列出，表示需要先重新同步。
+`preview-plan-targets` 不连接数据库，只把 source-plan 的 runnable suggestions 转成稳定 target id、按 source / target kind / priority 汇总，并用同一套 source-management validation 报出缺 connector、字段错误、manual-only 自动化或 credentials warning；适合宿主 App 先审计。`smoke-plan-targets` 也不连接数据库，但会真正执行 adapter 的 `plan / fetch / normalize`，用于提前发现外部源不可达、凭据缺失或 target config 失效；它不写 `source_check_targets`、不写 monitor event、不写 observation，也不会生成事实边。需要把这次体检随研究包归档时，显式把 smoke JSON 传给 `research run/from-workbench --source-target-preflight`，research-pack 只会打包成 `source-target-preflight.json/md`，不会重新抓源。`sync-plan-targets` 默认写入 disabled target，适合先审计；显式 `--enable` 后才会被 `sources due/run-due` 和 worker 拾取。审计后如果要受控启用同一批 target，用 `enable-plan-targets` 从同一个 `source-plan.json + namespace` 重新计算 target id，只更新已同步 target 的 `enabled` 和 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。它只修改监控配置，不抓源、不解析 PDF、不写事实边；missing target 会在结果中列出，表示需要先重新同步。
 
 `sources due` 和 `sources run-due` 都支持同一组过滤参数：`--source-plan + --namespace`、`--check-target-id` 或 `--source`。建议先用 `sources due` 预览，确认只包含本轮要跑的小批量目标，再运行 `run-due`。这些过滤参数只限制 due target 范围，不改变 source policy，不改变 target config，也不让 observation 自动升级成 fact edge。
 

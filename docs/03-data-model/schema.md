@@ -584,6 +584,7 @@ risk_metrics
 - `question-readiness.json/md`：根据当前 pack 中的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready / partial / blocked`。
 - `investigation-backlog.json/md`：把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 转成下一步调查任务。
 - `source-target-coverage.json/md`：把 runnable source-plan target 与 `source_check_targets / source_check_jobs / source_change_events / observations` 对齐，展示数据准备链路的 sync、enable、due、job、event、degraded 和 observation 状态。
+- `source-target-preflight.json/md`：可选；打包显式传入的无数据库 source-plan smoke 结果，展示 `plan / fetch / normalize` 连通性、失败和 degraded fallback。它不是事实覆盖，也不代表 target 已同步。
 - `observation-coverage.json/md`：汇总本研究包中 typed observations 的 type、source adapter、scope、component、geography、metric、样本 id、series readiness 和缺失 methodology type。
 - `official-disclosure-readiness.json/md`：汇总 Gate 1 相关的研究 target profile、逐节点覆盖矩阵、显式 target node 覆盖、逐 expected source 覆盖矩阵、profile expansion candidates、Level 4/5 fact edge 数、完整 traceability、严格 cross-source corroboration、strength/freshness 覆盖、explicit unknown，以及官方披露 source-plan target 的 sync / enable / due / degraded / observation 状态。
 
