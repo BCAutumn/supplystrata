@@ -18,7 +18,7 @@ import {
   renderSourceTargetCoverageMarkdown,
   safeFileSegment
 } from "@supplystrata/research-pack";
-import { parseManagedSourcePlanDocument } from "@supplystrata/source-management";
+import { buildSourcePolicyConfigFromPlanTargets, parseManagedSourcePlanDocument } from "@supplystrata/source-management";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type {
@@ -1131,13 +1131,22 @@ describe("research-pack", () => {
         preflight_missing_credential_env_keys: ["SAMSUNG_IR_TOKEN"]
       })
     ]);
-    expect(corroborationSourcePlan.source_plan).toEqual([
+    const [sourcePlanItem] = corroborationSourcePlan.source_plan;
+    expect(sourcePlanItem?.source_id).toBe("samsung-ir");
+    expect(sourcePlanItem?.reasons.some((reason) => reason.includes("Corroboration review"))).toBe(true);
+    expect(sourcePlanItem?.suggested_check_targets).toEqual([
       expect.objectContaining({
-        source_id: "samsung-ir",
-        suggested_check_targets: [expect.objectContaining({ source_adapter_id: "samsung-ir", target_kind: "official-html-disclosure" })]
+        source_adapter_id: "samsung-ir",
+        target_kind: "official-html-disclosure"
       })
     ]);
+    expect(sourcePlanItem?.suggested_check_targets[0]?.reason).toContain("EDGE-SAMSUNG-1");
     expect(parseManagedSourcePlanDocument(JSON.stringify(corroborationSourcePlan)).source_plan).toHaveLength(1);
+    const monitorConfig = buildSourcePolicyConfigFromPlanTargets({
+      source_plan: corroborationSourcePlan.source_plan,
+      namespace: "nvidia-memory-2025"
+    });
+    expect(monitorConfig.check_targets[0]?.notes).toContain("EDGE-SAMSUNG-1");
     expect(renderCorroborationSourcePlanMarkdown(corroborationSourcePlan)).toContain("Missing credentials: SAMSUNG_IR_TOKEN");
   });
 });

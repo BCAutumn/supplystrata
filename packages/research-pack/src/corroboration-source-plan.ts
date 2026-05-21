@@ -45,8 +45,8 @@ export interface CorroborationSourcePlanInput {
 export function buildCorroborationSourcePlan(input: CorroborationSourcePlanInput): CorroborationSourcePlan {
   const reviews = input.investigation_backlog.items.filter((item) => item.kind === "corroboration_review");
   const targetRefs = buildTargetRefs(reviews);
-  const targetKeys = new Set(targetRefs.map((target) => sourceTargetKey(target)));
-  const sourcePlan = filterSourcePlan(input.source_plan, targetKeys);
+  const targetRefsByKey = new Map(targetRefs.map((target) => [sourceTargetKey(target), target]));
+  const sourcePlan = filterSourcePlan(input.source_plan, targetRefsByKey);
   return {
     schema_version: "1.0.0",
     generated_at: input.generated_at,
@@ -148,14 +148,32 @@ function mergeTargetRef(left: CorroborationSourcePlanTargetRef | undefined, righ
   };
 }
 
-function filterSourcePlan(sourcePlan: readonly SourcePlanItem[], targetKeys: ReadonlySet<string>): SourcePlanItem[] {
+function filterSourcePlan(sourcePlan: readonly SourcePlanItem[], targetRefsByKey: ReadonlyMap<string, CorroborationSourcePlanTargetRef>): SourcePlanItem[] {
   return sourcePlan
-    .map((item) => ({
-      ...item,
-      suggested_check_targets: item.suggested_check_targets.filter((target) => target.runnable && targetKeys.has(sourceTargetKey(target)))
-    }))
+    .map((item) => {
+      const suggestedTargets = item.suggested_check_targets
+        .filter((target) => target.runnable)
+        .flatMap((target) => {
+          const ref = targetRefsByKey.get(sourceTargetKey(target));
+          return ref === undefined ? [] : [annotateTargetForCorroboration(target, ref)];
+        });
+      return {
+        ...item,
+        reasons: uniqueSorted([...item.reasons, ...suggestedTargets.map((target) => target.reason)]),
+        suggested_check_targets: suggestedTargets
+      };
+    })
     .filter((item) => item.suggested_check_targets.length > 0)
     .sort((left, right) => left.source_id.localeCompare(right.source_id));
+}
+
+function annotateTargetForCorroboration(target: SourcePlanCheckTargetSuggestion, ref: CorroborationSourcePlanTargetRef): SourcePlanCheckTargetSuggestion {
+  const unknownText = ref.unknown_ids.length === 0 ? "none" : ref.unknown_ids.join(",");
+  return {
+    ...target,
+    target_config: copyTargetConfig(target.target_config),
+    reason: `${target.reason} Corroboration review ${ref.backlog_id} for edges ${ref.edge_ids.join(",")}; unknowns ${unknownText}.`
+  };
 }
 
 function coverageForTarget(
