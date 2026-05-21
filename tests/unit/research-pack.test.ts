@@ -314,14 +314,16 @@ describe("research-pack", () => {
     expect(report.summary.single_source_edges).toBe(1);
     expect(report.summary.corroboration_queue_items).toBe(1);
     expect(report.summary.corroboration_queue_needing_disposition).toBe(1);
-    expect(report.corroboration_queue[0]).toEqual(
-      expect.objectContaining({
-        edge_id: "EDGE-OFFICIAL-1",
-        disposition: "needs_explicit_single_source_disposition",
-        existing_source_adapters: ["sec-edgar"],
-        unknown_ids: []
-      })
-    );
+    expect(report.summary.corroboration_queue_with_recorded_disposition).toBe(0);
+    expect(report.summary.corroboration_queue_proposed_unknowns).toBe(1);
+    const [queueItem] = report.corroboration_queue;
+    expect(queueItem?.edge_id).toBe("EDGE-OFFICIAL-1");
+    expect(queueItem?.disposition).toBe("needs_explicit_single_source_disposition");
+    expect(queueItem?.existing_source_adapters).toEqual(["sec-edgar"]);
+    expect(queueItem?.unknown_ids).toEqual([]);
+    expect(queueItem?.proposed_unknown?.scope_kind).toBe("edge");
+    expect(queueItem?.proposed_unknown?.scope_id).toBe("EDGE-OFFICIAL-1");
+    expect(queueItem?.proposed_unknown?.created_by).toBe("official-disclosure-readiness.single-source-disposition.v1");
     expect(report.summary.visible_research_nodes).toBe(5);
     expect(report.summary.nodes_with_fact_edges).toBe(3);
     expect(report.summary.nodes_with_runnable_official_targets).toBe(2);
@@ -341,8 +343,73 @@ describe("research-pack", () => {
     expect(report.gaps.map((gap) => gap.kind)).toContain("edge_strength");
     expect(report.gaps.find((gap) => gap.kind === "level_4_5_edge_coverage")?.action).toContain("Run due official disclosure targets");
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Add second-source corroboration or explicit single-source disposition");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Proposed unknown: UNK-EDGE-CORROB-");
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("samsung-ir/official-html-disclosure=due");
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Node coverage");
+  });
+
+  it("distinguishes recorded single-source dispositions from missing disposition unknowns", () => {
+    const edge = {
+      edge_id: "EDGE-SINGLE-SOURCE-1",
+      from_id: "ENT-NVIDIA",
+      from_name: "NVIDIA",
+      to_id: "ENT-CUSTOM",
+      to_name: "Custom Supplier",
+      relation: "BUYS_FROM" as const,
+      component: "custom",
+      component_id: "COMP-CUSTOM",
+      evidence_level: 5 as const,
+      confidence: 0.95,
+      evidence_ids: ["EV-SINGLE-SOURCE-1"]
+    };
+    const report = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-CUSTOM"],
+      workbench: {
+        ...emptyWorkbench(),
+        companies: [
+          { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
+          { entity_id: "ENT-CUSTOM", name: "Custom Supplier", role: "counterparty" }
+        ],
+        edges: [edge],
+        evidences: [
+          evidenceFixture("EV-SINGLE-SOURCE-1", {
+            edge_id: "EDGE-SINGLE-SOURCE-1",
+            evidence_level: 5,
+            source_adapter_id: "sec-edgar",
+            source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+            cite_text_sha256: "abc123"
+          })
+        ],
+        unknown_items: [
+          {
+            unknown_id: "UNK-SINGLE-SOURCE-DISPOSITION-1",
+            question: "Can EDGE-SINGLE-SOURCE-1 be corroborated by a second-source official disclosure?",
+            why_unknown: "EDGE-SINGLE-SOURCE-1 is currently single-source; no counterparty official disclosure path is visible.",
+            blocking_data_sources: ["single-source disposition for EDGE-SINGLE-SOURCE-1"],
+            proxies: ["manual disposition for EDGE-SINGLE-SOURCE-1"],
+            status: "open"
+          }
+        ],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    expect(report.summary.corroboration_queue_items).toBe(1);
+    expect(report.summary.corroboration_queue_needing_disposition).toBe(0);
+    expect(report.summary.corroboration_queue_with_recorded_disposition).toBe(1);
+    expect(report.summary.corroboration_queue_proposed_unknowns).toBe(0);
+    expect(report.corroboration_queue[0]).toEqual(
+      expect.objectContaining({
+        edge_id: "EDGE-SINGLE-SOURCE-1",
+        disposition: "single_source_disposition_recorded",
+        unknown_ids: ["UNK-SINGLE-SOURCE-DISPOSITION-1"],
+        proposed_unknown: null
+      })
+    );
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("single_source_disposition_recorded");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("UNK-SINGLE-SOURCE-DISPOSITION-1");
   });
 
   it("measures official disclosure coverage against an explicit target node set", () => {
