@@ -506,6 +506,7 @@ POST /review/:id/reject
 [x] source-check connector capability 统一声明 target 级 credential requirements，并被 catalog / preview / smoke 复用
 [x] official-disclosure readiness 能输出 Gate 1 scorecard，区分 data progress 与 source path progress
 [x] official-disclosure readiness 能输出 edge-level corroboration queue，逐条标出 single-source edge 的二源检查路径或 explicit disposition 缺口
+[x] investigation-backlog 能消费 corroboration queue，生成逐 edge `corroboration_review` 任务并继承 source target coverage / preflight 状态
 [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 

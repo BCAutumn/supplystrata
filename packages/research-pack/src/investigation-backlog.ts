@@ -3,7 +3,7 @@ import type { ComponentCardModel } from "@supplystrata/render";
 import type { SourcePlanCheckTargetSuggestion, SourcePlanItem } from "@supplystrata/source-plan";
 import type { WorkbenchModel, WorkbenchUnknownItem } from "@supplystrata/workbench-export";
 import type { ObservationCoverageReport, ObservationSeriesReadiness } from "./observation-coverage.js";
-import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
+import type { OfficialDisclosureCorroborationQueueItem, OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { QuestionReadinessMatrix, QuestionReadinessStatus } from "./question-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type {
@@ -20,6 +20,7 @@ export type InvestigationBacklogKind =
   | "source_check"
   | "observation_series"
   | "official_disclosure_coverage"
+  | "corroboration_review"
   | "profile_expansion";
 export type InvestigationBacklogPriority = "P0" | "P1" | "P2" | "P3";
 
@@ -110,6 +111,7 @@ export function buildInvestigationBacklog(input: InvestigationBacklogInput): Inv
     ...unknownResolutionDrafts(input),
     ...componentCoverageDrafts(input),
     ...officialDisclosureCoverageDrafts(input),
+    ...corroborationReviewDrafts(input),
     ...profileExpansionDrafts(input),
     ...observationSeriesDrafts(input),
     ...sourceCheckDrafts(input)
@@ -283,6 +285,42 @@ function officialDisclosureCoverageDrafts(input: InvestigationBacklogInput): Bac
   }));
 }
 
+function corroborationReviewDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
+  if (input.official_disclosure_readiness === undefined) return [];
+  const coverageByTarget = coverageByRunnableTarget(input);
+  const sourcePlanTargetsByKey = runnableTargetsByKey(input.source_plan);
+  return input.official_disclosure_readiness.corroboration_queue.slice(0, 40).map((queueItem) => {
+    const runnableCheckTargets = runnableTargetsForCorroborationQueueItem(queueItem, sourcePlanTargetsByKey);
+    return {
+      kind: "corroboration_review",
+      priority: queueItem.priority,
+      title: `Resolve corroboration for ${queueItem.edge_id}`,
+      rationale: queueItem.reason,
+      action: queueItem.action,
+      target: {
+        component_ids: queueItem.component_id === null ? [] : [queueItem.component_id],
+        edge_ids: [queueItem.edge_id],
+        unknown_ids: queueItem.unknown_ids,
+        source_ids: uniqueSorted([
+          ...queueItem.existing_source_adapters,
+          ...queueItem.candidate_source_ids,
+          ...queueItem.source_targets.map((target) => target.source_adapter_id)
+        ]),
+        question_ids: ["official_disclosure.corroboration"]
+      },
+      supporting_refs: [
+        `corroboration_queue:${queueItem.edge_id}`,
+        `edge:${queueItem.edge_id}`,
+        ...queueItem.source_plan_refs,
+        ...queueItem.source_targets.flatMap((target) => (target.check_target_id === null ? [] : [`source_target:${target.check_target_id}`])),
+        ...queueItem.unknown_ids.map((unknownId) => `unknown:${unknownId}`)
+      ],
+      runnable_check_targets: runnableCheckTargets,
+      source_target_coverage: coverageForTargets(coverageByTarget, runnableCheckTargets)
+    };
+  });
+}
+
 function profileExpansionDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
   return (input.official_disclosure_readiness?.profile_expansion_candidates ?? []).slice(0, 20).map((candidate) => ({
     kind: "profile_expansion",
@@ -448,6 +486,27 @@ function runnableTargetsForRefs(sourcePlan: readonly SourcePlanItem[], refs: rea
 function runnableTargetsForSources(sourcePlan: readonly SourcePlanItem[], sourceIds: readonly string[]): SourcePlanCheckTargetSuggestion[] {
   const sourceIdSet = new Set(sourceIds);
   return sourcePlan.flatMap((item) => (sourceIdSet.has(item.source_id) ? item.suggested_check_targets.filter((target) => target.runnable) : []));
+}
+
+function runnableTargetsByKey(sourcePlan: readonly SourcePlanItem[]): ReadonlyMap<string, SourcePlanCheckTargetSuggestion> {
+  const byKey = new Map<string, SourcePlanCheckTargetSuggestion>();
+  for (const item of sourcePlan) {
+    for (const target of item.suggested_check_targets) {
+      if (target.runnable) byKey.set(runnableTargetKey(target), target);
+    }
+  }
+  return byKey;
+}
+
+function runnableTargetsForCorroborationQueueItem(
+  queueItem: OfficialDisclosureCorroborationQueueItem,
+  sourcePlanTargetsByKey: ReadonlyMap<string, SourcePlanCheckTargetSuggestion>
+): SourcePlanCheckTargetSuggestion[] {
+  const targets = queueItem.source_targets.flatMap((target) => {
+    const runnableTarget = sourcePlanTargetsByKey.get(target.target_key);
+    return runnableTarget === undefined ? [] : [runnableTarget];
+  });
+  return dedupeRunnableTargets(targets);
 }
 
 function sourceIdsForUnknown(sourcePlan: readonly SourcePlanItem[], unknown: WorkbenchUnknownItem): string[] {

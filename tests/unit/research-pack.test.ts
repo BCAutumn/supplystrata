@@ -250,6 +250,7 @@ describe("research-pack", () => {
     expect(pack.official_disclosure_readiness.summary.edges_with_strength).toBe(1);
     expect(pack.manifest.stats.question_readiness_partial).toBeGreaterThan(0);
     expect(pack.manifest.stats.investigation_backlog_items).toBeGreaterThan(0);
+    expect(pack.manifest.stats.investigation_backlog_corroboration_reviews).toBeGreaterThan(0);
     expect(pack.question_readiness.items.some((item) => item.question_id === "company.upstream_dependencies" && item.status === "partial")).toBe(true);
     expect(renderQuestionReadinessMarkdown(pack.question_readiness)).toContain("company.upstream_dependencies");
     expect(renderInvestigationBacklogMarkdown(pack.investigation_backlog)).toContain("Investigation Backlog");
@@ -978,6 +979,83 @@ describe("research-pack", () => {
     expect(officialItem?.supporting_refs).toContain("source_target:plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6");
     expect(officialItem?.action).toContain("Enable synced official disclosure targets");
     expect(renderInvestigationBacklogMarkdown(backlog)).toContain("official_disclosure_coverage");
+  });
+
+  it("turns official disclosure corroboration queue into edge-level backlog actions", () => {
+    const officialDisclosureReadiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-DRAM"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: officialSourceTargetCoverage("disabled"),
+      workbench: {
+        ...emptyWorkbench(),
+        companies: [
+          { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
+          { entity_id: "ENT-SAMSUNG-ELECTRONICS", name: "Samsung Electronics", role: "counterparty" }
+        ],
+        edges: [
+          {
+            edge_id: "EDGE-SAMSUNG-1",
+            from_id: "ENT-NVIDIA",
+            from_name: "NVIDIA",
+            to_id: "ENT-SAMSUNG-ELECTRONICS",
+            to_name: "Samsung Electronics",
+            relation: "BUYS_FROM",
+            component: "dram",
+            component_id: "COMP-DRAM",
+            evidence_level: 5,
+            confidence: 0.95,
+            evidence_ids: ["EV-SAMSUNG-1"]
+          }
+        ],
+        evidences: [
+          evidenceFixture("EV-SAMSUNG-1", {
+            edge_id: "EDGE-SAMSUNG-1",
+            evidence_level: 5,
+            source_adapter_id: "sec-edgar",
+            source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+            cite_text_sha256: "abc123"
+          })
+        ],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    const backlog = buildInvestigationBacklog({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      components: [],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: officialSourceTargetCoverage("disabled"),
+      question_readiness: readyQuestionReadiness(),
+      official_disclosure_readiness: officialDisclosureReadiness
+    });
+
+    const corroborationItem = backlog.items.find((item) => item.kind === "corroboration_review");
+    expect(corroborationItem).toEqual(
+      expect.objectContaining({
+        priority: "P1",
+        title: "Resolve corroboration for EDGE-SAMSUNG-1"
+      })
+    );
+    expect(corroborationItem?.target).toEqual(
+      expect.objectContaining({
+        component_ids: ["COMP-DRAM"],
+        edge_ids: ["EDGE-SAMSUNG-1"],
+        source_ids: ["samsung-ir", "sec-edgar"],
+        question_ids: ["official_disclosure.corroboration"]
+      })
+    );
+    expect(corroborationItem?.runnable_check_targets).toEqual([
+      expect.objectContaining({ source_adapter_id: "samsung-ir", target_kind: "official-html-disclosure" })
+    ]);
+    expect(corroborationItem?.source_target_coverage).toEqual([
+      expect.objectContaining({ source_adapter_id: "samsung-ir", target_kind: "official-html-disclosure", state: "disabled" })
+    ]);
+    expect(corroborationItem?.action).toContain("Enable the synced source-check targets");
+    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("corroboration_review");
   });
 });
 

@@ -127,6 +127,7 @@ export interface ResearchPackStats {
   investigation_backlog_items: number;
   investigation_backlog_p0: number;
   investigation_backlog_p1: number;
+  investigation_backlog_corroboration_reviews: number;
   investigation_backlog_runnable_targets: number;
   source_target_expected_targets: number;
   source_target_synced_targets: number;
@@ -838,6 +839,7 @@ function manifestFromModel(input: {
       investigation_backlog_items: input.investigationBacklog.summary.open_items,
       investigation_backlog_p0: input.investigationBacklog.summary.p0,
       investigation_backlog_p1: input.investigationBacklog.summary.p1,
+      investigation_backlog_corroboration_reviews: input.investigationBacklog.items.filter((item) => item.kind === "corroboration_review").length,
       investigation_backlog_runnable_targets: input.investigationBacklog.summary.runnable_check_targets,
       source_target_expected_targets: input.sourceTargetCoverage?.summary.expected_targets ?? 0,
       source_target_synced_targets: input.sourceTargetCoverage?.summary.synced_targets ?? 0,
@@ -933,7 +935,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
-    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1)`,
+    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_due_targets} due`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
@@ -996,7 +998,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
-    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1)`,
+    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,

@@ -1144,7 +1144,7 @@ function corroborationQueueItemForEdge(
   const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets });
   return {
     edge_id: edge.edge_id,
-    priority: candidateNodes.some((node) => node.target_priority === "P0") ? "P1" : "P2",
+    priority: corroborationPriority({ edge, candidateNodes, sourceTargets }),
     disposition,
     reason: corroborationReason(edge, candidateSourceIds, sourceTargets),
     from_id: edge.from_id,
@@ -1160,6 +1160,16 @@ function corroborationQueueItemForEdge(
     unknown_ids: edge.unknown_ids,
     action: corroborationAction(disposition, sourceTargets)
   };
+}
+
+function corroborationPriority(input: {
+  edge: OfficialDisclosureReadinessEdge;
+  candidateNodes: readonly OfficialDisclosureReadinessNode[];
+  sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[];
+}): OfficialDisclosureCorroborationQueueItem["priority"] {
+  if (input.sourceTargets.length > 0) return "P1";
+  const nonRootCandidateIsP0 = input.candidateNodes.some((node) => node.node_id !== input.edge.from_id && node.target_priority === "P0");
+  return nonRootCandidateIsP0 ? "P1" : "P2";
 }
 
 function corroborationCandidateNodes(

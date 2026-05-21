@@ -582,7 +582,7 @@ risk_metrics
 `@supplystrata/research-pack` 会导出只读研究辅助产物：
 
 - `question-readiness.json/md`：根据当前 pack 中的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready / partial / blocked`。
-- `investigation-backlog.json/md`：把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 转成下一步调查任务。
+- `investigation-backlog.json/md`：把 readiness gap、explicit unknown、组件覆盖缺口、corroboration queue item 和 source-plan item 转成下一步调查任务。其中 `corroboration_review` 是逐 edge 的二源检查任务，会引用 edge、candidate official source、runnable target、source target coverage 和 preflight 状态；它只指导 review/sync/run，不写事实边。
 - `source-target-coverage.json/md`：把 runnable source-plan target 与 `source_check_targets / source_check_jobs / source_change_events / observations` 对齐，展示数据准备链路的 sync、enable、due、job、event、degraded 和 observation 状态。
 - `source-target-preflight.json/md`：可选；打包显式传入的无数据库 source-plan smoke 结果，展示 `plan / fetch / normalize` 连通性、失败和 degraded fallback，并按 source 输出 checked/failed/skipped、normalized/degraded、target kind 和 issue kind 分布矩阵。issue kind 当前包括 `missing_credentials`、`target_config_invalid`、`connector_unsupported`、`source_unreachable`、`source_response_error` 和 `adapter_error`。当 issue kind 是 `missing_credentials` 且 connector capability 提供了 credential contract 时，item 会携带结构化 `missing_credentials[]` env key，而不是只把 key 藏在错误字符串里。它不是事实覆盖，也不代表 target 已同步；如果同时传入 `investigation-backlog`，backlog 会把 failed/skipped/degraded preflight 作为同步前行动前置条件。
 - `observation-coverage.json/md`：汇总本研究包中 typed observations 的 type、source adapter、scope、component、geography、metric、样本 id、series readiness 和缺失 methodology type。
