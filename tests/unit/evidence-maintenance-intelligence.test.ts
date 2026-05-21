@@ -4,6 +4,8 @@ import {
   evaluateComponentRiskAlertPolicy,
   inferEdgeStrengthDrafts,
   listRefreshableComponentRiskComponentIds,
+  materializeSingleSourceDispositionUnknowns,
+  parseOfficialDisclosureReadinessProposedUnknowns,
   recordEdgeCalibrationLabel,
   refreshAlertCandidates,
   refreshEdgeCalibrationRun,
@@ -26,6 +28,27 @@ class IntelligenceDbClient implements DbClient {
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
     const rows = rowsForIntelligence<T>(sql, params);
+    return {
+      command: "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
+class SingleSourceDispositionDbClient implements DbClient {
+  readonly calls: QueryCall[] = [];
+
+  constructor(
+    private readonly currentEdgeIds: ReadonlySet<string>,
+    private readonly existingUnknownIds: ReadonlySet<string> = new Set()
+  ) {}
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    const rows = rowsForSingleSourceDisposition<T>(sql, params, this.currentEdgeIds, this.existingUnknownIds);
     return {
       command: "MOCK",
       rowCount: rows.length,
@@ -234,6 +257,77 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edge_freshness"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edge_strength_estimates"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("materializes single-source disposition unknowns from readiness output without touching fact edges", async () => {
+    const client = new SingleSourceDispositionDbClient(new Set(["EDGE-CORROBORATION-A"]));
+    const proposedUnknowns = parseOfficialDisclosureReadinessProposedUnknowns(
+      JSON.stringify({
+        corroboration_queue: [
+          {
+            edge_id: "EDGE-CORROBORATION-A",
+            proposed_unknown: {
+              unknown_id: "UNK-EDGE-CORROB-A",
+              scope_kind: "edge",
+              scope_id: "EDGE-CORROBORATION-A",
+              question: "Does an independent official source corroborate this relationship?",
+              why_unknown: "Only one official disclosure currently supports the fact edge.",
+              blocking_data_sources: ["counterparty official disclosure"],
+              proxies: ["official disclosure monitor"],
+              created_by: "research-pack.official-disclosure-readiness.v1"
+            }
+          },
+          {
+            edge_id: "EDGE-CORROBORATION-A",
+            proposed_unknown: {
+              unknown_id: "UNK-EDGE-CORROB-A",
+              scope_kind: "edge",
+              scope_id: "EDGE-CORROBORATION-A",
+              question: "Does an independent official source corroborate this relationship?",
+              why_unknown: "Only one official disclosure currently supports the fact edge.",
+              blocking_data_sources: ["counterparty official disclosure"],
+              proxies: ["official disclosure monitor"],
+              created_by: "research-pack.official-disclosure-readiness.v1"
+            }
+          },
+          {
+            edge_id: "EDGE-CORROBORATION-MISSING",
+            proposed_unknown: {
+              unknown_id: "UNK-EDGE-CORROB-MISSING",
+              scope_kind: "edge",
+              scope_id: "EDGE-CORROBORATION-MISSING",
+              question: "Does an independent official source corroborate this missing relationship?",
+              why_unknown: "The edge is no longer current, so the proposed unknown must not be materialized by default.",
+              blocking_data_sources: ["current fact edge"],
+              proxies: [],
+              created_by: "research-pack.official-disclosure-readiness.v1"
+            }
+          },
+          { edge_id: "EDGE-READY", proposed_unknown: null }
+        ]
+      })
+    );
+
+    const summary = await materializeSingleSourceDispositionUnknowns(client, {
+      proposed_unknowns: proposedUnknowns,
+      generated_by: "unit-test"
+    });
+
+    expect(proposedUnknowns.map((unknown) => unknown.unknown_id)).toEqual(["UNK-EDGE-CORROB-A", "UNK-EDGE-CORROB-MISSING"]);
+    expect(summary).toEqual({
+      proposed_unknowns: 2,
+      unique_unknowns: 2,
+      edges_checked: 2,
+      unknowns_inserted: 1,
+      unknowns_updated: 0,
+      skipped_missing_edges: 1,
+      skipped_unknown_ids: ["UNK-EDGE-CORROB-MISSING"],
+      generated_by: "unit-test"
+    });
+    expect(client.calls.some((call) => call.sql.includes("FROM edges"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params[3] === "UNKNOWN_ADDED")).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -733,6 +827,25 @@ function rowsForIntelligence<T extends pg.QueryResultRow>(sql: string, params: r
   }
 
   if (sql.includes("SELECT unknown_id FROM unknown_items")) return [] as T[];
+  return [];
+}
+
+function rowsForSingleSourceDisposition<T extends pg.QueryResultRow>(
+  sql: string,
+  params: readonly unknown[],
+  currentEdgeIds: ReadonlySet<string>,
+  existingUnknownIds: ReadonlySet<string>
+): T[] {
+  if (sql.includes("FROM edges")) {
+    const candidateEdgeIds = stringArrayParam(params[0]);
+    return candidateEdgeIds.filter((edgeId) => currentEdgeIds.has(edgeId)).map((edge_id) => ({ edge_id })) as unknown as T[];
+  }
+
+  if (sql.includes("SELECT unknown_id FROM unknown_items")) {
+    const unknownId = typeof params[0] === "string" ? params[0] : "";
+    return existingUnknownIds.has(unknownId) ? ([{ unknown_id: unknownId }] as unknown as T[]) : [];
+  }
+
   return [];
 }
 
@@ -1561,6 +1674,11 @@ function arrayFromRecordField(record: Record<string, unknown>, field: string): u
   const value = record[field];
   if (!Array.isArray(value)) throw new Error(`Expected ${field} to be an array`);
   return value;
+}
+
+function stringArrayParam(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error("Expected string array query param");
+  return value.filter((item): item is string => typeof item === "string");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

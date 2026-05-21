@@ -389,6 +389,8 @@ CREATE INDEX idx_unknown_items_scope ON unknown_items(scope_kind, scope_id);
 CREATE INDEX idx_unknown_items_status ON unknown_items(status);
 ```
 
+`scope_kind='edge'` 可用于 fact edge 的显式未知边界，例如“该 L4/L5 single-source edge 尚未完成独立官方二源处置”。`research-pack` 的 `official-disclosure-readiness` 只生成确定性的 `proposed_unknown` payload；它不是事实证据，也不是已落库 unknown。只有 `@supplystrata/evidence-maintenance` 的受控 materialization 用例会默认检查目标 edge 仍为 `validity='current'` 后写入 `unknown_items`，并通过 unknown repository 记录 `UNKNOWN_ADDED/UPDATED` semantic change；这条路径不能写 `edges`。
+
 ### 11. review_candidates
 
 人工审核统一入口。所有不应自动入图的候选都用同一个 review 信封，不按数据源另建队列。
@@ -533,6 +535,7 @@ edge_freshness
 - `freshness_score` 只能进入 workbench / risk view / intelligence view，不能反向降低或提高 `evidence_level`。
 - `@supplystrata/workbench-export` 把这部分导出为 `intelligence.edge_strengths / intelligence.edge_freshness`，前端和宿主 app 应把它当作上下文，而不是新事实边。
 - `@supplystrata/evidence-maintenance` 提供 `refreshEdgeIntelligenceContext()` 后端编排：扫描 `current`、非 inferred、Level 4/5 且有 `primary_evidence_id` 的事实边，刷新 `edge_freshness`；只从 primary evidence 的命名、明确文本中确定性写入 `share / dependency / capacity / qualitative` strength；没有明确强度时写入 edge-scoped explicit unknown。
+- `@supplystrata/evidence-maintenance` 也提供 single-source disposition unknown materialization：它消费 readiness 输出里的 `proposed_unknown`，只写 `unknown_items`，用于把二源处置缺口变成可审计 backlog；它不会把 single-source silence 解释成 corroboration。
 - 该 refresh 不写 `edges`，不改变 `evidence_level`，不把 observation / lead 升级为事实边；它只写 intelligence context 和 unknown map。
 
 ## Risk Views

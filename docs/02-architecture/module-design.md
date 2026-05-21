@@ -140,7 +140,7 @@ CI 里加 dependency-cruiser 校验。
 
 `source-management` 是统一数据源管理面：它把 `source-registry` 的权威来源清单、`source-connectors` 的可运行 target kind、connector 声明的 `target_config` 字段契约、外部 `source policy` 配置校验收口到一个纯模块。它不抓取、不写库、不读取环境变量；CLI、未来 TS 桌面端或 agent 宿主可以先调用它展示“哪些源可配置、哪些字段必填、哪些只登记未实现、哪些需要 key、哪些只能手工”，再决定是否同步到 Postgres。用户自定义 source policy 必须先通过这个模块校验，避免把不存在的 source/target 或字段错误的 target_config 写进调度表。
 
-`evidence-maintenance` 是 truth-store 维护型 use-case 层。第一版包含 evidence trace backfill 和 edge intelligence refresh。它可以消费 `db` repository，并按方法学写入 `edge_strength_estimates`、`edge_freshness` 和 explicit unknown；它不得写 `edges`、不得提升 `evidence_level`、不得把 LLM / observation / lead 结果包装成事实关系。CLI 只能作为薄入口调用它，`research-pack` 可以在导出前调用它让研究输出带上最新派生上下文。
+`evidence-maintenance` 是 truth-store 维护型 use-case 层。第一版包含 evidence trace backfill、edge intelligence refresh 和 single-source disposition unknown materialization。它可以消费 `db` repository，并按方法学写入 `edge_strength_estimates`、`edge_freshness` 和 explicit unknown；`official-disclosure-readiness` 产生的 `proposed_unknown` 只有通过这里的受控用例、且默认确认目标 edge 仍为 `current` 后，才会落到 `unknown_items`。它不得写 `edges`、不得提升 `evidence_level`、不得把 LLM / observation / lead 结果包装成事实关系。CLI 只能作为薄入口调用它，`research-pack` 可以在导出前调用它让研究输出带上最新派生上下文。
 
 `apps/worker` 是常驻后台进程入口。当前只运行 source-check worker loop：解析运行参数、连接 `DatabaseStore`、处理 SIGINT/SIGTERM，并循环调用 `source-workflows.runDueSourceChecks()`。它不得重新实现 due target 查询、connector 分发、retry/backoff 或 alert 规则；这些能力必须留在 domain/use-case package 中，保证 CLI、worker 和未来宿主 app 共享同一条业务路径。
 

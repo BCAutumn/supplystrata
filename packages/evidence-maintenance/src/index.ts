@@ -10,6 +10,7 @@ export * from "./calibration.js";
 export * from "./component-risk.js";
 export * from "./financial-peer-comparison.js";
 export * from "./observation-anomaly.js";
+export * from "./single-source-disposition.js";
 
 interface EvidenceTraceBackfillRow extends pg.QueryResultRow {
   evidence_id: string;
