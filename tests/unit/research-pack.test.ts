@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCorroborationSourcePlan,
   buildInvestigationBacklog,
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
@@ -9,6 +10,7 @@ import {
   listBuiltInResearchTargetProfiles,
   parseSourceTargetPreflightReport,
   renderInvestigationBacklogMarkdown,
+  renderCorroborationSourcePlanMarkdown,
   renderObservationCoverageMarkdown,
   renderOfficialDisclosureReadinessMarkdown,
   renderQuestionReadinessMarkdown,
@@ -16,6 +18,7 @@ import {
   renderSourceTargetCoverageMarkdown,
   safeFileSegment
 } from "@supplystrata/research-pack";
+import { parseManagedSourcePlanDocument } from "@supplystrata/source-management";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type {
@@ -251,9 +254,12 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.question_readiness_partial).toBeGreaterThan(0);
     expect(pack.manifest.stats.investigation_backlog_items).toBeGreaterThan(0);
     expect(pack.manifest.stats.investigation_backlog_corroboration_reviews).toBeGreaterThan(0);
+    expect(pack.manifest.stats.corroboration_source_plan_targets).toBe(pack.corroboration_source_plan.summary.runnable_targets);
+    expect(pack.corroboration_source_plan.target_refs.every((target) => target.edge_ids.length > 0)).toBe(true);
     expect(pack.question_readiness.items.some((item) => item.question_id === "company.upstream_dependencies" && item.status === "partial")).toBe(true);
     expect(renderQuestionReadinessMarkdown(pack.question_readiness)).toContain("company.upstream_dependencies");
     expect(renderInvestigationBacklogMarkdown(pack.investigation_backlog)).toContain("Investigation Backlog");
+    expect(renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan)).toContain("Corroboration Source Plan");
     expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Not synced");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Gate 1 scorecard");
@@ -1098,6 +1104,41 @@ describe("research-pack", () => {
     expect(corroborationItem?.action).toContain("SAMSUNG_IR_TOKEN");
     expect(renderInvestigationBacklogMarkdown(backlog)).toContain("corroboration_review");
     expect(renderInvestigationBacklogMarkdown(backlog)).toContain("failed preflight 1");
+    const corroborationSourcePlan = buildCorroborationSourcePlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      source_plan: [officialSourcePlanItem()],
+      investigation_backlog: backlog
+    });
+    expect(corroborationSourcePlan.summary).toEqual(
+      expect.objectContaining({
+        review_edges: 1,
+        source_plan_items: 1,
+        runnable_targets: 1,
+        targets_need_enable: 1,
+        targets_failed_preflight: 1,
+        targets_missing_credentials: 1
+      })
+    );
+    expect(corroborationSourcePlan.target_refs).toEqual([
+      expect.objectContaining({
+        backlog_id: corroborationItem?.backlog_id,
+        edge_ids: ["EDGE-SAMSUNG-1"],
+        source_adapter_id: "samsung-ir",
+        target_kind: "official-html-disclosure",
+        coverage_state: "disabled",
+        preflight_issue_kind: "missing_credentials",
+        preflight_missing_credential_env_keys: ["SAMSUNG_IR_TOKEN"]
+      })
+    ]);
+    expect(corroborationSourcePlan.source_plan).toEqual([
+      expect.objectContaining({
+        source_id: "samsung-ir",
+        suggested_check_targets: [expect.objectContaining({ source_adapter_id: "samsung-ir", target_kind: "official-html-disclosure" })]
+      })
+    ]);
+    expect(parseManagedSourcePlanDocument(JSON.stringify(corroborationSourcePlan)).source_plan).toHaveLength(1);
+    expect(renderCorroborationSourcePlanMarkdown(corroborationSourcePlan)).toContain("Missing credentials: SAMSUNG_IR_TOKEN");
   });
 });
 

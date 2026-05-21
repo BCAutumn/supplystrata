@@ -21,6 +21,7 @@ import {
 } from "@supplystrata/render";
 import { planSourcesForComponents, type SourcePlanItem, type TradeObservationDirection } from "@supplystrata/source-plan";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
+import { buildCorroborationSourcePlan, renderCorroborationSourcePlanMarkdown, type CorroborationSourcePlan } from "./corroboration-source-plan.js";
 import { buildInvestigationBacklog, renderInvestigationBacklogMarkdown, type InvestigationBacklog } from "./investigation-backlog.js";
 import { buildObservationCoverageReport, renderObservationCoverageMarkdown, type ObservationCoverageReport } from "./observation-coverage.js";
 import {
@@ -46,6 +47,7 @@ import {
 import { renderSourceTargetPreflightMarkdown, type SourceTargetPreflightReport } from "./source-target-preflight.js";
 
 export * from "./investigation-backlog.js";
+export * from "./corroboration-source-plan.js";
 export * from "./observation-coverage.js";
 export * from "./official-disclosure-readiness.js";
 export * from "./question-readiness.js";
@@ -139,6 +141,14 @@ export interface ResearchPackStats {
   investigation_backlog_corroboration_review_invalid_config: number;
   investigation_backlog_corroboration_review_unsupported_connector: number;
   investigation_backlog_corroboration_review_source_unreachable: number;
+  corroboration_source_plan_items: number;
+  corroboration_source_plan_targets: number;
+  corroboration_source_plan_edges: number;
+  corroboration_source_plan_need_sync: number;
+  corroboration_source_plan_need_enable: number;
+  corroboration_source_plan_due: number;
+  corroboration_source_plan_failed_preflight: number;
+  corroboration_source_plan_missing_credentials: number;
   investigation_backlog_runnable_targets: number;
   source_target_expected_targets: number;
   source_target_synced_targets: number;
@@ -222,6 +232,7 @@ export interface ResearchPackModel {
   data_quality: DataQualitySummary;
   question_readiness: QuestionReadinessMatrix;
   investigation_backlog: InvestigationBacklog;
+  corroboration_source_plan: CorroborationSourcePlan;
   source_target_coverage: SourceTargetCoverageReport;
   source_target_preflight: SourceTargetPreflightReport | null;
   observation_coverage: ObservationCoverageReport;
@@ -251,6 +262,7 @@ export interface WorkbenchSnapshotPackModel {
   source_plan: SourcePlanItem[];
   question_readiness: QuestionReadinessMatrix;
   investigation_backlog: InvestigationBacklog;
+  corroboration_source_plan: CorroborationSourcePlan;
   source_target_coverage: SourceTargetCoverageReport;
   source_target_preflight: SourceTargetPreflightReport | null;
   observation_coverage: ObservationCoverageReport;
@@ -347,6 +359,12 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_target_coverage: sourceTargetCoverage,
     ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });
+  const corroborationSourcePlan = buildCorroborationSourcePlan({
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    source_plan: sourcePlan,
+    investigation_backlog: investigationBacklog
+  });
   const manifest = manifestFromModel({
     generatedAt,
     input,
@@ -359,6 +377,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     dataQuality,
     questionReadiness,
     investigationBacklog,
+    corroborationSourcePlan,
     observationCoverage,
     officialDisclosureReadiness,
     claimBuild,
@@ -376,6 +395,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     data_quality: dataQuality,
     question_readiness: questionReadiness,
     investigation_backlog: investigationBacklog,
+    corroboration_source_plan: corroborationSourcePlan,
     source_target_coverage: sourceTargetCoverage,
     source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
@@ -461,6 +481,12 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_target_coverage: sourceTargetCoverage,
     ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });
+  const corroborationSourcePlan = buildCorroborationSourcePlan({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    source_plan: sourcePlan,
+    investigation_backlog: investigationBacklog
+  });
   const manifest = manifestFromModel({
     generatedAt,
     input: staticInput,
@@ -473,6 +499,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     dataQuality,
     questionReadiness,
     investigationBacklog,
+    corroborationSourcePlan,
     observationCoverage,
     officialDisclosureReadiness,
     claimBuild: null,
@@ -488,6 +515,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_plan: sourcePlan,
     question_readiness: questionReadiness,
     investigation_backlog: investigationBacklog,
+    corroboration_source_plan: corroborationSourcePlan,
     source_target_coverage: sourceTargetCoverage,
     source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
@@ -535,6 +563,13 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
       "investigation-backlog.md",
       renderInvestigationBacklogMarkdown(pack.investigation_backlog),
       "Investigation backlog markdown"
+    ),
+    await writeJsonFile(outDir, "corroboration-source-plan.json", pack.corroboration_source_plan, "Filtered source plan for edge corroboration review targets"),
+    await writeMarkdownFile(
+      outDir,
+      "corroboration-source-plan.md",
+      renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan),
+      "Filtered source plan for edge corroboration review targets markdown"
     ),
     await writeJsonFile(outDir, "source-target-coverage.json", pack.source_target_coverage, "Source target coverage from source monitor"),
     await writeMarkdownFile(
@@ -616,6 +651,13 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
       "investigation-backlog.md",
       renderInvestigationBacklogMarkdown(pack.investigation_backlog),
       "Investigation backlog markdown"
+    ),
+    await writeJsonFile(outDir, "corroboration-source-plan.json", pack.corroboration_source_plan, "Filtered source plan for edge corroboration review targets"),
+    await writeMarkdownFile(
+      outDir,
+      "corroboration-source-plan.md",
+      renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan),
+      "Filtered source plan for edge corroboration review targets markdown"
     ),
     await writeJsonFile(outDir, "source-target-coverage.json", pack.source_target_coverage, "Expected source target coverage"),
     await writeMarkdownFile(
@@ -806,6 +848,7 @@ function manifestFromModel(input: {
   dataQuality: DataQualitySummary;
   questionReadiness: QuestionReadinessMatrix;
   investigationBacklog: InvestigationBacklog;
+  corroborationSourcePlan: CorroborationSourcePlan;
   observationCoverage: ObservationCoverageReport;
   officialDisclosureReadiness: OfficialDisclosureReadinessReport;
   claimBuild: ResearchPackClaimBuild | null;
@@ -863,6 +906,14 @@ function manifestFromModel(input: {
       investigation_backlog_corroboration_review_invalid_config: input.investigationBacklog.summary.corroboration_review_invalid_config,
       investigation_backlog_corroboration_review_unsupported_connector: input.investigationBacklog.summary.corroboration_review_unsupported_connector,
       investigation_backlog_corroboration_review_source_unreachable: input.investigationBacklog.summary.corroboration_review_source_unreachable,
+      corroboration_source_plan_items: input.corroborationSourcePlan.summary.source_plan_items,
+      corroboration_source_plan_targets: input.corroborationSourcePlan.summary.runnable_targets,
+      corroboration_source_plan_edges: input.corroborationSourcePlan.summary.review_edges,
+      corroboration_source_plan_need_sync: input.corroborationSourcePlan.summary.targets_need_sync,
+      corroboration_source_plan_need_enable: input.corroborationSourcePlan.summary.targets_need_enable,
+      corroboration_source_plan_due: input.corroborationSourcePlan.summary.targets_due,
+      corroboration_source_plan_failed_preflight: input.corroborationSourcePlan.summary.targets_failed_preflight,
+      corroboration_source_plan_missing_credentials: input.corroborationSourcePlan.summary.targets_missing_credentials,
       investigation_backlog_runnable_targets: input.investigationBacklog.summary.runnable_check_targets,
       source_target_expected_targets: input.sourceTargetCoverage?.summary.expected_targets ?? 0,
       source_target_synced_targets: input.sourceTargetCoverage?.summary.synced_targets ?? 0,
@@ -959,6 +1010,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
+    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight)`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_due_targets} due`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
@@ -975,6 +1027,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage and methodology gaps.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
+    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show whether runnable source-plan targets are synced, enabled, due, running, failed, or producing observations.",
     "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
     "- `components/*.md` contains component-level evidence, observation, strength, freshness, and unknown context.",
@@ -1022,6 +1075,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
+    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight)`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
@@ -1036,6 +1090,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage visible from the snapshot.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
+    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show expected runnable targets as `not_synced` until a SQL truth store syncs them into `source_check_targets`.",
     "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
     "- `source-plan.json` lists existing free/public source checks suggested by the components in this workbench.",

@@ -49,6 +49,7 @@ export interface InvestigationBacklogItem {
 export interface InvestigationBacklogSourceTargetCoverage {
   source_adapter_id: string;
   target_kind: string;
+  target_config: Record<string, unknown>;
   check_target_id: string;
   state: SourceTargetCoverageState;
   synced: boolean;
@@ -598,6 +599,7 @@ function coverageByRunnableTarget(input: InvestigationBacklogInput): Map<string,
     coverageByTarget.set(runnableTargetKey(item.expected_target), {
       source_adapter_id: item.expected_target.source_adapter_id,
       target_kind: item.expected_target.target_kind,
+      target_config: copyTargetConfig(item.expected_target.target_config),
       check_target_id: checkTargetId,
       state: item.state,
       synced: item.synced,
@@ -708,7 +710,7 @@ function coverageSupportingRefs(coverage: readonly InvestigationBacklogSourceTar
 
 function dedupeCoverageRefs(coverage: readonly InvestigationBacklogSourceTargetCoverage[]): InvestigationBacklogSourceTargetCoverage[] {
   const byTarget = new Map<string, InvestigationBacklogSourceTargetCoverage>();
-  for (const item of coverage) byTarget.set(item.check_target_id, item);
+  for (const item of coverage) byTarget.set(`${item.check_target_id}:${stableConfigKey(item.target_config)}`, item);
   return [...byTarget.values()].sort(
     (left, right) => left.source_adapter_id.localeCompare(right.source_adapter_id) || left.target_kind.localeCompare(right.target_kind)
   );
@@ -723,6 +725,20 @@ function stableConfigKey(config: Record<string, unknown>): string {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${stableConfigValue(value)}`)
     .join(";");
+}
+
+function copyTargetConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config).sort(([left], [right]) => left.localeCompare(right))) {
+    output[key] = copyConfigValue(value);
+  }
+  return output;
+}
+
+function copyConfigValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item: unknown) => copyConfigValue(item));
+  if (isRecord(value)) return copyTargetConfig(value);
+  return value;
 }
 
 function stableConfigValue(value: unknown): string {
