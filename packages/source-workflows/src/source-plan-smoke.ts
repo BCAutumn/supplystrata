@@ -1,3 +1,4 @@
+import { loadEnv } from "@supplystrata/config";
 import { messageFromUnknown } from "@supplystrata/observability";
 import type { FetchTask, NormalizedDocument, RawDocument } from "@supplystrata/core";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
@@ -11,6 +12,7 @@ import { appleSupplierInputFromConfig } from "./apple-suppliers.js";
 import { censusTradeInputFromConfig } from "./census-trade-checks.js";
 import { createDartKrAdapterContext, dartKrAdapter, dartKrCompanyFilingsInputFromConfig } from "./dart-kr-checks.js";
 import { createEdinetAdapterContext, edinetAdapter, edinetDailyFilingsInputFromConfig } from "./edinet-checks.js";
+import { CENSUS_TRADE_CREDENTIALS, EDINET_CREDENTIALS, OPENDART_CREDENTIALS, OSH_CREDENTIALS } from "./source-check-credentials.js";
 import {
   asmlIrAdapter,
   companyIrExplicitUrlAdapter,
@@ -116,6 +118,7 @@ export interface SourcePlanSmokeReport {
 interface SourcePlanSmokeRunner {
   source_adapter_id: string;
   target_kind: string;
+  credential_requirements?: readonly { env_key: string; required: boolean }[];
   run(target: SourcePlanSmokeTarget): Promise<SourcePlanSmokeItem>;
 }
 
@@ -160,6 +163,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
   createSmokeRunner({
     source_adapter_id: "dart-kr",
     target_kind: "company-filings",
+    credential_requirements: OPENDART_CREDENTIALS,
     adapter: dartKrAdapter,
     inputFromConfig: dartKrCompanyFilingsInputFromConfig,
     createContext: createDartKrAdapterContext
@@ -167,6 +171,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
   createSmokeRunner({
     source_adapter_id: "edinet",
     target_kind: "daily-filings",
+    credential_requirements: EDINET_CREDENTIALS,
     adapter: edinetAdapter,
     inputFromConfig: edinetDailyFilingsInputFromConfig,
     createContext: createEdinetAdapterContext
@@ -237,6 +242,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
   createSmokeRunner({
     source_adapter_id: "census-trade",
     target_kind: "trade-flow-observation",
+    credential_requirements: CENSUS_TRADE_CREDENTIALS,
     adapter: censusTradeAdapter,
     inputFromConfig: censusTradeInputFromConfig,
     createContext: createCensusTradeAdapterContext
@@ -244,6 +250,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
   createSmokeRunner({
     source_adapter_id: "osh",
     target_kind: "facility-search",
+    credential_requirements: OSH_CREDENTIALS,
     adapter: oshAdapter,
     inputFromConfig: oshInputFromConfig,
     createContext: createOshAdapterContext
@@ -260,6 +267,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
 function createSmokeRunner<TInput>(input: {
   source_adapter_id: string;
   target_kind: string;
+  credential_requirements?: readonly { env_key: string; required: boolean }[];
   adapter: SourceAdapter<TInput, Uint8Array>;
   inputFromConfig(config: Record<string, unknown>): TInput;
   createContext(): AdapterContext;
@@ -267,7 +275,10 @@ function createSmokeRunner<TInput>(input: {
   return {
     source_adapter_id: input.source_adapter_id,
     target_kind: input.target_kind,
+    ...(input.credential_requirements === undefined ? {} : { credential_requirements: input.credential_requirements }),
     run(target) {
+      const missingCredentials = missingCredentialKeys(input.credential_requirements);
+      if (missingCredentials.length > 0) throw new Error(`Missing required source credentials: ${missingCredentials.join(", ")}`);
       return runSourceTargetSmoke({
         target,
         adapter: input.adapter,
@@ -370,6 +381,7 @@ function failedSmokeItem(
 export function classifySmokeIssue(message: string): SourcePlanSmokeIssueKind {
   const normalized = message.toLowerCase();
   if (normalized.includes("missing required environment value") || normalized.includes("requires api key")) return "missing_credentials";
+  if (normalized.includes("missing required source credentials")) return "missing_credentials";
   if (normalized.includes("unsupported source-plan smoke target")) return "connector_unsupported";
   if (normalized.includes("fetch timed out") || normalized.includes("fetch failed") || normalized.includes("security page returned"))
     return "source_unreachable";
@@ -377,6 +389,19 @@ export function classifySmokeIssue(message: string): SourcePlanSmokeIssueKind {
     return "source_response_error";
   if (isTargetConfigIssue(normalized)) return "target_config_invalid";
   return "adapter_error";
+}
+
+function missingCredentialKeys(requirements: readonly { env_key: string; required: boolean }[] | undefined): string[] {
+  if (requirements === undefined) return [];
+  // 和 adapter 使用同一个 .env 加载路径，避免 smoke 预检与真实 fetch 对凭据是否存在得出不同结论。
+  loadEnv();
+  const missingKeys: string[] = [];
+  for (const requirement of requirements) {
+    if (!requirement.required) continue;
+    const value = process.env[requirement.env_key];
+    if (value === undefined || value.trim().length === 0) missingKeys.push(requirement.env_key);
+  }
+  return missingKeys;
 }
 
 function isTargetConfigIssue(message: string): boolean {

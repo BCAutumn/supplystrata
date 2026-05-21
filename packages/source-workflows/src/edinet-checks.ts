@@ -18,6 +18,7 @@ import {
   type SourceCheckConnector
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
+import { EDINET_CREDENTIALS } from "./source-check-credentials.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
 const EDINET_DOCUMENT_LIST_TYPES = [1, 2] as const;
@@ -120,6 +121,7 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
   source_adapter_id: "edinet",
   target_kind: "daily-filings",
   config_schema: edinetConfigSchema(),
+  credential_requirements: EDINET_CREDENTIALS,
   run(store, target) {
     return runSourceAdapterCheck(store, {
       adapter: edinetAdapter,

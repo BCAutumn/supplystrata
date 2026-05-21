@@ -29,6 +29,17 @@ const TARGETS: SourcePlanSmokeTarget[] = [
     source_adapter_id: "unknown-official-source",
     target_kind: "company-filings",
     target_config: {}
+  },
+  {
+    check_target_id: "plan:test:edinet",
+    source_adapter_id: "edinet",
+    target_kind: "daily-filings",
+    target_config: {
+      date: "2026-01-01",
+      type: "2",
+      scope_kind: "component",
+      scope_id: "COMP-SILICON-WAFER"
+    }
   }
 ];
 
@@ -50,7 +61,7 @@ describe("source-plan connectivity smoke", () => {
     });
 
     expect(report.summary).toMatchObject({
-      requested_targets: 3,
+      requested_targets: 4,
       selected_targets: 1,
       checked_targets: 0,
       failed_targets: 0,
@@ -100,5 +111,26 @@ describe("source-plan connectivity smoke", () => {
     expect(item?.status).toBe("failed");
     expect(item?.issue_kind).toBe("target_config_invalid");
     expect(item?.error_message).toContain("Unsupported SEC source check form type");
+  });
+
+  it("classifies missing connector credentials before network work", async () => {
+    const previous = process.env["EDINET_API_KEY"];
+    process.env["EDINET_API_KEY"] = "";
+    try {
+      const report = await runSourcePlanConnectivitySmoke({
+        targets: TARGETS,
+        source_adapter_ids: ["edinet"]
+      });
+
+      expect(report.summary.failed_targets).toBe(1);
+      expect(report.summary.by_source_status["edinet"]?.issue_kinds).toEqual({ missing_credentials: 1 });
+      const [item] = report.items;
+      expect(item?.issue_kind).toBe("missing_credentials");
+      expect(item?.planned_tasks).toBe(0);
+      expect(item?.error_message).toContain("Missing required source credentials: EDINET_API_KEY");
+    } finally {
+      if (previous === undefined) delete process.env["EDINET_API_KEY"];
+      else process.env["EDINET_API_KEY"] = previous;
+    }
   });
 });

@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { connectorKey, validateSourceCheckTargetConfig, type SourceCheckConnectorCapability, type SourceCheckTargetRow } from "@supplystrata/source-connectors";
+import {
+  connectorKey,
+  validateSourceCheckTargetConfig,
+  type SourceCheckConnectorCapability,
+  type SourceCheckCredentialRequirement,
+  type SourceCheckTargetRow
+} from "@supplystrata/source-connectors";
 import { listSources, type SourceRegistryEntry } from "@supplystrata/source-registry";
 
 export interface SourceManagementPolicyInput {
@@ -35,6 +41,7 @@ export interface ManagedSource {
   connector_keys: string[];
   executable_target_kinds: string[];
   target_config_schemas: Record<string, NonNullable<SourceCheckConnectorCapability["config_schema"]>>;
+  target_credential_requirements: Record<string, readonly SourceCheckCredentialRequirement[]>;
   can_run_checks: boolean;
   config_mode: "runnable" | "registered_only" | "manual_only";
 }
@@ -339,6 +346,7 @@ function toManagedSource(source: SourceRegistryEntry, connectors: readonly Sourc
     connector_keys: matchingConnectors.map((connector) => connector.key),
     executable_target_kinds: matchingConnectors.map((connector) => connector.target_kind),
     target_config_schemas: targetConfigSchemasForConnectors(matchingConnectors),
+    target_credential_requirements: targetCredentialRequirementsForConnectors(matchingConnectors),
     can_run_checks: canRunChecks,
     config_mode: configModeForSource(source, canRunChecks)
   };
@@ -352,6 +360,18 @@ function targetConfigSchemasForConnectors(
     if (connector.config_schema !== undefined) schemas[connector.target_kind] = connector.config_schema;
   }
   return schemas;
+}
+
+function targetCredentialRequirementsForConnectors(
+  connectors: readonly SourceCheckConnectorCapability[]
+): Record<string, readonly SourceCheckCredentialRequirement[]> {
+  const requirements: Record<string, readonly SourceCheckCredentialRequirement[]> = {};
+  for (const connector of connectors) {
+    if (connector.credential_requirements !== undefined && connector.credential_requirements.length > 0) {
+      requirements[connector.target_kind] = connector.credential_requirements;
+    }
+  }
+  return requirements;
 }
 
 function configModeForSource(source: SourceRegistryEntry, canRunChecks: boolean): ManagedSource["config_mode"] {

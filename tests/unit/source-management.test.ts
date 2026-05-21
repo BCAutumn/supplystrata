@@ -32,7 +32,8 @@ const CONNECTORS: SourceCheckConnectorCapability[] = [
   {
     source_adapter_id: "osh",
     target_kind: "facility-search",
-    key: "osh/facility-search"
+    key: "osh/facility-search",
+    credential_requirements: [{ env_key: "OSH_API_TOKEN", required: true, description: "Open Supply Hub token." }]
   }
 ];
 
@@ -45,6 +46,9 @@ describe("source-management", () => {
     expect(sec?.config_mode).toBe("runnable");
     expect(sec?.connector_keys).toContain("sec-edgar/sec-company-filings");
     expect(sec?.target_config_schemas["sec-company-filings"]?.fields.map((field) => field.key)).toEqual(["cik", "entity_id", "form_types", "limit"]);
+    expect(catalog.sources.find((item) => item.source.id === "osh")?.target_credential_requirements["facility-search"]).toEqual([
+      { env_key: "OSH_API_TOKEN", required: true, description: "Open Supply Hub token." }
+    ]);
     expect(importYeti?.config_mode).toBe("manual_only");
     expect(catalog.unregistered_connector_keys).toEqual([]);
   });

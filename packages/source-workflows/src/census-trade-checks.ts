@@ -15,10 +15,12 @@ import {
 } from "@supplystrata/sources-census-trade";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import type { SourceCheckSummary } from "./source-check-runner.js";
+import { CENSUS_TRADE_CREDENTIALS } from "./source-check-credentials.js";
 
 export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "census-trade",
   target_kind: "trade-flow-observation",
+  credential_requirements: CENSUS_TRADE_CREDENTIALS,
   config_schema: {
     fields: [
       { key: "direction", type: "string", required: true, description: "Trade direction.", allowed_values: ["imports", "exports"] },

@@ -39,6 +39,7 @@ describe("source-connectors", () => {
       {
         source_adapter_id: "sec-edgar",
         target_kind: "sec-company-filings",
+        credential_requirements: [{ env_key: "SEC_TEST_KEY", required: true, description: "Fixture key." }],
         async run() {
           return [];
         }
@@ -53,7 +54,8 @@ describe("source-connectors", () => {
       {
         source_adapter_id: "sec-edgar",
         target_kind: "sec-company-filings",
-        key: "sec-edgar/sec-company-filings"
+        key: "sec-edgar/sec-company-filings",
+        credential_requirements: [{ env_key: "SEC_TEST_KEY", required: true, description: "Fixture key." }]
       }
     ]);
   });

@@ -33,6 +33,10 @@ export function renderSourceManagementCatalog(catalog: SourceManagementCatalog, 
       const required = schema.fields.filter((field) => field.required).map((field) => field.key);
       lines.push(`  Config ${targetKind}: required ${required.length === 0 ? "none" : required.join(", ")}`);
     }
+    for (const [targetKind, requirements] of Object.entries(item.target_credential_requirements)) {
+      const envKeys = requirements.filter((requirement) => requirement.required).map((requirement) => requirement.env_key);
+      lines.push(`  Credentials ${targetKind}: ${envKeys.length === 0 ? "none" : envKeys.join(", ")}`);
+    }
     lines.push("");
   }
   if (catalog.unregistered_connector_keys.length > 0) {

@@ -20,10 +20,17 @@ export interface SourceCheckConfigSchema {
   allow_extra_keys?: boolean;
 }
 
+export interface SourceCheckCredentialRequirement {
+  env_key: string;
+  description: string;
+  required: boolean;
+}
+
 export interface SourceCheckConnector<TStore, TResult, TTarget extends SourceCheckTargetRow = SourceCheckTargetRow> {
   readonly source_adapter_id: string;
   readonly target_kind: string;
   readonly config_schema?: SourceCheckConfigSchema;
+  readonly credential_requirements?: readonly SourceCheckCredentialRequirement[];
   run(store: TStore, target: TTarget): Promise<TResult[]>;
 }
 
@@ -32,6 +39,7 @@ export interface SourceCheckConnectorCapability {
   target_kind: string;
   key: string;
   config_schema?: SourceCheckConfigSchema;
+  credential_requirements?: readonly SourceCheckCredentialRequirement[];
 }
 
 export function connectorKey(input: Pick<SourceCheckTargetRow, "source_adapter_id" | "target_kind">): string {
@@ -48,7 +56,10 @@ export function listSourceCheckConnectorCapabilities(connectors: readonly Source
       source_adapter_id: connector.source_adapter_id,
       target_kind: connector.target_kind,
       key: connectorKey(connector),
-      ...(connector.config_schema === undefined ? {} : { config_schema: connector.config_schema })
+      ...(connector.config_schema === undefined ? {} : { config_schema: connector.config_schema }),
+      ...(connector.credential_requirements === undefined || connector.credential_requirements.length === 0
+        ? {}
+        : { credential_requirements: connector.credential_requirements })
     }))
     .sort((left, right) => left.key.localeCompare(right.key));
 }

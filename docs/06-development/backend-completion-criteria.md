@@ -151,7 +151,7 @@ Gate 1 现在还会输出 `expected_source_coverage`：把每个 target node 的
 
 Gate 1 的 core node 指标按目标节点中已有 fact/source-plan/target/observation 覆盖的数量衡量，未出现在当前 Workbench 里的目标节点也会显式显示为 `missing`。该报告只是 Gate 1 的仪表盘，不会把 single-source silence 自动解释为已审计 single-source，也不会写事实边；真实覆盖数量仍需继续补足。
 
-无数据库连通性 smoke 已补上：`sources policy smoke-plan-targets` 会从同一个 `source-plan.json + namespace` 生成 runnable target，复用 source-check 的 target config 解析和 adapter，执行 `plan / fetch / normalize`，但不连接 Postgres、不写 `source_check_targets`、不写 source monitor event、不写 observation / fact edge。它用于同步和启用前发现外部源不可达、凭据缺失或 target config 失效；smoke 成功不等于进入持续监控闭环，正式调度仍以 `sync-plan-targets / enable-plan-targets / due / run-due / worker` 为准。
+无数据库连通性 smoke 已补上：`sources policy smoke-plan-targets` 会从同一个 `source-plan.json + namespace` 生成 runnable target，复用 source-check 的 target config 解析和 adapter，执行 `plan / fetch / normalize`，但不连接 Postgres、不写 `source_check_targets`、不写 source monitor event、不写 observation / fact edge。source-check connector capability 现在统一声明 target 级 `credential_requirements`，source-management catalog / preview 和 smoke 都读取同一份凭据契约；缺失凭据会在访问外部源前归类为 `missing_credentials`，不会散落成各命令自己的 env key 判断。它用于同步和启用前发现外部源不可达、凭据缺失或 target config 失效；smoke 成功不等于进入持续监控闭环，正式调度仍以 `sync-plan-targets / enable-plan-targets / due / run-due / worker` 为准。
 
 参考官方源：
 
@@ -503,6 +503,7 @@ POST /review/:id/reject
 [x] investigation-backlog 能消费 source target coverage，把下一步 action 从通用 source check 提示细化为同步、启用、运行、等待、排错或 review observation
 [x] investigation-backlog 能消费 source target preflight，把无数据库预检失败转成同步前排错动作
 [x] source target preflight 能输出按 source 聚合的 checked / failed / skipped / normalized / degraded / issue kind 矩阵
+[x] source-check connector capability 统一声明 target 级 credential requirements，并被 catalog / preview / smoke 复用
 [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 

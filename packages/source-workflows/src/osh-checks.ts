@@ -14,10 +14,12 @@ import {
 } from "@supplystrata/sources-osh";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import type { SourceCheckSummary } from "./source-check-runner.js";
+import { OSH_CREDENTIALS } from "./source-check-credentials.js";
 
 export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "osh",
   target_kind: "facility-search",
+  credential_requirements: OSH_CREDENTIALS,
   config_schema: {
     fields: [
       { key: "query", type: "string", required: true, description: "Facility search query." },

@@ -18,6 +18,7 @@ import {
   type SourceCheckConnector
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
+import { OPENDART_CREDENTIALS } from "./source-check-credentials.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
 const DART_DISCLOSURE_TYPES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"] as const;
@@ -119,6 +120,7 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
   source_adapter_id: "dart-kr",
   target_kind: "company-filings",
   config_schema: dartKrConfigSchema(),
+  credential_requirements: OPENDART_CREDENTIALS,
   run(store, target) {
     return runSourceAdapterCheck(store, {
       adapter: dartKrAdapter,
