@@ -6,7 +6,12 @@ import type { ObservationCoverageReport, ObservationSeriesReadiness } from "./ob
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { QuestionReadinessMatrix, QuestionReadinessStatus } from "./question-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
-import type { SourceTargetPreflightItem, SourceTargetPreflightReport, SourceTargetPreflightStatus } from "./source-target-preflight.js";
+import type {
+  SourceTargetPreflightIssueKind,
+  SourceTargetPreflightItem,
+  SourceTargetPreflightReport,
+  SourceTargetPreflightStatus
+} from "./source-target-preflight.js";
 
 export type InvestigationBacklogKind =
   | "readiness_gap"
@@ -51,6 +56,7 @@ export interface InvestigationBacklogSourceTargetCoverage {
   latest_event_id: string | null;
   latest_event_type: string | null;
   preflight_status: SourceTargetPreflightStatus | null;
+  preflight_issue_kind: SourceTargetPreflightIssueKind | null;
   preflight_error_message: string | null;
   preflight_normalized_documents: number;
   preflight_degraded_documents: number;
@@ -162,7 +168,7 @@ function coverageLine(coverage: InvestigationBacklogSourceTargetCoverage): strin
   const preflight =
     coverage.preflight_status === null
       ? ""
-      : `, preflight=${coverage.preflight_status}, normalized=${coverage.preflight_normalized_documents}, degraded=${coverage.preflight_degraded_documents}`;
+      : `, preflight=${coverage.preflight_status}${coverage.preflight_issue_kind === null ? "" : `/${coverage.preflight_issue_kind}`}, normalized=${coverage.preflight_normalized_documents}, degraded=${coverage.preflight_degraded_documents}`;
   return `${coverage.state}, observations=${coverage.observations}${preflight}`;
 }
 
@@ -491,11 +497,12 @@ function preflightFields(
   item: SourceTargetPreflightItem | undefined
 ): Pick<
   InvestigationBacklogSourceTargetCoverage,
-  "preflight_status" | "preflight_error_message" | "preflight_normalized_documents" | "preflight_degraded_documents"
+  "preflight_status" | "preflight_issue_kind" | "preflight_error_message" | "preflight_normalized_documents" | "preflight_degraded_documents"
 > {
   if (item === undefined) {
     return {
       preflight_status: null,
+      preflight_issue_kind: null,
       preflight_error_message: null,
       preflight_normalized_documents: 0,
       preflight_degraded_documents: 0
@@ -503,6 +510,7 @@ function preflightFields(
   }
   return {
     preflight_status: item.status,
+    preflight_issue_kind: item.issue_kind ?? null,
     preflight_error_message: item.error_message ?? null,
     preflight_normalized_documents: item.normalized_documents,
     preflight_degraded_documents: item.degraded_documents
@@ -532,6 +540,14 @@ function coverageActionPrefix(coverage: readonly InvestigationBacklogSourceTarge
   if (coverage.some((item) => item.state === "retry_wait"))
     return "Inspect failed source-check attempts and wait for configured retry or rerun after fixing the source issue.";
   if (coverage.some((item) => item.state === "degraded")) return "Inspect degraded source fetches before treating the latest check as usable evidence.";
+  if (coverage.some((item) => item.preflight_issue_kind === "missing_credentials"))
+    return "Configure required source credentials before syncing or enabling this source-plan target.";
+  if (coverage.some((item) => item.preflight_issue_kind === "target_config_invalid"))
+    return "Fix the source-plan target configuration before syncing or enabling this target.";
+  if (coverage.some((item) => item.preflight_issue_kind === "connector_unsupported"))
+    return "Register or implement the required source-check connector before syncing this target.";
+  if (coverage.some((item) => item.preflight_issue_kind === "source_unreachable" || item.preflight_issue_kind === "source_response_error"))
+    return "Verify source reachability and response format before treating this target as monitor-ready.";
   if (coverage.some((item) => item.preflight_status === "failed"))
     return "Fix source-plan preflight failures (credentials, target config, or source reachability) before syncing or enabling this target.";
   if (coverage.some((item) => item.preflight_status === "skipped"))

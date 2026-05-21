@@ -1,4 +1,11 @@
 export type SourceTargetPreflightStatus = "checked" | "failed" | "skipped";
+export type SourceTargetPreflightIssueKind =
+  | "missing_credentials"
+  | "target_config_invalid"
+  | "connector_unsupported"
+  | "source_unreachable"
+  | "source_response_error"
+  | "adapter_error";
 
 export interface SourceTargetPreflightDocument {
   task_id: string;
@@ -21,6 +28,7 @@ export interface SourceTargetPreflightItem {
   normalized_documents: number;
   degraded_documents: number;
   documents: readonly SourceTargetPreflightDocument[];
+  issue_kind?: SourceTargetPreflightIssueKind;
   error_message?: string;
 }
 
@@ -48,6 +56,7 @@ export interface SourceTargetPreflightSourceSummary {
   normalized_documents: number;
   degraded_documents: number;
   target_kinds: Record<string, number>;
+  issue_kinds: Record<string, number>;
 }
 
 export interface SourceTargetPreflightReport {
@@ -98,8 +107,11 @@ export function renderSourceTargetPreflightMarkdown(report: SourceTargetPrefligh
     const targetKinds = Object.entries(summary.target_kinds)
       .map(([targetKind, count]) => `${targetKind}:${count}`)
       .join(", ");
+    const issueKinds = Object.entries(summary.issue_kinds)
+      .map(([issueKind, count]) => `${issueKind}:${count}`)
+      .join(", ");
     lines.push(
-      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}`
+      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}; issue_kinds=${issueKinds.length === 0 ? "none" : issueKinds}`
     );
   }
   lines.push("", "## Targets", "");
@@ -108,6 +120,7 @@ export function renderSourceTargetPreflightMarkdown(report: SourceTargetPrefligh
     lines.push(
       `  Tasks: ${item.planned_tasks}; fetched: ${item.fetched_documents}; normalized: ${item.normalized_documents}; degraded: ${item.degraded_documents}`
     );
+    if (item.issue_kind !== undefined) lines.push(`  Issue kind: ${item.issue_kind}`);
     if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
     for (const document of item.documents.slice(0, 3)) {
       lines.push(
@@ -158,7 +171,8 @@ function parseSourceSummary(value: unknown, label: string): SourceTargetPrefligh
     fetched_documents: requireNonNegativeInteger(summary["fetched_documents"], `${label} fetched_documents`),
     normalized_documents: requireNonNegativeInteger(summary["normalized_documents"], `${label} normalized_documents`),
     degraded_documents: requireNonNegativeInteger(summary["degraded_documents"], `${label} degraded_documents`),
-    target_kinds: parseCountMap(summary["target_kinds"], `${label} target_kinds`)
+    target_kinds: parseCountMap(summary["target_kinds"], `${label} target_kinds`),
+    issue_kinds: parseOptionalCountMap(summary["issue_kinds"], `${label} issue_kinds`)
   };
 }
 
@@ -167,6 +181,7 @@ function parseItem(value: unknown, label: string): SourceTargetPreflightItem {
   const documentsValue = item["documents"];
   if (!Array.isArray(documentsValue)) throw new Error(`${label} documents must be an array`);
   const errorMessage = optionalString(item["error_message"]);
+  const issueKind = optionalIssueKind(item["issue_kind"], `${label} issue_kind`);
   return {
     check_target_id: requireString(item["check_target_id"], `${label} check_target_id`),
     source_adapter_id: requireString(item["source_adapter_id"], `${label} source_adapter_id`),
@@ -177,6 +192,7 @@ function parseItem(value: unknown, label: string): SourceTargetPreflightItem {
     normalized_documents: requireNonNegativeInteger(item["normalized_documents"], `${label} normalized_documents`),
     degraded_documents: requireNonNegativeInteger(item["degraded_documents"], `${label} degraded_documents`),
     documents: documentsValue.map((document, index) => parseDocument(document, `${label} documents[${index}]`)),
+    ...(issueKind === undefined ? {} : { issue_kind: issueKind }),
     ...(errorMessage === undefined ? {} : { error_message: errorMessage })
   };
 }
@@ -206,6 +222,11 @@ function parseCountMap(value: unknown, label: string): Record<string, number> {
   return Object.fromEntries(entries.sort(([left], [right]) => left.localeCompare(right)));
 }
 
+function parseOptionalCountMap(value: unknown, label: string): Record<string, number> {
+  if (value === undefined) return {};
+  return parseCountMap(value, label);
+}
+
 function summarizeItemsBySource(items: readonly SourceTargetPreflightItem[]): Record<string, SourceTargetPreflightSourceSummary> {
   const bySource = new Map<string, SourceTargetPreflightItem[]>();
   for (const item of items) {
@@ -224,7 +245,11 @@ function summarizeItemsBySource(items: readonly SourceTargetPreflightItem[]): Re
       fetched_documents: sumItems(sourceItems, (item) => item.fetched_documents),
       normalized_documents: sumItems(sourceItems, (item) => item.normalized_documents),
       degraded_documents: sumItems(sourceItems, (item) => item.degraded_documents),
-      target_kinds: countItemsBy(sourceItems, (item) => item.target_kind)
+      target_kinds: countItemsBy(sourceItems, (item) => item.target_kind),
+      issue_kinds: countItemsBy(
+        sourceItems.filter((item) => item.issue_kind !== undefined),
+        (item) => item.issue_kind ?? "adapter_error"
+      )
     };
   }
   return summaries;
@@ -246,6 +271,20 @@ function countItemsBy(items: readonly SourceTargetPreflightItem[], keyForItem: (
 function requireStatus(value: unknown, label: string): SourceTargetPreflightStatus {
   if (value === "checked" || value === "failed" || value === "skipped") return value;
   throw new Error(`${label} must be checked, failed, or skipped`);
+}
+
+function optionalIssueKind(value: unknown, label: string): SourceTargetPreflightIssueKind | undefined {
+  if (value === undefined) return undefined;
+  if (
+    value === "missing_credentials" ||
+    value === "target_config_invalid" ||
+    value === "connector_unsupported" ||
+    value === "source_unreachable" ||
+    value === "source_response_error" ||
+    value === "adapter_error"
+  )
+    return value;
+  throw new Error(`${label} must be a supported source target preflight issue kind`);
 }
 
 function optionalSourceFetchStatus(value: unknown, label: string): "live" | "fallback" | undefined {

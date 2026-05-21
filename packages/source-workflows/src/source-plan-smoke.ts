@@ -47,6 +47,13 @@ export interface SourcePlanSmokeInput {
 }
 
 export type SourcePlanSmokeTargetStatus = "checked" | "failed" | "skipped";
+export type SourcePlanSmokeIssueKind =
+  | "missing_credentials"
+  | "target_config_invalid"
+  | "connector_unsupported"
+  | "source_unreachable"
+  | "source_response_error"
+  | "adapter_error";
 
 export interface SourcePlanSmokeDocument {
   task_id: string;
@@ -69,6 +76,7 @@ export interface SourcePlanSmokeItem {
   normalized_documents: number;
   degraded_documents: number;
   documents: readonly SourcePlanSmokeDocument[];
+  issue_kind?: SourcePlanSmokeIssueKind;
   error_message?: string;
 }
 
@@ -96,6 +104,7 @@ export interface SourcePlanSmokeSourceSummary {
   normalized_documents: number;
   degraded_documents: number;
   target_kinds: Record<string, number>;
+  issue_kinds: Record<string, number>;
 }
 
 export interface SourcePlanSmokeReport {
@@ -119,7 +128,11 @@ export async function runSourcePlanConnectivitySmoke(input: SourcePlanSmokeInput
       items.push(skippedSmokeItem(target, `Unsupported source-plan smoke target: ${connectorKey(target)}`));
       continue;
     }
-    items.push(await runner.run(target));
+    try {
+      items.push(await runner.run(target));
+    } catch (error) {
+      items.push(failedSmokeItem(target, error, { plannedTasks: 0, fetchedDocuments: 0, normalizedDocuments: 0, degradedDocuments: 0, documents: [] }));
+    }
   }
   return {
     schema_version: "1.0.0",
@@ -303,18 +316,7 @@ async function runSourceTargetSmoke<TInput>(input: {
       documents
     };
   } catch (error) {
-    return {
-      check_target_id: input.target.check_target_id,
-      source_adapter_id: input.target.source_adapter_id,
-      target_kind: input.target.target_kind,
-      status: "failed",
-      planned_tasks: plannedTasks,
-      fetched_documents: fetchedDocuments,
-      normalized_documents: normalizedDocuments,
-      degraded_documents: degradedDocuments,
-      documents,
-      error_message: messageFromUnknown(error)
-    };
+    return failedSmokeItem(input.target, error, { plannedTasks, fetchedDocuments, normalizedDocuments, degradedDocuments, documents });
   }
 }
 
@@ -333,8 +335,59 @@ function skippedSmokeItem(target: SourcePlanSmokeTarget, errorMessage: string): 
     normalized_documents: 0,
     degraded_documents: 0,
     documents: [],
+    issue_kind: "connector_unsupported",
     error_message: errorMessage
   };
+}
+
+function failedSmokeItem(
+  target: SourcePlanSmokeTarget,
+  error: unknown,
+  counts: {
+    plannedTasks: number;
+    fetchedDocuments: number;
+    normalizedDocuments: number;
+    degradedDocuments: number;
+    documents: readonly SourcePlanSmokeDocument[];
+  }
+): SourcePlanSmokeItem {
+  const message = messageFromUnknown(error);
+  return {
+    check_target_id: target.check_target_id,
+    source_adapter_id: target.source_adapter_id,
+    target_kind: target.target_kind,
+    status: "failed",
+    planned_tasks: counts.plannedTasks,
+    fetched_documents: counts.fetchedDocuments,
+    normalized_documents: counts.normalizedDocuments,
+    degraded_documents: counts.degradedDocuments,
+    documents: counts.documents,
+    issue_kind: classifySmokeIssue(message),
+    error_message: message
+  };
+}
+
+export function classifySmokeIssue(message: string): SourcePlanSmokeIssueKind {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("missing required environment value") || normalized.includes("requires api key")) return "missing_credentials";
+  if (normalized.includes("unsupported source-plan smoke target")) return "connector_unsupported";
+  if (normalized.includes("fetch timed out") || normalized.includes("fetch failed") || normalized.includes("security page returned"))
+    return "source_unreachable";
+  if (normalized.includes("api error") || normalized.includes("response data must be") || normalized.includes("disclosure list must be"))
+    return "source_response_error";
+  if (isTargetConfigIssue(normalized)) return "target_config_invalid";
+  return "adapter_error";
+}
+
+function isTargetConfigIssue(message: string): boolean {
+  return (
+    message.includes("target config") ||
+    message.includes("must be") ||
+    message.includes("must use") ||
+    message.includes("outside supported range") ||
+    message.includes("unsupported ") ||
+    message.includes("invalid ")
+  );
 }
 
 function summarizeSmokeItems(requestedTargets: number, selectedTargets: number, items: readonly SourcePlanSmokeItem[]): SourcePlanSmokeSummary {
@@ -371,7 +424,11 @@ function summarizeItemsBySource(items: readonly SourcePlanSmokeItem[]): Record<s
       fetched_documents: sumItems(sourceItems, (item) => item.fetched_documents),
       normalized_documents: sumItems(sourceItems, (item) => item.normalized_documents),
       degraded_documents: sumItems(sourceItems, (item) => item.degraded_documents),
-      target_kinds: countItemsBy(sourceItems, (item) => item.target_kind)
+      target_kinds: countItemsBy(sourceItems, (item) => item.target_kind),
+      issue_kinds: countItemsBy(
+        sourceItems.filter((item) => item.issue_kind !== undefined),
+        (item) => item.issue_kind ?? "adapter_error"
+      )
     };
   }
   return summary;

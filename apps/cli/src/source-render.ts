@@ -98,8 +98,11 @@ export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, forma
     const targetKinds = Object.entries(summary.target_kinds)
       .map(([targetKind, count]) => `${targetKind}:${count}`)
       .join(", ");
+    const issueKinds = Object.entries(summary.issue_kinds)
+      .map(([issueKind, count]) => `${issueKind}:${count}`)
+      .join(", ");
     lines.push(
-      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}`
+      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}; issue_kinds=${issueKinds.length === 0 ? "none" : issueKinds}`
     );
   }
   lines.push("", "## Targets", "");
@@ -108,6 +111,7 @@ export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, forma
     lines.push(
       `  Tasks: ${item.planned_tasks}; fetched: ${item.fetched_documents}; normalized: ${item.normalized_documents}; degraded: ${item.degraded_documents}`
     );
+    if (item.issue_kind !== undefined) lines.push(`  Issue kind: ${item.issue_kind}`);
     if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
     for (const document of item.documents.slice(0, 3)) {
       lines.push(

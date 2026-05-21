@@ -68,11 +68,37 @@ describe("source-plan connectivity smoke", () => {
       fetched_documents: 0,
       normalized_documents: 0,
       degraded_documents: 0,
-      target_kinds: { "company-filings": 1 }
+      target_kinds: { "company-filings": 1 },
+      issue_kinds: { connector_unsupported: 1 }
     });
     const [item] = report.items;
     expect(item?.check_target_id).toBe("plan:test:unknown");
     expect(item?.status).toBe("skipped");
+    expect(item?.issue_kind).toBe("connector_unsupported");
     expect(item?.error_message).toContain("Unsupported source-plan smoke target");
+  });
+
+  it("keeps target config failures inside the per-target smoke report", async () => {
+    const report = await runSourcePlanConnectivitySmoke({
+      targets: [
+        {
+          check_target_id: "plan:test:bad-sec",
+          source_adapter_id: "sec-edgar",
+          target_kind: "sec-company-filings",
+          target_config: {
+            cik: "0001045810",
+            entity_id: "ENT-NVIDIA",
+            form_types: ["10-X"]
+          }
+        }
+      ]
+    });
+
+    expect(report.summary.failed_targets).toBe(1);
+    expect(report.summary.by_source_status["sec-edgar"]?.issue_kinds).toEqual({ target_config_invalid: 1 });
+    const [item] = report.items;
+    expect(item?.status).toBe("failed");
+    expect(item?.issue_kind).toBe("target_config_invalid");
+    expect(item?.error_message).toContain("Unsupported SEC source check form type");
   });
 });

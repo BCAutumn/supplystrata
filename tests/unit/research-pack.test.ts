@@ -799,6 +799,7 @@ describe("research-pack", () => {
             normalized_documents: 0,
             degraded_documents: 0,
             documents: [],
+            issue_kind: "missing_credentials",
             error_message: "fixture source unavailable"
           }
         ]
@@ -816,18 +817,19 @@ describe("research-pack", () => {
     });
 
     const sourceCheck = backlog.items.find((item) => item.kind === "source_check");
-    expect(sourceCheck?.action).toContain("Fix source-plan preflight failures");
+    expect(sourceCheck?.action).toContain("Configure required source credentials");
     expect(sourceCheck?.action).not.toContain("Sync runnable source-plan targets into source_check_targets first");
     expect(sourceCheck?.source_target_coverage).toEqual([
       expect.objectContaining({
         source_adapter_id: "samsung-ir",
         state: "not_synced",
         preflight_status: "failed",
+        preflight_issue_kind: "missing_credentials",
         preflight_error_message: "fixture source unavailable"
       })
     ]);
     expect(sourceCheck?.supporting_refs).toContain("source_preflight:plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6");
-    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("preflight=failed");
+    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("preflight=failed/missing_credentials");
   });
 
   it("turns sparse observation series into investigation backlog actions", () => {

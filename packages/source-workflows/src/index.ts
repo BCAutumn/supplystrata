@@ -48,6 +48,7 @@ export type {
   SourcePlanSmokeDocument,
   SourcePlanSmokeInput,
   SourcePlanSmokeItem,
+  SourcePlanSmokeIssueKind,
   SourcePlanSmokeReport,
   SourcePlanSmokeSourceSummary,
   SourcePlanSmokeSummary,
