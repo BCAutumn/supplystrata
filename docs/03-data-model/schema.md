@@ -372,7 +372,7 @@ CREATE TABLE fetch_runs (
 ```sql
 CREATE TABLE unknown_items (
   unknown_id     TEXT PRIMARY KEY,                  -- UNK-uuid
-  scope_kind     TEXT NOT NULL,                     -- company|component|topic
+  scope_kind     TEXT NOT NULL,                     -- company|component|topic|edge|claim
   scope_id       TEXT NOT NULL,
   question       TEXT NOT NULL,
   why_unknown    TEXT NOT NULL,
@@ -389,7 +389,7 @@ CREATE INDEX idx_unknown_items_scope ON unknown_items(scope_kind, scope_id);
 CREATE INDEX idx_unknown_items_status ON unknown_items(status);
 ```
 
-`scope_kind='edge'` 可用于 fact edge 的显式未知边界，例如“该 L4/L5 single-source edge 尚未完成独立官方二源处置”。`research-pack` 的 `official-disclosure-readiness` 只生成确定性的 `proposed_unknown` payload；它不是事实证据，也不是已落库 unknown。只有 `@supplystrata/evidence-maintenance` 的受控 materialization 用例会默认检查目标 edge 仍为 `validity='current'` 后写入 `unknown_items`，并通过 unknown repository 记录 `UNKNOWN_ADDED/UPDATED` semantic change；这条路径不能写 `edges`。
+`scope_kind='edge'` 可用于 fact edge 的显式未知边界，例如“该 L4/L5 single-source edge 尚未完成独立官方二源处置”。`research-pack` 的 `official-disclosure-readiness` 只生成确定性的 `proposed_unknown` payload；它不是事实证据，也不是已落库 unknown。只有 `@supplystrata/evidence-maintenance` 的受控 materialization 用例会默认检查目标 edge 仍为 `validity='current'` 后写入 `unknown_items`，并通过 unknown repository 记录 `UNKNOWN_ADDED/UPDATED` semantic change；这条路径不能写 `edges`。`WorkbenchModel.unknown_items` 必须导出 `scope_kind / scope_id`，readiness 优先按结构化 scope 识别 edge unknown，文本匹配只用于兼容旧快照。
 
 ### 11. review_candidates
 
@@ -498,7 +498,7 @@ chain_segments
 - `lead_observations` 必须进入 review 或研究队列，默认不进图谱。
 - `chain_segments.semantic_layer` 必须保留 `edge / claim / observation / lead / unknown`，供 CLI、API 和研究工作台统一消费。
 - `@supplystrata/chain-view` 第一版已经能把上游 fact edge、active claim、company/component observations、open leads 和 unknown items 组装成前端可消费的 `CompanyChainViewModel`；observation / lead / unknown 是 context segment，不带 `evidence_level`，不改事实边语义。
-- `@supplystrata/workbench-export` 会把当前研究公司 scope 内 `status='draft'` 的 claim 作为 `draft_claims` 独立输出；draft claim 不进入 ChainView 主链路。Workbench claim DTO 同时导出 `evidence_refs`、`unknown_refs`、派生 `conflict_state`、`conflict_adjudication` 和 `conflict_review`，用于让研究包和未来 AI 读取结构化支持/反证/未知边界。`conflict_adjudication.allowed_edge_mutation` 当前固定为 `none`；`conflict_review.fact_write_policy.automatic_fact_mutation_allowed` 当前固定为 `false`，表示冲突只能建议 review，不能授权自动改 facts。`claims enqueue-conflicts` 会把 unresolved conflict 幂等写入 `review_candidates(kind='claim_conflict_review')`，但导出 `conflict_review` 本身仍是只读上下文，不会自动入队。
+- `@supplystrata/workbench-export` 会把当前研究公司 scope 内 `status='draft'` 的 claim 作为 `draft_claims` 独立输出；draft claim 不进入 ChainView 主链路。Workbench claim DTO 同时导出 `evidence_refs`、`unknown_refs`、派生 `conflict_state`、`conflict_adjudication` 和 `conflict_review`，用于让研究包和未来 AI 读取结构化支持/反证/未知边界。Workbench unknown DTO 同时导出 `scope_kind / scope_id`，让 Gate 1、question readiness 和后续 agent 不靠问题文案猜 unknown 归属。`conflict_adjudication.allowed_edge_mutation` 当前固定为 `none`；`conflict_review.fact_write_policy.automatic_fact_mutation_allowed` 当前固定为 `false`，表示冲突只能建议 review，不能授权自动改 facts。`claims enqueue-conflicts` 会把 unresolved conflict 幂等写入 `review_candidates(kind='claim_conflict_review')`，但导出 `conflict_review` 本身仍是只读上下文，不会自动入队。
 - Workbench claim DTO 还会导出 `edge_validity`、`edge_deprecated_reason`、`edge_superseded_by_edge_id` 和 `lifecycle_warnings`。如果 active claim 仍挂在 `deprecated` 或 `historical` edge 上，Workbench / research-pack 必须显示 `active_claim_on_inactive_edge` warning；这只是可见性与维护提醒，不会自动 supersede / reject claim。
 - claim lifecycle 维护动作通过 `CLAIM_LIFECYCLE_ACTION_RECORDED` 进入 `change_records`。`supersede_claim` / `reject_claim` 只更新 `claims.status`，`keep_with_context` 不更新 status；三者都必须带可验证 source ref，并保留 reason、edge lifecycle context 和 reviewer。该流程不修改 `edges`，也不删除 claim/evidence 历史。
 

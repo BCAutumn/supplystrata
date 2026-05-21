@@ -123,6 +123,10 @@ describe("workbench-export", () => {
       }
     });
     expect(model.unknown_items.map((item) => item.unknown_id)).toContain("UNK-CONFLICT-1");
+    expect(model.unknown_items.find((item) => item.unknown_id === "UNK-CONFLICT-1")).toMatchObject({
+      scope_kind: "claim",
+      scope_id: "CLM-REVIEW-1"
+    });
     expect(model.attention_queue).toContainEqual(
       expect.objectContaining({
         attention_id: "ATTN-CLAIM-CONFLICT-CLM-REVIEW-1",
@@ -350,6 +354,8 @@ function rowsForWorkbench<T extends pg.QueryResultRow>(
     return [
       {
         unknown_id: "UNK-CONFLICT-1",
+        scope_kind: "claim",
+        scope_id: "CLM-REVIEW-1",
         question: "Does this claim remain valid?",
         why_unknown: "Counterparty disclosure no longer lists this relationship.",
         blocking_data_sources: ["tsmc-ir"],

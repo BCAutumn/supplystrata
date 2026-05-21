@@ -1513,6 +1513,7 @@ function unknownsByReferencedEdge(unknowns: readonly WorkbenchUnknownItem[], edg
 }
 
 function unknownReferencesEdge(unknown: WorkbenchUnknownItem, edgeId: string): boolean {
+  if (unknown.scope_kind === "edge" && unknown.scope_id === edgeId) return true;
   return (
     unknown.question.includes(edgeId) ||
     unknown.why_unknown.includes(edgeId) ||

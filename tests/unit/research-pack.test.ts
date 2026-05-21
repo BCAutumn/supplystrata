@@ -385,10 +385,12 @@ describe("research-pack", () => {
         unknown_items: [
           {
             unknown_id: "UNK-SINGLE-SOURCE-DISPOSITION-1",
-            question: "Can EDGE-SINGLE-SOURCE-1 be corroborated by a second-source official disclosure?",
-            why_unknown: "EDGE-SINGLE-SOURCE-1 is currently single-source; no counterparty official disclosure path is visible.",
-            blocking_data_sources: ["single-source disposition for EDGE-SINGLE-SOURCE-1"],
-            proxies: ["manual disposition for EDGE-SINGLE-SOURCE-1"],
+            scope_kind: "edge",
+            scope_id: "EDGE-SINGLE-SOURCE-1",
+            question: "Can this relationship be corroborated by a second-source official disclosure?",
+            why_unknown: "This fact edge is currently single-source; no counterparty official disclosure path is visible.",
+            blocking_data_sources: ["single-source disposition"],
+            proxies: ["manual disposition"],
             status: "open"
           }
         ],

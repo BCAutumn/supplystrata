@@ -509,6 +509,7 @@ POST /review/:id/reject
 [x] official-disclosure readiness 能输出 edge-level corroboration queue，逐条标出 single-source edge 的二源检查路径或 explicit disposition 缺口
 [x] official-disclosure readiness 能区分已记录 single-source disposition unknown 与缺失 disposition 的边，并为缺失项生成确定性 proposed unknown payload
 [x] evidence-maintenance 能把 readiness 的 proposed single-source disposition unknown 受控落库到 `unknown_items`，并记录 unknown semantic change；缺失或已失效 edge 默认跳过
+[x] Workbench unknown DTO 导出 `scope_kind / scope_id`，official-disclosure readiness 优先用结构化 edge scope 识别已记录 disposition unknown
 [x] investigation-backlog 能消费 corroboration queue，生成逐 edge `corroboration_review` 任务并继承 source target coverage / preflight 状态
 [x] investigation-backlog / research-pack manifest 能汇总 corroboration review 的 runnable / sync / enable / due / preflight / credential / disposition-only 状态
 [x] research-pack 能输出 `corroboration-source-plan.json/md`，把 edge-level corroboration runnable target 过滤成可直接交给 source-management 的标准 source-plan 子集

@@ -85,8 +85,19 @@ function normalizeWorkbenchModelJson(value: unknown): void {
   if (value["attention_queue"] === undefined) value["attention_queue"] = [];
   // 旧版 Workbench 没有关系强度和新鲜度上下文；前端用空对象维持稳定读取路径。
   if (value["intelligence"] === undefined) value["intelligence"] = { edge_strengths: [], edge_freshness: [] };
+  normalizeUnknownArray(value["unknown_items"]);
   normalizeClaimArray(value["claims"]);
   normalizeClaimArray(value["draft_claims"]);
+}
+
+function normalizeUnknownArray(value: unknown): void {
+  if (!Array.isArray(value)) return;
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    // 旧版静态 Workbench 没有 unknown scope；用 legacy scope 保持快照可重放，新导出必须给出真实 scope。
+    if (item["scope_kind"] === undefined) item["scope_kind"] = "legacy";
+    if (item["scope_id"] === undefined) item["scope_id"] = stringField(item, "unknown_id", "");
+  }
 }
 
 function normalizeClaimArray(value: unknown): void {
@@ -352,6 +363,8 @@ function validateEvidence(value: unknown, path: string, errors: string[]): void 
 function validateUnknownItem(value: unknown, path: string, errors: string[]): void {
   if (!isRecordAt(value, path, errors)) return;
   expectString(value, "unknown_id", path, errors);
+  expectString(value, "scope_kind", path, errors);
+  expectString(value, "scope_id", path, errors);
   expectString(value, "question", path, errors);
   expectString(value, "why_unknown", path, errors);
   expectStringArray(value, "blocking_data_sources", path, errors);

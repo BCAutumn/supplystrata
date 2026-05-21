@@ -156,6 +156,8 @@ export interface WorkbenchEvidence {
 
 export interface WorkbenchUnknownItem {
   unknown_id: string;
+  scope_kind: string;
+  scope_id: string;
   question: string;
   why_unknown: string;
   blocking_data_sources: string[];
@@ -443,7 +445,7 @@ async function listUnknownsByIds(client: DbClient, unknownIds: readonly string[]
   const ids = uniqueStrings(unknownIds);
   if (ids.length === 0) return [];
   const result = await client.query<UnknownDbShape>(
-    `SELECT unknown_id, question, why_unknown, blocking_data_sources, proxies, status
+    `SELECT unknown_id, scope_kind, scope_id, question, why_unknown, blocking_data_sources, proxies, status
      FROM unknown_items
      WHERE unknown_id = ANY($1::text[])
      ORDER BY unknown_id`,
@@ -514,6 +516,8 @@ interface EvidenceDbShape {
 
 interface UnknownDbShape {
   unknown_id: string;
+  scope_kind: string;
+  scope_id: string;
   question: string;
   why_unknown: string;
   blocking_data_sources: string[];
@@ -658,6 +662,8 @@ function evidenceToDto(row: EvidenceDbShape): WorkbenchEvidence {
 function unknownItemToDto(row: UnknownDbShape): WorkbenchUnknownItem {
   return {
     unknown_id: row.unknown_id,
+    scope_kind: row.scope_kind,
+    scope_id: row.scope_id,
     question: row.question,
     why_unknown: row.why_unknown,
     blocking_data_sources: row.blocking_data_sources,

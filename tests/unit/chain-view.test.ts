@@ -119,6 +119,8 @@ describe("chain-view", () => {
     const unknown = segmentFromUnknown(
       {
         unknown_id: "UNK-1",
+        scope_kind: "company",
+        scope_id: "ENT-NVIDIA",
         question: "Exact HBM allocation",
         why_unknown: "Private contracts are not public.",
         blocking_data_sources: [],

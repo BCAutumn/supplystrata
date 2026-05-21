@@ -562,6 +562,7 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 验收：
 
 - [x] JSON 含 `companies / chain_segments / claims / draft_claims / evidences / unknown_items / sources / changes / intelligence`。
+- [x] `unknown_items` DTO 带出 `scope_kind / scope_id`，让 readiness 和后续 agent 按结构化归属识别 edge/claim/company unknown。
 - [x] `apps/research-preview` 只读这个 JSON。
 - [x] Canvas 第一版能显示 fact edge、observation、lead、unknown boundary。
 - [x] research-preview 侧栏能展示 `draft_claims`，不把草稿画进 fact edge lane。

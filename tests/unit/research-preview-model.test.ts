@@ -121,6 +121,8 @@ function validWorkbenchModel(): Record<string, unknown> & { evidences: Record<st
     unknown_items: [
       {
         unknown_id: "UNK-1",
+        scope_kind: "edge",
+        scope_id: "EDGE-1",
         question: "Exact allocation?",
         why_unknown: "Private contracts are not disclosed.",
         blocking_data_sources: ["customer contract"],

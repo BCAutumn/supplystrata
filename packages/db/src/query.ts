@@ -99,6 +99,8 @@ export async function listEvidenceForEdges(client: DbClient, edgeIds: readonly s
 
 export interface UnknownItemRow extends pg.QueryResultRow {
   unknown_id: string;
+  scope_kind: string;
+  scope_id: string;
   question: string;
   why_unknown: string;
   blocking_data_sources: string[];
@@ -108,7 +110,7 @@ export interface UnknownItemRow extends pg.QueryResultRow {
 
 export async function listUnknownItems(client: DbClient, scopeId: string): Promise<UnknownItemRow[]> {
   const result = await client.query<UnknownItemRow>(
-    `SELECT unknown_id, question, why_unknown, blocking_data_sources, proxies, status
+    `SELECT unknown_id, scope_kind, scope_id, question, why_unknown, blocking_data_sources, proxies, status
      FROM unknown_items
      WHERE scope_id = $1 AND status = 'open'
      ORDER BY created_at`,
