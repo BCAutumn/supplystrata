@@ -62,6 +62,32 @@ export interface OfficialDisclosureGateStatus {
   rationale: string;
 }
 
+export interface OfficialDisclosureGate1Scorecard {
+  scorecard_id: "gate_1_official_disclosure";
+  status: "pass" | "partial" | "blocked";
+  overall_progress: number;
+  data_progress: number;
+  source_path_progress: number;
+  criteria: OfficialDisclosureGate1ScorecardCriterion[];
+  next_actions: string[];
+}
+
+export interface OfficialDisclosureGate1ScorecardCriterion {
+  criterion_id:
+    | "core_node_official_coverage"
+    | "level_4_5_fact_edge_coverage"
+    | "cross_source_corroboration"
+    | "fact_edge_traceability"
+    | "expected_source_path_coverage";
+  label: string;
+  kind: "completion" | "operability";
+  status: "pass" | "partial" | "blocked";
+  measured: number;
+  target: number;
+  progress: number;
+  rationale: string;
+}
+
 export interface OfficialDisclosureReadinessEdge {
   edge_id: string;
   from_id: string;
@@ -217,6 +243,7 @@ export interface OfficialDisclosureReadinessReport {
   company_id: string;
   target_profile: OfficialDisclosureReadinessProfile | null;
   targets: OfficialDisclosureReadinessTargets;
+  scorecard: OfficialDisclosureGate1Scorecard;
   summary: OfficialDisclosureReadinessSummary;
   gates: OfficialDisclosureGateStatus[];
   nodes: OfficialDisclosureReadinessNode[];
@@ -306,6 +333,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     sourcePlanItems,
     expectedSourceCoverage
   });
+  const scorecard = gate1Scorecard({ targets, summary });
   const profileExpansionCandidates = buildProfileExpansionCandidates({
     nodes,
     hasTargetProfile: input.target_nodes !== undefined && input.target_nodes.length > 0
@@ -318,6 +346,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     company_id: input.company_id,
     target_profile: input.target_profile ?? null,
     targets,
+    scorecard,
     summary,
     gates: gateStatuses(targets, summary),
     nodes,
@@ -348,6 +377,7 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
     "## Summary",
     "",
     `- Target profile: ${report.target_profile === null ? "not selected" : `${report.target_profile.profile_id} (${report.target_profile.title})`}`,
+    `- Gate 1 scorecard: ${report.scorecard.status.toUpperCase()} overall ${formatPercent(report.scorecard.overall_progress)}; data ${formatPercent(report.scorecard.data_progress)}; source paths ${formatPercent(report.scorecard.source_path_progress)}`,
     `- Visible research nodes: ${report.summary.visible_research_nodes}/${report.targets.core_nodes}`,
     `- Explicit target nodes: ${report.summary.target_research_nodes === 0 ? "not supplied" : `${report.summary.target_research_nodes} supplied; ${report.summary.target_nodes_missing_official_coverage} missing`}`,
     `- Profile expansion candidates: ${report.profile_expansion_candidates.length}`,
@@ -359,12 +389,22 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
     `- Explicit unknowns in pack: ${report.summary.explicit_unknowns}`,
     `- Official source-plan items: ${report.summary.official_source_plan_items}`,
     `- Expected official source links: ${report.summary.expected_official_source_links_with_coverage}/${report.summary.expected_official_source_links} covered; ${report.summary.expected_official_source_links_runnable} runnable paths; ${report.summary.expected_official_source_links_connector_available} connector-only; ${report.summary.expected_official_source_links_unimplemented} unimplemented; ${report.summary.expected_official_source_links_missing} missing`,
-    `- Runnable official targets: ${report.summary.runnable_official_targets}; synced ${report.summary.synced_official_targets}; due ${report.summary.due_official_targets}; degraded ${report.summary.degraded_official_targets}; with observations ${report.summary.official_targets_with_observations}`,
-    "",
-    "## Gate status",
-    ""
+    `- Runnable official targets: ${report.summary.runnable_official_targets}; synced ${report.summary.synced_official_targets}; due ${report.summary.due_official_targets}; degraded ${report.summary.degraded_official_targets}; with observations ${report.summary.official_targets_with_observations}`
   ];
 
+  lines.push("", "## Gate 1 scorecard", "");
+  for (const criterion of report.scorecard.criteria) {
+    lines.push(
+      `- ${criterion.status.toUpperCase()} ${criterion.criterion_id}: ${formatMeasured(criterion.measured)} / ${formatMeasured(criterion.target)} (${formatPercent(criterion.progress)})`
+    );
+    lines.push(`  ${criterion.rationale}`);
+  }
+  if (report.scorecard.next_actions.length > 0) {
+    lines.push("", "### Next actions", "");
+    for (const action of report.scorecard.next_actions) lines.push(`- ${action}`);
+  }
+
+  lines.push("", "## Gate status", "");
   for (const gate of report.gates) {
     lines.push(`- ${gate.status.toUpperCase()} ${gate.gate_id}: ${formatMeasured(gate.measured)} / ${formatMeasured(gate.target)}`);
     lines.push(`  ${gate.rationale}`);
@@ -643,6 +683,120 @@ function gateStatuses(targets: OfficialDisclosureReadinessTargets, summary: Offi
       rationale: "Every official fact edge should retain cite text, source URL, source adapter, and a fingerprint or source snapshot hash."
     }
   ];
+}
+
+function gate1Scorecard(input: { targets: OfficialDisclosureReadinessTargets; summary: OfficialDisclosureReadinessSummary }): OfficialDisclosureGate1Scorecard {
+  const coreNodeMeasurement = coreNodeCoverageMeasurement(input.summary);
+  const completionCriteria: OfficialDisclosureGate1ScorecardCriterion[] = [
+    scorecardCriterion({
+      criterion_id: "core_node_official_coverage",
+      label: "Core node official source coverage",
+      kind: "completion",
+      measured: coreNodeMeasurement,
+      target: input.targets.core_nodes,
+      rationale:
+        input.summary.target_research_nodes > 0
+          ? "Counts explicit target nodes with fact coverage, source-plan coverage, runnable/synced targets, or official observations."
+          : "Falls back to visible research nodes because no explicit target node set was supplied."
+    }),
+    scorecardCriterion({
+      criterion_id: "level_4_5_fact_edge_coverage",
+      label: "Level 4/5 fact edge coverage",
+      kind: "completion",
+      measured: input.summary.level_4_5_fact_edges,
+      target: input.targets.level_4_5_fact_edges,
+      rationale: "Counts only auditable Level 4/5 fact edges visible in the current workbench pack."
+    }),
+    scorecardCriterion({
+      criterion_id: "cross_source_corroboration",
+      label: "Cross-source corroboration",
+      kind: "completion",
+      measured: input.summary.corroboration_ratio,
+      target: input.targets.corroboration_ratio,
+      rationale: "Uses a conservative distinct source-adapter ratio; single-source silence is not treated as corroboration."
+    }),
+    scorecardCriterion({
+      criterion_id: "fact_edge_traceability",
+      label: "Fact edge traceability",
+      kind: "completion",
+      measured: input.summary.traceable_edges,
+      target: input.summary.level_4_5_fact_edges,
+      rationale: "Every Level 4/5 edge should carry cite text, source URL, source adapter, and fingerprint or snapshot context."
+    })
+  ];
+  const sourcePathCriterion = scorecardCriterion({
+    criterion_id: "expected_source_path_coverage",
+    label: "Expected official source path coverage",
+    kind: "operability",
+    measured: input.summary.expected_official_source_links_with_coverage,
+    target: input.summary.expected_official_source_links,
+    rationale: "Measures whether target-profile expected sources are represented by fact evidence, source-plan paths, runnable/synced targets, or observations."
+  });
+  const criteria = [...completionCriteria, sourcePathCriterion];
+  const dataProgress = averageProgress(completionCriteria);
+  const sourcePathProgress = sourcePathCriterion.progress;
+  const overallProgress = roundSix(dataProgress * 0.75 + sourcePathProgress * 0.25);
+  return {
+    scorecard_id: "gate_1_official_disclosure",
+    status: scorecardStatus(criteria),
+    overall_progress: overallProgress,
+    data_progress: dataProgress,
+    source_path_progress: sourcePathProgress,
+    criteria,
+    next_actions: scorecardNextActions(criteria)
+  };
+}
+
+function scorecardCriterion(input: {
+  criterion_id: OfficialDisclosureGate1ScorecardCriterion["criterion_id"];
+  label: string;
+  kind: OfficialDisclosureGate1ScorecardCriterion["kind"];
+  measured: number;
+  target: number;
+  rationale: string;
+}): OfficialDisclosureGate1ScorecardCriterion {
+  return {
+    criterion_id: input.criterion_id,
+    label: input.label,
+    kind: input.kind,
+    status: input.target <= 0 ? "blocked" : thresholdStatus(input.measured, input.target),
+    measured: input.measured,
+    target: input.target,
+    progress: scorecardProgress(input.measured, input.target),
+    rationale: input.rationale
+  };
+}
+
+function scorecardProgress(measured: number, target: number): number {
+  if (target <= 0) return 0;
+  return roundSix(Math.min(measured / target, 1));
+}
+
+function averageProgress(criteria: readonly OfficialDisclosureGate1ScorecardCriterion[]): number {
+  if (criteria.length === 0) return 0;
+  return roundSix(criteria.reduce((sum, criterion) => sum + criterion.progress, 0) / criteria.length);
+}
+
+function scorecardStatus(criteria: readonly OfficialDisclosureGate1ScorecardCriterion[]): OfficialDisclosureGate1Scorecard["status"] {
+  if (criteria.every((criterion) => criterion.status === "pass")) return "pass";
+  if (criteria.some((criterion) => criterion.progress > 0)) return "partial";
+  return "blocked";
+}
+
+function scorecardNextActions(criteria: readonly OfficialDisclosureGate1ScorecardCriterion[]): string[] {
+  return criteria.filter((criterion) => criterion.status !== "pass").map(scorecardNextAction);
+}
+
+function scorecardNextAction(criterion: OfficialDisclosureGate1ScorecardCriterion): string {
+  if (criterion.criterion_id === "core_node_official_coverage")
+    return "Close target-node official coverage gaps before expanding into lower-confidence signal sources.";
+  if (criterion.criterion_id === "level_4_5_fact_edge_coverage")
+    return "Convert useful official disclosures into reviewable evidence candidates, keeping observations and leads out of the fact layer.";
+  if (criterion.criterion_id === "cross_source_corroboration")
+    return "Check counterparty official disclosures for single-source edges or record explicit single-source unknown/disposition.";
+  if (criterion.criterion_id === "fact_edge_traceability")
+    return "Backfill cite text, source URL, source adapter, and fingerprint/snapshot context for every Level 4/5 edge.";
+  return "Wire expected source links into concrete source-plan targets, then preview, smoke, sync, and enable them through source-management.";
 }
 
 function readinessGaps(input: {

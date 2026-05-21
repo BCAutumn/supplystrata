@@ -172,6 +172,9 @@ export interface ResearchPackStats {
   official_disclosure_due_targets: number;
   official_disclosure_degraded_targets: number;
   official_disclosure_targets_with_observations: number;
+  official_disclosure_gate1_overall_progress: number;
+  official_disclosure_gate1_data_progress: number;
+  official_disclosure_gate1_source_path_progress: number;
 }
 
 export interface ResearchPackClaimBuild {
@@ -877,7 +880,10 @@ function manifestFromModel(input: {
       official_disclosure_synced_targets: input.officialDisclosureReadiness.summary.synced_official_targets,
       official_disclosure_due_targets: input.officialDisclosureReadiness.summary.due_official_targets,
       official_disclosure_degraded_targets: input.officialDisclosureReadiness.summary.degraded_official_targets,
-      official_disclosure_targets_with_observations: input.officialDisclosureReadiness.summary.official_targets_with_observations
+      official_disclosure_targets_with_observations: input.officialDisclosureReadiness.summary.official_targets_with_observations,
+      official_disclosure_gate1_overall_progress: input.officialDisclosureReadiness.scorecard.overall_progress,
+      official_disclosure_gate1_data_progress: input.officialDisclosureReadiness.scorecard.data_progress,
+      official_disclosure_gate1_source_path_progress: input.officialDisclosureReadiness.scorecard.source_path_progress
     },
     claim_build: input.claimBuild,
     intelligence_refresh: input.intelligenceRefresh,
@@ -907,6 +913,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
     `- Intelligence freshness records: ${pack.manifest.stats.intelligence_edge_freshness}`,
     `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
+    `- Gate 1 scorecard: overall ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_overall_progress)}, data ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_data_progress)}, source paths ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_source_path_progress)}`,
     `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
     `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
     `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
@@ -968,6 +975,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
     `- Intelligence freshness records: ${pack.manifest.stats.intelligence_edge_freshness}`,
     `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
+    `- Gate 1 scorecard: overall ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_overall_progress)}, data ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_data_progress)}, source paths ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_source_path_progress)}`,
     `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
     `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
     `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
@@ -1001,6 +1009,10 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `evidence-index.json` contains the evidence records carried by the workbench export."
   ];
   return lines.join("\n");
+}
+
+function formatReadmePercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
 }
 
 function renderAttentionQueueMarkdown(workbench: WorkbenchModel): string {

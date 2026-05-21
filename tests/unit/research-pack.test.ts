@@ -236,6 +236,15 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.observation_types_present).toBe(0);
     expect(pack.manifest.stats.official_disclosure_l4_l5_edges).toBe(1);
     expect(pack.manifest.stats.official_disclosure_traceable_edges).toBe(1);
+    expect(pack.manifest.stats.official_disclosure_gate1_overall_progress).toBe(pack.official_disclosure_readiness.scorecard.overall_progress);
+    expect(pack.official_disclosure_readiness.scorecard.status).toBe("partial");
+    expect(pack.official_disclosure_readiness.scorecard.criteria.map((criterion) => criterion.criterion_id)).toEqual([
+      "core_node_official_coverage",
+      "level_4_5_fact_edge_coverage",
+      "cross_source_corroboration",
+      "fact_edge_traceability",
+      "expected_source_path_coverage"
+    ]);
     expect(pack.official_disclosure_readiness.summary.edges_with_strength).toBe(1);
     expect(pack.manifest.stats.question_readiness_partial).toBeGreaterThan(0);
     expect(pack.manifest.stats.investigation_backlog_items).toBeGreaterThan(0);
@@ -244,6 +253,7 @@ describe("research-pack", () => {
     expect(renderInvestigationBacklogMarkdown(pack.investigation_backlog)).toContain("Investigation Backlog");
     expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Not synced");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
+    expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Gate 1 scorecard");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Target profile: ai-compute-memory.v0");
   });
 
@@ -296,6 +306,12 @@ describe("research-pack", () => {
     expect(report.summary.nodes_with_fact_edges).toBe(3);
     expect(report.summary.nodes_with_runnable_official_targets).toBe(2);
     expect(report.summary.runnable_official_targets).toBe(1);
+    expect(report.scorecard.criteria.find((criterion) => criterion.criterion_id === "fact_edge_traceability")).toEqual(
+      expect.objectContaining({ status: "pass", measured: 1, target: 1, progress: 1 })
+    );
+    expect(report.scorecard.criteria.find((criterion) => criterion.criterion_id === "level_4_5_fact_edge_coverage")).toEqual(
+      expect.objectContaining({ status: "partial", measured: 1, target: 100, progress: 0.01 })
+    );
     expect(report.summary.synced_official_targets).toBe(1);
     expect(report.summary.due_official_targets).toBe(1);
     expect(report.source_plan_items[0]?.source_targets[0]?.state).toBe("due");
@@ -367,6 +383,8 @@ describe("research-pack", () => {
     expect(report.gates.find((gate) => gate.gate_id === "official_disclosure.core_nodes")).toEqual(
       expect.objectContaining({ measured: 2, target: 3, status: "partial" })
     );
+    expect(report.scorecard.data_progress).toBeGreaterThan(0);
+    expect(report.scorecard.source_path_progress).toBe(0.5);
     expect(report.gaps.find((gap) => gap.kind === "expected_official_source_coverage")).toEqual(
       expect.objectContaining({
         priority: "P0",
