@@ -316,6 +316,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_plan: sourcePlan,
     source_target_coverage: sourceTargetCoverage
   });
+  const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
     company_id: workbench.selected_company_id,
@@ -325,9 +326,9 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     question_readiness: questionReadiness,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
-    source_target_coverage: sourceTargetCoverage
+    source_target_coverage: sourceTargetCoverage,
+    ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });
-  const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const manifest = manifestFromModel({
     generatedAt,
     input,
@@ -439,7 +440,8 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     question_readiness: questionReadiness,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
-    source_target_coverage: sourceTargetCoverage
+    source_target_coverage: sourceTargetCoverage,
+    ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });
   const manifest = manifestFromModel({
     generatedAt,

@@ -761,6 +761,66 @@ describe("research-pack", () => {
     expect(degradedSourceCheck?.action).toContain("Inspect degraded source fetches");
   });
 
+  it("uses source target preflight status before suggesting source monitor sync", () => {
+    const sourcePlan = [officialSourcePlanItem()];
+    const coverage = officialSourceTargetCoverage("not_synced");
+    const preflight = parseSourceTargetPreflightReport(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        summary: {
+          requested_targets: 1,
+          selected_targets: 1,
+          checked_targets: 0,
+          failed_targets: 1,
+          skipped_targets: 0,
+          planned_tasks: 0,
+          fetched_documents: 0,
+          normalized_documents: 0,
+          degraded_documents: 0,
+          by_source: { "samsung-ir": 1 }
+        },
+        items: [
+          {
+            check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6",
+            source_adapter_id: "samsung-ir",
+            target_kind: "official-html-disclosure",
+            status: "failed",
+            planned_tasks: 0,
+            fetched_documents: 0,
+            normalized_documents: 0,
+            degraded_documents: 0,
+            documents: [],
+            error_message: "fixture source unavailable"
+          }
+        ]
+      })
+    );
+    const backlog = buildInvestigationBacklog({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      components: [],
+      source_plan: sourcePlan,
+      question_readiness: readyQuestionReadiness(),
+      source_target_coverage: coverage,
+      source_target_preflight: preflight
+    });
+
+    const sourceCheck = backlog.items.find((item) => item.kind === "source_check");
+    expect(sourceCheck?.action).toContain("Fix source-plan preflight failures");
+    expect(sourceCheck?.action).not.toContain("Sync runnable source-plan targets into source_check_targets first");
+    expect(sourceCheck?.source_target_coverage).toEqual([
+      expect.objectContaining({
+        source_adapter_id: "samsung-ir",
+        state: "not_synced",
+        preflight_status: "failed",
+        preflight_error_message: "fixture source unavailable"
+      })
+    ]);
+    expect(sourceCheck?.supporting_refs).toContain("source_preflight:plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6");
+    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("preflight=failed");
+  });
+
   it("turns sparse observation series into investigation backlog actions", () => {
     const coverage: ObservationCoverageReport = buildObservationCoverageReport({
       generated_at: "2026-01-01T00:00:00.000Z",

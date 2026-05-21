@@ -6,6 +6,7 @@ import type { ObservationCoverageReport, ObservationSeriesReadiness } from "./ob
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { QuestionReadinessMatrix, QuestionReadinessStatus } from "./question-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
+import type { SourceTargetPreflightItem, SourceTargetPreflightReport, SourceTargetPreflightStatus } from "./source-target-preflight.js";
 
 export type InvestigationBacklogKind =
   | "readiness_gap"
@@ -49,6 +50,10 @@ export interface InvestigationBacklogSourceTargetCoverage {
   latest_job_status: string | null;
   latest_event_id: string | null;
   latest_event_type: string | null;
+  preflight_status: SourceTargetPreflightStatus | null;
+  preflight_error_message: string | null;
+  preflight_normalized_documents: number;
+  preflight_degraded_documents: number;
 }
 
 export interface InvestigationBacklog {
@@ -77,6 +82,7 @@ export interface InvestigationBacklogInput {
   observation_coverage?: ObservationCoverageReport;
   official_disclosure_readiness?: OfficialDisclosureReadinessReport;
   source_target_coverage?: SourceTargetCoverageReport;
+  source_target_preflight?: SourceTargetPreflightReport;
 }
 
 interface BacklogDraft {
@@ -144,12 +150,20 @@ export function renderInvestigationBacklogMarkdown(backlog: InvestigationBacklog
     if (item.source_target_coverage.length > 0) {
       lines.push(
         `  Coverage: ${item.source_target_coverage
-          .map((coverage) => `${coverage.source_adapter_id}/${coverage.target_kind}=${coverage.state}, observations=${coverage.observations}`)
+          .map((coverage) => `${coverage.source_adapter_id}/${coverage.target_kind}=${coverageLine(coverage)}`)
           .join("; ")}`
       );
     }
   }
   return lines.join("\n");
+}
+
+function coverageLine(coverage: InvestigationBacklogSourceTargetCoverage): string {
+  const preflight =
+    coverage.preflight_status === null
+      ? ""
+      : `, preflight=${coverage.preflight_status}, normalized=${coverage.preflight_normalized_documents}, degraded=${coverage.preflight_degraded_documents}`;
+  return `${coverage.state}, observations=${coverage.observations}${preflight}`;
 }
 
 function readinessGapDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
@@ -446,21 +460,53 @@ function dedupeRunnableTargets(targets: readonly SourcePlanCheckTargetSuggestion
 
 function coverageByRunnableTarget(input: InvestigationBacklogInput): Map<string, InvestigationBacklogSourceTargetCoverage> {
   const coverageByTarget = new Map<string, InvestigationBacklogSourceTargetCoverage>();
+  const preflightByCheckTargetId = sourceTargetPreflightByCheckTargetId(input.source_target_preflight);
   for (const item of input.source_target_coverage?.items ?? []) {
+    const checkTargetId = item.matched_check_target_id ?? item.expected_target.check_target_id;
+    const preflight = preflightByCheckTargetId.get(checkTargetId) ?? preflightByCheckTargetId.get(item.expected_target.check_target_id);
     coverageByTarget.set(runnableTargetKey(item.expected_target), {
       source_adapter_id: item.expected_target.source_adapter_id,
       target_kind: item.expected_target.target_kind,
-      check_target_id: item.matched_check_target_id ?? item.expected_target.check_target_id,
+      check_target_id: checkTargetId,
       state: item.state,
       synced: item.synced,
       observations: item.observations,
       latest_job_id: item.latest_job?.job_id ?? null,
       latest_job_status: item.latest_job?.status ?? null,
       latest_event_id: item.latest_event?.event_id ?? null,
-      latest_event_type: item.latest_event?.event_type ?? null
+      latest_event_type: item.latest_event?.event_type ?? null,
+      ...preflightFields(preflight)
     });
   }
   return coverageByTarget;
+}
+
+function sourceTargetPreflightByCheckTargetId(report: SourceTargetPreflightReport | undefined): Map<string, SourceTargetPreflightItem> {
+  const byCheckTargetId = new Map<string, SourceTargetPreflightItem>();
+  for (const item of report?.items ?? []) byCheckTargetId.set(item.check_target_id, item);
+  return byCheckTargetId;
+}
+
+function preflightFields(
+  item: SourceTargetPreflightItem | undefined
+): Pick<
+  InvestigationBacklogSourceTargetCoverage,
+  "preflight_status" | "preflight_error_message" | "preflight_normalized_documents" | "preflight_degraded_documents"
+> {
+  if (item === undefined) {
+    return {
+      preflight_status: null,
+      preflight_error_message: null,
+      preflight_normalized_documents: 0,
+      preflight_degraded_documents: 0
+    };
+  }
+  return {
+    preflight_status: item.status,
+    preflight_error_message: item.error_message ?? null,
+    preflight_normalized_documents: item.normalized_documents,
+    preflight_degraded_documents: item.degraded_documents
+  };
 }
 
 function coverageForTargets(
@@ -486,6 +532,12 @@ function coverageActionPrefix(coverage: readonly InvestigationBacklogSourceTarge
   if (coverage.some((item) => item.state === "retry_wait"))
     return "Inspect failed source-check attempts and wait for configured retry or rerun after fixing the source issue.";
   if (coverage.some((item) => item.state === "degraded")) return "Inspect degraded source fetches before treating the latest check as usable evidence.";
+  if (coverage.some((item) => item.preflight_status === "failed"))
+    return "Fix source-plan preflight failures (credentials, target config, or source reachability) before syncing or enabling this target.";
+  if (coverage.some((item) => item.preflight_status === "skipped"))
+    return "Resolve unsupported source-plan preflight target or connector registration before syncing.";
+  if (coverage.some((item) => item.preflight_degraded_documents > 0))
+    return "Inspect degraded preflight fetches before treating the latest source path as healthy.";
   if (coverage.some((item) => item.state === "disabled")) return "Enable the synced source-check targets when the monitoring cadence is approved.";
   if (coverage.some((item) => item.state === "not_synced")) return "Sync runnable source-plan targets into source_check_targets first.";
   if (coverage.some((item) => item.state === "due")) return "Run due source-check targets through sources run-due or the worker.";
@@ -497,6 +549,7 @@ function coverageActionPrefix(coverage: readonly InvestigationBacklogSourceTarge
 function coverageSupportingRefs(coverage: readonly InvestigationBacklogSourceTargetCoverage[]): string[] {
   return coverage.flatMap((item) => [
     `source_target:${item.check_target_id}`,
+    ...(item.preflight_status === null ? [] : [`source_preflight:${item.check_target_id}`]),
     ...(item.latest_job_id === null ? [] : [`source_job:${item.latest_job_id}`]),
     ...(item.latest_event_id === null ? [] : [`source_event:${item.latest_event_id}`])
   ]);
