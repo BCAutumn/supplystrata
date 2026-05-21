@@ -1,4 +1,5 @@
 import { markLeadObservationInReview, saveNormalizedDocumentTx, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
+import { messageFromUnknown } from "@supplystrata/observability";
 import { storeLeadObservation, type LeadStoreInput } from "@supplystrata/observation-store";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
@@ -10,23 +11,109 @@ import {
   type AppleSuppliersInput
 } from "@supplystrata/sources-apple-suppliers";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
-import { ensureSourceCheckTarget, type SourceCheckTargetInput } from "@supplystrata/source-monitor";
+import { ensureSourceCheckTarget, recordSourceFailure, type SourceCheckTargetInput } from "@supplystrata/source-monitor";
+import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import { fetchAndNormalizeFirstTask } from "./source-documents.js";
+import type { SourceCheckSummary } from "./source-check-runner.js";
 import type { ReviewEnqueueSummary } from "./types.js";
+
+export const appleSupplierListReviewSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
+  source_adapter_id: "apple-suppliers",
+  target_kind: "supplier-list-review",
+  config_schema: {
+    fields: [
+      { key: "fiscal_year", type: "positive_integer", required: true, description: "Apple Supplier List fiscal year." },
+      { key: "entity_id", type: "string", required: true, description: "Buyer entity id.", allowed_values: ["ENT-APPLE"] },
+      {
+        key: "scope_kind",
+        type: "string",
+        required: false,
+        description: "Research scope kind that requested this list.",
+        allowed_values: ["company", "component"]
+      },
+      { key: "scope_id", type: "string", required: false, description: "Research scope id that requested this list." },
+      { key: "component_id", type: "string", required: false, description: "Component target id used by readiness and source-target coverage." }
+    ]
+  },
+  async run(store, target) {
+    try {
+      return [await runAppleSupplierListReviewCheck(store, appleSupplierInputFromConfig(target.target_config), { checkTargetId: target.check_target_id })];
+    } catch (error) {
+      await store.transaction(async (client) => {
+        await recordSourceFailure(client, {
+          source_adapter_id: "apple-suppliers",
+          check_target_id: target.check_target_id,
+          error_message: messageFromUnknown(error),
+          caused_by: "source-check.apple-suppliers"
+        });
+      });
+      throw error;
+    }
+  }
+};
 
 export async function enqueueAppleSupplierReviewCandidates(
   store: DatabaseStore,
   input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }
 ): Promise<ReviewEnqueueSummary> {
+  const result = await ingestAppleSupplierReviewCandidates(store, input);
+  return {
+    doc_id: result.saved.doc_id,
+    source_url: result.raw.url,
+    candidates: result.candidates,
+    inserted: result.inserted,
+    skipped: result.skipped,
+    facility_cross_check_leads: result.facilityCrossCheckLeads,
+    facility_cross_check_targets: result.facilityCrossCheckTargets
+  };
+}
+
+async function runAppleSupplierListReviewCheck(
+  store: DatabaseStore,
+  input: AppleSuppliersInput,
+  options: { checkTargetId: string }
+): Promise<SourceCheckSummary> {
+  const result = await ingestAppleSupplierReviewCandidates(store, input, options);
+  return {
+    source_adapter_id: "apple-suppliers",
+    task_id: `apple-suppliers-fy${String(input.fiscalYear).slice(2)}`,
+    doc_id: result.saved.doc_id,
+    source_url: result.raw.url,
+    change_type: result.documentObservation.change_type,
+    source_item_id: result.documentObservation.source_item_id,
+    source_event_id: result.documentObservation.event_id,
+    observations: 0,
+    review_candidates: result.inserted,
+    semantic_changes: 0,
+    relation_changes: 0
+  };
+}
+
+async function ingestAppleSupplierReviewCandidates(
+  store: DatabaseStore,
+  input: AppleSuppliersInput,
+  options: { checkTargetId?: string } = {}
+): Promise<{
+  raw: Awaited<ReturnType<typeof fetchAndNormalizeFirstTask<AppleSuppliersInput>>>["raw"];
+  saved: { doc_id: string };
+  documentObservation: Awaited<ReturnType<typeof recordSavedDocumentObservation>>;
+  candidates: number;
+  inserted: number;
+  skipped: number;
+  facilityCrossCheckLeads: number;
+  facilityCrossCheckTargets: number;
+}> {
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,
     context: createAppleSuppliersAdapterContext(),
     logLabel: "Apple Supplier List"
   });
-  const { saved, candidates, result, facilityCrossCheckLeads, facilityCrossCheckTargets } = await store.transaction(async (client) => {
+  const { saved, documentObservation, candidates, result, facilityCrossCheckLeads, facilityCrossCheckTargets } = await store.transaction(async (client) => {
     const savedDocument = await saveNormalizedDocumentTx(client, normalized);
-    await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id);
+    const savedObservation = await recordSavedDocumentObservation(client, normalized, savedDocument.doc_id, {
+      ...(options.checkTargetId === undefined ? {} : { checkTargetId: options.checkTargetId })
+    });
     const appleCandidates = extractAppleSupplierCandidates(normalized, input.fiscalYear);
     const reviewCandidates = appleCandidates.map((candidate) =>
       buildSupplierListReviewCandidate({
@@ -44,6 +131,7 @@ export async function enqueueAppleSupplierReviewCandidates(
     });
     return {
       saved: savedDocument,
+      documentObservation: savedObservation,
       candidates: reviewCandidates,
       result: enqueueResult,
       facilityCrossCheckLeads: crossCheckSummary.leads,
@@ -51,13 +139,14 @@ export async function enqueueAppleSupplierReviewCandidates(
     };
   });
   return {
-    doc_id: saved.doc_id,
-    source_url: raw.url,
+    raw,
+    saved,
+    documentObservation,
     candidates: candidates.length,
     inserted: result.inserted,
     skipped: result.skipped,
-    facility_cross_check_leads: facilityCrossCheckLeads,
-    facility_cross_check_targets: facilityCrossCheckTargets
+    facilityCrossCheckLeads,
+    facilityCrossCheckTargets
   };
 }
 
@@ -149,4 +238,13 @@ async function storeAppleOshCrossCheckLeads(
     checkTargets += 1;
   }
   return { leads, checkTargets };
+}
+
+export function appleSupplierInputFromConfig(config: Record<string, unknown>): AppleSuppliersInput {
+  const label = "Apple Supplier List source check target";
+  const fiscalYear = optionalConfigPositiveInteger(config, "fiscal_year", label);
+  if (fiscalYear !== 2022) throw new Error(`${label} fiscal_year must be 2022`);
+  const entityId = requireConfigString(config, "entity_id", label);
+  if (entityId !== "ENT-APPLE") throw new Error(`${label} entity_id must be ENT-APPLE`);
+  return { fiscalYear, entityId };
 }

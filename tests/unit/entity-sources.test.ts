@@ -1,10 +1,93 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
 import type { RawDocument } from "@supplystrata/core";
+import { buildGleifLeiSearchUrl, extractGleifLeiCandidates } from "@supplystrata/source-workflows";
 import { buildCompaniesHouseSearchUrl, extractCompaniesHouseCandidates } from "@supplystrata/sources-companies-house";
 import { buildOpenCorporatesSearchUrl, extractOpenCorporatesCandidates } from "@supplystrata/sources-opencorporates";
 
 describe("entity source adapters", () => {
+  it("builds GLEIF LEI search URLs and normalizes global legal entity identifiers", () => {
+    expect(buildGleifLeiSearchUrl({ query: "NVIDIA Corporation", limit: 2 })).toBe(
+      "https://api.gleif.org/api/v1/lei-records?filter%5Bentity.legalName%5D=NVIDIA+Corporation&page%5Bsize%5D=2"
+    );
+
+    const candidates = extractGleifLeiCandidates(
+      rawJson("gleif", {
+        data: [
+          {
+            type: "lei-records",
+            id: "549300S4KLFTLO7GSQ80",
+            attributes: {
+              lei: "549300S4KLFTLO7GSQ80",
+              entity: {
+                legalName: { name: "NVIDIA CORPORATION", language: "en" },
+                otherNames: [{ name: "NVIDIA Corp." }],
+                transliteratedOtherNames: [],
+                legalAddress: {
+                  addressLines: ["C/O CORPORATION SERVICE COMPANY", "251 LITTLE FALLS DRIVE"],
+                  city: "WILMINGTON",
+                  region: "US-DE",
+                  country: "US",
+                  postalCode: "19808"
+                },
+                headquartersAddress: {
+                  addressLines: ["2788 SAN TOMAS EXPRESSWAY"],
+                  city: "SANTA CLARA",
+                  region: "US-CA",
+                  country: "US",
+                  postalCode: "95051"
+                },
+                registeredAt: { id: "RA000602" },
+                registeredAs: "2862596",
+                jurisdiction: "US-DE",
+                category: "GENERAL",
+                status: "ACTIVE",
+                creationDate: "1998-02-24T00:00:00Z"
+              },
+              registration: {
+                status: "ISSUED",
+                nextRenewalDate: "2027-02-06T17:45:00Z",
+                corroborationLevel: "FULLY_CORROBORATED"
+              },
+              bic: ["NVDAUS6SXXX"],
+              ocid: "us_de/2862596",
+              spglobal: ["32307"]
+            },
+            links: { self: "https://api.gleif.org/api/v1/lei-records/549300S4KLFTLO7GSQ80" }
+          }
+        ]
+      })
+    );
+
+    expect(candidates).toMatchObject([
+      {
+        source_adapter_id: "gleif",
+        external_id: "549300S4KLFTLO7GSQ80",
+        name: "NVIDIA CORPORATION",
+        jurisdiction_code: "US-DE",
+        company_number: "2862596",
+        current_status: "ACTIVE",
+        company_type: "GENERAL",
+        incorporation_date: "1998-02-24",
+        registered_address: "C/O CORPORATION SERVICE COMPANY, 251 LITTLE FALLS DRIVE, WILMINGTON, US-DE, 19808, US",
+        alternative_names: ["NVIDIA Corp."],
+        identifiers: {
+          lei: "549300S4KLFTLO7GSQ80",
+          gleif_lei: "549300S4KLFTLO7GSQ80",
+          bic: "NVDAUS6SXXX",
+          spglobal_id: "32307",
+          open_corporates_id: "us_de/2862596",
+          registration_authority_id: "RA000602",
+          registration_authority_entity_id: "2862596",
+          jurisdiction_code: "US-DE",
+          company_number: "2862596"
+        }
+      }
+    ]);
+    expect(candidates[0]?.provenance_note).toContain("registration=ISSUED");
+    expect(candidates[0]?.provenance_note).toContain("corroboration=FULLY_CORROBORATED");
+  });
+
   it("builds OpenCorporates search URLs and normalizes company candidates", () => {
     expect(buildOpenCorporatesSearchUrl({ query: "Arm Holdings", jurisdictionCode: "gb", limit: 2 })).toBe(
       "https://api.opencorporates.com/v0.4/companies/search?q=Arm+Holdings&per_page=2&jurisdiction_code=gb"
@@ -89,7 +172,7 @@ describe("entity source adapters", () => {
   });
 });
 
-function rawJson(sourceAdapterId: "opencorporates" | "companies-house", value: unknown): RawDocument<Uint8Array> {
+function rawJson(sourceAdapterId: "gleif" | "opencorporates" | "companies-house", value: unknown): RawDocument<Uint8Array> {
   const bytes = new Uint8Array(Buffer.from(JSON.stringify(value), "utf8"));
   return {
     doc_id: "DOC-test",

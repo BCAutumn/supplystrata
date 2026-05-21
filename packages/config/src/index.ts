@@ -12,6 +12,8 @@ export const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
+  OPENDART_API_KEY: z.string().optional(),
+  EDINET_API_KEY: z.string().optional(),
   OPEN_CORPORATES_API_TOKEN: z.string().optional(),
   COMPANIES_HOUSE_API_KEY: z.string().optional(),
   CENSUS_API_KEY: z.string().optional(),

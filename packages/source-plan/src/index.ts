@@ -154,7 +154,7 @@ const SUGGESTION_SOURCE_RULES = [
   { token: "supplier lists", sourceIds: ["osh", "apple-suppliers"] },
   { token: "ems annual reports", sourceIds: ["sec-edgar", "company-ir", "edinet"] },
   { token: "facility disclosures", sourceIds: ["apple-suppliers", "osh", "rmi-facilities"] },
-  { token: "odm disclosures", sourceIds: ["sec-edgar", "company-ir", "edinet"] },
+  { token: "odm disclosures", sourceIds: ["sec-edgar", "company-ir", "twse-mops", "edinet"] },
   { token: "thermal supplier reports", sourceIds: ["company-ir", "sec-edgar"] },
   { token: "datacenter deployment", sourceIds: ["company-ir", "sec-edgar", "eia"] },
   { token: "procurement notices", sourceIds: ["sam-gov", "usaspending", "eu-ted"] },
@@ -330,7 +330,9 @@ function createContext(
 }
 
 function sourceMatchesContext(sourceId: string, context: SourcePlanContext): boolean {
-  // Apple Supplier List 是 Apple 官方披露，不是任意公司的通用供应商名单。没有公司上下文时必须排除，防止通用链路被 Apple 耦合。
+  // Apple Supplier List 是 Apple 官方披露，不是任意公司的通用供应商名单。
+  // 任意上市公司的入口应走 entity resolver + SEC/监管披露/可发现 IR target，
+  // 不能为每个研究对象新增 `<company>-suppliers` 这种公司专属工作流。
   if (sourceId === "apple-suppliers") return context.entityIds.has("ENT-APPLE");
   return true;
 }
@@ -402,7 +404,9 @@ function buildSuggestedCheckTargets(
     }
   }
   if (context !== undefined) {
-    suggestions.push(...explicitOfficialDisclosureSuggestionsForTargetNodes(sourceId, drafts, context.officialDisclosureTargetNodes));
+    suggestions.push(
+      ...explicitOfficialDisclosureSuggestionsForTargetNodes(sourceId, drafts, context.officialDisclosureTargetNodes, context.officialDisclosure)
+    );
   }
   if (context?.officialDisclosure !== undefined) {
     suggestions.push(
@@ -417,7 +421,8 @@ function buildSuggestedCheckTargets(
 function explicitOfficialDisclosureSuggestionsForTargetNodes(
   sourceId: string,
   drafts: readonly SourcePlanDraft[],
-  targetNodes: readonly SourcePlanOfficialDisclosureTargetNode[]
+  targetNodes: readonly SourcePlanOfficialDisclosureTargetNode[],
+  officialDisclosure: OfficialDisclosureContext | undefined
 ): SourcePlanCheckTargetSuggestion[] {
   const targetIds = new Set(drafts.map((draft) => draft.targetId));
   const suggestions: SourcePlanCheckTargetSuggestion[] = [];
@@ -425,15 +430,38 @@ function explicitOfficialDisclosureSuggestionsForTargetNodes(
     if (!targetIds.has(node.node_id)) continue;
     const explicitTarget = node.expected_source_targets?.find((target) => target.source_id === sourceId);
     if (explicitTarget === undefined) continue;
+    const targetConfig = explicitOfficialDisclosureTargetConfig(explicitTarget.target_config, officialDisclosure);
+    if (targetConfig === undefined) continue;
     suggestions.push({
       source_adapter_id: sourceId,
       target_kind: explicitTarget.target_kind,
       runnable: true,
-      target_config: cloneTargetConfig(explicitTarget.target_config),
+      target_config: targetConfig,
       reason: explicitTarget.reason ?? `${node.node_id} has explicit ${sourceId} target config from the research target profile.`
     });
   }
   return suggestions;
+}
+
+function explicitOfficialDisclosureTargetConfig(
+  config: Record<string, string | number | boolean | string[]>,
+  officialDisclosure: OfficialDisclosureContext | undefined
+): Record<string, string | number | boolean | string[]> | undefined {
+  const cloned = cloneTargetConfig(config);
+  const hasAnnualYearTemplate = Object.hasOwn(cloned, "year");
+  const hasAnnualDateTemplate = Object.hasOwn(cloned, "date");
+  if (!hasAnnualYearTemplate && !hasAnnualDateTemplate) return cloned;
+  // research target profile 里带 year/date 的显式 target 表示“按年度滚动的官方披露模板”，没有调用方给出的 officialDisclosureYear 就不应伪装成 runnable。
+  if (officialDisclosure === undefined) return undefined;
+  if (hasAnnualYearTemplate) cloned["year"] = Number.parseInt(officialDisclosure.year, 10);
+  if (hasAnnualDateTemplate) {
+    const dateTemplate = cloned["date"];
+    if (typeof dateTemplate !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateTemplate)) {
+      throw new Error("Official disclosure target date template must use YYYY-MM-DD format.");
+    }
+    cloned["date"] = `${officialDisclosure.year}${dateTemplate.slice(4)}`;
+  }
+  return cloned;
 }
 
 function periodicOfficialDisclosureSuggestionsForTargetNodes(
@@ -492,6 +520,7 @@ function officialDisclosureEntityId(sourceId: string): string | undefined {
   if (sourceId === "tsmc-ir") return "ENT-TSMC";
   if (sourceId === "samsung-ir") return "ENT-SAMSUNG-ELECTRONICS";
   if (sourceId === "skhynix-ir") return "ENT-SKHYNIX";
+  if (sourceId === "micron-ir") return "ENT-MICRON";
   if (sourceId === "asml-ir") return "ENT-ASML";
   return undefined;
 }

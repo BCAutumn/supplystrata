@@ -30,22 +30,22 @@ const AI_COMPUTE_MEMORY_TARGET_NODES = [
   secTargetCompany("ENT-AMD", "AMD", "P0", "0000002488"),
   secTargetCompany("ENT-BROADCOM", "Broadcom", "P1", "0001730168"),
   targetCompany("ENT-TSMC", "TSMC", "P0", ["tsmc-ir"]),
-  targetCompany("ENT-SAMSUNG-ELECTRONICS", "Samsung Electronics", "P0", ["samsung-ir", "dart-kr"]),
-  targetCompany("ENT-SKHYNIX", "SK Hynix", "P0", ["skhynix-ir", "dart-kr"]),
+  dartKrTargetCompany("ENT-SAMSUNG-ELECTRONICS", "Samsung Electronics", "P0", "00126380", ["samsung-ir"]),
+  dartKrTargetCompany("ENT-SKHYNIX", "SK Hynix", "P0", "00164779", ["skhynix-ir"]),
   secTargetCompany("ENT-MICRON", "Micron", "P0", "0000723125", ["micron-ir"]),
   secTargetCompany("ENT-ASML", "ASML", "P0", "0000937966", ["asml-ir"]),
-  targetCompany("ENT-FOXCONN", "Foxconn", "P1", ["company-ir"]),
-  targetCompany("ENT-QUANTA", "Quanta", "P1", ["company-ir"]),
+  twseMopsTargetCompany("ENT-FOXCONN", "Foxconn", "P1", "2317", ["company-ir"]),
+  twseMopsTargetCompany("ENT-QUANTA", "Quanta", "P1", "2382", ["company-ir"]),
   targetComponent("COMP-GPU", "GPU", "P0", ["sec-edgar", "company-ir"]),
   targetComponent("COMP-HBM", "HBM", "P0", ["skhynix-ir", "samsung-ir", "micron-ir"]),
   targetComponent("COMP-DRAM", "DRAM", "P0", ["skhynix-ir", "samsung-ir", "micron-ir"]),
   targetComponent("COMP-WAFER", "Wafer", "P1", ["tsmc-ir", "samsung-ir"]),
   targetComponent("COMP-ADVANCED-PACKAGING", "Advanced packaging", "P0", ["tsmc-ir", "samsung-ir"]),
   targetComponent("COMP-SERVER", "AI server", "P0", ["sec-edgar", "company-ir"]),
-  targetComponent("COMP-MANUFACTURING-SERVICES", "Manufacturing services", "P1", ["company-ir", "apple-suppliers"]),
-  targetComponent("COMP-SILICON-WAFER", "Silicon wafer", "P1", ["company-ir", "edinet"]),
+  appleSupplierListTargetComponent("COMP-MANUFACTURING-SERVICES", "Manufacturing services", "P1", ["company-ir", "apple-suppliers"]),
+  edinetDailyFilingsTargetComponent("COMP-SILICON-WAFER", "Silicon wafer", "P1", ["company-ir", "edinet"]),
   targetComponent("COMP-EUV-LITHOGRAPHY", "EUV lithography", "P0", ["asml-ir"]),
-  targetComponent("COMP-ABF-SUBSTRATE", "ABF substrate", "P1", ["company-ir", "edinet"])
+  edinetDailyFilingsTargetComponent("COMP-ABF-SUBSTRATE", "ABF substrate", "P1", ["company-ir", "edinet"])
 ] as const satisfies readonly OfficialDisclosureReadinessTargetNode[];
 
 const AI_COMPUTE_MEMORY_PROFILE: ResearchTargetProfile = {
@@ -162,6 +162,115 @@ function targetComponent(
   expectedSourceIds: readonly string[]
 ): OfficialDisclosureReadinessTargetNode {
   return { node_id: nodeId, node_kind: "component", name, priority, expected_source_ids: expectedSourceIds };
+}
+
+function appleSupplierListTargetComponent(
+  nodeId: string,
+  name: string,
+  priority: ResearchTargetNodePriority,
+  expectedSourceIds: readonly string[]
+): OfficialDisclosureReadinessTargetNode {
+  return {
+    ...targetComponent(nodeId, name, priority, expectedSourceIds),
+    expected_source_targets: [
+      {
+        source_id: "apple-suppliers",
+        target_kind: "supplier-list-review",
+        target_config: {
+          fiscal_year: 2022,
+          entity_id: "ENT-APPLE",
+          scope_kind: "component",
+          scope_id: nodeId,
+          component_id: nodeId
+        },
+        reason:
+          "Apple Supplier List FY2022 is an official supplier-list review path for manufacturing-services coverage; it enqueues review candidates and facility leads, not fact edges."
+      }
+    ]
+  };
+}
+
+function edinetDailyFilingsTargetComponent(
+  nodeId: string,
+  name: string,
+  priority: ResearchTargetNodePriority,
+  expectedSourceIds: readonly string[]
+): OfficialDisclosureReadinessTargetNode {
+  return {
+    ...targetComponent(nodeId, name, priority, expectedSourceIds),
+    expected_source_targets: [
+      {
+        source_id: "edinet",
+        target_kind: "daily-filings",
+        target_config: {
+          date: "2025-06-30",
+          type: 2,
+          scope_kind: "component",
+          scope_id: nodeId,
+          component_id: nodeId,
+          doc_type_codes: ["120"]
+        },
+        reason:
+          "EDINET daily documents list is a Japanese official disclosure directory seed for annual securities reports; it only monitors metadata and does not download ZIP/PDF/XBRL or create fact edges."
+      }
+    ]
+  };
+}
+
+function twseMopsTargetCompany(
+  nodeId: string,
+  name: string,
+  priority: ResearchTargetNodePriority,
+  stockCode: string,
+  additionalExpectedSourceIds: readonly string[] = []
+): OfficialDisclosureReadinessTargetNode {
+  return {
+    ...targetCompany(nodeId, name, priority, [...additionalExpectedSourceIds, "twse-mops"]),
+    expected_source_targets: [
+      {
+        source_id: "twse-mops",
+        target_kind: "electronic-documents",
+        target_config: {
+          stock_code: stockCode,
+          entity_id: nodeId,
+          year: 2025,
+          document_kind: "F",
+          limit: 50
+        },
+        reason:
+          `${name} has a curated TWSE/MOPS stock code; monitor the official electronic documents directory as Gate 1 coverage. ` +
+          "This target records directory metadata only and must not download PDF files or create fact edges."
+      }
+    ]
+  };
+}
+
+function dartKrTargetCompany(
+  nodeId: string,
+  name: string,
+  priority: ResearchTargetNodePriority,
+  corpCode: string,
+  additionalExpectedSourceIds: readonly string[] = []
+): OfficialDisclosureReadinessTargetNode {
+  return {
+    ...targetCompany(nodeId, name, priority, [...additionalExpectedSourceIds, "dart-kr"]),
+    expected_source_targets: [
+      {
+        source_id: "dart-kr",
+        target_kind: "company-filings",
+        target_config: {
+          corp_code: corpCode,
+          entity_id: nodeId,
+          disclosure_types: ["A", "B"],
+          corp_cls: "Y",
+          year: 2025,
+          final_reports_only: "Y",
+          limit: 20
+        },
+        reason: `${name} has a curated OpenDART corp_code; source-plan should treat this as a periodic official disclosure target template and override year at call time.`
+      }
+    ]
+  };
 }
 
 function cloneTargetConfig(config: Record<string, string | number | boolean | string[]>): Record<string, string | number | boolean | string[]> {

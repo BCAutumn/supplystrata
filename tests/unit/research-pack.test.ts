@@ -278,13 +278,13 @@ describe("research-pack", () => {
     expect(report.summary.expected_official_source_links).toBe(4);
     expect(report.summary.expected_official_source_links_with_coverage).toBe(2);
     expect(report.summary.expected_official_source_links_runnable).toBe(2);
-    expect(report.summary.expected_official_source_links_connector_available).toBe(1);
-    expect(report.summary.expected_official_source_links_unimplemented).toBe(1);
+    expect(report.summary.expected_official_source_links_connector_available).toBe(2);
+    expect(report.summary.expected_official_source_links_unimplemented).toBe(0);
     expect(report.expected_source_coverage).toEqual([
       expect.objectContaining({
         node_id: "COMP-HBM",
         expected_source_id: "micron-ir",
-        coverage_state: "source_registered_unimplemented"
+        coverage_state: "connector_available"
       }),
       expect.objectContaining({
         node_id: "COMP-HBM",
@@ -320,7 +320,7 @@ describe("research-pack", () => {
     );
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Explicit target nodes: 3 supplied; 1 missing");
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Expected official source links: 2/4 covered");
-    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("source_registered_unimplemented COMP-HBM via micron-ir");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("connector_available COMP-HBM via micron-ir");
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("[target] COMP-HBM");
   });
 
@@ -336,6 +336,43 @@ describe("research-pack", () => {
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-HBM")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["skhynix-ir", "samsung-ir", "micron-ir"] })
     );
+    expect(profile.target_nodes.find((node) => node.node_id === "ENT-FOXCONN")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "twse-mops"] })
+    );
+    const foxconnTarget = profile.target_nodes
+      .find((node) => node.node_id === "ENT-FOXCONN")
+      ?.expected_source_targets?.find((target) => target.source_id === "twse-mops");
+    const waferNode = profile.target_nodes.find((node) => node.node_id === "COMP-SILICON-WAFER");
+    const edinetTarget = waferNode?.expected_source_targets?.find((target) => target.source_id === "edinet");
+
+    expect(foxconnTarget).toEqual(
+      expect.objectContaining({
+        source_id: "twse-mops",
+        target_kind: "electronic-documents"
+      })
+    );
+    expect(foxconnTarget?.target_config).toEqual({
+      stock_code: "2317",
+      entity_id: "ENT-FOXCONN",
+      year: 2025,
+      document_kind: "F",
+      limit: 50
+    });
+    expect(waferNode).toEqual(expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "edinet"] }));
+    expect(edinetTarget).toEqual(
+      expect.objectContaining({
+        source_id: "edinet",
+        target_kind: "daily-filings"
+      })
+    );
+    expect(edinetTarget?.target_config).toEqual({
+      date: "2025-06-30",
+      type: 2,
+      scope_kind: "component",
+      scope_id: "COMP-SILICON-WAFER",
+      component_id: "COMP-SILICON-WAFER",
+      doc_type_codes: ["120"]
+    });
   });
 
   it("reports discovered nodes outside a target profile as expansion candidates", () => {

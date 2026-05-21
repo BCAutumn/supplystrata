@@ -23,7 +23,7 @@ pnpm install
 cp .env.example .env
 ```
 
-SEC/NVIDIA 规则切片不需要 LLM key。OpenCorporates / Companies House 查询需要在 `.env` 自行填写对应 key。
+SEC/NVIDIA 规则切片不需要 LLM key。GLEIF LEI 查询不需要 key；OpenCorporates / Companies House 需要各自 key；TWSE MOPS 电子文件目录 monitor 当前不需要 API key；如果要跑韩国监管披露 monitor，需要在 `.env` 填 `OPENDART_API_KEY`；如果要跑日本 EDINET daily filings monitor，需要填 `EDINET_API_KEY`。
 
 ## 2. 先跑无数据库预览
 
@@ -107,9 +107,9 @@ pnpm --silent cli intelligence refresh --min-evidence-level 4 --limit 1000
 pnpm --silent cli research run --company nvidia --depth 3 --out reports/nvidia-research-pack
 ```
 
-研究包会额外生成 `attention-queue.json/md`、`question-readiness.json/md`、`observation-coverage.json/md`、`official-disclosure-readiness.json/md` 和 `investigation-backlog.json/md`。attention queue 会把 claim conflict、claim lifecycle warning、open alert candidates、degraded source health 和 requires-attention change 统一成即时处理入口；它只读已有上下文，不自动裁决冲突、不修改事实边、不关闭 unknown。readiness 文件不调用 AI，也不生成正式答案；它们只根据当前 pack 里的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready`、`partial` 还是 `blocked`，并列出 supporting refs、missing requirements 和 unknown ids。observation coverage 文件会汇总本研究包里可见的 typed signal、source adapter、scope、component、geography、metric、样本 id、series readiness 和缺失 methodology type，避免只看 Markdown 时误以为所有信号都已覆盖；series readiness 会标出某组观测是 `sparse`、`explicit_baseline_ready` 还是 `time_series_ready`。official disclosure readiness 文件会把 Gate 1 的内置研究 target profile、逐节点覆盖状态、显式 target node 覆盖、逐 expected source 覆盖、profile expansion candidates、Level 4/5 fact edge、完整 traceability、严格 cross-source corroboration、strength/freshness gap 和官方披露 source target 状态显式列出；它不会把 single-source silence 当作已解释，也不会写事实边。expected source 覆盖会区分“已有事实证据 / 已有 observation / target 已同步 / target 可同步 / 只有计划 / connector 存在但节点未接线 / source 已注册但未实现 / profile source 未映射”，所以 profile 不是一张自我安慰清单，而是可执行缺口账本。CLI 会在 NVIDIA、TSMC、Samsung、SK Hynix、Micron、ASML、云需求端或相关组件命中时自动选择 `ai-compute-memory.v0`，不用用户手写 profile；需要关闭时可传 `--target-profile none`。profile 是验收锚点，不是全球供应链全集；内置 profile 中已有 CIK 的 SEC 公司会进入 `source-plan.json` 的 `sec-company-filings` runnable suggestion，官方 IR source 会在提供 `--official-disclosure-year` 时进入 node-specific runnable suggestion；缺 connector 或缺 target config 的来源仍会保留为缺口。不在 profile 里但已被发现的节点会进入 expansion candidates/backlog。backlog 文件会把这些 readiness gap、official disclosure gap、expected source gap、profile expansion candidate、explicit unknown、组件覆盖缺口、source-plan item 和 sparse observation series 变成可审计的下一步调查任务；它只规划，不抓取、不落库、不写事实边。这样可以先知道数据是否足够，再决定是否进入人工分析或后续 AI 总结。
+研究包会额外生成 `attention-queue.json/md`、`question-readiness.json/md`、`observation-coverage.json/md`、`official-disclosure-readiness.json/md` 和 `investigation-backlog.json/md`。attention queue 会把 claim conflict、claim lifecycle warning、open alert candidates、degraded source health 和 requires-attention change 统一成即时处理入口；它只读已有上下文，不自动裁决冲突、不修改事实边、不关闭 unknown。readiness 文件不调用 AI，也不生成正式答案；它们只根据当前 pack 里的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready`、`partial` 还是 `blocked`，并列出 supporting refs、missing requirements 和 unknown ids。observation coverage 文件会汇总本研究包里可见的 typed signal、source adapter、scope、component、geography、metric、样本 id、series readiness 和缺失 methodology type，避免只看 Markdown 时误以为所有信号都已覆盖；series readiness 会标出某组观测是 `sparse`、`explicit_baseline_ready` 还是 `time_series_ready`。official disclosure readiness 文件会把 Gate 1 的内置研究 target profile、逐节点覆盖状态、显式 target node 覆盖、逐 expected source 覆盖、profile expansion candidates、Level 4/5 fact edge、完整 traceability、严格 cross-source corroboration、strength/freshness gap 和官方披露 source target 状态显式列出；它不会把 single-source silence 当作已解释，也不会写事实边。expected source 覆盖会区分“已有事实证据 / 已有 observation / target 已同步 / target 可同步 / 只有计划 / connector 存在但节点未接线 / source 已注册但未实现 / profile source 未映射”，所以 profile 不是一张自我安慰清单，而是可执行缺口账本。CLI 会在 NVIDIA、TSMC、Samsung、SK Hynix、Micron、ASML、云需求端或相关组件命中时自动选择 `ai-compute-memory.v0`，不用用户手写 profile；需要关闭时可传 `--target-profile none`。profile 是验收锚点，不是全球供应链全集；内置 profile 中已有 CIK 的 SEC 公司会进入 `source-plan.json` 的 `sec-company-filings` runnable suggestion，官方 IR source 会在提供 `--official-disclosure-year` 时进入 node-specific runnable suggestion，带审计 HTTPS URL 的 `company-ir` 长尾目标也会进入受控 runnable suggestion，Samsung / SK Hynix 还会生成 `dart-kr/company-filings` runnable suggestion，silicon wafer / ABF substrate 会生成 `edinet/daily-filings` runnable suggestion，Foxconn / Quanta 会生成 `twse-mops/electronic-documents` runnable suggestion，manufacturing-services 目标会进入 Apple Supplier List FY2022 的 `supplier-list-review` runnable suggestion。DART / EDINET / TWSE 当前只监控官方披露目录元数据，用来建立官方 target / observation / backlog 覆盖，不自动下载或解析正文、不写事实边；缺显式 URL、公司级代码、connector 或 target config 的其它来源仍会保留为缺口。不在 profile 里但已被发现的节点会进入 expansion candidates/backlog。backlog 文件会把这些 readiness gap、official disclosure gap、expected source gap、profile expansion candidate、explicit unknown、组件覆盖缺口、source-plan item 和 sparse observation series 变成可审计的下一步调查任务；它只规划，不抓取、不落库、不写事实边。这样可以先知道数据是否足够，再决定是否进入人工分析或后续 AI 总结。
 
-如果要让 TSMC / Samsung / SK hynix / ASML 这类已注册官方 IR connector 进入 runnable source target，而不是只停留在 planned backlog，可以给研究包传入披露年份：
+如果要让 TSMC / Samsung / SK hynix / Micron / ASML 这类已注册官方 IR connector 进入 runnable source target，而不是只停留在 planned backlog，可以给研究包传入披露年份。`company-ir` 的长尾入口还需要 profile/review/host app 提供审计过的显式 HTTPS URL；它不会从公司名自动猜 IR 页面：
 
 ```bash
 pnpm --silent cli research run --company nvidia --depth 3 --official-year 2025 --source-target-namespace nvidia-memory-2025 --out reports/nvidia-research-pack
@@ -118,6 +118,8 @@ pnpm --silent cli research run --company nvidia --depth 3 --official-year 2025 -
 这只生成 `official-html-disclosure` 检查建议和 backlog runnable target，不自动运行 source、不写事实边。要把研究计划接入持续监控队列，用 source-management 的转换入口把 runnable suggestions 同步成 `source_check_targets`：
 
 ```bash
+pnpm --silent cli sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --format markdown
+pnpm --silent cli sources policy smoke-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --source sec-edgar --limit 2 --format markdown
 pnpm --silent cli sources policy sync-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025
 pnpm --silent cli sources policy sync-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --enable --check-cadence-minutes 10080 --jitter-minutes 120
 pnpm --silent cli sources policy enable-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --next-check-at 2026-05-19T00:00:00.000Z --check-cadence-minutes 10080 --jitter-minutes 120
@@ -125,7 +127,7 @@ pnpm --silent cli sources due --source-plan reports/nvidia-research-pack/source-
 pnpm --silent cli sources run-due --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --limit 4 --format markdown
 ```
 
-`sync-plan-targets` 默认写入 disabled target，适合先审计；显式 `--enable` 后才会被 `sources due/run-due` 和 worker 拾取。审计后如果要受控启用同一批 target，用 `enable-plan-targets` 从同一个 `source-plan.json + namespace` 重新计算 target id，只更新已同步 target 的 `enabled` 和 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。它只修改监控配置，不抓源、不解析 PDF、不写事实边；missing target 会在结果中列出，表示需要先重新同步。
+`preview-plan-targets` 不连接数据库，只把 source-plan 的 runnable suggestions 转成稳定 target id、按 source / target kind / priority 汇总，并用同一套 source-management validation 报出缺 connector、字段错误、manual-only 自动化或 credentials warning；适合宿主 App 先审计。`smoke-plan-targets` 也不连接数据库，但会真正执行 adapter 的 `plan / fetch / normalize`，用于提前发现外部源不可达、凭据缺失或 target config 失效；它不写 `source_check_targets`、不写 monitor event、不写 observation，也不会生成事实边。`sync-plan-targets` 默认写入 disabled target，适合先审计；显式 `--enable` 后才会被 `sources due/run-due` 和 worker 拾取。审计后如果要受控启用同一批 target，用 `enable-plan-targets` 从同一个 `source-plan.json + namespace` 重新计算 target id，只更新已同步 target 的 `enabled` 和 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。它只修改监控配置，不抓源、不解析 PDF、不写事实边；missing target 会在结果中列出，表示需要先重新同步。
 
 `sources due` 和 `sources run-due` 都支持同一组过滤参数：`--source-plan + --namespace`、`--check-target-id` 或 `--source`。建议先用 `sources due` 预览，确认只包含本轮要跑的小批量目标，再运行 `run-due`。这些过滤参数只限制 due target 范围，不改变 source policy，不改变 target config，也不让 observation 自动升级成 fact edge。
 
@@ -300,6 +302,6 @@ pnpm --silent cli graph check --format json
 
 `smoke:network` 依赖 SEC EDGAR 当前可访问。网络或 SEC 临时限流会导致失败；这不代表本地 DB/Graph 链路坏了，可以先跑 `pnpm smoke:local` 缩小问题范围。
 
-### OpenCorporates / Companies House 没结果
+### GLEIF / OpenCorporates / Companies House 没结果
 
-这两个源需要用户自己配置 API key。没有 key 时命令应明确报认证缺失，不应该退化成网页抓取。
+GLEIF LEI 查询不需要 API key，适合先做全球法人标识候选；OpenCorporates / Companies House 需要用户自己配置 API key。没有 key 时命令应明确报认证缺失，不应该退化成网页抓取。所有 entity-source lookup 都只生成候选和 review 输入，不自动 merge `entity_master`。

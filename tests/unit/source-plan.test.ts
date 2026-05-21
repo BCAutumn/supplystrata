@@ -17,7 +17,7 @@ describe("source-plan", () => {
     const plan = planSourcesForComponent("COMP-MEMORY", 2);
     const byId = new Map(plan.map((item) => [item.source_id, item]));
 
-    expect(byId.get("micron-ir")?.status).toBe("scoped");
+    expect(byId.get("micron-ir")?.status).toBe("preview");
     expect(byId.get("micron-ir")?.relation_policy).toBe("can_create_fact_edge");
     expect(byId.get("micron-ir")?.expected_output_layer).toBe("edge");
   });
@@ -116,7 +116,28 @@ describe("source-plan", () => {
             }
           ]
         },
-        { node_id: "COMP-HBM", node_kind: "component", expected_source_ids: ["skhynix-ir", "micron-ir"] }
+        { node_id: "COMP-HBM", node_kind: "component", expected_source_ids: ["skhynix-ir", "micron-ir"] },
+        {
+          node_id: "ENT-SKHYNIX",
+          node_kind: "company",
+          name: "SK Hynix",
+          expected_source_ids: ["dart-kr"],
+          expected_source_targets: [
+            {
+              source_id: "dart-kr",
+              target_kind: "company-filings",
+              target_config: {
+                corp_code: "00164779",
+                entity_id: "ENT-SKHYNIX",
+                disclosure_types: ["A", "B"],
+                corp_cls: "Y",
+                year: 2025,
+                final_reports_only: "Y",
+                limit: 20
+              }
+            }
+          ]
+        }
       ]
     });
     const plan = planSourcesForComponents({
@@ -142,14 +163,38 @@ describe("source-plan", () => {
             }
           ]
         },
-        { node_id: "COMP-HBM", node_kind: "component", expected_source_ids: ["skhynix-ir", "micron-ir"] }
+        { node_id: "COMP-HBM", node_kind: "component", expected_source_ids: ["skhynix-ir", "micron-ir"] },
+        {
+          node_id: "ENT-SKHYNIX",
+          node_kind: "company",
+          name: "SK Hynix",
+          expected_source_ids: ["dart-kr"],
+          expected_source_targets: [
+            {
+              source_id: "dart-kr",
+              target_kind: "company-filings",
+              target_config: {
+                corp_code: "00164779",
+                entity_id: "ENT-SKHYNIX",
+                disclosure_types: ["A", "B"],
+                corp_cls: "Y",
+                year: 2025,
+                final_reports_only: "Y",
+                limit: 20
+              }
+            }
+          ]
+        }
       ]
     });
     const secWithoutYear = withoutYear.find((item) => item.source_id === "sec-edgar");
     const skHynixWithoutYear = withoutYear.find((item) => item.source_id === "skhynix-ir");
+    const micronWithoutYear = withoutYear.find((item) => item.source_id === "micron-ir");
+    const dartWithoutYear = withoutYear.find((item) => item.source_id === "dart-kr");
     const sec = plan.find((item) => item.source_id === "sec-edgar");
     const skHynix = plan.find((item) => item.source_id === "skhynix-ir");
     const micron = plan.find((item) => item.source_id === "micron-ir");
+    const dart = plan.find((item) => item.source_id === "dart-kr");
 
     expect(secWithoutYear?.suggested_check_targets).toContainEqual(
       expect.objectContaining({
@@ -159,6 +204,8 @@ describe("source-plan", () => {
       })
     );
     expect(skHynixWithoutYear?.suggested_check_targets).toEqual([]);
+    expect(micronWithoutYear?.suggested_check_targets).toEqual([]);
+    expect(dartWithoutYear?.suggested_check_targets).toEqual([]);
     expect(sec?.target_ids).toContain("ENT-NVIDIA");
     expect(sec?.suggested_check_targets).toContainEqual(
       expect.objectContaining({
@@ -182,8 +229,251 @@ describe("source-plan", () => {
         target_config: { entity_id: "ENT-SKHYNIX", year: 2025 }
       })
     );
+    expect(dart?.target_ids).toContain("ENT-SKHYNIX");
+    expect(dart?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "dart-kr",
+        target_kind: "company-filings",
+        runnable: true,
+        target_config: {
+          corp_code: "00164779",
+          entity_id: "ENT-SKHYNIX",
+          disclosure_types: ["A", "B"],
+          corp_cls: "Y",
+          year: 2025,
+          final_reports_only: "Y",
+          limit: 20
+        }
+      })
+    );
     expect(micron?.target_ids).toContain("COMP-HBM");
-    expect(micron?.suggested_check_targets).toEqual([]);
+    expect(micron?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "micron-ir",
+        target_kind: "official-html-disclosure",
+        runnable: true,
+        target_config: { entity_id: "ENT-MICRON", year: 2025 }
+      })
+    );
+  });
+
+  it("turns explicit Apple Supplier List profile targets into review-only runnable source targets", () => {
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-MANUFACTURING-SERVICES"],
+      maxTierDepth: 1,
+      officialDisclosureTargetNodes: [
+        {
+          node_id: "COMP-MANUFACTURING-SERVICES",
+          node_kind: "component",
+          name: "Manufacturing services",
+          expected_source_ids: ["apple-suppliers"],
+          expected_source_targets: [
+            {
+              source_id: "apple-suppliers",
+              target_kind: "supplier-list-review",
+              target_config: {
+                fiscal_year: 2022,
+                entity_id: "ENT-APPLE",
+                scope_kind: "component",
+                scope_id: "COMP-MANUFACTURING-SERVICES",
+                component_id: "COMP-MANUFACTURING-SERVICES"
+              },
+              reason: "Apple Supplier List target should remain review-only."
+            }
+          ]
+        }
+      ]
+    });
+    const apple = plan.find((item) => item.source_id === "apple-suppliers");
+
+    expect(apple?.relation_policy).toBe("can_create_fact_edge");
+    expect(apple?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "apple-suppliers",
+        target_kind: "supplier-list-review",
+        runnable: true,
+        target_config: {
+          fiscal_year: 2022,
+          entity_id: "ENT-APPLE",
+          scope_kind: "component",
+          scope_id: "COMP-MANUFACTURING-SERVICES",
+          component_id: "COMP-MANUFACTURING-SERVICES"
+        },
+        reason: "Apple Supplier List target should remain review-only."
+      })
+    );
+  });
+
+  it("turns explicit company IR URLs into runnable source targets without guessing URLs", () => {
+    const targetNodes = [
+      {
+        node_id: "ENT-EXAMPLE",
+        node_kind: "company" as const,
+        name: "Example",
+        expected_source_ids: ["company-ir"],
+        expected_source_targets: [
+          {
+            source_id: "company-ir",
+            target_kind: "official-html-disclosure",
+            target_config: {
+              entity_id: "ENT-EXAMPLE",
+              year: 2025,
+              url: "https://investor.example.com/annual-report"
+            },
+            reason: "Explicit company IR URL should be runnable only when audited into the profile."
+          }
+        ]
+      },
+      {
+        node_id: "ENT-MISSING-URL",
+        node_kind: "company" as const,
+        name: "Missing URL",
+        expected_source_ids: ["company-ir"]
+      }
+    ];
+    const withoutYear = planSourcesForComponents({
+      component_ids: ["COMP-SERVER"],
+      maxTierDepth: 1,
+      officialDisclosureTargetNodes: targetNodes
+    });
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-SERVER"],
+      maxTierDepth: 1,
+      officialDisclosureYear: "2026",
+      officialDisclosureTargetNodes: targetNodes
+    });
+    const companyIrWithoutYear = withoutYear.find((item) => item.source_id === "company-ir");
+    const companyIr = plan.find((item) => item.source_id === "company-ir");
+
+    expect(companyIrWithoutYear?.suggested_check_targets).toEqual([]);
+    expect(companyIr?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "company-ir",
+        target_kind: "official-html-disclosure",
+        runnable: true,
+        target_config: {
+          entity_id: "ENT-EXAMPLE",
+          year: 2026,
+          url: "https://investor.example.com/annual-report"
+        },
+        reason: "Explicit company IR URL should be runnable only when audited into the profile."
+      })
+    );
+    expect(companyIr?.suggested_check_targets).toHaveLength(1);
+  });
+
+  it("turns explicit EDINET daily list profile targets into annual directory monitor targets", () => {
+    const targetNodes = [
+      {
+        node_id: "COMP-SILICON-WAFER",
+        node_kind: "component" as const,
+        name: "Silicon wafer",
+        expected_source_ids: ["edinet"],
+        expected_source_targets: [
+          {
+            source_id: "edinet",
+            target_kind: "daily-filings",
+            target_config: {
+              date: "2025-06-30",
+              type: 2,
+              scope_kind: "component",
+              scope_id: "COMP-SILICON-WAFER",
+              component_id: "COMP-SILICON-WAFER",
+              doc_type_codes: ["120"]
+            },
+            reason: "EDINET target should remain a directory monitor."
+          }
+        ]
+      }
+    ];
+    const withoutYear = planSourcesForComponents({
+      component_ids: ["COMP-SILICON-WAFER"],
+      maxTierDepth: 1,
+      officialDisclosureTargetNodes: targetNodes
+    });
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-SILICON-WAFER"],
+      maxTierDepth: 1,
+      officialDisclosureYear: "2026",
+      officialDisclosureTargetNodes: targetNodes
+    });
+    const edinetWithoutYear = withoutYear.find((item) => item.source_id === "edinet");
+    const edinet = plan.find((item) => item.source_id === "edinet");
+
+    expect(edinetWithoutYear?.suggested_check_targets).toEqual([]);
+    expect(edinet?.relation_policy).toBe("can_create_fact_edge");
+    expect(edinet?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "edinet",
+        target_kind: "daily-filings",
+        runnable: true,
+        target_config: {
+          date: "2026-06-30",
+          type: 2,
+          scope_kind: "component",
+          scope_id: "COMP-SILICON-WAFER",
+          component_id: "COMP-SILICON-WAFER",
+          doc_type_codes: ["120"]
+        },
+        reason: "EDINET target should remain a directory monitor."
+      })
+    );
+  });
+
+  it("turns explicit TWSE MOPS profile targets into annual electronic document directory monitors", () => {
+    const targetNodes = [
+      {
+        node_id: "ENT-FOXCONN",
+        node_kind: "company" as const,
+        name: "Foxconn",
+        expected_source_ids: ["company-ir", "twse-mops"],
+        expected_source_targets: [
+          {
+            source_id: "twse-mops",
+            target_kind: "electronic-documents",
+            target_config: {
+              stock_code: "2317",
+              entity_id: "ENT-FOXCONN",
+              year: 2025,
+              document_kind: "F",
+              limit: 50
+            },
+            reason: "TWSE target should remain a directory monitor."
+          }
+        ]
+      }
+    ];
+    const withoutYear = planSourcesForComponents({
+      component_ids: ["COMP-SERVER"],
+      maxTierDepth: 1,
+      officialDisclosureTargetNodes: targetNodes
+    });
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-SERVER"],
+      maxTierDepth: 1,
+      officialDisclosureYear: "2026",
+      officialDisclosureTargetNodes: targetNodes
+    });
+    const twseWithoutYear = withoutYear.find((item) => item.source_id === "twse-mops");
+    const twse = plan.find((item) => item.source_id === "twse-mops");
+
+    expect(twseWithoutYear?.suggested_check_targets).toEqual([]);
+    expect(twse?.relation_policy).toBe("can_create_fact_edge");
+    expect(twse?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "twse-mops",
+        target_kind: "electronic-documents",
+        runnable: true,
+        target_config: {
+          stock_code: "2317",
+          entity_id: "ENT-FOXCONN",
+          year: 2026,
+          document_kind: "F",
+          limit: 50
+        },
+        reason: "TWSE target should remain a directory monitor."
+      })
+    );
   });
 
   it("emits material observation targets for USGS and runnable World Bank commodity prices without promoting them to facts", () => {

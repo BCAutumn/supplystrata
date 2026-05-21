@@ -247,7 +247,19 @@ const DEFAULT_TARGETS: OfficialDisclosureReadinessTargets = {
 
 // 这里刻意只登记当前后端已经有 source-check connector 的官方披露源。
 // profile 可以期待更多来源，但 Gate 1 不能把“注册过来源”误报成“可运行监控能力”。
-const OFFICIAL_SOURCE_CONNECTOR_IDS = new Set(["sec-edgar", "tsmc-ir", "samsung-ir", "skhynix-ir", "asml-ir"]);
+const OFFICIAL_SOURCE_CONNECTOR_IDS = new Set([
+  "apple-suppliers",
+  "company-ir",
+  "dart-kr",
+  "edinet",
+  "sec-edgar",
+  "micron-ir",
+  "twse-mops",
+  "tsmc-ir",
+  "samsung-ir",
+  "skhynix-ir",
+  "asml-ir"
+]);
 
 interface OfficialDisclosureNodeDraft {
   node_kind: OfficialDisclosureNodeKind;

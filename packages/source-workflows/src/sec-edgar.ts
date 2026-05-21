@@ -165,7 +165,7 @@ export async function checkSecCompanyFactsSource(
   }
 }
 
-function secEdgarInputFromTargetConfig(config: Record<string, unknown>): SecEdgarInput {
+export function secEdgarInputFromTargetConfig(config: Record<string, unknown>): SecEdgarInput {
   const label = "SEC source check target";
   const cik = requireConfigString(config, "cik", label);
   const entityId = requireConfigString(config, "entity_id", label);
@@ -179,7 +179,7 @@ function secEdgarInputFromTargetConfig(config: Record<string, unknown>): SecEdga
   };
 }
 
-function secCompanyFactsInputFromTargetConfig(config: Record<string, unknown>): SecCompanyFactsInput {
+export function secCompanyFactsInputFromTargetConfig(config: Record<string, unknown>): SecCompanyFactsInput {
   const label = "SEC company facts source check target";
   const metrics = optionalSecCompanyFactMetrics(config);
   const maxPeriods = optionalConfigPositiveInteger(config, "max_periods", label);

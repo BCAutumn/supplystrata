@@ -1,12 +1,18 @@
 import { normalizeAlias } from "@supplystrata/core";
 
-export type EntitySourceAdapterId = "opencorporates" | "companies-house";
+export type EntitySourceAdapterId = "gleif" | "opencorporates" | "companies-house";
 
 export interface EntitySourceIdentifierSet {
+  lei?: string;
+  gleif_lei?: string;
+  bic?: string;
+  spglobal_id?: string;
   open_corporates_id?: string;
   companies_house_number?: string;
   company_number?: string;
   jurisdiction_code?: string;
+  registration_authority_id?: string;
+  registration_authority_entity_id?: string;
 }
 
 export interface EntitySourceCandidate {

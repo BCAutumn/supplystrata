@@ -166,7 +166,7 @@ async function storeOshFacilityObservations(
   return { observations, reviewCandidates };
 }
 
-function oshInputFromConfig(config: Record<string, unknown>): OshFacilitySearchInput {
+export function oshInputFromConfig(config: Record<string, unknown>): OshFacilitySearchInput {
   const label = "OSH source check target";
   const countryCode = optionalConfigString(config, "country_code", label);
   const sector = optionalConfigString(config, "sector", label);

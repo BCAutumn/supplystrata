@@ -18,7 +18,7 @@ function registerEntityCommands(program: Command): void {
   entity
     .command("lookup")
     .argument("<query>", "company name to search in external entity sources")
-    .option("--source <source>", "all, opencorporates, or companies-house", "all")
+    .option("--source <source>", "all, gleif, opencorporates, or companies-house", "all")
     .option("--jurisdiction <code>", "OpenCorporates jurisdiction code, such as gb or us_de")
     .option("--limit <count>", "max results per source", "5")
     .option("--format <format>", "markdown or json", "markdown")
@@ -70,7 +70,7 @@ function registerEntityCommands(program: Command): void {
   entityPending
     .command("lookup")
     .argument("<pendingId>", "pending entity id")
-    .option("--source <source>", "all, opencorporates, or companies-house", "all")
+    .option("--source <source>", "all, gleif, opencorporates, or companies-house", "all")
     .option("--jurisdiction <code>", "OpenCorporates jurisdiction code, such as gb or us_mn")
     .option("--limit <count>", "max results per source", "5")
     .option("--format <format>", "markdown or json", "markdown")
@@ -225,7 +225,7 @@ function registerReviewCommands(program: Command): void {
   reviewEnqueue
     .command("entity-source")
     .argument("<query>", "company name to search in external entity sources")
-    .option("--source <source>", "all, opencorporates, or companies-house", "all")
+    .option("--source <source>", "all, gleif, opencorporates, or companies-house", "all")
     .option("--jurisdiction <code>", "OpenCorporates jurisdiction code, such as gb or us_mn")
     .option("--limit <count>", "max results per source", "5")
     .description("enqueue external entity source candidates for review/import")

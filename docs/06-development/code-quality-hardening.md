@@ -20,7 +20,7 @@
 [x] 拆出 @supplystrata/observability，core 不再初始化 pino logger。
 [x] @supplystrata/core 去除顶层 .env 读取、logger 初始化和 HTTP 抓取工具，恢复为纯领域包。
 [x] fetchBytesWithTimeout 移入 @supplystrata/source-adapter-runtime，source 抓取超时和错误口径统一；source-adapter-spec 只保留接口契约和纯校验。
-[x] 新增 defineHtmlSnapshotAdapter，TSMC / Samsung / SK hynix / ASML IR adapter 迁移到声明式工厂。
+[x] 新增 defineHtmlSnapshotAdapter，TSMC / Samsung / SK hynix / Micron / ASML IR adapter 迁移到声明式工厂。
 [x] SEC EDGAR adapter 接入统一 fetchBytesWithTimeout，不再裸 fetch。
 [x] source monitor 的 health/due 查询函数保持只读；registry 写入改为显式 sync。
 [x] object-store exists 只吞 ENOENT，其它文件系统错误继续抛出。

@@ -135,7 +135,7 @@ async function storeCommodityPriceObservations(
   return count;
 }
 
-function worldBankPinkInputFromConfig(config: Record<string, unknown>): WorldBankPinkInput {
+export function worldBankPinkInputFromConfig(config: Record<string, unknown>): WorldBankPinkInput {
   const label = "World Bank Pink source check target";
   const materialId = optionalConfigString(config, "material_id", label);
   const componentId = optionalConfigString(config, "component_id", label);

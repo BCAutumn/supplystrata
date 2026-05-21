@@ -27,7 +27,7 @@ export function parsePreviewFormat(value: string): PreviewFormat {
 }
 
 export function parseEntityLookupSource(value: string): EntityLookupSource {
-  if (value === "all" || value === "opencorporates" || value === "companies-house") return value;
+  if (value === "all" || value === "gleif" || value === "opencorporates" || value === "companies-house") return value;
   throw new Error(`Unsupported entity lookup source: ${value}`);
 }
 

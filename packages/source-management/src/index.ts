@@ -110,6 +110,31 @@ export interface SourcePlanTargetIdInput {
   namespace: string;
 }
 
+export interface SourcePlanTargetPreviewInput extends SourceTargetsFromPlanInput, SourceManagementInput {}
+
+export interface SourcePlanTargetPreviewSummary {
+  source_plan_items: number;
+  runnable_suggestions: number;
+  generated_targets: number;
+  duplicate_targets_skipped: number;
+  enabled_targets: number;
+  targets_requiring_credentials: number;
+  validation_errors: number;
+  validation_warnings: number;
+  by_source: Record<string, number>;
+  by_target_kind: Record<string, number>;
+  by_priority: Record<string, number>;
+}
+
+export interface SourcePlanTargetPreviewReport {
+  schema_version: "1.0.0";
+  namespace: string;
+  config: SourceManagementConfig;
+  validation: SourceManagementValidationResult;
+  summary: SourcePlanTargetPreviewSummary;
+  target_ids: string[];
+}
+
 // 统一数据源管理面的核心入口：只汇总能力，不抓取、不写库，方便 CLI、宿主 App 和后续 UI 复用。
 export function buildSourceManagementCatalog(input: SourceManagementInput = {}): SourceManagementCatalog {
   const sources = input.sources ?? listSources();
@@ -150,6 +175,35 @@ export function buildSourceCheckTargetIdsFromPlan(input: SourcePlanTargetIdInput
     source_plan: input.source_plan,
     namespace: input.namespace
   }).map((target) => target.check_target_id);
+}
+
+export function previewSourceCheckTargetsFromPlan(input: SourcePlanTargetPreviewInput): SourcePlanTargetPreviewReport {
+  const config = buildSourcePolicyConfigFromPlanTargets(input);
+  const validation = validateSourceManagementConfig(config, {
+    ...(input.sources === undefined ? {} : { sources: input.sources }),
+    ...(input.connector_capabilities === undefined ? {} : { connector_capabilities: input.connector_capabilities })
+  });
+  const runnableSuggestions = countRunnableSuggestions(input.source_plan);
+  return {
+    schema_version: "1.0.0",
+    namespace: normalizeNamespace(input.namespace),
+    config,
+    validation,
+    summary: {
+      source_plan_items: input.source_plan.length,
+      runnable_suggestions: runnableSuggestions,
+      generated_targets: config.check_targets.length,
+      duplicate_targets_skipped: runnableSuggestions - config.check_targets.length,
+      enabled_targets: config.check_targets.filter((target) => target.enabled).length,
+      targets_requiring_credentials: countTargetsRequiringCredentials(config.check_targets, input.sources ?? listSources()),
+      validation_errors: validation.errors.length,
+      validation_warnings: validation.warnings.length,
+      by_source: countTargetsBy(config.check_targets, (target) => target.source_adapter_id),
+      by_target_kind: countTargetsBy(config.check_targets, (target) => `${target.source_adapter_id}/${target.target_kind}`),
+      by_priority: countTargetsBy(config.check_targets, (target) => String(target.priority ?? "default"))
+    },
+    target_ids: config.check_targets.map((target) => target.check_target_id)
+  };
 }
 
 export function buildSourceCheckTargetsFromPlan(input: SourceTargetsFromPlanInput): SourceManagementTargetInput[] {
@@ -314,6 +368,29 @@ function compareConnectorCapabilities(
   right: Pick<SourceCheckTargetRow, "source_adapter_id" | "target_kind">
 ): number {
   return connectorKey(left).localeCompare(connectorKey(right));
+}
+
+function countRunnableSuggestions(sourcePlan: readonly ManagedSourcePlanItem[]): number {
+  return sourcePlan.reduce((count, item) => count + item.suggested_check_targets.filter((target) => target.runnable).length, 0);
+}
+
+function countTargetsRequiringCredentials(targets: readonly SourceManagementTargetInput[], sources: readonly SourceRegistryEntry[]): number {
+  const sourcesById = new Map(sources.map((source) => [source.id, source]));
+  return targets.filter((target) => sourcesById.get(target.source_adapter_id)?.requires_key === true).length;
+}
+
+function countTargetsBy(
+  targets: readonly SourceManagementTargetInput[],
+  keyForTarget: (target: SourceManagementTargetInput) => string
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const target of targets) {
+    const key = keyForTarget(target);
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  const sorted: Record<string, number> = {};
+  for (const [key, count] of Object.entries(counts).sort(([left], [right]) => left.localeCompare(right))) sorted[key] = count;
+  return sorted;
 }
 
 function parseManagedSourcePlanItem(value: unknown, label: string): ManagedSourcePlanItem {

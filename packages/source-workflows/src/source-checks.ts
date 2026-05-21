@@ -20,10 +20,14 @@ import {
   type SourceCheckConnector,
   type SourceCheckTargetRow
 } from "@supplystrata/source-connectors";
+import { appleSupplierListReviewSourceCheckConnector } from "./apple-suppliers.js";
 import { censusTradeSourceCheckConnector } from "./census-trade-checks.js";
+import { dartKrCompanyFilingsSourceCheckConnector } from "./dart-kr-checks.js";
+import { edinetDailyFilingsSourceCheckConnector } from "./edinet-checks.js";
 import { officialIrSourceCheckConnectors } from "./official-ir-checks.js";
 import { oshSourceCheckConnector } from "./osh-checks.js";
 import { secCompanyFactsSourceCheckConnector, secEdgarSourceCheckConnector } from "./sec-edgar.js";
+import { twseMopsElectronicDocumentsSourceCheckConnector } from "./twse-mops-checks.js";
 import { worldBankPinkSourceCheckConnector } from "./worldbank-pink-checks.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
@@ -94,6 +98,10 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
 }
 
 const SOURCE_CHECK_CONNECTORS: readonly SourceCheckConnector<DatabaseStore, SourceCheckSummary, DueSourceCheckRow>[] = [
+  appleSupplierListReviewSourceCheckConnector,
+  dartKrCompanyFilingsSourceCheckConnector,
+  edinetDailyFilingsSourceCheckConnector,
+  twseMopsElectronicDocumentsSourceCheckConnector,
   secEdgarSourceCheckConnector,
   secCompanyFactsSourceCheckConnector,
   ...officialIrSourceCheckConnectors,

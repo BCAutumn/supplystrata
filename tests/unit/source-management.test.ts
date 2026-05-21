@@ -6,6 +6,7 @@ import {
   buildSourceManagementCatalog,
   buildSourcePolicyConfigFromPlanTargets,
   parseManagedSourcePlanDocument,
+  previewSourceCheckTargetsFromPlan,
   validateSourceManagementConfig,
   type SourceManagementConfig
 } from "@supplystrata/source-management";
@@ -180,7 +181,7 @@ describe("source-management", () => {
     });
 
     expect(config.policies).toEqual([]);
-    expect(config.check_targets.map((target) => target.source_adapter_id).sort()).toEqual(["samsung-ir", "skhynix-ir"]);
+    expect(config.check_targets.map((target) => target.source_adapter_id).sort()).toEqual(["micron-ir", "samsung-ir", "skhynix-ir"]);
     expect(config.check_targets.every((target) => target.enabled === false)).toBe(true);
     expect(buildSourceCheckTargetIdsFromPlan({ source_plan: sourcePlan, namespace: "NVIDIA Memory 2025" })).toEqual(
       config.check_targets.map((target) => target.check_target_id)
@@ -192,6 +193,14 @@ describe("source-management", () => {
         priority: 10,
         subject_entity_id: "ENT-SAMSUNG-ELECTRONICS",
         target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 }
+      })
+    );
+    expect(config.check_targets.find((target) => target.source_adapter_id === "micron-ir")).toEqual(
+      expect.objectContaining({
+        target_kind: "official-html-disclosure",
+        priority: 30,
+        subject_entity_id: "ENT-MICRON",
+        target_config: { entity_id: "ENT-MICRON", year: 2025 }
       })
     );
     expect(assertValidSourceManagementConfig(config, { connector_capabilities: listRegisteredSourceCheckConnectorCapabilities() }).errors).toEqual([]);
@@ -257,5 +266,81 @@ describe("source-management", () => {
         }
       })
     ]);
+  });
+
+  it("previews source-plan target sync without writing policy rows", () => {
+    const document = parseManagedSourcePlanDocument(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        source_plan: [
+          {
+            source_id: "dart-kr",
+            priority: "P0",
+            reasons: ["SK Hynix needs Korean regulatory disclosure coverage"],
+            suggested_check_targets: [
+              {
+                source_adapter_id: "dart-kr",
+                target_kind: "company-filings",
+                runnable: true,
+                target_config: {
+                  corp_code: "00164779",
+                  entity_id: "ENT-SKHYNIX",
+                  disclosure_types: ["A", "B"],
+                  year: 2025,
+                  final_reports_only: "Y"
+                },
+                reason: "Monitor OpenDART company filings."
+              },
+              {
+                source_adapter_id: "dart-kr",
+                target_kind: "company-filings",
+                runnable: true,
+                target_config: {
+                  corp_code: "00164779",
+                  entity_id: "ENT-SKHYNIX",
+                  disclosure_types: ["A", "B"],
+                  year: 2025,
+                  final_reports_only: "Y"
+                },
+                reason: "Duplicate suggestion should collapse to the same stable target id."
+              }
+            ]
+          }
+        ]
+      })
+    );
+
+    const report = previewSourceCheckTargetsFromPlan({
+      source_plan: document.source_plan,
+      namespace: "Gate 1 DART",
+      enabled: true,
+      connector_capabilities: listRegisteredSourceCheckConnectorCapabilities()
+    });
+
+    expect(report.namespace).toBe("gate-1-dart");
+    expect(report.validation.ok).toBe(true);
+    expect(report.summary).toMatchObject({
+      source_plan_items: 1,
+      runnable_suggestions: 2,
+      generated_targets: 1,
+      duplicate_targets_skipped: 1,
+      enabled_targets: 1,
+      targets_requiring_credentials: 1,
+      validation_errors: 0,
+      validation_warnings: 1,
+      by_source: { "dart-kr": 1 },
+      by_target_kind: { "dart-kr/company-filings": 1 },
+      by_priority: { "10": 1 }
+    });
+    expect(report.validation.warnings).toEqual([expect.objectContaining({ code: "SOURCE_REQUIRES_KEY", source_adapter_id: "dart-kr" })]);
+    const [target] = report.config.check_targets;
+    expect(target?.check_target_id).toContain("plan:gate-1-dart:dart-kr:company-filings:");
+    expect(target).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        priority: 10,
+        subject_entity_id: "ENT-SKHYNIX"
+      })
+    );
   });
 });

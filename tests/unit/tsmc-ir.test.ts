@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { extractAsmlSignalsFromText, extractSkHynixSignalsFromText, extractTsmcIrSignalsFromText } from "@supplystrata/signal-extractor";
-import { tsmcAnnualReportUrl, tsmcIrAdapter } from "@supplystrata/source-workflows";
+import { companyIrExplicitUrlAdapter, micronAnnualReportUrl, tsmcAnnualReportUrl, tsmcIrAdapter } from "@supplystrata/source-workflows";
 
 describe("TSMC IR preview", () => {
   it("uses the official 2025 annual report URL shape", () => {
     expect(tsmcAnnualReportUrl(2025)).toBe("https://investor.tsmc.com/static/annualReports/2025/english/index.html");
+    expect(micronAnnualReportUrl(2025)).toBe("https://investors.micron.com/sec-filings/sec-filing/10-k/0000723125-25-000028");
   });
 
   it("normalizes official disclosure HTML into complete document text and chunks", async () => {
@@ -37,6 +38,32 @@ describe("TSMC IR preview", () => {
     expect(normalized.metadata["parser_version"]).toBe("html-parser-v1");
     expect(normalized.text).toContain("pure-play foundry");
     expect(normalized.chunks.length).toBeGreaterThan(0);
+  });
+
+  it("plans controlled company IR targets only from explicit URLs", async () => {
+    const tasks = [];
+    for await (const task of companyIrExplicitUrlAdapter.plan(
+      {
+        entityId: "ENT-EXAMPLE",
+        year: 2025,
+        url: "https://investor.example.com/annual-report/2025"
+      },
+      {
+        userAgent: "SupplyStrata test contact@example.com",
+        now: () => new Date("2026-05-17T00:00:00.000Z")
+      }
+    )) {
+      tasks.push(task);
+    }
+
+    expect(tasks).toEqual([
+      {
+        task_id: "company-ir-ENT-EXAMPLE-2025",
+        url: "https://investor.example.com/annual-report/2025",
+        expected_format: "html",
+        hint: { entity_id: "ENT-EXAMPLE", document_type: "annual_report", period: "2025-12-31" }
+      }
+    ]);
   });
 
   it("extracts capability signals from annual report language", () => {

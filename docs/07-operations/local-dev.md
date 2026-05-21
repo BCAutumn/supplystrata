@@ -60,7 +60,7 @@ pnpm --silent cli entity lookup "3M" --source opencorporates --jurisdiction us_m
 
 这条路径只做 source adapter `plan/fetch/normalize`、规则抽取、seed 实体消歧和证据评分。它不会落库，也不会写 Neo4j，适合未来嵌入 TS 桌面端或 agent 产品。
 
-`preview report nvidia` 还会并行读取 TSMC / Samsung / SK hynix / ASML 的公开官方披露作为背景证据。单个公司官网临时不可用时，报告会在对应章节标注失败原因，不会拖垮 NVIDIA 主链路；已缓存过的原始 HTML 会优先作为降级输入。
+`preview report nvidia` 还会并行读取 TSMC / Samsung / SK hynix / Micron / ASML 的公开官方披露作为背景证据。单个公司官网临时不可用时，报告会在对应章节标注失败原因，不会拖垮 NVIDIA 主链路；已缓存过的原始 HTML 会优先作为降级输入。
 
 `preview apple-suppliers` 是半自动链路：只把 Apple Supplier List PDF 转成候选 CSV，所有行默认 `needs_review=true`。人工复核前，这些候选不会进入 Postgres / Neo4j。当前 Apple 官方静态 PDF 的元数据是 FY22，所以输出会标 `source_fiscal_year=2022`，不能把它当成 2025 或 2026 的最新供应商名单。
 

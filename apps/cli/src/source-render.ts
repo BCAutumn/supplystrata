@@ -1,8 +1,9 @@
 import type { OutputFormat } from "@supplystrata/render";
-import type { SourceManagementCatalog } from "@supplystrata/source-management";
+import type { SourceManagementCatalog, SourcePlanTargetPreviewReport } from "@supplystrata/source-management";
 import type { DueSourceCheckRow, SourceHealthRow } from "@supplystrata/source-monitor";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { SourceRegistryEntry } from "@supplystrata/source-registry";
+import type { SourcePlanSmokeReport } from "@supplystrata/source-workflows";
 
 export function renderSourcesList(sources: SourceRegistryEntry[], format: OutputFormat): string {
   if (format === "json") return JSON.stringify({ schema_version: "1.0.0", sources }, null, 2);
@@ -37,6 +38,75 @@ export function renderSourceManagementCatalog(catalog: SourceManagementCatalog, 
   if (catalog.unregistered_connector_keys.length > 0) {
     lines.push("## Registry Gaps", "");
     for (const key of catalog.unregistered_connector_keys) lines.push(`- ${key}`);
+  }
+  return lines.join("\n");
+}
+
+export function renderSourcePlanTargetPreview(report: SourcePlanTargetPreviewReport, format: OutputFormat): string {
+  if (format === "json") return JSON.stringify(report, null, 2);
+  const lines = [
+    "# Source Plan Target Preview",
+    "",
+    `Namespace: ${report.namespace}`,
+    `Source plan items: ${report.summary.source_plan_items}`,
+    `Runnable suggestions: ${report.summary.runnable_suggestions}`,
+    `Generated targets: ${report.summary.generated_targets}`,
+    `Duplicate suggestions skipped: ${report.summary.duplicate_targets_skipped}`,
+    `Enabled targets: ${report.summary.enabled_targets}`,
+    `Targets requiring credentials: ${report.summary.targets_requiring_credentials}`,
+    `Validation: ${report.validation.ok ? "ok" : "blocked"} (${report.summary.validation_errors} errors, ${report.summary.validation_warnings} warnings)`,
+    ""
+  ];
+  lines.push("## By Source", "");
+  for (const [source, count] of Object.entries(report.summary.by_source)) lines.push(`- ${source}: ${count}`);
+  lines.push("", "## By Target Kind", "");
+  for (const [targetKind, count] of Object.entries(report.summary.by_target_kind)) lines.push(`- ${targetKind}: ${count}`);
+  if (report.validation.errors.length > 0) {
+    lines.push("", "## Errors", "");
+    for (const issue of report.validation.errors) lines.push(`- ${issue.message}`);
+  }
+  if (report.validation.warnings.length > 0) {
+    lines.push("", "## Warnings", "");
+    for (const issue of report.validation.warnings) lines.push(`- ${issue.message}`);
+  }
+  lines.push("", "## Target IDs", "");
+  for (const targetId of report.target_ids) lines.push(`- ${targetId}`);
+  return lines.join("\n");
+}
+
+export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, format: OutputFormat): string {
+  if (format === "json") return JSON.stringify(report, null, 2);
+  const lines = [
+    "# Source Plan Smoke",
+    "",
+    `Requested targets: ${report.summary.requested_targets}`,
+    `Selected targets: ${report.summary.selected_targets}`,
+    `Checked targets: ${report.summary.checked_targets}`,
+    `Failed targets: ${report.summary.failed_targets}`,
+    `Skipped targets: ${report.summary.skipped_targets}`,
+    `Planned tasks: ${report.summary.planned_tasks}`,
+    `Fetched documents: ${report.summary.fetched_documents}`,
+    `Normalized documents: ${report.summary.normalized_documents}`,
+    `Degraded documents: ${report.summary.degraded_documents}`,
+    "",
+    "## By Source",
+    ""
+  ];
+  for (const [source, count] of Object.entries(report.summary.by_source)) lines.push(`- ${source}: ${count}`);
+  lines.push("", "## Targets", "");
+  for (const item of report.items) {
+    lines.push(`- ${item.status} ${item.check_target_id} (${item.source_adapter_id}/${item.target_kind})`);
+    lines.push(
+      `  Tasks: ${item.planned_tasks}; fetched: ${item.fetched_documents}; normalized: ${item.normalized_documents}; degraded: ${item.degraded_documents}`
+    );
+    if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
+    for (const document of item.documents.slice(0, 3)) {
+      lines.push(
+        `  - ${document.task_id}: ${document.document_type ?? "raw"}${document.source_date === undefined ? "" : ` @ ${document.source_date}`} (${document.text_chars ?? 0} chars)`
+      );
+      lines.push(`    URL: ${document.source_url}`);
+    }
+    if (item.documents.length > 3) lines.push(`  More documents: ${item.documents.length - 3}`);
   }
   return lines.join("\n");
 }

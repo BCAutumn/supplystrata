@@ -13,18 +13,19 @@
 | source_adapter_id       | tier | 数据源                                         | 主要拿到什么                                 | 默认证据等级范围       | 接入方式                              | ToS / 法律        | 状态        |
 | ----------------------- | ---- | ---------------------------------------------- | -------------------------------------------- | ---------------------- | ------------------------------------- | ----------------- | ----------- |
 | `sec-edgar`             | P0   | SEC EDGAR                                      | 10-K / 10-Q / 20-F / 8-K / company facts     | 4-5                    | 官方 REST API                         | 公开 + UA 必填    | implemented |
-| `company-ir`            | P0   | 公司 IR 官网（多 adapter 子项）                | 年报 / earnings / presentation               | 4                      | 受控 HTTP，单页解析                   | 各家网站 ToS 各异 | planned     |
+| `company-ir`            | P0   | 公司 IR 官网（显式 URL）                       | 年报 / earnings / presentation               | 4                      | 受控 HTTPS，显式 URL 单页解析         | 各家网站 ToS 各异 | preview     |
 | `tsmc-ir`               | P0   | TSMC IR                                        | 年报 / 月度营收 / 财报                       | 4                      | HTTP + PDF                            | 公开              | preview     |
 | `samsung-ir`            | P0   | Samsung IR                                     | 年报 / IR materials                          | 4                      | HTTP + PDF                            | 公开              | preview     |
 | `skhynix-ir`            | P0   | SK Hynix IR                                    | Earnings release / IR transcripts            | 4                      | HTTP + PDF                            | 公开              | preview     |
+| `micron-ir`             | P1   | Micron IR                                      | SEC filing details / annual report           | 4                      | HTTP                                  | 公开              | preview     |
 | `asml-ir`               | P0   | ASML IR                                        | 年报 / quarterly                             | 4                      | HTTP + PDF                            | 公开              | preview     |
 | `apple-suppliers`       | P0   | Apple Supplier List + 报告                     | 供应商名单（含工厂地点）                     | 4                      | 半自动 PDF + 校验                     | 公开              | preview     |
 | `opencorporates`        | P0   | OpenCorporates                                 | 全球公司实体 / 别名                          | 用于 entity-resolution | 官方 API + token（限速）              | 公开 + 注明来源   | preview     |
 | `companies-house`       | P0   | UK Companies House                             | 英国公司登记                                 | 用于 entity-resolution | 官方 API + key                        | OGL v3            | preview     |
 | `seed-entities`         | P0   | 项目内 curated seed CSV                        | 核心公司 / 高频供应商 / ticker / CIK / alias | 用于 entity-resolution | 手工维护 + 官方来源校验               | 仅存事实标识      | implemented |
-| `company-ir`            | P1   | 通用公司 IR 源位                               | 新公司 IR adapter 的规划占位                 | 4                      | 具体 adapter 必须单独实现             | 各公司 ToS        | planned     |
 | `dart-kr`               | P1   | 韩国 DART                                      | Samsung / SK Hynix 韩文披露                  | 4-5                    | API                                   | 公开              | scoped      |
 | `edinet`                | P1   | 日本 EDINET                                    | 日本上市公司监管披露                         | 4-5                    | API / 下载                            | 公开              | scoped      |
+| `twse-mops`             | P1   | 台湾公开资讯观测站 MOPS                        | 台湾上市公司公告 / 年报                      | 4-5                    | 电子文件目录 monitor                  | 公开              | preview     |
 | `un-comtrade`           | P1   | UN Comtrade                                    | 国家-商品贸易流（HS code）                   | 2-3                    | API（限速）                           | 注册 + 限速       | scoped      |
 | `census-trade`          | P1   | U.S. Census International Trade                | 美国进出口（月度）                           | 2                      | API + 免费 key                        | 公开              | preview     |
 | `usitc-dataweb`         | P1   | USITC DataWeb                                  | 美国官方贸易/关税                            | 2-3                    | API/CSV                               | 公开              | scoped      |
@@ -104,20 +105,20 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 
 当前已落地的映射：
 
-| source_adapter_id                                           | publisher_type             | relation_authority | max_evidence_level | 证据边界                                                                            |
-| ----------------------------------------------------------- | -------------------------- | ------------------ | ------------------ | ----------------------------------------------------------------------------------- |
-| `sec-edgar`                                                 | `regulator`                | `self_disclosure`  | 5                  | 监管披露中的公司自述可到 Level 5。                                                  |
-| `tsmc-ir` / `samsung-ir` / `skhynix-ir` / `asml-ir`         | `company_official`         | `self_disclosure`  | 4                  | 公司官方材料可到 Level 4；除非未来建模为同等监管文件，否则不自动升 Level 5。        |
-| `apple-suppliers`                                           | `official_supplier_list`   | `facility_claim`   | 4                  | 官方供应商/设施名单，必须经过 review/apply。                                        |
-| `opencorporates` / `companies-house`                        | `government_registry`      | `registry_fact`    | 4                  | 可证明注册、控制、设施等实体事实；对 `BUYS_FROM` / `SUPPLIES_TO` 只能到低等级线索。 |
-| `seed-entities`                                             | `manual`                   | `registry_fact`    | 4                  | 只用于实体解析，不作为供应链关系证据。                                              |
-| `manual`                                                    | `manual`                   | `lead_only`        | 2                  | 人工录入本身不是原始来源；没有 underlying official source 时只能作为线索。          |
-| `import-yeti`                                               | `manual`                   | `lead_only`        | 3                  | 不做 adapter；手工摘录也只能作为低等级线索，默认需要 review。                       |
-| `dart-kr` / `edinet`                                        | `regulator`                | `self_disclosure`  | 5                  | 同等监管披露可到 Level 5，但必须先实现 adapter 与 parser。                          |
-| `osh` / `rmi-facilities`                                    | `official_supplier_list`   | `facility_claim`   | 3                  | 第三方/行业设施列表默认是 facility candidate；交叉验证前不自动升事实边。            |
-| `un-comtrade` / `census-trade` / `usitc-dataweb`            | `macro_statistical_agency` | `macro_trend`      | 2                  | 国家/商品贸易流只能进入 observation。                                               |
-| `noaa-ais` / `eia` / `fred` / `worldbank-pink` / `usgs-mcs` | `macro_statistical_agency` | `macro_trend`      | 2                  | 物流、能源、商品和矿产数据只能作为背景观测。                                        |
-| `sam-gov` / `usaspending` / `eu-ted` / `gdelt`              | `regulator` 或 `news`      | `lead_only`        | 1-2                | 采购/新闻只能进入 lead/hypothesis queue。                                           |
+| source_adapter_id                                                 | publisher_type             | relation_authority | max_evidence_level | 证据边界                                                                             |
+| ----------------------------------------------------------------- | -------------------------- | ------------------ | ------------------ | ------------------------------------------------------------------------------------ |
+| `sec-edgar`                                                       | `regulator`                | `self_disclosure`  | 5                  | 监管披露中的公司自述可到 Level 5。                                                   |
+| `tsmc-ir` / `samsung-ir` / `skhynix-ir` / `micron-ir` / `asml-ir` | `company_official`         | `self_disclosure`  | 4                  | 公司官方材料可到 Level 4；除非未来建模为同等监管文件，否则不自动升 Level 5。         |
+| `apple-suppliers`                                                 | `official_supplier_list`   | `facility_claim`   | 4                  | 官方供应商/设施名单，必须经过 review/apply。                                         |
+| `opencorporates` / `companies-house`                              | `government_registry`      | `registry_fact`    | 4                  | 可证明注册、控制、设施等实体事实；对 `BUYS_FROM` / `SUPPLIES_TO` 只能到低等级线索。  |
+| `seed-entities`                                                   | `manual`                   | `registry_fact`    | 4                  | 只用于实体解析，不作为供应链关系证据。                                               |
+| `manual`                                                          | `manual`                   | `lead_only`        | 2                  | 人工录入本身不是原始来源；没有 underlying official source 时只能作为线索。           |
+| `import-yeti`                                                     | `manual`                   | `lead_only`        | 3                  | 不做 adapter；手工摘录也只能作为低等级线索，默认需要 review。                        |
+| `dart-kr` / `edinet` / `twse-mops`                                | `regulator`                | `self_disclosure`  | 5                  | 同等监管披露可到 Level 5；当前先实现目录 monitor，正文 parser 完成前不自动写事实边。 |
+| `osh` / `rmi-facilities`                                          | `official_supplier_list`   | `facility_claim`   | 3                  | 第三方/行业设施列表默认是 facility candidate；交叉验证前不自动升事实边。             |
+| `un-comtrade` / `census-trade` / `usitc-dataweb`                  | `macro_statistical_agency` | `macro_trend`      | 2                  | 国家/商品贸易流只能进入 observation。                                                |
+| `noaa-ais` / `eia` / `fred` / `worldbank-pink` / `usgs-mcs`       | `macro_statistical_agency` | `macro_trend`      | 2                  | 物流、能源、商品和矿产数据只能作为背景观测。                                         |
+| `sam-gov` / `usaspending` / `eu-ted` / `gdelt`                    | `regulator` 或 `news`      | `lead_only`        | 1-2                | 采购/新闻只能进入 lead/hypothesis queue。                                            |
 
 未注册 adapter 一律按 `manual / lead_only / max_evidence_level=2` 处理；不能只因为 `document_type` 写成 `10-K` 或 `annual_report` 就获得高证据等级。新增高权威来源必须先进入 source registry。离线 fixture 若要测试 SEC 权威评分，应使用 `source_adapter_id = sec-edgar` 并把 URL / storage key 标记为 fixture 路径；测试专用 adapter id 不再在生产 registry 里短路映射。
 

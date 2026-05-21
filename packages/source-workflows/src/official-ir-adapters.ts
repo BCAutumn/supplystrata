@@ -22,6 +22,17 @@ export interface AsmlIrInput {
   entityId: "ENT-ASML";
 }
 
+export interface MicronIrInput {
+  year: number;
+  entityId: "ENT-MICRON";
+}
+
+export interface CompanyIrExplicitUrlInput {
+  year: number;
+  entityId: string;
+  url: string;
+}
+
 export const tsmcIrAdapter = defineHtmlSnapshotAdapter<TsmcIrInput>({
   id: "tsmc-ir",
   tier: "P0",
@@ -106,6 +117,52 @@ export const asmlIrAdapter = defineHtmlSnapshotAdapter<AsmlIrInput>({
   }
 });
 
+export const micronIrAdapter = defineHtmlSnapshotAdapter<MicronIrInput>({
+  id: "micron-ir",
+  tier: "P1",
+  description: "Micron official investor relations SEC filing detail page",
+  tos_url: "https://www.micron.com/about/legal",
+  rate_limit: { requests: 1, per_seconds: 3 },
+  sourceLabel: "Micron IR",
+  storagePrefix: "company-ir/micron",
+  async *plan(input) {
+    yield {
+      task_id: `micron-ir-annual-report-${input.year}`,
+      url: micronAnnualReportUrl(input.year),
+      expected_format: "html",
+      hint: { entity_id: input.entityId, document_type: "annual_report", period: `${input.year}-12-31` }
+    };
+  },
+  async normalize(raw) {
+    return normalizeHtmlDocument({ raw, documentType: "annual_report" });
+  }
+});
+
+// company-ir 是长尾公司官方披露的受控入口，只消费人工/host app 已审阅 URL，不能演变成任意 IR 页面发现器。
+export const companyIrExplicitUrlAdapter = defineHtmlSnapshotAdapter<CompanyIrExplicitUrlInput>({
+  id: "company-ir",
+  tier: "P1",
+  description: "Controlled company investor relations HTML disclosure by explicit official URL",
+  tos_url: "manual://per-target-company-ir-tos",
+  rate_limit: { requests: 1, per_seconds: 3 },
+  sourceLabel: "Company IR explicit URL",
+  storagePrefix: "company-ir/explicit",
+  async *plan(input) {
+    assertDisclosureYear(input.year, "Company IR disclosure");
+    assertHttpsUrl(input.url, "Company IR disclosure URL");
+    if (input.entityId.trim().length === 0) throw new Error("Company IR entityId must not be empty");
+    yield {
+      task_id: `company-ir-${input.entityId}-${input.year}`,
+      url: input.url,
+      expected_format: "html",
+      hint: { entity_id: input.entityId, document_type: "annual_report", period: `${input.year}-12-31` }
+    };
+  },
+  async normalize(raw) {
+    return normalizeHtmlDocument({ raw, documentType: "annual_report" });
+  }
+});
+
 export function tsmcAnnualReportUrl(year: number): string {
   assertDisclosureYear(year, "TSMC annual report");
   return `https://investor.tsmc.com/static/annualReports/${year}/english/index.html`;
@@ -126,6 +183,12 @@ export function skHynixOfficialDisclosureUrl(year: number): string {
   return "https://news.skhynix.com/sk-hynix-announces-fy25-financial-results/";
 }
 
+export function micronAnnualReportUrl(year: number): string {
+  assertDisclosureYear(year, "Micron annual report");
+  if (year !== 2025) return "https://investors.micron.com/sec-filings";
+  return "https://investors.micron.com/sec-filings/sec-filing/10-k/0000723125-25-000028";
+}
+
 export function createOfficialIrAdapterContext(): AdapterContext {
   const env = loadEnv();
   // 官方 IR HTML 检查共用同一套 snapshot store，避免每个薄 adapter 包重复持有环境装配逻辑。
@@ -134,4 +197,14 @@ export function createOfficialIrAdapterContext(): AdapterContext {
 
 function assertDisclosureYear(year: number, label: string): void {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new Error(`Invalid ${label} year: ${year}`);
+}
+
+function assertHttpsUrl(value: string, label: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${label} must be a valid URL`);
+  }
+  if (url.protocol !== "https:") throw new Error(`${label} must use https`);
 }

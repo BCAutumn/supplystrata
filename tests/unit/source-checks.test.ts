@@ -9,6 +9,12 @@ describe("source check registry", () => {
       expect.arrayContaining([
         "sec-edgar/sec-company-filings",
         "sec-edgar/sec-company-facts",
+        "apple-suppliers/supplier-list-review",
+        "company-ir/official-html-disclosure",
+        "dart-kr/company-filings",
+        "edinet/daily-filings",
+        "micron-ir/official-html-disclosure",
+        "twse-mops/electronic-documents",
         "census-trade/trade-flow-observation",
         "osh/facility-search",
         "worldbank-pink/commodity-price-observation"
@@ -25,6 +31,36 @@ describe("source check registry", () => {
           source_adapter_id: "sec-edgar",
           target_kind: "sec-company-facts",
           key: "sec-edgar/sec-company-facts"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "apple-suppliers",
+          target_kind: "supplier-list-review",
+          key: "apple-suppliers/supplier-list-review"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "company-ir",
+          target_kind: "official-html-disclosure",
+          key: "company-ir/official-html-disclosure"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "dart-kr",
+          target_kind: "company-filings",
+          key: "dart-kr/company-filings"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "edinet",
+          target_kind: "daily-filings",
+          key: "edinet/daily-filings"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "micron-ir",
+          target_kind: "official-html-disclosure",
+          key: "micron-ir/official-html-disclosure"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "twse-mops",
+          target_kind: "electronic-documents",
+          key: "twse-mops/electronic-documents"
         })
       ])
     );

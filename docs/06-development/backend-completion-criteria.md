@@ -128,9 +128,10 @@ packages/risk-view
 必须完成：
 
 - SEC EDGAR 覆盖 `10-K / 10-Q / 20-F / 8-K` 的持久化监控链路。
-- DART-KR 接入，用于 Samsung / SK Hynix 等韩国公司监管披露。
-- EDINET 接入，用于日本半导体、材料、设备公司披露。
-- 至少一个非美国/非日韩市场披露源进入 source registry 和 connector 计划，例如 HKEX、SGX、TWSE、上交所/深交所公告中的一个。
+- DART-KR 接入，用于 Samsung / SK Hynix 等韩国公司监管披露。当前至少要先做到 official source monitor / target / readiness 覆盖；正文下载、韩文/HWP 解析可留后续阶段。
+- EDINET 接入，用于日本半导体、材料、设备公司披露。当前至少要先做到 `documents.json` daily-filings 目录监控、target 和 readiness 覆盖；XBRL ZIP / PDF 正文下载解析可留后续阶段。
+- 至少一个非美国/非日韩市场披露源进入 source registry 和 connector 计划，例如 HKEX、SGX、TWSE、上交所/深交所公告中的一个。当前已接入 `twse-mops/electronic-documents` 目录 monitor，作为 Hon Hai / Quanta 等台湾 AI server ODM 节点的官方披露覆盖入口；PDF 正文下载、解析和关系抽取仍待后续。
+- GLEIF LEI 作为跨市场实体标识锚点进入 entity lookup / review 候选流，服务 SEC、DART、EDINET、TWSE/HKEX 等后续官方源的实体对齐；它只生成实体候选，不写事实边。
 - 每个 adapter 有 contract test：`plan -> fetch -> normalize -> source monitor event`。
 
 完成标准：
@@ -146,9 +147,11 @@ packages/risk-view
 
 Gate 1 现在还会输出 `expected_source_coverage`：把每个 target node 的 `expected_source_ids` 拆成独立覆盖项，并标记为 `covered_fact`、`official_target_with_observation`、`official_target_synced`、`official_target_runnable`、`official_source_planned`、`connector_available`、`source_registered_unimplemented` 或 `missing_source_mapping`。这一步很关键：profile 写了某个官方源并不代表覆盖完成。`connector_available` 只说明后端已有该源的 source-check connector，但当前节点还没有被 source-plan/target 具体接上；`source_registered_unimplemented` 只说明来源在 registry 中，仍需要 connector 或人工 review workflow。`expected_official_source_coverage` gap 会优先提示这些缺口，防止把“期望来源清单”误读成“已监控数据源”。
 
-`source-plan` 已能消费 target profile 的官方源 hints：对内置 profile 中带 SEC CIK 的美国上市公司，会生成 `sec-edgar/sec-company-filings` runnable target suggestion，且不要求传入披露年份；对 TSMC / Samsung / SK hynix / ASML 这类已有官方 IR connector 的来源，会在显式 `officialDisclosureYear` 存在时生成 node-specific `official-html-disclosure` runnable target suggestion。readiness 会按节点过滤 source targets，不能把聚合 source-plan item 中其它节点的 target 算作当前节点 coverage。Micron IR、DART、EDINET、company-ir 这类 registry 中已有但尚无 connector/target config 的来源仍保留为 `source_registered_unimplemented` 或相关 coverage gap，不会被 source-plan 伪装成已接通监控。
+`source-plan` 已能消费 target profile 的官方源 hints：对内置 profile 中带 SEC CIK 的美国上市公司，会生成 `sec-edgar/sec-company-filings` runnable target suggestion，且不要求传入披露年份；对 TSMC / Samsung / SK hynix / Micron / ASML 这类已有官方 IR connector 的来源，会在显式 `officialDisclosureYear` 存在时生成 node-specific `official-html-disclosure` runnable target suggestion；对长尾公司，`company-ir/official-html-disclosure` 只在 profile、review 或 host app 已提供审计过的 HTTPS `url + entity_id + year` 时生成 runnable target，不做自动发现、不猜 IR 页面；Samsung / SK Hynix 的内置 profile 还会在给定 `officialDisclosureYear` 时生成 `dart-kr/company-filings` runnable target suggestion，使用项目内维护的 OpenDART corp code 模板并在 source-plan 阶段覆盖年份；AI compute/memory profile 里的 silicon wafer / ABF substrate 目标会在给定 `officialDisclosureYear` 时生成 `edinet/daily-filings` runnable target suggestion，先监控日本 EDINET 年报季目录元数据；Foxconn / Quanta 目标会在给定 `officialDisclosureYear` 时生成 `twse-mops/electronic-documents` runnable target suggestion，先监控台湾 MOPS 电子文件目录元数据；manufacturing-services 目标会生成 Apple Supplier List FY2022 的 `apple-suppliers/supplier-list-review` runnable target suggestion。Apple 这条路径只把官方供应商名单接入 review candidate、facility lead 和后续 OSH 交叉检查，不自动写 `edges`；DART / EDINET / TWSE 当前只落官方披露目录元数据和 source monitor event，不自动下载/解析正文、不写事实边。readiness 会按节点过滤 source targets，不能把聚合 source-plan item 中其它节点的 target 算作当前节点 coverage。缺少显式 URL 的 `company-ir` 目标、缺少公司级 EDINET code 的更细目标，仍保留为 `connector_available` 或相关配置缺口，不会被 source-plan 伪装成已接通监控。
 
 Gate 1 的 core node 指标按目标节点中已有 fact/source-plan/target/observation 覆盖的数量衡量，未出现在当前 Workbench 里的目标节点也会显式显示为 `missing`。该报告只是 Gate 1 的仪表盘，不会把 single-source silence 自动解释为已审计 single-source，也不会写事实边；真实覆盖数量仍需继续补足。
+
+无数据库连通性 smoke 已补上：`sources policy smoke-plan-targets` 会从同一个 `source-plan.json + namespace` 生成 runnable target，复用 source-check 的 target config 解析和 adapter，执行 `plan / fetch / normalize`，但不连接 Postgres、不写 `source_check_targets`、不写 source monitor event、不写 observation / fact edge。它用于同步和启用前发现外部源不可达、凭据缺失或 target config 失效；smoke 成功不等于进入持续监控闭环，正式调度仍以 `sync-plan-targets / enable-plan-targets / due / run-due / worker` 为准。
 
 参考官方源：
 
@@ -476,8 +479,9 @@ POST /review/:id/reject
 - GraphStore / DatabaseStore 可由宿主 app 注入。
 - research-pack 输出 `question-readiness.json/md`，把核心问题标为 ready / partial / blocked，并列出 supporting refs、missing requirements 和 unknown ids；它只评估可答性，不生成自然语言结论。
 - research-pack 输出 `investigation-backlog.json/md`，把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 汇总为可审计调查任务；它只规划，不抓取、不落库、不写事实边。
-- source-plan 支持消费 target profile official source hints：带 SEC CIK 的公司可生成 `sec-edgar/sec-company-filings` runnable target；显式 `officialDisclosureYear` 存在时，已注册官方 IR connector 可生成 node-specific `official-html-disclosure` target；无年份或缺 connector/config 时保持 gap，避免猜默认披露期或伪造可运行能力。
-- source-management 提供 `source-plan.json` 到 `source_check_targets` 的稳定转换；CLI 只做 `sources policy sync-plan-targets` / `enable-plan-targets` 薄入口，默认 disabled，审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并统一写入 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。
+- source-plan 支持消费 target profile official source hints：带 SEC CIK 的公司可生成 `sec-edgar/sec-company-filings` runnable target；显式 `officialDisclosureYear` 存在时，已注册官方 IR connector 可生成 node-specific `official-html-disclosure` target，`company-ir` 这类长尾入口必须额外带审计过的显式 HTTPS URL，DART / EDINET 这类监管目录 connector 可生成目录 monitor target；Apple Supplier List 这类 publisher-specific 官方名单只能作为 review-only 来源接入，不能成为每个研究对象一个 `<company>-suppliers` 文件的先例；无年份或缺 connector/config/URL 时保持 gap，避免猜默认披露期、猜 IR 页面或伪造可运行能力。
+- 任意上市公司入口必须保持 `--company <query>` 语义：先解析实体，再由 registry/source-plan/source-target coverage 输出可执行目标和缺口。陌生公司没有足够 metadata 时应显式进入 entity/source discovery backlog，不能要求用户手写完整 profile，也不能用公司名硬编码新 workflow。
+- source-management 提供 `source-plan.json` 到 `source_check_targets` 的稳定转换和无数据库预览；CLI 只做 `sources policy preview-plan-targets` / `sync-plan-targets` / `enable-plan-targets` 薄入口。预览只生成稳定 target id、去重统计、source / target kind / priority 汇总和 validation 结果，不写库、不抓源。同步默认 disabled，审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并统一写入 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。
 - source-monitor 通过 `source_change_events.check_target_id` 保留 target 级事件链；research-pack 输出 `source-target-coverage.json/md`，把 runnable target 的 sync、enable、due、job、event、observation 状态回流到研究包，并让 `investigation-backlog` 的 action 随 coverage 状态变化。
 
 完成标准：
@@ -490,6 +494,8 @@ POST /review/:id/reject
 [x] research-pack 能输出 investigation backlog，供人工或后续安全 agent 消费
 [x] research-pack/source-plan 能把 target profile 的 SEC CIK 和官方 IR 年份配置转成 runnable target suggestions
 [x] runnable source-plan target suggestions 能同步到 source_check_targets，并复用统一监控频率/重试配置入口
+[x] runnable source-plan target suggestions 能在无数据库场景下预览，将 target id、去重、credentials warning 和 validation 暴露给宿主 App / CLI 审计
+[x] runnable source-plan target suggestions 能在无数据库场景下执行 plan/fetch/normalize smoke，提前暴露外部源连通性、凭据和 target config 问题
 [x] 已同步 source-plan target 能在审计后受控启用，并把调度参数继续收口到 source policy/target config
 [x] research-pack 能输出 source target coverage，展示 runnable target 是否已同步、启用、due、运行、失败或产出 observation
 [x] investigation-backlog 能消费 source target coverage，把下一步 action 从通用 source check 提示细化为同步、启用、运行、等待、排错或 review observation
@@ -581,21 +587,21 @@ claim fusion baseline、observation coverage、source target coverage、official
 作为全球级综合监控、风险提示、动态追踪和货物流向系统仍明显不足。
 ```
 
-| 能力                        | 当前状态                                                      | 判断                                                 |
-| --------------------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
-| SEC / 10-K 事实边           | 已可用                                                        | 事实底座成立                                         |
-| 10-Q / 8-K plan/fetch       | 已接入                                                        | 尚需深度语义变化                                     |
-| Apple Supplier review/apply | 纵向链路已通                                                  | 设施边需要继续做厚                                   |
-| IR 年报页面                 | TSMC/Samsung/SK hynix/ASML preview                            | 官方上下文可用，事实边偏薄                           |
-| Claim / Observation / Lead  | 已建骨架                                                      | 需要时序、融合、风险派生                             |
-| ChainView / Workbench       | 已可视化第一版                                                | 不是正式前端，不是完整分析系统                       |
-| Research Pack readiness     | question / observation / official disclosure readiness 已输出 | 只能说明当前 pack 是否够用，不能替代真实覆盖扩容     |
-| Census / WorldBank          | 第一版 observation target                                     | 需要变化检测与 ComponentCard 深接                    |
-| DART / EDINET               | 未实现                                                        | 官方披露覆盖短板                                     |
-| 新闻 / 政策 / 制裁          | registry/计划层                                               | 信号层短板                                           |
-| 图算法 / 风险视图           | deterministic baseline 已实现                                 | 真实样本校准、阈值治理和加权路径冗余治理仍是核心缺口 |
-| API / 告警 / worker         | 告警/worker baseline 已实现                                   | API 与通知通道仍是产品化后端缺口                     |
-| 货物流向                    | source-plan / observation 起步                                | AIS/BOL/港口/HS flow 只能先做 observation/lead       |
+| 能力                        | 当前状态                                                                                                            | 判断                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| SEC / 10-K 事实边           | 已可用                                                                                                              | 事实底座成立                                                          |
+| 10-Q / 8-K plan/fetch       | 已接入                                                                                                              | 尚需深度语义变化                                                      |
+| Apple Supplier review/apply | 纵向链路已通                                                                                                        | 设施边需要继续做厚                                                    |
+| IR 年报页面                 | TSMC/Samsung/SK hynix/ASML preview                                                                                  | 官方上下文可用，事实边偏薄                                            |
+| Claim / Observation / Lead  | 已建骨架                                                                                                            | 需要时序、融合、风险派生                                              |
+| ChainView / Workbench       | 已可视化第一版                                                                                                      | 不是正式前端，不是完整分析系统                                        |
+| Research Pack readiness     | question / observation / official disclosure readiness 已输出                                                       | 只能说明当前 pack 是否够用，不能替代真实覆盖扩容                      |
+| Census / WorldBank          | 第一版 observation target                                                                                           | 需要变化检测与 ComponentCard 深接                                     |
+| DART / EDINET / TWSE        | DART 已接 metadata monitor；EDINET 已接 daily-filings metadata monitor；TWSE 已接 electronic-documents 目录 monitor | 韩日台监管披露已能进入 target/readiness；正文解析和公司级筛选仍是短板 |
+| 新闻 / 政策 / 制裁          | registry/计划层                                                                                                     | 信号层短板                                                            |
+| 图算法 / 风险视图           | deterministic baseline 已实现                                                                                       | 真实样本校准、阈值治理和加权路径冗余治理仍是核心缺口                  |
+| API / 告警 / worker         | 告警/worker baseline 已实现                                                                                         | API 与通知通道仍是产品化后端缺口                                      |
+| 货物流向                    | source-plan / observation 起步                                                                                      | AIS/BOL/港口/HS flow 只能先做 observation/lead                        |
 
 ## 后续执行顺序
 

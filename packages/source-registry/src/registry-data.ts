@@ -73,12 +73,13 @@ export const SOURCE_REGISTRY = [
     evidence_level_cap: 4,
     publisher_type: "company_official",
     relation_authority: "self_disclosure",
-    automation: "semi_auto",
-    status: "scoped",
+    automation: "allowed",
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
     requires_key: false,
     official_url: "https://investors.micron.com/",
     tos_url: "https://www.micron.com/about/legal",
-    notes: "Micron 官方披露源位；用于 memory supplier filings 的后续交叉验证，接 adapter 前只能进入 source plan。"
+    notes: "当前预览抓 2025 IR SEC Filing Details 页面，用于 memory supplier filings 的官方背景；正文深度 parser 仍以后续 SEC/IR 规则为准。"
   },
   {
     id: "asml-ir",
@@ -145,6 +146,22 @@ export const SOURCE_REGISTRY = [
     notes: "用于英国法人登记；官方 API key + Basic Auth，CLI lookup 只输出候选，不自动合并实体。"
   },
   {
+    id: "gleif",
+    tier: "P0",
+    name: "GLEIF LEI Records",
+    category: "entity_resolution",
+    evidence_level_cap: 4,
+    publisher_type: "government_registry",
+    relation_authority: "registry_fact",
+    automation: "allowed",
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
+    requires_key: false,
+    official_url: "https://www.gleif.org/en/lei-data/gleif-api",
+    tos_url: "https://www.gleif.org/en/lei-data/lei-data-terms-of-use",
+    notes: "全球 LEI 官方记录；作为跨 SEC / DART / EDINET / TWSE / HKEX 的实体标识锚点，lookup 只输出候选，不自动合并实体。"
+  },
+  {
     id: "seed-entities",
     tier: "P0",
     name: "Curated Seed Entities",
@@ -169,11 +186,12 @@ export const SOURCE_REGISTRY = [
     publisher_type: "company_official",
     relation_authority: "self_disclosure",
     automation: "semi_auto",
-    status: "planned",
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
     requires_key: false,
-    official_url: "manual://company-ir-adapter-template",
-    tos_url: "manual://company-ir-adapter-template",
-    notes: "通用公司 IR 源位；真正抓取必须落到具体公司 adapter，不能用该占位 ID 直接 fetch。"
+    official_url: "manual://explicit-company-ir-url",
+    tos_url: "manual://per-target-company-ir-tos",
+    notes: "受控通用公司 IR HTML 入口；只有 target_config 明确提供已审阅 HTTPS URL、entity_id 和 year 时才可运行，不做自动发现、不猜任意公司页面。"
   },
   {
     id: "dart-kr",
@@ -184,11 +202,12 @@ export const SOURCE_REGISTRY = [
     publisher_type: "regulator",
     relation_authority: "self_disclosure",
     automation: "allowed",
-    status: "scoped",
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
     requires_key: true,
     official_url: "https://opendart.fss.or.kr/",
     tos_url: "https://opendart.fss.or.kr/",
-    notes: "韩国监管披露；用于 Samsung / SK Hynix 等韩股公司交叉验证，韩文解析进入 P1。"
+    notes: "韩国监管披露；当前先接 OpenDART disclosure list monitor，提供官方 target / source-check / readiness 覆盖。正文下载与韩文/HWP 解析仍留在后续阶段。"
   },
   {
     id: "edinet",
@@ -199,11 +218,29 @@ export const SOURCE_REGISTRY = [
     publisher_type: "regulator",
     relation_authority: "self_disclosure",
     automation: "allowed",
-    status: "scoped",
-    requires_key: false,
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
+    requires_key: true,
     official_url: "https://disclosure2.edinet-fsa.go.jp/",
     tos_url: "https://disclosure2.edinet-fsa.go.jp/",
-    notes: "日本监管披露；用于日本设备、材料、电子制造节点的官方交叉验证。"
+    notes:
+      "日本监管披露；当前先接 EDINET API v2 documents.json daily-filings monitor，提供官方 target / source-check / readiness 覆盖。正文 ZIP/PDF/XBRL 解析仍留后续。"
+  },
+  {
+    id: "twse-mops",
+    tier: "P1",
+    name: "Taiwan MOPS",
+    category: "official_disclosure",
+    evidence_level_cap: 5,
+    publisher_type: "regulator",
+    relation_authority: "self_disclosure",
+    automation: "semi_auto",
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
+    requires_key: false,
+    official_url: "https://mops.twse.com.tw/",
+    tos_url: "https://mops.twse.com.tw/",
+    notes: "台湾公开资讯观测站；当前先接电子文件查询目录 monitor，优先服务 Hon Hai / Quanta 等 AI server ODM 节点。PDF 正文解析与关系抽取留后续。"
   },
   {
     id: "un-comtrade",

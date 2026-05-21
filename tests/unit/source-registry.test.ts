@@ -11,11 +11,13 @@ describe("source registry", () => {
     expect(ids.has("micron-ir")).toBe(true);
     expect(ids.has("asml-ir")).toBe(true);
     expect(ids.has("apple-suppliers")).toBe(true);
+    expect(ids.has("gleif")).toBe(true);
     expect(ids.has("opencorporates")).toBe(true);
     expect(ids.has("companies-house")).toBe(true);
     expect(ids.has("seed-entities")).toBe(true);
     expect(ids.has("dart-kr")).toBe(true);
     expect(ids.has("edinet")).toBe(true);
+    expect(ids.has("twse-mops")).toBe(true);
     expect(ids.has("osh")).toBe(true);
     expect(ids.has("un-comtrade")).toBe(true);
     expect(ids.has("census-trade")).toBe(true);
@@ -25,13 +27,13 @@ describe("source registry", () => {
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 31,
+      total: 33,
       implemented: 2,
-      preview: 10,
-      planned: 2,
-      scoped: 16,
+      preview: 16,
+      planned: 1,
+      scoped: 13,
       manualOnly: 1,
-      requiresKey: 9
+      requiresKey: 10
     });
   });
 
@@ -70,6 +72,26 @@ describe("source registry", () => {
     expect(sourceAuthorityFor({ source_adapter_id: "osh", document_type: "facility_dataset" })).toMatchObject({
       relation_authority: "facility_claim",
       max_evidence_level: 3
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "gleif", document_type: "company_registry" })).toMatchObject({
+      publisher_type: "government_registry",
+      relation_authority: "registry_fact",
+      max_evidence_level: 4
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "dart-kr", document_type: "company_registry" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "self_disclosure",
+      max_evidence_level: 5
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "edinet", document_type: "company_registry" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "self_disclosure",
+      max_evidence_level: 5
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "twse-mops", document_type: "company_registry" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "self_disclosure",
+      max_evidence_level: 5
     });
     expect(sourceAuthorityFor({ source_adapter_id: "manual", document_type: "manual" })).toMatchObject({
       publisher_type: "manual",

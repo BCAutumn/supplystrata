@@ -178,7 +178,7 @@ function componentTradeObservationContext(
   };
 }
 
-function censusTradeInputFromConfig(config: Record<string, unknown>): CensusTradeInput {
+export function censusTradeInputFromConfig(config: Record<string, unknown>): CensusTradeInput {
   const label = "Census Trade source check target";
   const direction = censusDirectionFromConfig(config);
   const countryCode = optionalConfigString(config, "country_code", label);

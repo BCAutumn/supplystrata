@@ -2,11 +2,15 @@ import type { DatabaseStore } from "@supplystrata/db";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import {
   asmlIrAdapter,
+  companyIrExplicitUrlAdapter,
   createOfficialIrAdapterContext,
+  micronIrAdapter,
   samsungIrAdapter,
   skHynixIrAdapter,
   tsmcIrAdapter,
   type AsmlIrInput,
+  type CompanyIrExplicitUrlInput,
+  type MicronIrInput,
   type SamsungIrInput,
   type SkHynixIrInput,
   type TsmcIrInput
@@ -14,6 +18,19 @@ import {
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 
 export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<DatabaseStore, SourceCheckSummary>[] = [
+  {
+    source_adapter_id: "company-ir",
+    target_kind: "official-html-disclosure",
+    config_schema: companyIrConfigSchema(),
+    run(store, target) {
+      return runSourceAdapterCheck(store, {
+        adapter: companyIrExplicitUrlAdapter,
+        adapterInput: companyIrExplicitUrlInputFromConfig(target.target_config),
+        context: createOfficialIrAdapterContext(),
+        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.company-ir" }
+      });
+    }
+  },
   {
     source_adapter_id: "tsmc-ir",
     target_kind: "official-html-disclosure",
@@ -65,8 +82,31 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.asml-ir" }
       });
     }
+  },
+  {
+    source_adapter_id: "micron-ir",
+    target_kind: "official-html-disclosure",
+    config_schema: officialIrConfigSchema("ENT-MICRON"),
+    run(store, target) {
+      return runSourceAdapterCheck(store, {
+        adapter: micronIrAdapter,
+        adapterInput: micronIrInputFromConfig(target.target_config),
+        context: createOfficialIrAdapterContext(),
+        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.micron-ir" }
+      });
+    }
   }
 ];
+
+function companyIrConfigSchema(): SourceCheckConfigSchema {
+  return {
+    fields: [
+      { key: "year", type: "positive_integer", required: true, description: "Disclosure year to fetch." },
+      { key: "entity_id", type: "string", required: true, description: "SupplyStrata entity id for the official IR page owner." },
+      { key: "url", type: "string", required: true, description: "Explicit audited HTTPS URL for the official company IR disclosure page." }
+    ]
+  };
+}
 
 function officialIrConfigSchema(entityId: string): SourceCheckConfigSchema {
   return {
@@ -77,26 +117,39 @@ function officialIrConfigSchema(entityId: string): SourceCheckConfigSchema {
   };
 }
 
-function tsmcIrInputFromConfig(config: Record<string, unknown>): TsmcIrInput {
+export function tsmcIrInputFromConfig(config: Record<string, unknown>): TsmcIrInput {
   return { year: requireYear(config, "TSMC IR source check target"), entityId: requireLiteralEntity(config, "ENT-TSMC", "TSMC IR source check target") };
 }
 
-function samsungIrInputFromConfig(config: Record<string, unknown>): SamsungIrInput {
+export function samsungIrInputFromConfig(config: Record<string, unknown>): SamsungIrInput {
   return {
     year: requireYear(config, "Samsung IR source check target"),
     entityId: requireLiteralEntity(config, "ENT-SAMSUNG-ELECTRONICS", "Samsung IR source check target")
   };
 }
 
-function skHynixIrInputFromConfig(config: Record<string, unknown>): SkHynixIrInput {
+export function skHynixIrInputFromConfig(config: Record<string, unknown>): SkHynixIrInput {
   return {
     year: requireYear(config, "SK hynix IR source check target"),
     entityId: requireLiteralEntity(config, "ENT-SKHYNIX", "SK hynix IR source check target")
   };
 }
 
-function asmlIrInputFromConfig(config: Record<string, unknown>): AsmlIrInput {
+export function asmlIrInputFromConfig(config: Record<string, unknown>): AsmlIrInput {
   return { year: requireYear(config, "ASML IR source check target"), entityId: requireLiteralEntity(config, "ENT-ASML", "ASML IR source check target") };
+}
+
+export function micronIrInputFromConfig(config: Record<string, unknown>): MicronIrInput {
+  return { year: requireYear(config, "Micron IR source check target"), entityId: requireLiteralEntity(config, "ENT-MICRON", "Micron IR source check target") };
+}
+
+export function companyIrExplicitUrlInputFromConfig(config: Record<string, unknown>): CompanyIrExplicitUrlInput {
+  const label = "Company IR source check target";
+  return {
+    year: requireYear(config, label),
+    entityId: requireConfigString(config, "entity_id", label),
+    url: requireHttpsUrl(config, "url", label)
+  };
 }
 
 function requireYear(config: Record<string, unknown>, label: string): number {
@@ -110,4 +163,16 @@ function requireLiteralEntity<TExpected extends string>(config: Record<string, u
   const value = requireConfigString(config, "entity_id", label);
   if (value !== expected) throw new Error(`${label} entity_id must be ${expected}`);
   return expected;
+}
+
+function requireHttpsUrl(config: Record<string, unknown>, key: string, label: string): string {
+  const value = requireConfigString(config, key, label);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${label} ${key} must be a valid URL`);
+  }
+  if (url.protocol !== "https:") throw new Error(`${label} ${key} must use https`);
+  return value;
 }

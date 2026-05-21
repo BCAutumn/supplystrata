@@ -25,7 +25,7 @@
 - `packages/observation-store`：统一写入 observations / leads。
 - `packages/chain-view`：运行时输出 edge / claim / observation / lead / unknown 分层 ChainViewModel。
 - 语义级 changes 第一版：claim / observation / lead 写入路径会产生确定性的 `change_records`；官方披露文档变化会产生固定 section fingerprint diff；官方披露关系候选会产生 relation fingerprint diff，并进入 review queue。
-- Component-HS-Material taxonomy 第一版：`component-context` 已能输出 HS 代理码、material exposure 和 material observation target；`source-plan` 可据此生成 Census Trade runnable target、World Bank Pink Sheet runnable target、官方 IR runnable target，以及 USGS planned target；`source-management` 可把 research-pack 的 runnable `source-plan.json` suggestions 同步成 `source_check_targets`，默认 disabled，审计后可用同一 plan + namespace 受控启用并写入 target 级调度参数；`source-target-coverage` 会把 target 的 sync/enable/due/job/event/degraded/observation 状态回流到 research-pack，并让 investigation backlog action 随状态细化；ComponentCard 会展示贸易代理码、材料暴露和已落库观测。
+- Component-HS-Material taxonomy 第一版：`component-context` 已能输出 HS 代理码、material exposure 和 material observation target；`source-plan` 可据此生成 Census Trade runnable target、World Bank Pink Sheet runnable target、官方 IR runnable target，以及 USGS planned target；`source-management` 可把 research-pack 的 runnable `source-plan.json` suggestions 无数据库预览为稳定 target id / 去重统计 / validation 结果，也可同步成 `source_check_targets`，默认 disabled，审计后可用同一 plan + namespace 受控启用并写入 target 级调度参数；`source-target-coverage` 会把 target 的 sync/enable/due/job/event/degraded/observation 状态回流到 research-pack，并让 investigation backlog action 随状态细化；ComponentCard 会展示贸易代理码、材料暴露和已落库观测。
 - Edge intelligence refresh 第一版：`@supplystrata/evidence-maintenance` 会刷新 Level 4/5 事实边的新鲜度，从明确 primary evidence 文本写入关系强度，并为缺少 strength 的事实边生成 edge-scoped explicit unknown；`research-pack` 默认刷新并把结果带入 Workbench、CompanyCard、ComponentCard 和 ChainView 输出。
 - Component risk baseline 第一版：`refreshComponentRiskView()` 会从已有 component fact edge、edge strength 和 freshness 生成 `risk_views / risk_metrics`，覆盖 freshness-adjusted HHI、single-source exposure、terminal consumer path redundancy / alternate upstream paths、weighted alternate-path context、directed node knockout reachability、strength/freshness weighted node knockout impact、directed betweenness centrality、weighted path centrality context 和 freshness-adjusted exposure；research-pack 默认只对当前包里已有 Level 4/5 component fact edge 的 eligible 组件批量刷新 risk baseline，不给只有 taxonomy/source-plan 的组件写空风险结论。ComponentCard / research-pack 会展示 JSON/Markdown 派生风险上下文，CompanyCard 会展示 company-scoped observations，并把相关 component risk metrics 聚合成 top exposure nodes。
 - Risk metric semantic change 第一版：component risk refresh 会把新版 risk view 与上一版同 scope 派生指标做稳定 key 对比，超过阈值时写入 `RISK_METRIC_CHANGED`；changes timeline 已能把 raw source change、semantic change 和 risk change 分开展示。
@@ -34,7 +34,7 @@
 - Observation anomaly baseline 第一版：`refreshObservationAnomalyViews()` 会从已有 observation 的显式 baseline/change 字段或可比较历史窗口生成 observation-scoped `risk_views / risk_metrics`，metric kind 为 `observation_anomaly`；CompanyCard / ComponentCard / research-pack 在已有 anomaly view 时展示 anomaly summary。`refreshFinancialMetricPeerComparisonViews()` 会把同 metric / unit / fiscal period 的公司财务 observation 生成 `financial_metric_peer_zscore`，CompanyCard / research-pack 会展示 financial peer position。它们不从稀疏历史猜 baseline，不写 fact edge。
 - Alert candidate baseline 第一版：`refreshAlertCandidates()` 会从 observation anomaly、source failure 和 component risk metric 生成去重的 `alert_candidates`。alert 只引用 observation / risk_view / risk_metric / change / source event，不写 fact edge，不等同于正式通知。`updateAlertCandidateStatus()` 会把 acknowledged / resolved / suppressed 等维护动作写成 `ALERT_STATUS_CHANGED` semantic change，保证人工处理路径可审计。
 - Attention queue baseline 第一版：Workbench / research-pack 会把 claim conflict、claim lifecycle warning、open alert candidates、degraded source health 和 `requires_attention=true` 的 change 统一导出为 `attention_queue`，并生成 `attention-queue.json/md`。它只是即时处理入口，不自动裁决冲突、不改事实边、不关闭 unknown。
-- Official disclosure readiness 第一版：research-pack 会输出 Gate 1 账本，统计 Level 4/5 fact edge、traceability、cross-source corroboration、strength/freshness gap、source target coverage、内置研究 target profile、显式 target node 覆盖、逐 expected source 覆盖和 profile expansion candidates。`ai-compute-memory.v0` 会在选中公司/组件命中 AI compute/memory 范围时自动启用；profile 是验收锚点，不是全球供应链全集。内置 profile 已能把 SEC CIK / 官方 IR hints 下沉给 source-plan，生成可同步的 node-specific official source target suggestions；缺 connector 或 config 的来源仍保留为显式缺口。未出现在当前 Workbench 的核心节点会显示为 `missing`，profile 期待但未接通的官方源会显示为 `connector_available`、`source_registered_unimplemented` 或 `missing_source_mapping` 等缺口，不在 profile 中但已被发现的节点会进入 expansion backlog 等待审阅。
+- Official disclosure readiness 第一版：research-pack 会输出 Gate 1 账本，统计 Level 4/5 fact edge、traceability、cross-source corroboration、strength/freshness gap、source target coverage、内置研究 target profile、显式 target node 覆盖、逐 expected source 覆盖和 profile expansion candidates。`ai-compute-memory.v0` 会在选中公司/组件命中 AI compute/memory 范围时自动启用；profile 是验收锚点，不是全球供应链全集。内置 profile 已能把 SEC CIK / 官方 IR / company-ir 显式 URL / DART / EDINET / TWSE hints 下沉给 source-plan，生成可同步的 node-specific official source target suggestions；缺显式 URL、公司级代码、connector 或 config 的来源仍保留为显式缺口。未出现在当前 Workbench 的核心节点会显示为 `missing`，profile 期待但未接通的官方源会显示为 `connector_available`、`source_registered_unimplemented` 或 `missing_source_mapping` 等缺口，不在 profile 中但已被发现的节点会进入 expansion backlog 等待审阅。
 - Source-check worker 第一版：`apps/worker` 提供常驻 worker loop，复用 `source-workflows.runDueSourceChecks()` 消费 `source_check_jobs`，CLI 不再是唯一运行入口。
 
 仍缺：
@@ -43,7 +43,7 @@
 - 足量人工 edge gold set、跨源 observation calibration 与季节性基线。
 - 通知通道。
 - USGS / IEA 等原材料源 adapter，把 planned material target 进一步变成 runnable connector，并落成 mineral / critical-minerals observations。
-- DART-KR / EDINET 等官方披露源，把二级/三级事实边继续做厚。
+- DART-KR / EDINET / TWSE 等官方披露源，把二级/三级事实边继续做厚。当前 DART 已先接到 disclosure list monitor / source-check / readiness；EDINET 已先接到 `documents.json` daily-filings monitor / source-check / readiness，并在 profile 中覆盖 silicon wafer / ABF substrate 的日本官方目录监控；TWSE MOPS 已接到 `electronic-documents` 目录 monitor / source-check / readiness，先覆盖 Foxconn / Quanta 这类台湾 AI server ODM 节点的官方披露入口。正文下载、XBRL ZIP / PDF 和韩文/HWP 解析继续后排。
 
 ## 2. 目标形态
 
@@ -96,10 +96,10 @@ packages/source-connectors
   已把 source check connector 契约收口；具体 connector 实现在 source-workflows，不再落入 pipeline。
 
 packages/source-workflows
-  具体免费/公开源的 use-case 编排层：SEC EDGAR、Apple Supplier List、官方 IR、Census Trade、Open Supply Hub、OpenCorporates / Companies House 都在这里接入。
+  具体免费/公开源的 use-case 编排层：SEC EDGAR、Apple Supplier List、官方 IR、OpenDART disclosure list、EDINET daily filings、Census Trade、Open Supply Hub、GLEIF / OpenCorporates / Companies House 都在这里接入。
   `runDueSourceChecks()` 已从直接扫 due target 推进为 `source_check_jobs` durable job/outbox：先 enqueue 到期目标，再 claim job，失败进入 backoff retry，超过 `max_attempts` 进入 dead。持续监控参数统一由 source policy config 配置，source 级默认值可被 target 级覆盖；后续常驻 worker 复用同一 use-case，不需要把调度逻辑写进 CLI。
   `sources due/run-due` 已支持按 `source-plan.json + namespace`、`check_target_id` 或 source adapter 过滤小批量目标，适合先跑某个研究包的官方目标，不会顺手消费全局 due 队列。
-  后续 DART、EDINET、Comtrade、RMI 等免费源通过新增 workflow/connector 接入，不再改 pipeline 内核或 CLI 调度分支。
+  Comtrade、RMI 等免费源继续通过新增 workflow/connector 接入，不再改 pipeline 内核或 CLI 调度分支；DART / EDINET 也沿用了同一条 source-check 骨架，没有给 CLI/worker 加特判。
   Apple Supplier List workflow 会把官方供应商设施行同时写入 review candidates 和 OSH cross-check leads，并把 lead 物化成 OSH facility-search source check target；前者经人工审核后才生成 fact edge，后者触发 Open Supply Hub 设施候选检索，并落入 `osh_facility_candidate` review candidate。
 
 packages/pipeline
@@ -584,14 +584,16 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 - [x] Evidence Inspector 从只看 primary evidence 扩到多 evidence / supersession chain。
 - [x] Question readiness matrix 能标出核心问题的 ready / partial / blocked、缺口和 unknown ids。
 - [x] Investigation backlog 能把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 汇总成可审计下一步任务。
-- [x] source-plan 能消费 target profile official source hints：带 CIK 的 SEC 公司生成 runnable filing targets；显式官方披露年份存在时，为 TSMC / Samsung / SK hynix / ASML 生成 runnable official IR targets。
+- [x] source-plan 能消费 target profile official source hints：带 CIK 的 SEC 公司生成 runnable filing targets；显式官方披露年份存在时，为 TSMC / Samsung / SK hynix / Micron / ASML 生成 runnable official IR targets，为带审计 HTTPS URL 的 `company-ir` 目标生成受控长尾 IR target，为 Samsung / SK Hynix 生成 DART 目录 target，为 silicon wafer / ABF substrate 生成 EDINET daily-filings 目录 target，为 Foxconn / Quanta 生成 TWSE MOPS electronic-documents 目录 target。
 - [x] source-management / CLI 能把 research-pack source-plan 的 runnable target suggestions 同步到 source_check_targets，并复用统一监控频率、jitter 和重试配置。
+- [x] source-management / CLI 能在同步前无数据库预览 runnable target suggestions，输出 target id、去重统计、credentials warning 和 validation 结果。
+- [x] source-workflows / CLI 能在同步前无数据库执行 runnable target 的 plan/fetch/normalize smoke，提前发现外部源、凭据或 target config 问题，但不写 monitor event、observation 或 fact edge。
 - [x] source-monitor / CLI 能在审计后受控启用已同步 source-plan targets，不把 cadence / jitter / retry / next_check_at 散落成调度期临时参数。
 - [x] source-monitor / research-pack 能输出 source target coverage，把 runnable target 的调度与结果状态回流到研究包。
 - [x] coverage 能区分 succeeded 与 degraded，源退化会进入 backlog 排查动作，不会被误读成可用证据。
 - [x] investigation backlog 能根据 source target coverage 给出同步、启用、运行、等待、排错或 review observation 的具体 action。
 - [x] research-pack 能输出 `attention-queue.json/md`，统一即时 review / alert / source degraded / change attention 入口。
-- [ ] 公司切换仍需等多公司 export/fixture 完善后补。
+- [ ] 公司切换仍需等多公司 export/fixture 完善后补；目标形态是输入上市公司名或 ticker 后走实体解析、官方源发现、source-plan 和 coverage/backlog，不为每个研究对象新增公司专属 supplier workflow。
 
 ### PR H：LLM Candidate Assistant
 

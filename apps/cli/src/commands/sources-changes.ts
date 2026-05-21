@@ -6,6 +6,7 @@ import {
   listSourceCheckConnectorIds,
   runDueSourceChecks,
   runManualSourceCheck,
+  runSourcePlanConnectivitySmoke,
   type DueSourceCheckRunResult,
   type SourceCheckSummary
 } from "@supplystrata/source-workflows";
@@ -14,7 +15,8 @@ import {
   buildSourceCheckTargetIdsFromPlan,
   buildSourceManagementCatalog,
   buildSourcePolicyConfigFromPlanTargets,
-  parseManagedSourcePlanDocument
+  parseManagedSourcePlanDocument,
+  previewSourceCheckTargetsFromPlan
 } from "@supplystrata/source-management";
 import { renderChangeTimelineItems } from "@supplystrata/render";
 import {
@@ -29,7 +31,15 @@ import {
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
 import { defaultSince, parseChangeScope, parseFormat, parseLimit, parseSince, withDatabase, write, writeJson } from "../cli-utils.js";
-import { renderDueSources, renderSourceHealth, renderSourceManagementCatalog, renderSourcePlan, renderSourcesList } from "../source-render.js";
+import {
+  renderDueSources,
+  renderSourceHealth,
+  renderSourceManagementCatalog,
+  renderSourcePlan,
+  renderSourcePlanSmokeReport,
+  renderSourcePlanTargetPreview,
+  renderSourcesList
+} from "../source-render.js";
 
 export function registerSourcesAndChangesCommands(program: Command): void {
   const sources = program.command("sources").description("source registry commands");
@@ -237,6 +247,77 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         const result = await syncSourcePolicyConfig(pool, { config, configSource: options.file });
         writeJson({ ok: true, validation_warnings: validation.warnings, ...result });
       });
+    });
+  sourcePolicy
+    .command("preview-plan-targets")
+    .requiredOption("--source-plan <path>", "research-pack source-plan.json")
+    .requiredOption("--namespace <name>", "stable namespace for generated check_target_id values, e.g. nvidia-memory-2025")
+    .option("--enable", "preview generated targets as enabled", false)
+    .option("--next-check-at <iso>", "optional initial next_check_at for generated targets")
+    .option("--check-cadence-minutes <minutes>", "optional target-level cadence override")
+    .option("--jitter-minutes <minutes>", "optional target-level jitter override")
+    .option("--max-attempts <count>", "optional target-level retry limit")
+    .option("--backoff-base-minutes <minutes>", "optional target-level retry backoff base")
+    .option("--backoff-max-minutes <minutes>", "optional target-level retry backoff max")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("preview runnable target suggestions from a research-pack source-plan without writing source_check_targets")
+    .action(
+      async (options: {
+        sourcePlan: string;
+        namespace: string;
+        enable: boolean;
+        nextCheckAt?: string;
+        checkCadenceMinutes?: string;
+        jitterMinutes?: string;
+        maxAttempts?: string;
+        backoffBaseMinutes?: string;
+        backoffMaxMinutes?: string;
+        format: string;
+      }) => {
+        const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
+        const report = previewSourceCheckTargetsFromPlan({
+          source_plan: sourcePlanDocument.source_plan,
+          namespace: options.namespace,
+          enabled: options.enable,
+          connector_capabilities: listRegisteredSourceCheckConnectorCapabilities(),
+          ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
+          ...(options.checkCadenceMinutes === undefined
+            ? {}
+            : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
+          ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
+          ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
+          ...(options.backoffBaseMinutes === undefined
+            ? {}
+            : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
+          ...(options.backoffMaxMinutes === undefined
+            ? {}
+            : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") })
+        });
+        write(renderSourcePlanTargetPreview(report, parseFormat(options.format)));
+      }
+    );
+  sourcePolicy
+    .command("smoke-plan-targets")
+    .requiredOption("--source-plan <path>", "research-pack source-plan.json")
+    .requiredOption("--namespace <name>", "stable namespace for generated check_target_id values, e.g. nvidia-memory-2025")
+    .option("--source <ids>", "comma-separated source adapter ids to include")
+    .option("--limit <count>", "max generated targets to smoke test")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("run source-plan target plan/fetch/normalize smoke tests without writing Postgres")
+    .action(async (options: { sourcePlan: string; namespace: string; source?: string; limit?: string; format: string }) => {
+      const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
+      const preview = previewSourceCheckTargetsFromPlan({
+        source_plan: sourcePlanDocument.source_plan,
+        namespace: options.namespace,
+        connector_capabilities: listRegisteredSourceCheckConnectorCapabilities()
+      });
+      if (!preview.validation.ok) throw new Error(`source-plan targets are invalid: ${preview.validation.errors.map((issue) => issue.message).join("; ")}`);
+      const report = await runSourcePlanConnectivitySmoke({
+        targets: preview.config.check_targets,
+        ...(options.source === undefined ? {} : { source_adapter_ids: parseCommaSeparated(options.source) }),
+        ...(options.limit === undefined ? {} : { limit: parseLimit(options.limit) })
+      });
+      write(renderSourcePlanSmokeReport(report, parseFormat(options.format)));
     });
   sourcePolicy
     .command("sync-plan-targets")

@@ -4,8 +4,9 @@ import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidate
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import { lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
 import { lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
+import { lookupGleifLeiRecords, type GleifLeiSearchInput } from "./gleif-entity-source.js";
 
-export type EntityLookupSource = "all" | "opencorporates" | "companies-house";
+export type EntityLookupSource = "all" | "gleif" | "opencorporates" | "companies-house";
 
 export interface EntityLookupInput {
   query: string;
@@ -30,10 +31,13 @@ export interface EntityReviewEnqueueSummary {
 export async function lookupEntitySourceCandidates(input: EntityLookupInput): Promise<EntityLookupSummary> {
   const query = input.query.trim();
   if (query.length === 0) throw new Error("Entity lookup query must not be empty");
-  const sources = input.source === "all" ? (["opencorporates", "companies-house"] as const) : ([input.source] as const);
+  const sources: Exclude<EntityLookupSource, "all">[] = input.source === "all" ? ["gleif", "opencorporates", "companies-house"] : [input.source];
   const results: EntitySourceLookupResult[] = [];
 
   for (const source of sources) {
+    if (source === "gleif") {
+      results.push(await lookupGleifSource({ query, limit: input.limit }));
+    }
     if (source === "opencorporates") {
       results.push(
         await lookupOpenCorporatesSource({
@@ -67,6 +71,23 @@ export async function enqueueEntitySourceReviewCandidates(store: DatabaseStore, 
     skipped: result.skipped,
     errors
   };
+}
+
+async function lookupGleifSource(input: GleifLeiSearchInput): Promise<EntitySourceLookupResult> {
+  try {
+    const result = await lookupGleifLeiRecords(input);
+    return {
+      source_adapter_id: "gleif",
+      source_url: result.raw.url,
+      candidates: result.candidates
+    };
+  } catch (error) {
+    return {
+      source_adapter_id: "gleif",
+      candidates: [],
+      error_message: errorMessage(error)
+    };
+  }
 }
 
 async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput): Promise<EntitySourceLookupResult> {
