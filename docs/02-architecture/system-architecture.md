@@ -80,20 +80,20 @@
                                   ▼
 ┌──────────────────────────────────────────────────────────────────────┐
 │                Query Layer                                            │
-│  CLI (MVP only)  →  Markdown/JSON renderers                          │
+│  CLI → Markdown/JSON renderers                                       │
 │  Worker → source_check_jobs 常驻消费                                  │
-│  REST API (Phase 3)                                                  │
+│  REST API (backend Gate 8)                                           │
 │  Web UI (Phase 4+)                                                   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 设计要点
 
-### 1. 单进程优先，但天生支持队列化
+### 1. 单进程优先，source monitor 已有 Postgres job/outbox
 
-`v0.1.0-alpha.1` 实现仍是单进程 CLI，没有引入后台队列依赖。Phase 2 继续保持单进程优先，把 source/fetch/change 的状态模型先做扎实。
+核心 ingest / research 仍可由 CLI 单进程触发，方便本地复现和宿主 app 嵌入。持续 source-check 监控已经使用 Postgres-backed `source_check_jobs` durable job/outbox，并由 `apps/worker` 常驻消费；不引入 `pg-boss`、Redis 或 Kafka。
 
-Phase 3 如果进入持续监控，再引入 `pg-boss`（基于 Postgres 的轻量队列，不引入 Redis）。届时所有跨阶段调用必须通过"作业 + 事件"，不允许函数直接 import 调用。这样将来要拆成 worker / API / 调度器很容易。
+后续如果拆成 API / worker / 调度器，仍沿用“作业 + 事件 + DTO 契约”，不允许把调度状态散落在 CLI 参数或前端状态里。
 
 ### 2. Source Adapter 按业务内聚，不按数量机械拆包
 

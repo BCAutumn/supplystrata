@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEntitySourceReviewCandidate,
+  buildClaimConflictReviewCandidate,
   buildOshFacilityReviewCandidate,
   buildSemanticChangeReviewCandidate,
   buildSupplierListReviewCandidate,
   isReviewCandidate,
+  isClaimConflictReviewCandidate,
   supplierListFacilityDisplayName,
   supplierListFacilityEntityId,
   supplierListReviewToFacilityRelation,
@@ -283,5 +285,59 @@ describe("review candidates", () => {
     expect(candidate.review_reason).toContain("不能自动生成供应链事实边");
     expect(isReviewCandidate(candidate)).toBe(true);
     expect(isReviewCandidate({ ...candidate, payload: { ...candidate.payload, osh_candidate: { name: "missing id" } } })).toBe(false);
+  });
+
+  it("converts claim conflict packets into review-only candidates", () => {
+    const candidate = buildClaimConflictReviewCandidate({
+      payload: {
+        claim_id: "CLM-ACTIVE-TSMC",
+        claim_text: "NVIDIA publicly discloses that it buys wafer from TSMC.",
+        edge_id: "EDGE-TSMC",
+        conflict_state: "open_conflict",
+        severity: "high",
+        recommended_action: "review_edge_for_deprecation",
+        safe_write_status: "blocked_pending_review",
+        edge_review_required: true,
+        required_review_steps: [
+          "inspect_supporting_evidence",
+          "inspect_contradicting_evidence",
+          "resolve_conflict_unknown",
+          "review_fact_edge_for_deprecation"
+        ],
+        evidence_refs: [
+          { evidence_id: "EV-PRIMARY", role: "primary" },
+          { evidence_id: "EV-CONTRA", role: "contradicting" }
+        ],
+        unknown_refs: [{ unknown_id: "UNK-CONFLICT", role: "blocking", status: "open" }],
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none",
+          requires_human_review: true,
+          reason_codes: ["open_conflict_unknown", "contradicting_evidence_linked", "active_fact_claim"]
+        }
+      }
+    });
+
+    expect(candidate).toMatchObject({
+      kind: "claim_conflict_review",
+      title: "Claim conflict: CLM-ACTIVE-TSMC",
+      payload: {
+        claim_id: "CLM-ACTIVE-TSMC",
+        safe_write_status: "blocked_pending_review",
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none"
+        }
+      },
+      evidence: {
+        source_adapter_id: "claim-builder",
+        source_locator: "CLM-ACTIVE-TSMC / EDGE-TSMC",
+        source_row_text: "NVIDIA publicly discloses that it buys wafer from TSMC."
+      }
+    });
+    expect(candidate.review_id).toContain("REV-CLAIM-CONFLICT");
+    expect(isReviewCandidate(candidate)).toBe(true);
+    expect(isClaimConflictReviewCandidate(candidate)).toBe(true);
+    expect(isReviewCandidate({ ...candidate, payload: { ...candidate.payload, fact_write_policy: { automatic_fact_mutation_allowed: true } } })).toBe(false);
   });
 });

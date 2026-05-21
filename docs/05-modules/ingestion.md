@@ -61,19 +61,15 @@
 
 ## Pipeline 编排
 
-### 队列设计（Phase 3 目标：pg-boss）
+### 队列设计
 
-`v0.1.0-alpha.1` 没有后台队列，ingest / parse / extract / score / apply 仍由 CLI 单进程串起。下面是 Phase 3 进入持续监控后的目标形态，不能当作当前 alpha 已实现能力。
+关系抽取主 pipeline 仍可由 CLI 单进程串起，保证本地可复现。持续 source-check 监控已经使用 `source_check_jobs` durable job/outbox，不引入 `pg-boss`。当前已实现的队列只负责 source-check target；parse / extract / score / apply 仍不是后台队列。
 
 ```
-queue: ingest.plan        → 接收 trigger，扇出到 ingest.fetch
-queue: ingest.fetch       → 抓取单个 task
-queue: ingest.normalize   → 解析单文档
-queue: extract            → 抽取候选关系
-queue: score              → 评级
-queue: review.notify      → 通知人工 review
-queue: apply              → 写图谱
-queue: housekeeping       → daily 任务
+source_check_targets   → 可监控目标和 cadence / jitter / retry 配置
+source_check_jobs      → due target enqueue / claim / retry / dead 状态
+source_change_events   → DOCUMENT_CHANGED / SOURCE_DEGRADED / SOURCE_FAILED 等事件
+apps/worker            → 常驻消费 due jobs，复用 source-workflows.runDueSourceChecks()
 ```
 
 任务彼此通过 Postgres 表传递；不直接传 in-memory 大对象。
@@ -84,11 +80,12 @@ queue: housekeeping       → daily 任务
 - `documents` 表以 `(source_adapter_id, source_url, bytes_sha256)` 唯一
 - `extract` 任务以 `(doc_id, extractor_version)` 唯一
 
-### 失败与 DLQ（Phase 3 目标）
+### 失败与 dead job
 
-- pg-boss 自动重试（指数退避，最多 3 次）
-- 失败入 `pgboss.archive`；CLI 命令 `supplystrata jobs failed` 列出
-- 失败 dump 必须含：task input + 完整 stacktrace + 上次调用的 HTTP context
+- source-check job 失败后写入 `failed`，并按 source policy / target config 计算 `next_attempt_at`。
+- 超过 `max_attempts` 后进入 `dead`，不会继续被 worker claim。
+- cached fallback 会记录 `SOURCE_DEGRADED`，coverage 中显示为 degraded，而不是成功。
+- 错误上下文必须包含 target id、source adapter、target kind、attempts 和 last_error。
 
 ## 速率控制
 

@@ -1,5 +1,14 @@
 import type { Command } from "commander";
-import { buildEdgeClaimsFromCurrentEdgesTransactionally } from "@supplystrata/claim-builder";
+import {
+  buildEdgeClaimsFromCurrentEdgesTransactionally,
+  enqueueClaimConflictReviewCandidatesTransactionally,
+  resolveClaimLifecycleTransactionally,
+  resolveClaimConflictReviewTransactionally,
+  type ClaimConflictResolutionAction,
+  type ClaimLifecycleAction,
+  type ClaimLifecycleSourceKind,
+  type ClaimLifecycleSourceRef
+} from "@supplystrata/claim-builder";
 import { parseFormat, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
 
 export function registerClaimCommands(program: Command): void {
@@ -35,10 +44,192 @@ export function registerClaimCommands(program: Command): void {
         );
       });
     });
+
+  claims
+    .command("enqueue-conflicts")
+    .option("--limit <count>", "max conflicting claims to scan", "500")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("enqueue unresolved claim conflicts into the human review queue")
+    .action(async (options: { limit: string; format: string }) => {
+      await withDatabase(async (pool) => {
+        const summary = await enqueueClaimConflictReviewCandidatesTransactionally(pool, { limit: parseLimit(options.limit) });
+        if (parseFormat(options.format) === "json") {
+          writeJson({ ok: true, ...summary });
+          return;
+        }
+        write(
+          [
+            "# Claim Conflict Review Enqueue",
+            "",
+            `Scanned claims: ${summary.scanned}`,
+            `Enqueued reviews: ${summary.enqueued}`,
+            `Skipped existing: ${summary.skipped}`
+          ].join("\n")
+        );
+      });
+    });
+
+  claims
+    .command("resolve-conflict")
+    .argument("<claim-id>", "claim id to resolve")
+    .requiredOption("--action <action>", "confirm-claim-valid, recommend-edge-deprecation, or request-more-evidence")
+    .requiredOption("--reviewer <id>", "reviewer id")
+    .requiredOption("--reason <text>", "human-readable resolution reason")
+    .option("--unknown <id>", "conflict unknown id")
+    .option("--evidence <ids>", "comma-separated resolution evidence ids")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("record a human claim-conflict resolution action without mutating fact edges")
+    .action(
+      async (
+        claimId: string,
+        options: {
+          action: string;
+          reviewer: string;
+          reason: string;
+          unknown?: string;
+          evidence?: string;
+          format: string;
+        }
+      ) => {
+        await withDatabase(async (pool) => {
+          const result = await resolveClaimConflictReviewTransactionally(pool, {
+            claim_id: claimId,
+            action: parseClaimConflictResolutionAction(options.action),
+            reviewer: options.reviewer,
+            reason: options.reason,
+            ...(options.unknown === undefined ? {} : { unknown_id: options.unknown }),
+            resolution_evidence_ids: parseEvidenceIds(options.evidence)
+          });
+          if (parseFormat(options.format) === "json") {
+            writeJson({ ok: true, ...result });
+            return;
+          }
+          write(
+            [
+              "# Claim Conflict Resolution",
+              "",
+              `Claim: ${result.claim_id}`,
+              `Action: ${result.action}`,
+              `Status: ${result.status}`,
+              `Edge: ${result.edge_id ?? "none"}`,
+              `Unknown: ${result.unknown_id ?? "none"}`,
+              `Resolution evidence: ${result.resolution_evidence_ids.length === 0 ? "none" : result.resolution_evidence_ids.join(", ")}`,
+              "",
+              "Fact edges changed: no"
+            ].join("\n")
+          );
+        });
+      }
+    );
+
+  claims
+    .command("lifecycle")
+    .argument("<claim-id>", "claim id to maintain")
+    .requiredOption("--action <action>", "supersede-claim, reject-claim, or keep-with-context")
+    .requiredOption("--source <refs>", "comma-separated refs: evidence:EV,review:REV,claim:CLM,unknown:UNK,semantic-change:CHG")
+    .requiredOption("--reviewer <id>", "reviewer id")
+    .requiredOption("--reason <text>", "human-readable lifecycle reason")
+    .option("--superseded-by-claim <claimId>", "replacement claim id when action is supersede-claim")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("record a controlled claim lifecycle action without mutating fact edges")
+    .action(
+      async (
+        claimId: string,
+        options: {
+          action: string;
+          source: string;
+          reviewer: string;
+          reason: string;
+          supersededByClaim?: string;
+          format: string;
+        }
+      ) => {
+        await withDatabase(async (pool) => {
+          const result = await resolveClaimLifecycleTransactionally(pool, {
+            claim_id: claimId,
+            action: parseClaimLifecycleAction(options.action),
+            source_refs: parseClaimLifecycleSourceRefs(options.source),
+            reviewer: options.reviewer,
+            reason: options.reason,
+            ...(options.supersededByClaim === undefined ? {} : { superseded_by_claim_id: options.supersededByClaim })
+          });
+          if (parseFormat(options.format) === "json") {
+            writeJson({ ok: true, ...result });
+            return;
+          }
+          write(
+            [
+              "# Claim Lifecycle",
+              "",
+              `Claim: ${result.claim_id}`,
+              `Action: ${result.action}`,
+              `Status: ${result.status}`,
+              `Claim status: ${result.previous_claim_status} -> ${result.new_claim_status}`,
+              `Edge: ${result.edge_id ?? "none"}`,
+              `Edge validity: ${result.edge_validity ?? "none"}`,
+              `Source refs: ${result.source_refs.map((ref) => `${ref.kind}:${ref.id}`).join(", ")}`,
+              `Superseded by claim: ${result.superseded_by_claim_id ?? "none"}`,
+              "",
+              "Fact edges changed: no"
+            ].join("\n")
+          );
+        });
+      }
+    );
 }
 
 function parseMinEvidenceLevel(value: string): 4 | 5 {
   if (value === "4") return 4;
   if (value === "5") return 5;
   throw new Error(`Unsupported minimum evidence level: ${value}`);
+}
+
+function parseClaimConflictResolutionAction(value: string): ClaimConflictResolutionAction {
+  if (value === "confirm-claim-valid") return "confirm_claim_valid";
+  if (value === "recommend-edge-deprecation") return "recommend_edge_deprecation";
+  if (value === "request-more-evidence") return "request_more_evidence";
+  throw new Error(`Unsupported claim conflict resolution action: ${value}`);
+}
+
+function parseEvidenceIds(value: string | undefined): string[] {
+  if (value === undefined) return [];
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function parseClaimLifecycleAction(value: string): ClaimLifecycleAction {
+  if (value === "supersede-claim") return "supersede_claim";
+  if (value === "reject-claim") return "reject_claim";
+  if (value === "keep-with-context") return "keep_with_context";
+  throw new Error(`Unsupported claim lifecycle action: ${value}`);
+}
+
+function parseClaimLifecycleSourceRefs(value: string): ClaimLifecycleSourceRef[] {
+  const refs = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .map(parseClaimLifecycleSourceRef);
+  if (refs.length === 0) throw new Error("At least one claim lifecycle source ref is required");
+  return refs;
+}
+
+function parseClaimLifecycleSourceRef(value: string): ClaimLifecycleSourceRef {
+  const separator = value.indexOf(":");
+  if (separator < 1 || separator === value.length - 1) throw new Error(`Unsupported claim lifecycle source ref: ${value}`);
+  return {
+    kind: parseClaimLifecycleSourceKind(value.slice(0, separator)),
+    id: value.slice(separator + 1)
+  };
+}
+
+function parseClaimLifecycleSourceKind(value: string): ClaimLifecycleSourceKind {
+  if (value === "evidence") return "evidence";
+  if (value === "review") return "review";
+  if (value === "claim") return "claim";
+  if (value === "unknown") return "unknown";
+  if (value === "semantic-change") return "semantic_change";
+  throw new Error(`Unsupported claim lifecycle source kind: ${value}`);
 }

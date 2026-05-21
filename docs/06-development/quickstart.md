@@ -107,7 +107,7 @@ pnpm --silent cli intelligence refresh --min-evidence-level 4 --limit 1000
 pnpm --silent cli research run --company nvidia --depth 3 --out reports/nvidia-research-pack
 ```
 
-研究包会额外生成 `question-readiness.json/md` 和 `investigation-backlog.json/md`。readiness 文件不调用 AI，也不生成正式答案；它们只根据当前 pack 里的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready`、`partial` 还是 `blocked`，并列出 supporting refs、missing requirements 和 unknown ids。backlog 文件会把这些 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 变成可审计的下一步调查任务；它只规划，不抓取、不落库、不写事实边。这样可以先知道数据是否足够，再决定是否进入人工分析或后续 AI 总结。
+研究包会额外生成 `attention-queue.json/md`、`question-readiness.json/md`、`observation-coverage.json/md`、`official-disclosure-readiness.json/md` 和 `investigation-backlog.json/md`。attention queue 会把 claim conflict、claim lifecycle warning、open alert candidates、degraded source health 和 requires-attention change 统一成即时处理入口；它只读已有上下文，不自动裁决冲突、不修改事实边、不关闭 unknown。readiness 文件不调用 AI，也不生成正式答案；它们只根据当前 pack 里的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready`、`partial` 还是 `blocked`，并列出 supporting refs、missing requirements 和 unknown ids。observation coverage 文件会汇总本研究包里可见的 typed signal、source adapter、scope、component、geography、metric、样本 id、series readiness 和缺失 methodology type，避免只看 Markdown 时误以为所有信号都已覆盖；series readiness 会标出某组观测是 `sparse`、`explicit_baseline_ready` 还是 `time_series_ready`。official disclosure readiness 文件会把 Gate 1 的内置研究 target profile、逐节点覆盖状态、显式 target node 覆盖、逐 expected source 覆盖、profile expansion candidates、Level 4/5 fact edge、完整 traceability、严格 cross-source corroboration、strength/freshness gap 和官方披露 source target 状态显式列出；它不会把 single-source silence 当作已解释，也不会写事实边。expected source 覆盖会区分“已有事实证据 / 已有 observation / target 已同步 / target 可同步 / 只有计划 / connector 存在但节点未接线 / source 已注册但未实现 / profile source 未映射”，所以 profile 不是一张自我安慰清单，而是可执行缺口账本。CLI 会在 NVIDIA、TSMC、Samsung、SK Hynix、Micron、ASML、云需求端或相关组件命中时自动选择 `ai-compute-memory.v0`，不用用户手写 profile；需要关闭时可传 `--target-profile none`。profile 是验收锚点，不是全球供应链全集；内置 profile 中已有 CIK 的 SEC 公司会进入 `source-plan.json` 的 `sec-company-filings` runnable suggestion，官方 IR source 会在提供 `--official-disclosure-year` 时进入 node-specific runnable suggestion；缺 connector 或缺 target config 的来源仍会保留为缺口。不在 profile 里但已被发现的节点会进入 expansion candidates/backlog。backlog 文件会把这些 readiness gap、official disclosure gap、expected source gap、profile expansion candidate、explicit unknown、组件覆盖缺口、source-plan item 和 sparse observation series 变成可审计的下一步调查任务；它只规划，不抓取、不落库、不写事实边。这样可以先知道数据是否足够，再决定是否进入人工分析或后续 AI 总结。
 
 如果要让 TSMC / Samsung / SK hynix / ASML 这类已注册官方 IR connector 进入 runnable source target，而不是只停留在 planned backlog，可以给研究包传入披露年份：
 
@@ -131,7 +131,54 @@ pnpm --silent cli sources run-due --source-plan reports/nvidia-research-pack/sou
 
 再次运行同一个 `research run --source-target-namespace nvidia-memory-2025` 时，研究包会输出 `source-target-coverage.json/md`。这个文件把 runnable source-plan target 对齐到 `source_check_targets / source_check_jobs / source_change_events / observations`，显示目标是否已同步、是否启用、是否 due、是否 degraded、最近 job/event 是什么，以及有没有产出 observation。`investigation-backlog.md` 也会把这些状态写进每个相关任务的 action 和 coverage 行里，例如“已同步但未启用”时会提示先启用 target，“source fetch degraded” 时会提示先排查源退化，而不是笼统提示去跑 source。它是监控闭环的可见性层，不会自动把 observation 升级成 fact edge。
 
+如果当前环境没有 SQL truth store，也可以先用静态 Workbench 跑同一套 source-plan / readiness 输出：
+
+```bash
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --source-target-namespace nvidia-memory-2025 --out reports/nvidia-monitoring-loop-snapshot
+```
+
+静态 snapshot 不连接 Postgres，因此 `source-target-coverage.json/md` 会把 expected targets 全部标为 `not_synced`。这不是假闭环，而是迁入宿主 App 前的可审计准备态：它明确告诉调用方“source-plan 已生成稳定 target id，但还没有进入 source_check_targets”。真正持久化闭环仍要由上面的 `sync-plan-targets / enable-plan-targets / due / run-due` 在可达 SQL truth store 上执行。
+
 只想从 truth store 做只读打包时，同时加 `--skip-intelligence-refresh --skip-component-risk-refresh`。只跳过 edge intelligence refresh 时，research-pack 仍会用已有 fact edge 刷新 eligible component risk baseline；没有事实边的组件不会被写入空 risk view。
+
+如果 claim 出现反证或 `CONFLICTING_EVIDENCE` unknown，Workbench / research-pack 的 `workbench.json` 会在 claim DTO 里输出 `conflict_review`。它是后续 agent safe write path 的输入契约：`review_queue_kind='claim_conflict_review'` 表示需要审阅，`safe_write_status='blocked_pending_review'` 表示禁止自动写事实层，`fact_write_policy.automatic_fact_mutation_allowed=false` 表示不同来源不一致时不能由系统自动“校准”或 deprecate edge。要把 unresolved conflict 放进持久化人工队列，可以运行：
+
+```bash
+pnpm --silent cli claims enqueue-conflicts --limit 500
+```
+
+该命令只写 `review_candidates(kind='claim_conflict_review')`，不修改 `edges`、不修改 claim status、不 resolve unknown。后续仍需通过 `review next/show/approve/reject/block/apply` 路径处理。`review apply` 对 approved claim conflict review 只写 `CLAIM_CONFLICT_REVIEW_APPLIED` / `REVIEW_APPLIED` 审计事件并标记 review applied，不会自动 deprecate edge，也不会自动关闭 unknown。
+
+人工处理 claim conflict 时，用 `claims resolve-conflict` 记录明确 resolution action：
+
+```bash
+pnpm --silent cli claims resolve-conflict CLM-EXAMPLE --action confirm-claim-valid --unknown UNK-CONFLICT-EXAMPLE --evidence EV-RESOLUTION --reviewer analyst --reason "Latest official filing confirms the relation."
+pnpm --silent cli claims resolve-conflict CLM-EXAMPLE --action recommend-edge-deprecation --reviewer analyst --reason "Counterparty disclosure contradicts the current edge."
+pnpm --silent cli claims resolve-conflict CLM-EXAMPLE --action request-more-evidence --reviewer analyst --reason "Need second official source before closing the conflict."
+```
+
+`confirm-claim-valid` 必须带 linked unknown 和 resolution evidence，并只通过 unknown 边界关闭 unknown；`recommend-edge-deprecation` 和 `request-more-evidence` 只写 `CLAIM_CONFLICT_RESOLUTION_ACTION_RECORDED` 审计上下文，不修改事实边或 claim status。
+
+真正废弃事实边必须走显式 edge lifecycle workflow，并提供至少一个可验证 source ref：
+
+```bash
+pnpm --silent cli graph deprecate-edge EDGE-EXAMPLE --source evidence:EV-CONTRA,review:REV-CONFLICT --reviewer analyst --reason "Reviewed official counterparty disclosure contradicts the current edge."
+pnpm --silent cli graph deprecate-edge EDGE-OLD --source claim:CLM-CONFLICT --superseded-by EDGE-NEW --reviewer analyst --reason "Superseded by narrower reviewed component edge."
+```
+
+`graph deprecate-edge` 默认 `--graph-sync defer`，只维护 Postgres truth store 并记录 `EDGE_DEPRECATED`；需要同步删除 Neo4j 当前态边时显式传 `--graph-sync sync`。source refs 支持 `evidence:*`、`review:*`、`claim:*`、`unknown:*` 和 `semantic-change:*`，缺 source ref 或引用不存在都会失败。该流程只 soft-deprecate current edge，不删除 evidence，不自动修改 claim status。
+
+再次运行 `research run` 或 `workbench export` 时，claim DTO 会显示 edge lifecycle context。active claim 如果仍挂在 deprecated/historical edge 上，会带 `lifecycle_warnings[].code='active_claim_on_inactive_edge'`；research-pack README 的 stats 也会汇总 `Claim lifecycle warnings`。这是维护提醒，不会自动 supersede / reject claim。
+
+维护这类 claim 时，用显式 claim lifecycle 命令：
+
+```bash
+pnpm --silent cli claims lifecycle CLM-OLD --action supersede-claim --superseded-by-claim CLM-NEW --source evidence:EV-CONTRA,claim:CLM-NEW --reviewer analyst --reason "Deprecated edge has been replaced by a narrower reviewed claim."
+pnpm --silent cli claims lifecycle CLM-OLD --action reject-claim --source evidence:EV-CONTRA --reviewer analyst --reason "Reviewed counterparty disclosure invalidates this claim."
+pnpm --silent cli claims lifecycle CLM-OLD --action keep-with-context --source review:REV-CONFLICT --reviewer analyst --reason "Keep visible until replacement evidence review is complete."
+```
+
+`supersede-claim` / `reject-claim` 只更新 `claims.status` 并写 `CLAIM_LIFECYCLE_ACTION_RECORDED`；`keep-with-context` 只写审计上下文。三者都要求 source refs，且都不修改 fact edge。
 
 如果要从 SEC companyfacts JSON 刷新结构化财报指标，先在 source policy config 里启用 `sec-edgar/sec-company-facts` 目标，然后运行：
 
@@ -156,7 +203,7 @@ pnpm --silent cli intelligence financial-peers --limit 1000 --min-peer-count 3
 pnpm --silent cli intelligence component-risk --component COMP-MEMORY
 ```
 
-该命令只写 `risk_views / risk_metrics`，不写事实边。ComponentCard / research-pack 会在已有 risk view 时把 `supplier_concentration_hhi`、`single_source_exposure`、`path_redundancy`、`node_knockout_reach`、`node_knockout_weighted_impact`、`betweenness_centrality` 和 `freshness_adjusted_exposure` 带进 JSON/Markdown 输出；其中 `node_knockout_reach` 沿 supplier -> consumer 方向计算下游可达实体数，`node_knockout_weighted_impact` 用已知 `strength_weight * freshness_score` 计算 max-product path 传播影响，缺权重边只显式列为 gap，不补值。CompanyCard 会展示 company-scoped observations，并把与公司上游事实边相关的 component risk metrics 聚合为 `top_exposure_nodes`。如果新版 component risk view 相比上一版存在实质指标变化，会写入 `RISK_METRIC_CHANGED`，可用 `changes --scope risk_metric:<metric-key>` 或 `changes --type RISK_METRIC_CHANGED` 审计。`research run` 会自动批量刷新当前研究包中有可审计 Level 4/5 component fact edge 的组件；对只有 taxonomy/source-plan、还没有 fact edge 的组件保持缺口状态，不生成空风险结论。
+该命令只写 `risk_views / risk_metrics`，不写事实边。ComponentCard / research-pack 会在已有 risk view 时把 `supplier_concentration_hhi`、`single_source_exposure`、`path_redundancy`、`node_knockout_reach`、`node_knockout_weighted_impact`、`betweenness_centrality` 和 `freshness_adjusted_exposure` 带进 JSON/Markdown 输出；其中 `supplier_concentration_hhi` 会用明确 share 乘以 edge freshness 后再计算，attrs 保留 raw HHI 和缺口；`path_redundancy` 沿 supplier -> consumer 方向计算 source supplier 到 terminal consumer 的 simple upstream paths，attrs 会同时保留 direct supplier count、terminal path 明细和 weighted alternate-path context，避免把单条多级链误当成替代路径；`node_knockout_reach` 沿 supplier -> consumer 方向计算下游可达实体数，`node_knockout_weighted_impact` 用已知 `strength_weight * freshness_score` 计算 max-product path 传播影响，缺权重边只显式列为 gap，不补值；`betweenness_centrality` 的 attrs 会额外输出 weighted path centrality context，用于识别高权重路径瓶颈。CompanyCard 会展示 company-scoped observations，并把与公司上游事实边相关的 component risk metrics 聚合为 `top_exposure_nodes`。如果新版 component risk view 相比上一版存在实质指标变化，会写入 `RISK_METRIC_CHANGED`，可用 `changes --scope risk_metric:<metric-key>` 或 `changes --type RISK_METRIC_CHANGED` 审计。`research run` 会自动批量刷新当前研究包中有可审计 Level 4/5 component fact edge 的组件；对只有 taxonomy/source-plan、还没有 fact edge 的组件保持缺口状态，不生成空风险结论。
 
 如果已有 observations 带 `baseline_value / change_percent`，可以刷新 observation anomaly baseline：
 
@@ -189,7 +236,7 @@ pnpm --silent cli intelligence alert-list --status open --limit 50
 pnpm --silent cli intelligence alert-status ALT-EXAMPLE --status acknowledged --reviewer analyst --reason "reviewed in daily monitor"
 ```
 
-`alert-status` 会写入 `ALERT_STATUS_CHANGED` semantic change，changes timeline 可用 `alert:<alert_id>` scope 追踪处理历史。正式 worker loop 和通知通道仍是后续工作。
+`alert-status` 会写入 `ALERT_STATUS_CHANGED` semantic change，changes timeline 可用 `alert:<alert_id>` scope 追踪处理历史。再次运行 `research run` 或 `workbench export` 时，open alert 会出现在 `workbench.json.attention_queue` 和 research-pack 的 `attention-queue.json/md` 中；已 acknowledged / resolved / suppressed 的 alert 仍保留在 alert 表和 changes timeline 里，不再作为 open attention item 输出。正式通知通道仍是后续工作。
 
 如果要同时验证 Neo4j 物化图：
 
@@ -227,7 +274,7 @@ pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.j
 pnpm --silent cli runtime doctor
 ```
 
-这条路径不会落库，也不会写 GraphStore，适合未来嵌入 TS 桌面端或 agent 产品。`research from-workbench` 只消费已有 `WorkbenchModel` JSON，可以把一次 DB-backed 研究结果重新打包成静态目录；`preview` 则重新走抓取/解析/规则抽取。需要 review 队列、source health、changes timeline 或 Postgres truth store 时，需要连接 Postgres；需要图数据库物化视图、`graph rebuild/check` 或 Neo4j Browser 探索时，才需要 Neo4j adapter。
+这条路径不会落库，也不会写 GraphStore，适合未来嵌入 TS 桌面端或 agent 产品。`research from-workbench` 只消费已有 `WorkbenchModel` JSON，可以把一次 DB-backed 研究结果重新打包成静态目录；`preview` 则重新走抓取/解析/规则抽取。需要 review 队列、source health、changes timeline 或 Postgres truth store 时，需要连接 Postgres；changes timeline 会结构化显示 evidence supersession、official relation semantic diff、observation anomaly 和 risk metric change。需要图数据库物化视图、`graph rebuild/check` 或 Neo4j Browser 探索时，才需要 Neo4j adapter。
 
 如果不确定自己该跑哪条路径：
 

@@ -1,6 +1,6 @@
 # Midterm Intelligence Network Plan — 公开供应链情报网中期骨架
 
-> 本文记录中期骨架，很多条目已经落地。它不再代表“后端完成”。后端完成门槛已收敛到 [backend-completion-criteria.md](./backend-completion-criteria.md)：必须补齐财报结构化、关系强度、跨源融合、观测信号、风险派生、持续监控和 API。
+> 本文记录中期骨架，很多条目已经落地。它不再代表“后端完成”。后端完成门槛已收敛到 [backend-completion-criteria.md](./backend-completion-criteria.md)：必须补齐官方披露覆盖、claim 多源融合、观测信号、API、质量/性能和安全 agent gate。若本文与后端完成标准冲突，以后者为准。
 
 本文把 SupplyStrata 从“证据图谱 alpha”升级到“公开供应链情报网”的中期目标拆成可执行工程路线。
 
@@ -27,17 +27,19 @@
 - 语义级 changes 第一版：claim / observation / lead 写入路径会产生确定性的 `change_records`；官方披露文档变化会产生固定 section fingerprint diff；官方披露关系候选会产生 relation fingerprint diff，并进入 review queue。
 - Component-HS-Material taxonomy 第一版：`component-context` 已能输出 HS 代理码、material exposure 和 material observation target；`source-plan` 可据此生成 Census Trade runnable target、World Bank Pink Sheet runnable target、官方 IR runnable target，以及 USGS planned target；`source-management` 可把 research-pack 的 runnable `source-plan.json` suggestions 同步成 `source_check_targets`，默认 disabled，审计后可用同一 plan + namespace 受控启用并写入 target 级调度参数；`source-target-coverage` 会把 target 的 sync/enable/due/job/event/degraded/observation 状态回流到 research-pack，并让 investigation backlog action 随状态细化；ComponentCard 会展示贸易代理码、材料暴露和已落库观测。
 - Edge intelligence refresh 第一版：`@supplystrata/evidence-maintenance` 会刷新 Level 4/5 事实边的新鲜度，从明确 primary evidence 文本写入关系强度，并为缺少 strength 的事实边生成 edge-scoped explicit unknown；`research-pack` 默认刷新并把结果带入 Workbench、CompanyCard、ComponentCard 和 ChainView 输出。
-- Component risk baseline 第一版：`refreshComponentRiskView()` 会从已有 component fact edge、edge strength 和 freshness 生成 `risk_views / risk_metrics`，覆盖 HHI、single-source exposure、direct path redundancy / alternate supplier count、directed node knockout reachability、strength/freshness weighted node knockout impact、directed betweenness centrality 和 freshness-adjusted exposure；research-pack 默认只对当前包里已有 Level 4/5 component fact edge 的 eligible 组件批量刷新 risk baseline，不给只有 taxonomy/source-plan 的组件写空风险结论。ComponentCard / research-pack 会展示 JSON/Markdown 派生风险上下文，CompanyCard 会展示 company-scoped observations，并把相关 component risk metrics 聚合成 top exposure nodes。
+- Component risk baseline 第一版：`refreshComponentRiskView()` 会从已有 component fact edge、edge strength 和 freshness 生成 `risk_views / risk_metrics`，覆盖 freshness-adjusted HHI、single-source exposure、terminal consumer path redundancy / alternate upstream paths、weighted alternate-path context、directed node knockout reachability、strength/freshness weighted node knockout impact、directed betweenness centrality、weighted path centrality context 和 freshness-adjusted exposure；research-pack 默认只对当前包里已有 Level 4/5 component fact edge 的 eligible 组件批量刷新 risk baseline，不给只有 taxonomy/source-plan 的组件写空风险结论。ComponentCard / research-pack 会展示 JSON/Markdown 派生风险上下文，CompanyCard 会展示 company-scoped observations，并把相关 component risk metrics 聚合成 top exposure nodes。
 - Risk metric semantic change 第一版：component risk refresh 会把新版 risk view 与上一版同 scope 派生指标做稳定 key 对比，超过阈值时写入 `RISK_METRIC_CHANGED`；changes timeline 已能把 raw source change、semantic change 和 risk change 分开展示。
+- Timeline enrichment 第一版：`EVIDENCE_SUPERSEDED` 和官方披露 relation semantic diff 已能在 changes timeline 中显示结构化字段和 Markdown 摘要。relation diff 仍然是披露变化提醒，不是自动 fact edge mutation。
 - Edge calibration baseline 第一版：`edge_calibration_labels` 保存人工 gold label，`refreshEdgeCalibrationRun()` 输出 Level 4/5 fact edge precision、confidence reliability buckets 和错误分类汇总；校准结果只用于方法学治理，不自动修改事实边。
 - Observation anomaly baseline 第一版：`refreshObservationAnomalyViews()` 会从已有 observation 的显式 baseline/change 字段或可比较历史窗口生成 observation-scoped `risk_views / risk_metrics`，metric kind 为 `observation_anomaly`；CompanyCard / ComponentCard / research-pack 在已有 anomaly view 时展示 anomaly summary。`refreshFinancialMetricPeerComparisonViews()` 会把同 metric / unit / fiscal period 的公司财务 observation 生成 `financial_metric_peer_zscore`，CompanyCard / research-pack 会展示 financial peer position。它们不从稀疏历史猜 baseline，不写 fact edge。
 - Alert candidate baseline 第一版：`refreshAlertCandidates()` 会从 observation anomaly、source failure 和 component risk metric 生成去重的 `alert_candidates`。alert 只引用 observation / risk_view / risk_metric / change / source event，不写 fact edge，不等同于正式通知。`updateAlertCandidateStatus()` 会把 acknowledged / resolved / suppressed 等维护动作写成 `ALERT_STATUS_CHANGED` semantic change，保证人工处理路径可审计。
+- Attention queue baseline 第一版：Workbench / research-pack 会把 claim conflict、claim lifecycle warning、open alert candidates、degraded source health 和 `requires_attention=true` 的 change 统一导出为 `attention_queue`，并生成 `attention-queue.json/md`。它只是即时处理入口，不自动裁决冲突、不改事实边、不关闭 unknown。
+- Official disclosure readiness 第一版：research-pack 会输出 Gate 1 账本，统计 Level 4/5 fact edge、traceability、cross-source corroboration、strength/freshness gap、source target coverage、内置研究 target profile、显式 target node 覆盖、逐 expected source 覆盖和 profile expansion candidates。`ai-compute-memory.v0` 会在选中公司/组件命中 AI compute/memory 范围时自动启用；profile 是验收锚点，不是全球供应链全集。内置 profile 已能把 SEC CIK / 官方 IR hints 下沉给 source-plan，生成可同步的 node-specific official source target suggestions；缺 connector 或 config 的来源仍保留为显式缺口。未出现在当前 Workbench 的核心节点会显示为 `missing`，profile 期待但未接通的官方源会显示为 `connector_available`、`source_registered_unimplemented` 或 `missing_source_mapping` 等缺口，不在 profile 中但已被发现的节点会进入 expansion backlog 等待审阅。
 - Source-check worker 第一版：`apps/worker` 提供常驻 worker loop，复用 `source-workflows.runDueSourceChecks()` 消费 `source_check_jobs`，CLI 不再是唯一运行入口。
 
 仍缺：
 
-- 多跳 path redundancy / alternate supplier count。
-- weighted centrality、加权路径冗余和 alternate-path aggregation。
+- weighted centrality / weighted path redundancy 的真实样本校准和阈值治理。
 - 足量人工 edge gold set、跨源 observation calibration 与季节性基线。
 - 通知通道。
 - USGS / IEA 等原材料源 adapter，把 planned material target 进一步变成 runnable connector，并落成 mineral / critical-minerals observations。
@@ -392,7 +394,7 @@ packages/db/src/chain-views.ts
 
 ### PR C：claim-builder
 
-状态：已落地第一版。`packages/claim-builder` 只从 current、非 inferred、Level >= 4 且有 primary evidence 的事实边生成 claim；使用确定性 `CLM-EDGE-*` id 幂等 upsert，不抓源、不写图、不提高证据等级。
+状态：已落地第一版并补齐第一轮 claim fusion / conflict unknown。`packages/claim-builder` 只从 current、非 inferred、Level >= 4 且有 primary evidence 的事实边生成 claim；使用确定性 `CLM-EDGE-*` id 幂等 upsert，不抓源、不写图、不提高证据等级。同一 fact edge 下未 supersede、非 inferred 的 evidence 会按 `primary` / `supporting` 关联到 claim，claim confidence 用确定性 Noisy-OR 和 source-independence weight 融合。官方披露 relation `*_REMOVED` 语义变化会生成 `UNK-CONFLICT-*` unknown，并挂到 draft claim 与匹配到的 active claim；它只暴露冲突边界，不自动 deprecate fact edge。`linkContradictingEvidenceToClaim()` 支持把现有 evidence 标为 `contradicting` 并生成 blocking unknown；`resolveClaimConflictUnknown()` 通过 unknown resolve 收口。Workbench / research-pack 已输出 claim 的 `evidence_refs`、`unknown_refs` 和 `conflict_state`。active claim 如果仍挂在 deprecated/historical edge 上，Workbench / research-pack 会输出 lifecycle warning。`adjudicateClaimConflict()` 已给出 severity / recommended_action / edge_review_required / allowed_edge_mutation 的第一版确定性裁决；`buildClaimConflictReviewPacket()` 已把裁决收口成 safe-write 审阅包，明确入队类型、阻塞状态、审阅步骤和事实写入策略。`enqueueClaimConflictReviewCandidates()` 会把 unresolved conflict 幂等写入 `review_candidates(kind='claim_conflict_review')`。`review apply` 对 approved claim conflict review 只 acknowledge 并记录 claim-scoped change，不自动改事实层。人工 resolution action 已收口到 `claim-builder`：确认 claim 有效会关闭 linked unknown，建议 deprecate edge 或请求更多证据只记录审计上下文，不自动改 facts。claim lifecycle action 已支持 `supersede_claim`、`reject_claim`、`keep_with_context`，并要求 source refs，不修改事实边。
 
 新增 `packages/claim-builder`。
 
@@ -416,27 +418,44 @@ NVIDIA publicly discloses that it buys memory from SK Hynix.
 验收：
 
 - [x] 每个 claim 至少有 1 条 evidence。
+- [x] claim 可列出 primary / supporting evidence。
 - [x] claim evidence level 不超过 edge/evidence。
+- [x] claim confidence 融合有 deterministic regression fixture。
+- [x] relation removal semantic change 会生成 conflict unknown 并关联 claim。
+- [x] contradicting evidence role 和 conflict unknown resolve workflow。
+- [x] Workbench / research-pack 可导出 claim conflict_state。
+- [x] conflict adjudication policy 第一版。
+- [x] conflict adjudication 可生成 safe-write review packet 并进入 Workbench / research-pack 输出。
+- [x] conflict review packet 接入持久化 review queue。
+- [x] claim conflict review 决策接入可审计 safe-write apply path，且不改 facts。
+- [x] claim conflict review 支持更细的人工 resolution action。
+- [x] active claim 挂在 deprecated/historical edge 上时导出 lifecycle warning。
+- [x] claim lifecycle 支持 supersede / reject / keep-with-context 人工动作，且要求 source refs、不改 facts。
 - [x] `supplystrata claims build --min-level 4` 可幂等运行。
 - `renderCompany` 可以选择基于 claim 输出事实句。
 
 ### PR D：observation-store + seed fixtures
 
-状态：已落地第一版。`packages/observation-store` 提供 observation / lead 的幂等写入边界；第一版只支持 fixture 或上层模块传入的已标准化观测，不接 Comtrade/EIA/NOAA，不写 graph。
+状态：已落地第一版。`packages/observation-store` 提供 observation / lead 的幂等写入边界；第一版支持 fixture、SEC companyfacts、Census Trade、World Bank Pink Sheet、官方披露语义抽取和 OSH facility profile 等上层模块传入的已标准化观测，不写 graph。
 
-新增 `packages/observation-store`。第一版只用 fixture 或内部调用，不接外部宏观源。
+新增 `packages/observation-store`。它只负责幂等写入和变更记录，不负责抓取源、不做关系推断、不把 observation / lead 升级成 fact edge。
 
 验收：
 
 - [x] 能写入 `INVENTORY_OBSERVATION` / `TRADE_FLOW_OBSERVATION` 等观测输入。
 - [x] SEC companyfacts JSON 能写入 company-scoped `FINANCIAL_METRIC_OBSERVATION`。
+- [x] Census Trade target 能写入 component/country scoped `TRADE_FLOW_OBSERVATION`。
+- [x] World Bank Pink Sheet target 能写入 component/material scoped `COMMODITY_PRICE_OBSERVATION`。
+- [x] 官方披露语义抽取能生成 inventory / backlog / capex / customer concentration / procurement observations。
 - [x] 示例 source policy 已配置 NVIDIA / AMD / Micron / Intel / Microsoft 五家公司 companyfacts target。
 - [x] 同 metric / unit / fiscal period 的财务 observation 能生成 deterministic `financial_metric_peer_zscore`，并带 percentile / rank / peer_count 上下文。
 - [x] CompanyCard / research-pack 能带出 company financial peer position。
 - [x] observation / lead 写入路径不会触碰 `edges`。
 - [x] ComponentCard JSON 能带 `related_observations`。
+- [x] research-pack 能输出 `observation-coverage.json/md`，展示本研究包 typed signal 覆盖、series readiness 与 methodology gaps。
+- [x] investigation-backlog 能把 sparse observation series 转成继续积累同序列窗口点或寻找 explicit baseline 的调查任务。
 - [x] observation / lead 可被 `@supplystrata/chain-view` 作为 context segment 消费。
-- [ ] 后续 fixture 扩展到 `CAPEX_OBSERVATION`。
+- [ ] energy / policy / port / route / critical-mineral observations 仍需后续 connector 或 review-safe source workflow。
 
 ### PR E：chain-view package
 
@@ -510,7 +529,7 @@ PROCUREMENT_CHANGED
 *_SECTION_REMOVED
 ```
 
-已接入 review queue 和 draft claim：relation-level semantic diff 会生成 `semantic_change` 候选。研究员可以 approve / reject；`review apply` 对这类候选只做 acknowledge，并生成 `CLM-REVIEW-*` draft claim，不生成事实边。这条边界很重要：relation semantic diff 是“披露变化提醒”，不是已审计事实边。
+已接入 review queue 和 draft claim：relation-level semantic diff 会生成 `semantic_change` 候选。研究员可以 approve / reject；`review apply` 对这类候选只做 acknowledge，并生成 `CLM-REVIEW-*` draft claim，不生成事实边。这条边界很重要：relation semantic diff 是“披露变化提醒”，不是已审计事实边。changes timeline 会把 relation surfaces、relation type、component、fingerprint、previous/next doc id 带出，避免工作台或 CLI 只能展示原始 JSON payload。
 
 仍待补齐：让工作台单独展示 draft claim，并提供“升级为事实边候选”的显式入口；如果要升级为 edge/evidence，仍必须走实体解析、scoring 和 GraphBuilder 的严格路径。
 
@@ -526,6 +545,7 @@ PROCUREMENT_CHANGED
 - [x] 官方披露 section fingerprint diff 补齐明确事件；当前只覆盖客户集中、库存、backlog、capex、采购义务，避免用 AI 报告段落做不可复现 diff。
 - [x] 官方披露 relation fingerprint diff 补齐供应商、客户、foundry 新增/移除事件；当前仍保持 observation/semantic 层，不自动写 fact edge。
 - [x] 采购义务、产能预留、单一供应商风险从普通 supplier relation diff 中分离为专门语义事件。
+- [x] evidence supersession 和 relation semantic diff 在 timeline / Markdown 中有结构化展示。
 - [x] relation semantic diff 自动入 `review_candidates(kind='semantic_change')`，且确认后只 acknowledge，不绕过 fact edge 写入规则。
 - [x] 已确认的 `semantic_change` 生成 `status='draft'` 的 claim 草稿；active fact claim 查询不会混入这些草稿。
 
@@ -564,12 +584,13 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 - [x] Evidence Inspector 从只看 primary evidence 扩到多 evidence / supersession chain。
 - [x] Question readiness matrix 能标出核心问题的 ready / partial / blocked、缺口和 unknown ids。
 - [x] Investigation backlog 能把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 汇总成可审计下一步任务。
-- [x] source-plan 能在显式官方披露年份存在时，为 TSMC / Samsung / SK hynix / ASML 生成 runnable official IR targets。
+- [x] source-plan 能消费 target profile official source hints：带 CIK 的 SEC 公司生成 runnable filing targets；显式官方披露年份存在时，为 TSMC / Samsung / SK hynix / ASML 生成 runnable official IR targets。
 - [x] source-management / CLI 能把 research-pack source-plan 的 runnable target suggestions 同步到 source_check_targets，并复用统一监控频率、jitter 和重试配置。
 - [x] source-monitor / CLI 能在审计后受控启用已同步 source-plan targets，不把 cadence / jitter / retry / next_check_at 散落成调度期临时参数。
 - [x] source-monitor / research-pack 能输出 source target coverage，把 runnable target 的调度与结果状态回流到研究包。
 - [x] coverage 能区分 succeeded 与 degraded，源退化会进入 backlog 排查动作，不会被误读成可用证据。
 - [x] investigation backlog 能根据 source target coverage 给出同步、启用、运行、等待、排错或 review observation 的具体 action。
+- [x] research-pack 能输出 `attention-queue.json/md`，统一即时 review / alert / source degraded / change attention 入口。
 - [ ] 公司切换仍需等多公司 export/fixture 完善后补。
 
 ### PR H：LLM Candidate Assistant
@@ -636,6 +657,8 @@ v0.2 仍然优先完成：
 [x] ChainViewModel 包含 observation / lead / unknown context segments
 [x] 二/三级 lead segment 带 source hints，能说明下一步应查哪些免费/公开源
 [x] research-preview 能消费 ChainViewModel
+[x] research-pack 能把 observation coverage 作为只读研究产物输出
+[x] Workbench / research-pack 能把即时维护信号输出为 attention queue
 [x] observations/leads 不会进入 Neo4j fact edge
 [x] claim / observation / lead 写入路径产生语义级 changes
 [x] review / unknown 写入路径产生语义级 changes

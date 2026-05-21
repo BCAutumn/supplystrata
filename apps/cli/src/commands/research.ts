@@ -5,7 +5,8 @@ import {
   buildResearchPackFromWorkbench,
   writeResearchPack,
   writeWorkbenchSnapshotPack,
-  type ResearchPackInput
+  type ResearchPackInput,
+  type ResearchTargetProfileOption
 } from "@supplystrata/research-pack";
 import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
@@ -26,6 +27,7 @@ export function registerResearchCommands(program: Command): void {
     .option("--trade-country <code>", "optional Census partner country code for trade target suggestions")
     .option("--trade-directions <directions>", "comma-separated trade directions", "imports,exports")
     .option("--official-year <yyyy>", "emit official IR disclosure target suggestions for this year")
+    .option("--target-profile <id>", "research target profile id, or 'none' to disable automatic profile selection")
     .option("--material-year <yyyy>", "emit annual material observation target suggestions")
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
     .option("--source-target-namespace <name>", "optional namespace used when matching research source-plan targets to source_check_targets")
@@ -47,6 +49,7 @@ export function registerResearchCommands(program: Command): void {
         tradeCountry?: string;
         tradeDirections: string;
         officialYear?: string;
+        targetProfile?: string;
         materialYear?: string;
         commodityMonth?: string;
         sourceTargetNamespace?: string;
@@ -76,8 +79,10 @@ export function registerResearchCommands(program: Command): void {
     .option("--trade-country <code>", "optional Census partner country code for trade target suggestions")
     .option("--trade-directions <directions>", "comma-separated trade directions", "imports,exports")
     .option("--official-year <yyyy>", "emit official IR disclosure target suggestions for this year")
+    .option("--target-profile <id>", "research target profile id, or 'none' to disable automatic profile selection")
     .option("--material-year <yyyy>", "emit annual material observation target suggestions")
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
+    .option("--source-target-namespace <name>", "namespace used when rendering expected source target coverage")
     .option("--out <dir>", "output directory", "reports/research-pack-snapshot")
     .description("build a no-database research snapshot from an existing workbench JSON")
     .action(
@@ -89,8 +94,10 @@ export function registerResearchCommands(program: Command): void {
         tradeCountry?: string;
         tradeDirections: string;
         officialYear?: string;
+        targetProfile?: string;
         materialYear?: string;
         commodityMonth?: string;
+        sourceTargetNamespace?: string;
         out: string;
       }) => {
         const workbench = parseWorkbenchModel(await readFile(options.workbench, "utf8"));
@@ -106,8 +113,10 @@ export function registerResearchCommands(program: Command): void {
                 tradeObservationDirections: parseTradeDirections(options.tradeDirections)
               }),
           ...(options.officialYear === undefined ? {} : { officialDisclosureYear: options.officialYear }),
+          ...(options.targetProfile === undefined ? {} : { researchTargetProfileId: parseResearchTargetProfileOption(options.targetProfile) }),
           ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
-          ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth })
+          ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
+          ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace })
         });
         const written = await writeWorkbenchSnapshotPack(options.out, pack);
         writeJson({
@@ -131,6 +140,7 @@ function researchPackInputFromOptions(options: {
   tradeCountry?: string;
   tradeDirections: string;
   officialYear?: string;
+  targetProfile?: string;
   materialYear?: string;
   commodityMonth?: string;
   sourceTargetNamespace?: string;
@@ -157,10 +167,16 @@ function researchPackInputFromOptions(options: {
           tradeObservationDirections: parseTradeDirections(options.tradeDirections)
         }),
     ...(options.officialYear === undefined ? {} : { officialDisclosureYear: options.officialYear }),
+    ...(options.targetProfile === undefined ? {} : { researchTargetProfileId: parseResearchTargetProfileOption(options.targetProfile) }),
     ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
     ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
     ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace })
   };
+}
+
+function parseResearchTargetProfileOption(value: string): ResearchTargetProfileOption {
+  if (value === "ai-compute-memory.v0" || value === "none") return value;
+  throw new Error(`Unsupported research target profile: ${value}`);
 }
 
 function parseCsv(value: string): string[] {

@@ -1,4 +1,5 @@
 import {
+  isClaimConflictReviewCandidate,
   isEntitySourceReviewCandidate,
   isOshFacilityReviewCandidate,
   isSemanticChangeReviewCandidate,
@@ -27,6 +28,7 @@ export function renderReviewItemOrEmpty(item: ReviewQueueItem | undefined, forma
   if (isEntitySourceReviewCandidate(candidate)) appendEntitySourceCandidate(lines, candidate);
   if (isSemanticChangeReviewCandidate(candidate)) appendSemanticChangeCandidate(lines, candidate);
   if (isOshFacilityReviewCandidate(candidate)) appendOshFacilityCandidate(lines, candidate);
+  if (isClaimConflictReviewCandidate(candidate)) appendClaimConflictCandidate(lines, candidate);
   lines.push("", "## Review Note", "", candidate.review_reason);
   if (item.reviewer !== undefined) lines.push("", `Reviewer: ${item.reviewer}`);
   if (item.decision_reason !== undefined) lines.push(`Decision reason: ${item.decision_reason}`);
@@ -145,5 +147,29 @@ function appendOshFacilityCandidate(lines: string[], candidate: Extract<ReviewQu
     `URL: ${candidate.evidence.source_url}`,
     `Locator: ${candidate.evidence.source_locator}`,
     `Raw row: ${candidate.evidence.source_row_text}`
+  );
+}
+
+function appendClaimConflictCandidate(lines: string[], candidate: Extract<ReviewQueueItem["candidate"], { kind: "claim_conflict_review" }>): void {
+  lines.push(
+    "",
+    "## Claim Conflict",
+    "",
+    `- Claim: ${candidate.payload.claim_id}`,
+    `- Edge: ${candidate.payload.edge_id ?? "none"}`,
+    `- State: ${candidate.payload.conflict_state}`,
+    `- Severity: ${candidate.payload.severity}`,
+    `- Recommended action: ${candidate.payload.recommended_action}`,
+    `- Safe-write status: ${candidate.payload.safe_write_status}`,
+    `- Auto fact mutation: ${candidate.payload.fact_write_policy.automatic_fact_mutation_allowed}`,
+    `- Review steps: ${candidate.payload.required_review_steps.join("; ")}`,
+    `- Evidence refs: ${candidate.payload.evidence_refs.map((ref) => `${ref.role}:${ref.evidence_id}`).join("; ")}`,
+    `- Unknown refs: ${candidate.payload.unknown_refs.map((ref) => `${ref.role}:${ref.status}:${ref.unknown_id}`).join("; ")}`,
+    "",
+    "## Evidence Context",
+    "",
+    `Source: ${candidate.evidence.source_adapter_id}`,
+    `Locator: ${candidate.evidence.source_locator}`,
+    `Claim text: ${candidate.payload.claim_text}`
   );
 }

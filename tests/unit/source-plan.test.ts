@@ -93,6 +93,99 @@ describe("source-plan", () => {
     expect(asmlTarget?.target_config["entity_id"]).toBe("ENT-ASML");
   });
 
+  it("turns explicit target profile sources into node-specific official disclosure targets", () => {
+    const withoutYear = planSourcesForComponents({
+      component_ids: ["COMP-HBM"],
+      maxTierDepth: 1,
+      officialDisclosureTargetNodes: [
+        {
+          node_id: "ENT-NVIDIA",
+          node_kind: "company",
+          name: "NVIDIA",
+          expected_source_ids: ["sec-edgar"],
+          expected_source_targets: [
+            {
+              source_id: "sec-edgar",
+              target_kind: "sec-company-filings",
+              target_config: {
+                cik: "0001045810",
+                entity_id: "ENT-NVIDIA",
+                form_types: ["10-K", "10-Q", "20-F", "8-K"],
+                limit: 3
+              }
+            }
+          ]
+        },
+        { node_id: "COMP-HBM", node_kind: "component", expected_source_ids: ["skhynix-ir", "micron-ir"] }
+      ]
+    });
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-HBM"],
+      maxTierDepth: 1,
+      officialDisclosureYear: "2025",
+      officialDisclosureTargetNodes: [
+        {
+          node_id: "ENT-NVIDIA",
+          node_kind: "company",
+          name: "NVIDIA",
+          expected_source_ids: ["sec-edgar"],
+          expected_source_targets: [
+            {
+              source_id: "sec-edgar",
+              target_kind: "sec-company-filings",
+              target_config: {
+                cik: "0001045810",
+                entity_id: "ENT-NVIDIA",
+                form_types: ["10-K", "10-Q", "20-F", "8-K"],
+                limit: 3
+              }
+            }
+          ]
+        },
+        { node_id: "COMP-HBM", node_kind: "component", expected_source_ids: ["skhynix-ir", "micron-ir"] }
+      ]
+    });
+    const secWithoutYear = withoutYear.find((item) => item.source_id === "sec-edgar");
+    const skHynixWithoutYear = withoutYear.find((item) => item.source_id === "skhynix-ir");
+    const sec = plan.find((item) => item.source_id === "sec-edgar");
+    const skHynix = plan.find((item) => item.source_id === "skhynix-ir");
+    const micron = plan.find((item) => item.source_id === "micron-ir");
+
+    expect(secWithoutYear?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "sec-edgar",
+        target_kind: "sec-company-filings",
+        runnable: true
+      })
+    );
+    expect(skHynixWithoutYear?.suggested_check_targets).toEqual([]);
+    expect(sec?.target_ids).toContain("ENT-NVIDIA");
+    expect(sec?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "sec-edgar",
+        target_kind: "sec-company-filings",
+        runnable: true,
+        target_config: {
+          cik: "0001045810",
+          entity_id: "ENT-NVIDIA",
+          form_types: ["10-K", "10-Q", "20-F", "8-K"],
+          limit: 3
+        }
+      })
+    );
+    expect(skHynix?.target_ids).toContain("COMP-HBM");
+    expect(skHynix?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "skhynix-ir",
+        target_kind: "official-html-disclosure",
+        runnable: true,
+        target_config: { entity_id: "ENT-SKHYNIX", year: 2025 }
+      })
+    );
+    expect(micron?.target_ids).toContain("COMP-HBM");
+    expect(micron?.suggested_check_targets).toEqual([]);
+  });
+
   it("emits material observation targets for USGS and runnable World Bank commodity prices without promoting them to facts", () => {
     const plan = planSourcesForComponents({
       component_ids: ["COMP-HBM"],

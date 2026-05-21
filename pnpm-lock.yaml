@@ -213,6 +213,12 @@ importers:
       '@supplystrata/review-candidates':
         specifier: workspace:*
         version: link:../review-candidates
+      '@supplystrata/review-store':
+        specifier: workspace:*
+        version: link:../review-store
+      '@supplystrata/source-registry':
+        specifier: workspace:*
+        version: link:../source-registry
       pg:
         specifier: ~8.13.1
         version: 8.13.3
@@ -829,6 +835,9 @@ importers:
       '@supplystrata/chain-view-builder':
         specifier: workspace:*
         version: link:../chain-view-builder
+      '@supplystrata/claim-builder':
+        specifier: workspace:*
+        version: link:../claim-builder
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core

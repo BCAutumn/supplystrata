@@ -5,7 +5,7 @@
 - **PostgreSQL**：所有元数据、证据、文档、实体、别名、变更、队列。是事件源 / 真相存储。
 - **Neo4j**：图谱当前状态的物化视图。可以从 Postgres 全量重建。
 
-下面给出 Phase 0-2 必须存在的表 / 节点 / 关系。MVP 当前的实际 DDL 位于 `packages/db/src/migration-sql/*.ts`，并由 `packages/db/src/migrations.ts` 按版本顺序执行。不要再维护单个大 `schema.ts`，新增表或列必须进入新的 migration 文件。
+下面记录当前核心表 / 节点 / 关系的文档化视图。实际 DDL 位于 `packages/db/src/migration-sql/*.ts`，并由 `packages/db/src/migrations.ts` 按版本顺序执行。不要再维护单个大 `schema.ts`，新增表或列必须进入新的 migration 文件。
 
 ## PostgreSQL 表清单
 
@@ -199,7 +199,9 @@ CREATE UNIQUE INDEX uniq_edges_identity ON edges (
 );
 ```
 
-`component` 暂时保留，目的是兼容旧 evidence 和 CLI 输出；新写入链应优先填 `component_id`。`component_specificity` 表示这条边的组件粒度来自什么证据：
+`component` 暂时保留，目的是兼容旧 evidence 和 CLI 输出；新写入链应优先填 `component_id`。事实边废弃必须走受控 soft-delete：只能把 current edge 改成 `validity='deprecated'`，不能删除 edge/evidence/claim；调用方必须提供至少一个可验证 source ref（`evidence`、`review`、`claim`、`unknown` 或 `semantic_change`），并写入 `EDGE_DEPRECATED` change record。claim conflict 的 `recommend-edge-deprecation` 只是人工建议，不能直接授权事实层变更。
+
+`component_specificity` 表示这条边的组件粒度来自什么证据：
 
 - `explicit`：原文明确说出该具体组件，如 HBM、DRAM、wafer。
 - `unspecified`：原文只支持父组件，如 memory。
@@ -223,6 +225,12 @@ CREATE TABLE change_records (
 CREATE INDEX idx_change_records_scope ON change_records(scope_kind, scope_id);
 CREATE INDEX idx_change_records_detected_at ON change_records(detected_at DESC);
 ```
+
+`changes timeline` 是 `change_records` / `source_change_events` 的读取层，不是单独事实表。它会把下列 JSON payload 解析成结构化 DTO 字段，供 CLI、Workbench、attention queue 和 research-pack 使用：
+
+- `evidence_superseded` 规范化为 `EVIDENCE_SUPERSEDED`，并导出 `superseded_evidence_ids`、`superseded_by_evidence_id`、`edge_id`、`evidence_id`。
+- 官方披露 relation semantic diff 会导出 `semantic_relation_kind`、`relation_subject_surface`、`relation_object_surface`、`relation`、`component`、`relation_fingerprint`、`previous_doc_id` / `next_doc_id`。
+- 这些字段只是审计/监控上下文；relation diff 仍然是披露变化提醒，不自动写 fact edge。
 
 ### 9. source monitoring
 
@@ -402,6 +410,8 @@ CREATE TABLE review_candidates (
 );
 ```
 
+当前 `kind` 包括 `supplier_list_row`、`entity_source_candidate`、`semantic_change`、`osh_facility_candidate` 和 `claim_conflict_review`。`claim_conflict_review` 来自 `conflict_review` safe-write packet：它必须保留 `safe_write_status='blocked_pending_review'` 和 `fact_write_policy.automatic_fact_mutation_allowed=false`，只表示“该 claim 需要人工处理”，不能作为自动 deprecate edge 或自动改 claim status 的授权。approved 后执行 `review apply` 只会写 `CLAIM_CONFLICT_REVIEW_APPLIED` 和 `REVIEW_APPLIED` 审计事件；事实边、claim status、unknown status 仍保持原样。更细的人工 resolution action 通过 `CLAIM_CONFLICT_RESOLUTION_ACTION_RECORDED` 写入 `change_records`：`confirm_claim_valid` 会在 resolution evidence 存在时关闭 linked unknown，`recommend_edge_deprecation` 只记录建议，`request_more_evidence` 只记录继续调查要求；这些 action 仍不修改 `edges` 或 claim status。
+
 ### 12. extraction_rejections
 
 硬校验失败的候选进入这里，不进入人工 review 队列。人工看过以后拒绝的候选留在 `review_candidates(status='rejected')`。
@@ -438,17 +448,22 @@ CREATE TABLE pending_entities (
 );
 ```
 
-### 14. pgboss schema（Phase 3 目标）
+### 14. Source check jobs
 
-`v0.1.0-alpha.1` 尚未引入后台队列。Phase 3 如果启动持续监控，再由 `pg-boss` 自带 schema（默认 `pgboss`）管理任务队列：
+项目没有引入 `pg-boss`。持续 source monitor 使用项目自有的 Postgres-backed job/outbox 表，实际 DDL 位于：
 
-- `ingest`
-- `parse`
-- `extract`
-- `apply`
-- `housekeeping`
+```text
+packages/db/src/migration-sql/0016_source_check_jobs.ts
+packages/db/src/migration-sql/0017_source_monitoring_controls.ts
+```
 
-不要手写 `pgboss` 表，由库管理。
+核心表：
+
+```text
+source_check_jobs
+```
+
+它支持 pending / in_progress / succeeded / failed / dead 状态、attempts、next_attempt_at、last_error 和 target-level retry/backoff。`apps/worker` 只负责循环和 signal 退出，具体 enqueue / claim / retry / connector dispatch 仍在 `source-workflows` / `source-monitor` 内。
 
 ## 15. Claim / Observation / ChainView
 
@@ -470,15 +485,20 @@ chain_segments
 
 - `claims` 只能引用 `edges` / `evidence` / `unknown_items` / `review_candidates`，不能自己成为新事实来源。
 - `@supplystrata/claim-builder` 第一版只扫描 `current`、非 inferred、`evidence_level >= 4` 且有 `primary_evidence_id` 的事实边，并用确定性 `claim_id` 幂等 upsert；它不做抽取、不提高证据等级、不写 Neo4j。
+- `claim_evidence.role` 记录 claim 与 evidence 的关系：`primary` / `supporting` / `contradicting` / `context`。反证只能让 claim 进入冲突边界，不能自动删除或改写事实边。
+- `claim_unknowns.role` 记录 claim 与 unknown 的关系：`boundary` / `blocking` / `context`。`CONFLICTING_EVIDENCE` 类 unknown 必须通过这里挂到 claim，不能只散落在 Markdown 说明里。
 - `status='draft'` 只用于已确认的语义变化草稿，例如 `semantic_change` review apply 生成的 `CLM-REVIEW-*`；draft 不进入 active claim 查询，也不能被前端画成事实边。
 - `observations` 不能被 graph-builder 直接物化成 Neo4j fact edge。
 - `@supplystrata/observation-store` 第一版只做幂等写入和输入边界校验；它不调用 graph-builder，不把 observation/lead 升级为边。
 - `FINANCIAL_METRIC_OBSERVATION` 来自 SEC companyfacts 结构化 JSON，保存 company-scoped 财报指标时序；同一 metric/unit 可以用上一期写入 `baseline_value / change_value / change_percent`，provenance 必须记录 `accession / form / filed / taxonomy / xbrl_tag / source_url`，并且不得由此直接生成供应链事实边。
+- `TRADE_FLOW_OBSERVATION` / `COMMODITY_PRICE_OBSERVATION` / 官方披露语义 observation / `FACILITY_PROFILE_OBSERVATION` 同样只能作为可复现 signal；即使它们关联 component、country、material、facility 或公司 scope，也不能单独证明公司间供应关系。
 - ComponentCard 的 `linked_company_observations` 是读取层 DTO，不是新表：它通过当前组件已有 Level 4/5 fact edges 找到 supplier/consumer 公司，再读取这些公司的 company-scoped `FINANCIAL_METRIC_OBSERVATION`。这个关联只用于研究上下文展示，不会把财务 observation 升级成供应关系。
 - `lead_observations` 必须进入 review 或研究队列，默认不进图谱。
 - `chain_segments.semantic_layer` 必须保留 `edge / claim / observation / lead / unknown`，供 CLI、API 和研究工作台统一消费。
 - `@supplystrata/chain-view` 第一版已经能把上游 fact edge、active claim、company/component observations、open leads 和 unknown items 组装成前端可消费的 `CompanyChainViewModel`；observation / lead / unknown 是 context segment，不带 `evidence_level`，不改事实边语义。
-- `@supplystrata/workbench-export` 会把当前研究公司 scope 内 `status='draft'` 的 claim 作为 `draft_claims` 独立输出；draft claim 不进入 ChainView 主链路。
+- `@supplystrata/workbench-export` 会把当前研究公司 scope 内 `status='draft'` 的 claim 作为 `draft_claims` 独立输出；draft claim 不进入 ChainView 主链路。Workbench claim DTO 同时导出 `evidence_refs`、`unknown_refs`、派生 `conflict_state`、`conflict_adjudication` 和 `conflict_review`，用于让研究包和未来 AI 读取结构化支持/反证/未知边界。`conflict_adjudication.allowed_edge_mutation` 当前固定为 `none`；`conflict_review.fact_write_policy.automatic_fact_mutation_allowed` 当前固定为 `false`，表示冲突只能建议 review，不能授权自动改 facts。`claims enqueue-conflicts` 会把 unresolved conflict 幂等写入 `review_candidates(kind='claim_conflict_review')`，但导出 `conflict_review` 本身仍是只读上下文，不会自动入队。
+- Workbench claim DTO 还会导出 `edge_validity`、`edge_deprecated_reason`、`edge_superseded_by_edge_id` 和 `lifecycle_warnings`。如果 active claim 仍挂在 `deprecated` 或 `historical` edge 上，Workbench / research-pack 必须显示 `active_claim_on_inactive_edge` warning；这只是可见性与维护提醒，不会自动 supersede / reject claim。
+- claim lifecycle 维护动作通过 `CLAIM_LIFECYCLE_ACTION_RECORDED` 进入 `change_records`。`supersede_claim` / `reject_claim` 只更新 `claims.status`，`keep_with_context` 不更新 status；三者都必须带可验证 source ref，并保留 reason、edge lifecycle context 和 reviewer。该流程不修改 `edges`，也不删除 claim/evidence 历史。
 
 ## Intelligence Context
 
@@ -546,12 +566,12 @@ risk_metrics
 当前第一版由 `@supplystrata/evidence-maintenance` 的 `refreshComponentRiskView()` 生成 component-scoped baseline：
 
 - 调用方在批量刷新前应先按同一事实边条件筛选 eligible component：`validity='current'`、`evidence_level>=4`、`is_inferred=false`、有 `component_id`，且 relation 属于 `BUYS_FROM / SUPPLIES_TO / USES_FOUNDRY / MANUFACTURES_AT`。research-pack 使用 `listRefreshableComponentRiskComponentIds()` 做这一步，避免给无事实边组件写空 risk view。
-- `supplier_concentration_hhi` 只有在相关供应边都有明确 `share` strength 时才写精确 `value`；缺 share 时 `value=NULL`，并在 `attrs.share_unknown=true` 和 `attrs.missing_share_edge_ids` 中显式暴露缺口。
+- `supplier_concentration_hhi` 只有在相关供应边都有明确 `share` strength 和 freshness 时才写 `value`；计算时 share 会先乘 `freshness_score`，缺 share 或 freshness 时 `value=NULL`，并在 `attrs.share_unknown / attrs.freshness_missing / attrs.missing_share_edge_ids / attrs.missing_freshness_edge_ids` 中显式暴露缺口。`attrs.raw_hhi` 保留未做 freshness 调整的 HHI 供审计。
 - `single_source_exposure` 只来自事实边 topology（仅一个供应商）或明确 `dependency=single_source` strength。
-- `path_redundancy` 当前是直接组件事实边 baseline：`value = max(distinct_supplier_count - 1, 0)`，并在 attrs 里标明 `redundancy_scope='direct_component_fact_edges'`；多跳 chain graph 冗余后续单独实现。
+- `path_redundancy` 当前是 component fact-edge 图 baseline：按 supplier -> consumer 方向寻找 source supplier 到 terminal consumer 的 simple upstream paths，`value = Σ max(path_count_by_terminal - 1, 0)`，并在 attrs 里标明 `redundancy_scope='terminal_consumer_simple_paths'`。attrs 保留 `direct_supplier_count / direct_alternate_supplier_count / terminal_path_redundancy`，用于审计直接 supplier 数与真实替代路径数的差异；同向重复 route edge 会先折叠，避免重复证据变成假冗余。若路径完整带有 strength/freshness，attrs 还会输出 `weighted_alternate_path_score / weighted_terminal_path_redundancy`；任一路径缺权重时正式加权分数保持 `null`，缺口进入 `weighted_missing_edge_ids`。
 - `node_knockout_reach` 当前是有向 component fact-edge 图 reachability baseline：按 supplier -> consumer 方向输出该节点失效会影响多少个下游实体。
 - `node_knockout_weighted_impact` 当前是 strength/freshness 加权传播 baseline：边权重为可追溯 `strength_weight * freshness_score`，每个下游实体取当前已知最强路径，`value` 为这些实体 impact 求和；缺 strength 或 freshness 的边写入 `attrs.missing_weight_edge_ids`，不补值、不均分。
-- `betweenness_centrality` 当前是有向 component fact-edge 图 baseline：按 supplier -> consumer 方向计算 unweighted shortest-path betweenness，只输出 raw score > 0 的瓶颈节点；加权多跳传播后续单独实现。
+- `betweenness_centrality` 当前是有向 component fact-edge 图 baseline：按 supplier -> consumer 方向计算 unweighted shortest-path betweenness，只输出 raw score > 0 的瓶颈节点；attrs 同时输出 `weighted_path_centrality_score / weighted_path_centrality_raw_score / weighted_contributing_path_edge_ids`，用 strength/freshness path product 标出高权重路径瓶颈。缺权重边只进入 `weighted_missing_weight_edge_ids`。
 - `freshness_adjusted_exposure` 以可追溯 strength weight 乘以 `freshness_score`；缺 strength 或 freshness 时不伪造数值，而是在 attrs 中标出 `strength_unknown` / `freshness_missing`。
 - 每次生成必须写 `model_version` 和 `inputs_fingerprint`，同一输入应得到稳定 risk view / metric id。
 - 新版 component risk view 会与上一版派生指标按稳定 metric key 对比；实质变化写入 `change_records.change_type='RISK_METRIC_CHANGED'`，并在 `before / after` 中记录 risk view id、指标值、方向、severity 和触发阈值。
@@ -559,15 +579,17 @@ risk_metrics
 
 ### Research Pack Readiness / Investigation Outputs
 
-`@supplystrata/research-pack` 会导出两个只读研究辅助产物：
+`@supplystrata/research-pack` 会导出只读研究辅助产物：
 
 - `question-readiness.json/md`：根据当前 pack 中的 fact edge、evidence、observation、risk metric、source plan 和 unknown map，判断核心问题是 `ready / partial / blocked`。
 - `investigation-backlog.json/md`：把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 转成下一步调查任务。
 - `source-target-coverage.json/md`：把 runnable source-plan target 与 `source_check_targets / source_check_jobs / source_change_events / observations` 对齐，展示数据准备链路的 sync、enable、due、job、event、degraded 和 observation 状态。
+- `observation-coverage.json/md`：汇总本研究包中 typed observations 的 type、source adapter、scope、component、geography、metric、样本 id、series readiness 和缺失 methodology type。
+- `official-disclosure-readiness.json/md`：汇总 Gate 1 相关的研究 target profile、逐节点覆盖矩阵、显式 target node 覆盖、逐 expected source 覆盖矩阵、profile expansion candidates、Level 4/5 fact edge 数、完整 traceability、严格 cross-source corroboration、strength/freshness 覆盖、explicit unknown，以及官方披露 source-plan target 的 sync / enable / due / degraded / observation 状态。
 
-这些产物不对应事实表，不写 `edges`，也不改变 `risk_views / observations / unknown_items`。它们的作用是让人工或后续安全 agent 知道下一步该查什么、为什么查、关联哪些 source / unknown / component / edge，以及已经同步/运行/失败/退化在哪里。`investigation-backlog` 会消费 coverage 状态，把 action 从笼统的“去跑 source”细化为“先同步 target / 启用 target / 跑 due target / 等待 active job / 排查 failed/degraded job / review observation”。正式系统需要持久化时，应另建 agent/review 层契约，不能把 backlog item 或 coverage item 当成事实证据。
+这些产物不对应事实表，不写 `edges`，也不改变 `risk_views / observations / unknown_items`。它们的作用是让人工或后续安全 agent 知道下一步该查什么、为什么查、关联哪些 source / unknown / component / edge，以及已经同步/运行/失败/退化在哪里。`investigation-backlog` 会消费 coverage 状态，把 action 从笼统的“去跑 source”细化为“先同步 target / 启用 target / 跑 due target / 等待 active job / 排查 failed/degraded job / review observation”；它也会消费 `observation-coverage`，把 sparse observation series 转成继续积累同序列窗口点或寻找 explicit baseline 的调查任务；还会消费 `official-disclosure-readiness`，把核心节点覆盖、Level 4/5 边覆盖、expected source 缺口、traceability、corroboration、profile expansion candidates 和 intelligence context gap 变成调查任务，并优先引用已有 runnable official disclosure targets。逐节点覆盖状态只用于计划：`covered_fact` 表示节点已有 Level 4/5 fact edge，`official_target_synced` / `official_target_runnable` 表示已有与该节点相关的可执行官方源路径，不能把同一个聚合 source-plan item 中其它节点的 target 借给当前节点；`official_source_planned` 表示还停在计划层，`missing` 表示当前 pack 没有官方披露覆盖入口。逐 expected source 覆盖状态更细：`connector_available` 表示后端已有该官方源 connector 但当前 profile 节点还没有具体 source-plan/target，`source_registered_unimplemented` 表示来源已在 registry 但还没有可运行 connector 或人工 review workflow，`missing_source_mapping` 表示 profile 期待的来源还没有映射到 source registry。research-pack 内置 `ai-compute-memory.v0` 目标 profile；当选中公司或组件落在该 profile 范围内时会自动使用它，无需用户手写清单，也可通过 CLI/host app 显式设为 `none`。profile 是验收锚点，不是全球供应链全集；不在 profile 中但已被 fact edge、official source plan 或 runnable target 发现的节点会进入 `profile_expansion_candidates` 和 `profile_expansion` backlog，等待人工或后续安全 AI 审阅是否纳入 profile。调用方也可以向 `official-disclosure-readiness` 传入显式 target node set；传入后 Gate 1 的 core node 口径按这批目标节点的覆盖数衡量，未出现在当前 Workbench 里的核心节点也会以 `missing` 出现在矩阵中。未传 target node set 且未命中内置 profile 时，报告只能作为当前 pack 可见节点仪表盘，不能声明 25 个核心研究节点已经达标。`observation-coverage` 只能从结构化 DTO 汇总类型覆盖和 series readiness，不能靠 Markdown label 猜 observation type；`official-disclosure-readiness` 只能从 Workbench edge/evidence/intelligence/source-plan/source-target-coverage DTO 计算，不能把单源沉默自动解释成已审计 single-source。正式系统需要持久化时，应另建 agent/review 层契约，不能把 backlog item 或 coverage item 当成事实证据。
 
-`source-plan` 只有在调用方显式提供时间参数时才生成 runnable target：例如 `tradeObservationMonth` 生成 Census Trade target，`commodityObservationMonth` 生成 World Bank commodity target，`officialDisclosureYear` 生成 TSMC / Samsung / SK hynix / ASML 的 `official-html-disclosure` target。缺少时间参数时保持 planned，不能猜默认 period。`source-management` 会把 runnable suggestions 转换为 `source_check_targets`：`check_target_id` 由 namespace、source、target kind 和 target_config 稳定生成，默认 `enabled=false`。审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并写入 target 级 cadence、jitter、retry 和 `next_check_at` 覆盖值；启用后才由 `sources due/run-due` 或 worker 执行。该转换和启用流程都不抓源、不写事实边，只把研究计划接到统一监控配置层。
+`source-plan` 只有在调用方显式提供足够参数时才生成 runnable target：例如 `tradeObservationMonth` 生成 Census Trade target，`commodityObservationMonth` 生成 World Bank commodity target，target profile 中带 SEC CIK 的公司生成 `sec-edgar/sec-company-filings` target，`officialDisclosureYear` 生成 TSMC / Samsung / SK hynix / ASML 的 node-specific `official-html-disclosure` target。SEC CIK 这类显式 target config 不需要披露年份；官方 IR 这类按年度页面抓取的 source 必须有年份。缺少时间参数、CIK、target config 或 connector 时保持 gap，不能猜默认 period，也不能把 registry 里登记过的来源伪装成可运行监控。`source-management` 会把 runnable suggestions 转换为 `source_check_targets`：`check_target_id` 由 namespace、source、target kind 和 target_config 稳定生成，默认 `enabled=false`。审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并写入 target 级 cadence、jitter、retry 和 `next_check_at` 覆盖值；启用后才由 `sources due/run-due` 或 worker 执行。该转换和启用流程都不抓源、不写事实边，只把研究计划接到统一监控配置层。
 
 同一 package 也提供 `refreshObservationAnomalyViews()` 生成 observation-scoped baseline：
 
@@ -622,6 +644,34 @@ alert_candidates
 - `status` 是 alert 自身的维护状态；`open / acknowledged / resolved / suppressed` 的变更必须通过 alert lifecycle repository 写入，并记录 `change_records.change_type='ALERT_STATUS_CHANGED'`。
 - `ALERT_STATUS_CHANGED` 使用 `scope_kind='alert'` / `scope_id=alert_id`，用于 changes timeline 审计“谁在什么原因下处理了这个告警”。
 - alert candidate 不写 `edges`，不改变 `evidence_level`，不自动 approve review，也不等同于正式通知。
+
+## Workbench Attention Queue
+
+`attention_queue` 是 `WorkbenchModel` / research-pack 的只读派生队列，不是新事实表。它把多个后端维护信号统一成一个研究员可消费入口：
+
+- `claim_conflict`：来自 claim conflict adjudication / `conflict_review`，提醒先审阅支持证据、反证证据和 linked unknown。
+- `claim_lifecycle`：来自 active claim 仍挂在 deprecated / historical edge 上的 lifecycle warning。
+- `alert`：来自 `alert_candidates`，保留 alert 自身的 `open / acknowledged / resolved / suppressed` 状态。
+- `source_degraded`：来自 source monitor health，提醒源退化会影响 freshness、缺失数据和研究结论。
+- `change_requires_attention`：来自 changes timeline 中 `requires_attention=true` 的 semantic / source / risk change。
+
+```text
+attention_queue
+  attention_id
+  kind
+  priority: P0 | P1 | P2 | P3
+  status: open | acknowledged | resolved | suppressed
+  title / summary / action
+  scope_kind / scope_id
+  refs[]
+  detected_at
+```
+
+约束：
+
+- `attention_queue` 只消费已有 claim、alert、source health 和 change records；它不写 `edges`，不修改 claim status，也不 resolve unknown。
+- 这是即时处理队列；`investigation-backlog` 仍负责更长期的数据缺口、coverage gap 和 source-plan 下一步任务。
+- research-pack 会输出 `attention-queue.json/md`，同时在 manifest 里统计 `attention_items`。
 
 ## Edge Calibration
 

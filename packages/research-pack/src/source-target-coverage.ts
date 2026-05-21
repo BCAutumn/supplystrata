@@ -31,6 +31,13 @@ export interface BuildSourceTargetCoverageReportInput {
   namespace?: string;
 }
 
+export interface BuildExpectedSourceTargetCoverageReportInput {
+  generated_at: string;
+  company_id: string;
+  source_plan: readonly SourcePlanItem[];
+  namespace?: string;
+}
+
 export async function buildSourceTargetCoverageReport(input: BuildSourceTargetCoverageReportInput): Promise<SourceTargetCoverageReport> {
   const namespace = input.namespace ?? defaultSourceTargetNamespace(input.company_id);
   const expectedTargets = buildSourceCheckTargetsFromPlan({
@@ -44,24 +51,52 @@ export async function buildSourceTargetCoverageReport(input: BuildSourceTargetCo
           expected_targets: expectedTargets,
           now: input.generated_at
         });
+  return buildSourceTargetCoverageReportFromItems({
+    generated_at: input.generated_at,
+    company_id: input.company_id,
+    namespace,
+    items
+  });
+}
+
+export function buildExpectedSourceTargetCoverageReport(input: BuildExpectedSourceTargetCoverageReportInput): SourceTargetCoverageReport {
+  const namespace = input.namespace ?? defaultSourceTargetNamespace(input.company_id);
+  const items = buildSourceCheckTargetsFromPlan({
+    source_plan: input.source_plan,
+    namespace
+  }).map(toUnsyncedCoverageItem);
+  return buildSourceTargetCoverageReportFromItems({
+    generated_at: input.generated_at,
+    company_id: input.company_id,
+    namespace,
+    items
+  });
+}
+
+function buildSourceTargetCoverageReportFromItems(input: {
+  generated_at: string;
+  company_id: string;
+  namespace: string;
+  items: readonly SourceTargetCoverageItem[];
+}): SourceTargetCoverageReport {
   return {
     schema_version: "1.0.0",
     generated_at: input.generated_at,
     company_id: input.company_id,
-    namespace,
+    namespace: input.namespace,
     summary: {
-      expected_targets: items.length,
-      synced_targets: items.filter((item) => item.synced).length,
-      not_synced: countState(items, "not_synced"),
-      enabled_targets: items.filter((item) => item.target_enabled === true && item.policy_enabled === true).length,
-      due_targets: countState(items, "due"),
-      active_jobs: countState(items, "active_job"),
-      retry_wait: countState(items, "retry_wait"),
-      degraded_targets: countState(items, "degraded"),
-      dead_targets: countState(items, "dead"),
-      targets_with_observations: items.filter((item) => item.observations > 0).length
+      expected_targets: input.items.length,
+      synced_targets: input.items.filter((item) => item.synced).length,
+      not_synced: countState(input.items, "not_synced"),
+      enabled_targets: input.items.filter((item) => item.target_enabled === true && item.policy_enabled === true).length,
+      due_targets: countState(input.items, "due"),
+      active_jobs: countState(input.items, "active_job"),
+      retry_wait: countState(input.items, "retry_wait"),
+      degraded_targets: countState(input.items, "degraded"),
+      dead_targets: countState(input.items, "dead"),
+      targets_with_observations: input.items.filter((item) => item.observations > 0).length
     },
-    items
+    items: [...input.items]
   };
 }
 
@@ -103,6 +138,25 @@ export function renderSourceTargetCoverageMarkdown(report: SourceTargetCoverageR
 
 function defaultSourceTargetNamespace(companyId: string): string {
   return `research-${companyId.toLowerCase()}`;
+}
+
+function toUnsyncedCoverageItem(expectedTarget: SourceTargetCoverageItem["expected_target"]): SourceTargetCoverageItem {
+  return {
+    expected_target: expectedTarget,
+    synced: false,
+    match_kind: "none",
+    matched_check_target_id: null,
+    state: "not_synced",
+    target_enabled: null,
+    policy_enabled: null,
+    next_check_at: null,
+    effective_check_cadence_minutes: null,
+    effective_jitter_minutes: null,
+    latest_job: null,
+    latest_event: null,
+    observations: 0,
+    latest_observation_at: null
+  };
 }
 
 function countState(items: readonly SourceTargetCoverageItem[], state: SourceTargetCoverageState): number {

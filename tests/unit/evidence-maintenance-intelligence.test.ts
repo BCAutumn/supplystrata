@@ -1,6 +1,7 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import {
+  evaluateComponentRiskAlertPolicy,
   inferEdgeStrengthDrafts,
   listRefreshableComponentRiskComponentIds,
   recordEdgeCalibrationLabel,
@@ -9,7 +10,8 @@ import {
   refreshComponentRiskView,
   refreshEdgeIntelligenceContext,
   refreshFinancialMetricPeerComparisonViews,
-  refreshObservationAnomalyViews
+  refreshObservationAnomalyViews,
+  summarizeComponentRiskAlertPolicy
 } from "@supplystrata/evidence-maintenance";
 import type { DbClient } from "@supplystrata/db";
 
@@ -56,6 +58,38 @@ class ComponentRiskCentralityDbClient implements DbClient {
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
     const rows = rowsForComponentRiskCentrality<T>(sql, params);
+    return {
+      command: "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
+class ComponentRiskFreshnessWeightedDbClient implements DbClient {
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    const rows = rowsForComponentRiskFreshnessWeighted<T>(sql, params);
+    return {
+      command: "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
+class ComponentRiskMissingFreshnessDbClient implements DbClient {
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    const rows = rowsForComponentRiskMissingFreshness<T>(sql, params);
     return {
       command: "MOCK",
       rowCount: rows.length,
@@ -242,7 +276,18 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(riskMetricInserts).toHaveLength(9);
     expect(riskMetricInserts.some((call) => call.params[2] === "supplier_concentration_hhi" && call.params[6] === null)).toBe(true);
     expect(riskMetricInserts.some((call) => call.params[2] === "single_source_exposure" && call.params[6] === "1")).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[2] === "path_redundancy" && call.params[6] === "1")).toBe(true);
+    const pathRedundancyInsert = riskMetricInserts.find((call) => call.params[2] === "path_redundancy");
+    expect(pathRedundancyInsert?.params[6]).toBe("1");
+    const pathRedundancyAttrs = jsonObjectFromParam(pathRedundancyInsert?.params[9]);
+    expect(pathRedundancyAttrs).toMatchObject({
+      direct_supplier_count: 2,
+      direct_alternate_supplier_count: 1,
+      multi_hop_alternate_path_count: 1,
+      weighted_alternate_path_score: 0.2,
+      known_weighted_alternate_path_score: 0.2,
+      weighted_path_missing: false,
+      redundancy_scope: "terminal_consumer_simple_paths"
+    });
     expect(riskMetricInserts.filter((call) => call.params[2] === "node_knockout_reach" && call.params[6] === "1")).toHaveLength(2);
     expect(
       riskMetricInserts.some((call) => call.params[2] === "node_knockout_weighted_impact" && call.params[4] === "ENT-SKHYNIX" && call.params[6] === "0.200000")
@@ -252,6 +297,68 @@ describe("evidence-maintenance intelligence refresh", () => {
     ).toBe(true);
     expect(riskMetricInserts.some((call) => call.params[2] === "freshness_adjusted_exposure" && call.params[6] === "0.250000")).toBe(true);
     expect(firstClient.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("discounts supplier concentration by edge freshness without mutating fact edges", async () => {
+    const client = new ComponentRiskFreshnessWeightedDbClient();
+
+    const summary = await refreshComponentRiskView(client, {
+      component_id: "COMP-MEMORY",
+      computed_at: "2026-05-19T00:00:00.000Z",
+      generated_by: "unit-test"
+    });
+
+    expect(summary).toMatchObject({
+      component_id: "COMP-MEMORY",
+      edge_count: 2,
+      supplier_count: 2,
+      share_unknown: false
+    });
+    const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
+    const hhiInsert = riskMetricInserts.find((call) => call.params[2] === "supplier_concentration_hhi");
+    expect(hhiInsert?.params[6]).toBe("0.260000");
+    const attrs = jsonObjectFromParam(hhiInsert?.params[9]);
+    expect(attrs["raw_hhi"]).toBe(0.5);
+    expect(attrs["freshness_adjustment"]).toBe("share_weighted_by_edge_freshness_score");
+    expect(attrs["freshness_missing"]).toBe(false);
+    const supplierShareInputs = arrayFromRecordField(attrs, "supplier_share_inputs");
+    expect(supplierShareInputs).toEqual([
+      expect.objectContaining({ edge_id: "EDGE-FRESH", raw_share: 0.5, freshness_score: 1, freshness_adjusted_share: 0.5 }),
+      expect.objectContaining({ edge_id: "EDGE-STALE", raw_share: 0.5, freshness_score: 0.2, freshness_adjusted_share: 0.1 })
+    ]);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("keeps supplier concentration unknown when share exists but freshness is missing", async () => {
+    const client = new ComponentRiskMissingFreshnessDbClient();
+
+    const summary = await refreshComponentRiskView(client, {
+      component_id: "COMP-MEMORY",
+      computed_at: "2026-05-19T00:00:00.000Z",
+      generated_by: "unit-test"
+    });
+
+    expect(summary).toMatchObject({
+      component_id: "COMP-MEMORY",
+      edge_count: 2,
+      supplier_count: 2,
+      share_unknown: false
+    });
+    const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
+    const hhiInsert = riskMetricInserts.find((call) => call.params[2] === "supplier_concentration_hhi");
+    expect(hhiInsert?.params[6]).toBeNull();
+    expect(hhiInsert?.params[7]).toBe(0);
+    const attrs = jsonObjectFromParam(hhiInsert?.params[9]);
+    expect(attrs["share_unknown"]).toBe(false);
+    expect(attrs["freshness_missing"]).toBe(true);
+    expect(attrs["raw_hhi"]).toBe(0.5);
+    expect(attrs["missing_freshness_edge_ids"]).toEqual(["EDGE-STALE"]);
+    const supplierShareInputs = arrayFromRecordField(attrs, "supplier_share_inputs");
+    expect(supplierShareInputs).toEqual([
+      expect.objectContaining({ edge_id: "EDGE-FRESH", raw_share: 0.5, freshness_score: 1, freshness_adjusted_share: 0.5 }),
+      expect.objectContaining({ edge_id: "EDGE-STALE", raw_share: 0.5, freshness_score: null, freshness_adjusted_share: null })
+    ]);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
   it("computes directed betweenness centrality for component fact-edge bottlenecks", async () => {
@@ -271,6 +378,26 @@ describe("evidence-maintenance intelligence refresh", () => {
     });
     const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
     expect(riskMetricInserts).toHaveLength(10);
+    const pathRedundancyInsert = riskMetricInserts.find((call) => call.params[2] === "path_redundancy");
+    expect(pathRedundancyInsert?.params[6]).toBe("0");
+    const pathRedundancyAttrs = jsonObjectFromParam(pathRedundancyInsert?.params[9]);
+    expect(pathRedundancyAttrs).toMatchObject({
+      direct_supplier_count: 2,
+      direct_alternate_supplier_count: 1,
+      multi_hop_alternate_path_count: 0,
+      weighted_alternate_path_score: 0,
+      known_weighted_alternate_path_score: 0,
+      weighted_path_missing: false,
+      redundancy_scope: "terminal_consumer_simple_paths"
+    });
+    expect(arrayFromRecordField(pathRedundancyAttrs, "terminal_path_redundancy")).toEqual([
+      expect.objectContaining({
+        terminal_entity_id: "ENT-NVIDIA",
+        path_count: 1,
+        alternate_path_count: 0,
+        source_entity_ids: ["ENT-TSMC"]
+      })
+    ]);
     expect(riskMetricInserts.some((call) => call.params[2] === "node_knockout_reach" && call.params[4] === "ENT-TSMC" && call.params[6] === "2")).toBe(true);
     expect(
       riskMetricInserts.some((call) => call.params[2] === "node_knockout_weighted_impact" && call.params[4] === "ENT-TSMC" && call.params[6] === "1.440000")
@@ -278,6 +405,15 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(
       riskMetricInserts.some((call) => call.params[2] === "betweenness_centrality" && call.params[4] === "ENT-OSAT" && call.params[6] === "0.500000")
     ).toBe(true);
+    const betweennessInsert = riskMetricInserts.find((call) => call.params[2] === "betweenness_centrality" && call.params[4] === "ENT-OSAT");
+    const betweennessAttrs = jsonObjectFromParam(betweennessInsert?.params[9]);
+    expect(betweennessAttrs).toMatchObject({
+      weighted_path_centrality_raw_score: 0.64,
+      weighted_path_centrality_score: 1,
+      weighted_path_count: 1,
+      weighted_missing_weight_edge_ids: [],
+      weighted_centrality_scope: "terminal_consumer_strength_freshness_simple_paths"
+    });
     expect(riskMetricInserts.every((call) => call.params[2] !== "betweenness_centrality" || call.params[7] === 0.85)).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
@@ -378,21 +514,75 @@ describe("evidence-maintenance intelligence refresh", () => {
     });
 
     expect(summary).toMatchObject({
-      scanned: 3,
-      upserted: 3,
-      inserted: 3,
+      scanned: 4,
+      upserted: 4,
+      inserted: 4,
       updated: 0,
       observation_anomaly_alerts: 1,
       source_failure_alerts: 1,
-      component_risk_alerts: 1,
+      component_risk_alerts: 2,
       generated_by: "unit-test"
     });
     const alertInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO alert_candidates"));
-    expect(alertInserts).toHaveLength(3);
+    expect(alertInserts).toHaveLength(4);
     expect(alertInserts.some((call) => call.params[1] === "observation_anomaly" && call.params[9] === "RSK-OBS-1")).toBe(true);
     expect(alertInserts.some((call) => call.params[1] === "source_failure" && call.params[13] === "sec-edgar")).toBe(true);
-    expect(alertInserts.some((call) => call.params[1] === "component_risk" && call.params[10] === "RKM-SINGLE")).toBe(true);
+    expect(alertInserts.some((call) => call.params[1] === "component_risk" && call.params[10] === "RKM-SINGLE" && call.params[2] === "high")).toBe(true);
+    const weightedCentralityAlert = alertInserts.find((call) => call.params[1] === "component_risk" && call.params[10] === "RKM-BETWEENNESS");
+    expect(weightedCentralityAlert?.params[2]).toBe("high");
+    const weightedCentralityAttrs = jsonObjectFromParam(weightedCentralityAlert?.params[16]);
+    expect(weightedCentralityAttrs["alert_policy"]).toMatchObject({
+      evaluated_label: "betweenness_centrality.weighted_path_centrality_score",
+      evaluated_value: 0.9,
+      medium_threshold: 0.5,
+      high_threshold: 0.8,
+      value_source: "metric_attrs.weighted_path_centrality_score"
+    });
+    expect(alertInserts.some((call) => call.params[10] === "RKM-WEIGHTED-BELOW")).toBe(false);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("summarizes component risk alert policy decisions for calibration fixtures", () => {
+    expect(
+      evaluateComponentRiskAlertPolicy({
+        metric_kind: "betweenness_centrality",
+        value: "0.500000",
+        attrs: { weighted_path_centrality_score: 0.9 }
+      })
+    ).toMatchObject({
+      action: "trigger",
+      severity: "high",
+      evaluated_label: "betweenness_centrality.weighted_path_centrality_score",
+      evaluated_value: 0.9,
+      value_source: "metric_attrs.weighted_path_centrality_score"
+    });
+
+    const summary = summarizeComponentRiskAlertPolicy([
+      { sample_id: "SINGLE-SOURCE", metric_kind: "single_source_exposure", value: "1", expected_action: "trigger" },
+      {
+        sample_id: "WEIGHTED-CENTRALITY",
+        metric_kind: "betweenness_centrality",
+        value: "0.5",
+        attrs: { weighted_path_centrality_score: 0.9 },
+        expected_action: "trigger"
+      },
+      { sample_id: "WEIGHTED-BELOW", metric_kind: "node_knockout_weighted_impact", value: "0.1", expected_action: "skip" },
+      { sample_id: "MISSING-WEIGHTED-CENTRALITY", metric_kind: "betweenness_centrality", value: "0.5", attrs: {}, expected_action: "skip" }
+    ]);
+
+    expect(summary).toMatchObject({
+      sample_size: 4,
+      trigger_count: 2,
+      skip_count: 2,
+      matched_expected_count: 4,
+      mismatched_expected_count: 0
+    });
+    expect(summary.by_metric_kind["betweenness_centrality"]).toEqual({ samples: 2, triggers: 1, skips: 1 });
+    expect(summary.decisions.find((decision) => decision.sample_id === "MISSING-WEIGHTED-CENTRALITY")).toMatchObject({
+      action: "skip",
+      reason: "missing_value",
+      value_source: "metric_attrs.weighted_path_centrality_score"
+    });
   });
 
   it("computes edge calibration precision and reliability buckets from human labels", async () => {
@@ -815,6 +1005,196 @@ function rowsForComponentRiskCentrality<T extends pg.QueryResultRow>(sql: string
   return [];
 }
 
+function rowsForComponentRiskFreshnessWeighted<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("FROM edges e") && sql.includes("e.component_id = $1") && sql.includes("MANUFACTURES_AT")) {
+    expect(params).toEqual(["COMP-MEMORY"]);
+    return [
+      {
+        edge_id: "EDGE-FRESH",
+        relation: "BUYS_FROM",
+        subject_id: "ENT-NVIDIA",
+        subject_name: "NVIDIA",
+        object_id: "ENT-SKHYNIX",
+        object_name: "SK hynix",
+        component_id: "COMP-MEMORY",
+        evidence_level: 5,
+        confidence: 0.9,
+        primary_evidence_id: "EV-FRESH"
+      },
+      {
+        edge_id: "EDGE-STALE",
+        relation: "BUYS_FROM",
+        subject_id: "ENT-NVIDIA",
+        subject_name: "NVIDIA",
+        object_id: "ENT-MICRON",
+        object_name: "Micron",
+        component_id: "COMP-MEMORY",
+        evidence_level: 5,
+        confidence: 0.8,
+        primary_evidence_id: "EV-STALE"
+      }
+    ] as unknown as T[];
+  }
+
+  if (sql.includes("FROM edge_strength_estimates")) {
+    return [
+      {
+        strength_id: "STR-FRESH-SHARE",
+        edge_id: "EDGE-FRESH",
+        strength_kind: "share",
+        value: "50",
+        lower_bound: null,
+        upper_bound: null,
+        unit: "percent",
+        evidence_id: "EV-FRESH",
+        method: "unit-test.share",
+        valid_from: null,
+        valid_to: null,
+        attrs: {}
+      },
+      {
+        strength_id: "STR-STALE-SHARE",
+        edge_id: "EDGE-STALE",
+        strength_kind: "share",
+        value: "50",
+        lower_bound: null,
+        upper_bound: null,
+        unit: "percent",
+        evidence_id: "EV-STALE",
+        method: "unit-test.share",
+        valid_from: null,
+        valid_to: null,
+        attrs: {}
+      }
+    ] as unknown as T[];
+  }
+
+  if (sql.includes("FROM edge_freshness")) {
+    return [
+      {
+        edge_id: "EDGE-FRESH",
+        last_verified_at: new Date("2026-02-01T00:00:00.000Z"),
+        decay_model: "methodology.v1",
+        age_days: 107,
+        freshness_score: 1,
+        computed_at: new Date("2026-05-19T00:00:00.000Z"),
+        source_evidence_id: "EV-FRESH",
+        attrs: {}
+      },
+      {
+        edge_id: "EDGE-STALE",
+        last_verified_at: new Date("2024-01-01T00:00:00.000Z"),
+        decay_model: "methodology.v1",
+        age_days: 869,
+        freshness_score: 0.2,
+        computed_at: new Date("2026-05-19T00:00:00.000Z"),
+        source_evidence_id: "EV-STALE",
+        attrs: {}
+      }
+    ] as unknown as T[];
+  }
+
+  if (sql.includes("RETURNING risk_view_id")) {
+    return [{ risk_view_id: params[0] }] as unknown as T[];
+  }
+
+  return [];
+}
+
+function rowsForComponentRiskMissingFreshness<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("FROM edges e") && sql.includes("e.component_id = $1") && sql.includes("MANUFACTURES_AT")) {
+    return componentRiskShareEdges(params) as unknown as T[];
+  }
+
+  if (sql.includes("FROM edge_strength_estimates")) {
+    return componentRiskShareStrengths() as unknown as T[];
+  }
+
+  if (sql.includes("FROM edge_freshness")) {
+    return [
+      {
+        edge_id: "EDGE-FRESH",
+        last_verified_at: new Date("2026-02-01T00:00:00.000Z"),
+        decay_model: "methodology.v1",
+        age_days: 107,
+        freshness_score: 1,
+        computed_at: new Date("2026-05-19T00:00:00.000Z"),
+        source_evidence_id: "EV-FRESH",
+        attrs: {}
+      }
+    ] as unknown as T[];
+  }
+
+  if (sql.includes("RETURNING risk_view_id")) {
+    return [{ risk_view_id: params[0] }] as unknown as T[];
+  }
+
+  return [];
+}
+
+function componentRiskShareEdges(params: readonly unknown[]): pg.QueryResultRow[] {
+  expect(params).toEqual(["COMP-MEMORY"]);
+  return [
+    {
+      edge_id: "EDGE-FRESH",
+      relation: "BUYS_FROM",
+      subject_id: "ENT-NVIDIA",
+      subject_name: "NVIDIA",
+      object_id: "ENT-SKHYNIX",
+      object_name: "SK hynix",
+      component_id: "COMP-MEMORY",
+      evidence_level: 5,
+      confidence: 0.9,
+      primary_evidence_id: "EV-FRESH"
+    },
+    {
+      edge_id: "EDGE-STALE",
+      relation: "BUYS_FROM",
+      subject_id: "ENT-NVIDIA",
+      subject_name: "NVIDIA",
+      object_id: "ENT-MICRON",
+      object_name: "Micron",
+      component_id: "COMP-MEMORY",
+      evidence_level: 5,
+      confidence: 0.8,
+      primary_evidence_id: "EV-STALE"
+    }
+  ];
+}
+
+function componentRiskShareStrengths(): pg.QueryResultRow[] {
+  return [
+    {
+      strength_id: "STR-FRESH-SHARE",
+      edge_id: "EDGE-FRESH",
+      strength_kind: "share",
+      value: "50",
+      lower_bound: null,
+      upper_bound: null,
+      unit: "percent",
+      evidence_id: "EV-FRESH",
+      method: "unit-test.share",
+      valid_from: null,
+      valid_to: null,
+      attrs: {}
+    },
+    {
+      strength_id: "STR-STALE-SHARE",
+      edge_id: "EDGE-STALE",
+      strength_kind: "share",
+      value: "50",
+      lower_bound: null,
+      upper_bound: null,
+      unit: "percent",
+      evidence_id: "EV-STALE",
+      method: "unit-test.share",
+      valid_from: null,
+      valid_to: null,
+      attrs: {}
+    }
+  ];
+}
+
 function rowsForComponentRiskChange<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
   if (sql.includes("FROM risk_views") && sql.includes("WHERE scope_kind = $1 AND scope_id = $2")) {
     expect(params).toEqual(["component", "COMP-MEMORY"]);
@@ -1006,7 +1386,11 @@ function rowsForAlertRules<T extends pg.QueryResultRow>(sql: string, params: rea
   }
 
   if (sql.includes("FROM risk_views rv") && sql.includes("JOIN risk_metrics rm")) {
-    expect(params).toEqual(["2026-05-01T00:00:00.000Z", 50]);
+    expect(params).toEqual([
+      "2026-05-01T00:00:00.000Z",
+      50,
+      ["single_source_exposure", "supplier_concentration_hhi", "node_knockout_reach", "node_knockout_weighted_impact", "betweenness_centrality"]
+    ]);
     return [
       {
         risk_view_id: "RSK-COMP-1",
@@ -1020,6 +1404,36 @@ function rowsForAlertRules<T extends pg.QueryResultRow>(sql: string, params: rea
         value: "1",
         confidence: 0.8,
         attrs: { supplier_count: 1 }
+      },
+      {
+        risk_view_id: "RSK-COMP-1",
+        generated_at: new Date("2026-05-19T00:11:00.000Z"),
+        model_version: "component-risk-baseline.v1",
+        metric_id: "RKM-BETWEENNESS",
+        metric_kind: "betweenness_centrality",
+        subject_kind: "entity",
+        subject_id: "ENT-OSAT",
+        component_id: "COMP-ACCELERATOR",
+        value: "0.500000",
+        confidence: 0.85,
+        attrs: {
+          weighted_path_centrality_score: 0.9,
+          weighted_path_centrality_raw_score: 0.64,
+          weighted_missing_weight_edge_ids: []
+        }
+      },
+      {
+        risk_view_id: "RSK-COMP-1",
+        generated_at: new Date("2026-05-19T00:12:00.000Z"),
+        model_version: "component-risk-baseline.v1",
+        metric_id: "RKM-WEIGHTED-BELOW",
+        metric_kind: "node_knockout_weighted_impact",
+        subject_kind: "entity",
+        subject_id: "ENT-MICRON",
+        component_id: "COMP-MEMORY",
+        value: "0.100000",
+        confidence: 0.75,
+        attrs: { weighted_impact_score: 0.1 }
       }
     ] as unknown as T[];
   }
@@ -1136,11 +1550,24 @@ function financialObservationRow(
   };
 }
 
-function matchesObservationAnomalyAfter(value: unknown, scopeKind: string, scopeId: string): boolean {
-  if (!isRecord(value)) return false;
-  return value["observation_scope_kind"] === scopeKind && value["observation_scope_id"] === scopeId && value["change_percent"] !== undefined;
+function jsonObjectFromParam(value: unknown): Record<string, unknown> {
+  if (typeof value !== "string") throw new Error(`Expected JSON string param, got ${typeof value}`);
+  const parsed: unknown = JSON.parse(value);
+  if (!isRecord(parsed)) throw new Error("Expected parsed JSON param to be an object");
+  return parsed;
+}
+
+function arrayFromRecordField(record: Record<string, unknown>, field: string): unknown[] {
+  const value = record[field];
+  if (!Array.isArray(value)) throw new Error(`Expected ${field} to be an array`);
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function matchesObservationAnomalyAfter(value: unknown, scopeKind: string, scopeId: string): boolean {
+  if (!isRecord(value)) return false;
+  return value["observation_scope_kind"] === scopeKind && value["observation_scope_id"] === scopeId && value["change_percent"] !== undefined;
 }

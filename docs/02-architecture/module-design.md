@@ -54,7 +54,7 @@ supplystrata/
 │   ├── observation-store/                  # observation / lead 幂等写入边界
 │   ├── graph-builder/
 │   ├── llm-bridge/
-│   ├── pipeline/                           # 编排；Phase 3 起再接 pg-boss 队列
+│   ├── pipeline/                           # normalized document engine；source-check 队列已在 monitor/workflows 层
 │   ├── sources/
 │   │   ├── sec-edgar/
 │   │   ├── company-ir/
@@ -110,12 +110,12 @@ relation-extractor ← pipeline 消费
 signal-extractor ← source-workflows / preview 消费；只产出官方披露 signal，不写入事实图
 observation-extractor ← pipeline 消费；只产官方披露 observation draft，不写库、不写图
 observation-store ← pipeline / 后续 source monitor 消费；只写 observations / lead_observations
-source-plan ← CLI / 后续 workbench 消费；读取 source-registry + component-context，只输出 source plan
+source-plan ← CLI / 后续 workbench 消费；读取 source-registry + component-context + 调用方传入的 target profile official source hints，只输出 source plan
 source-connectors ← source-workflows 消费；集中注册 source check target runner，不抓源、不写库
 source-management ← CLI / 后续 host app 消费；读取 source-registry + source-connectors 能力，只做 catalog 与配置校验
 evidence-maintenance ← CLI / research-pack 消费；只做 truth-store 维护编排，可写 evidence 派生字段、edge_strength、edge_freshness、unknown、risk_views/risk_metrics、risk metric semantic changes、edge calibration runs、alert_candidates，不写 fact edge；alert 状态维护留在 db repository，因为它是 alert 自身生命周期，不属于信号生成规则
 card-builder ← apps/cli / 后续 API 消费；负责从 DbClient 组装 CompanyCard / ComponentCard / ChainCard / EvidenceCard / UnknownMap DTO
-research-pack ← CLI / 后续 host app 消费；编排已有 truth-store 数据，导出 workbench、cards、source plan、quality report，不抓新源、不写事实边
+research-pack ← CLI / 后续 host app 消费；编排已有 truth-store 数据，导出 workbench、cards、source plan、quality report、question/observation/official-disclosure readiness 和 investigation backlog，不抓新源、不写事实边；official-disclosure readiness 可接收显式 target node set，也会自动选择内置 `ai-compute-memory.v0` 研究 target profile，让 Gate 1 核心节点覆盖按目标清单衡量，而不是按当前 pack 可见节点猜测；逐 expected source 覆盖会把 profile 期待来源拆成已覆盖、已同步/可同步、仅计划、connector 可用但未接线、registry 已登记但未实现、未映射等状态；profile expansion candidates 只进 backlog/review，不写事实边
 runtime-profile ← CLI / 后续 host app 消费；只评估 preview / snapshot / truth store / graph projection 运行形态，不读文件、不连数据库
 entity-resolver  ← pipeline / sources / extractor / graph-builder 消费
 evidence-scorer  ← graph-builder 消费
@@ -134,7 +134,7 @@ CI 里加 dependency-cruiser 校验。
 
 `source-workflows` 是具体免费/公开源的 use-case 编排层：SEC EDGAR 纵向切片、Apple Supplier List review enqueue、Companies House / OpenCorporates entity lookup、官方 IR preview、Census / OSH source check connector 都放在这里。它可以依赖 `sources/*`、`source-connectors` 和 `pipeline`，但只把标准化文档交给 pipeline 内核；`runDueSourceChecks()` 只负责 enqueue / claim `source_check_jobs` 并分发 connector，持续监控 cadence / jitter / retry/backoff 只能来自 source policy config，后续常驻 worker 也复用这条路径。新增 DART、EDINET、Open Supply Hub、Comtrade 等源时应扩展 `source-workflows` 或独立 feature workflow 包，而不是改 `pipeline`。
 
-`source-plan` 是二/三级链路扩源的边界：它把 `component-context` 里的上游 lead 映射到 `source-registry` 里的免费/公开数据源，并标明 `edge / observation / lead / entity` 输出层与自动化策略。它不抓取、不解析、不写 Postgres，也不允许把 Comtrade/AIS/能源/新闻这类弱源升级成事实边。
+`source-plan` 是二/三级链路扩源的边界：它把 `component-context` 里的上游 lead 映射到 `source-registry` 里的免费/公开数据源，并标明 `edge / observation / lead / entity` 输出层与自动化策略。它也可以消费 research target profile 传入的官方源 hints，把已有 SEC CIK 或已注册官方 IR connector 转成 node-specific runnable target suggestions；没有 target config 或 connector 的来源只能停留为 coverage gap。它不抓取、不解析、不写 Postgres，也不允许把 Comtrade/AIS/能源/新闻这类弱源升级成事实边。
 
 `source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验和 unsupported target 错误。具体源例如 SEC EDGAR 在 `source-workflows` 侧提供 connector 实现；`sources check` 和 `run-due` 都只走 connector registry，不在 CLI 或调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
 

@@ -11,13 +11,21 @@ export interface ChangeTimelineItemModel {
   source_adapter_id?: string;
   source_item_id?: string;
   doc_id?: string;
+  previous_doc_id?: string;
+  next_doc_id?: string;
   edge_id?: string;
   evidence_id?: string;
   evidence_level?: EvidenceLevel;
+  superseded_evidence_ids?: string[];
+  superseded_by_evidence_id?: string;
   subject_name?: string;
   object_name?: string;
   relation?: RelationType;
   component?: string;
+  semantic_relation_kind?: string;
+  relation_subject_surface?: string;
+  relation_object_surface?: string;
+  relation_fingerprint?: string;
   observation_scope_kind?: string;
   observation_scope_id?: string;
   metric_name?: string;
@@ -67,12 +75,44 @@ function changeSummary(item: ChangeTimelineItemModel): string {
   if (item.event_family === "source") return `Source monitor recorded ${item.event_type.toLowerCase()} for ${item.source_adapter_id ?? "unknown source"}.`;
   if (item.event_family === "risk") return `Risk metric ${item.scope_id ?? item.event_id} changed by ${item.caused_by}.`;
   if (item.event_type === "OBSERVATION_ANOMALY" && item.metric_name !== undefined) return observationAnomalySummary(item);
+  if (item.event_type === "EVIDENCE_SUPERSEDED") return evidenceSupersessionSummary(item);
+  if (isRelationSemanticChange(item)) return relationSemanticChangeSummary(item);
   if (item.subject_name !== undefined && item.object_name !== undefined && item.relation !== undefined) {
     const component = item.component === undefined ? "" : ` (${item.component})`;
     return `${item.subject_name} -${item.relation}${component}-> ${item.object_name}.`;
   }
   if (item.scope_kind !== undefined && item.scope_id !== undefined) return `${item.scope_kind}:${item.scope_id} changed by ${item.caused_by}.`;
   return `Change ${item.event_id} caused by ${item.caused_by}.`;
+}
+
+function evidenceSupersessionSummary(item: ChangeTimelineItemModel): string {
+  const superseded =
+    item.superseded_evidence_ids === undefined || item.superseded_evidence_ids.length === 0 ? "older evidence" : item.superseded_evidence_ids.join(", ");
+  const replacement = item.superseded_by_evidence_id ?? item.evidence_id ?? "new evidence";
+  const edge = item.edge_id === undefined ? "" : ` on edge ${item.edge_id}`;
+  return `Evidence ${superseded} was superseded by ${replacement}${edge}.`;
+}
+
+function isRelationSemanticChange(item: ChangeTimelineItemModel): boolean {
+  return item.semantic_relation_kind !== undefined || /_(?:RELATION|OBLIGATION|RESERVATION|RISK)_(?:ADDED|CHANGED|REMOVED)$/u.test(item.event_type);
+}
+
+function relationSemanticChangeSummary(item: ChangeTimelineItemModel): string {
+  const subject = item.relation_subject_surface ?? "unknown subject";
+  const object = item.relation_object_surface ?? "unknown object";
+  const relation = item.relation ?? "relation";
+  const component = item.component === undefined ? "" : ` (${item.component})`;
+  const status = relationChangeStatus(item.event_type);
+  const kind = item.semantic_relation_kind === undefined ? "relation" : item.semantic_relation_kind.replace(/_/gu, " ");
+  const fingerprint = item.relation_fingerprint === undefined ? "" : ` fingerprint ${item.relation_fingerprint}`;
+  return `Official disclosure ${kind} ${status}: ${subject} -${relation}${component}-> ${object}.${fingerprint}`;
+}
+
+function relationChangeStatus(eventType: string): string {
+  if (eventType.endsWith("_ADDED")) return "added";
+  if (eventType.endsWith("_REMOVED")) return "removed";
+  if (eventType.endsWith("_CHANGED")) return "changed";
+  return "changed";
 }
 
 function observationAnomalySummary(item: ChangeTimelineItemModel): string {

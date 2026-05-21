@@ -2,10 +2,19 @@ import { createHash } from "node:crypto";
 import type { ComponentCardModel } from "@supplystrata/render";
 import type { SourcePlanCheckTargetSuggestion, SourcePlanItem } from "@supplystrata/source-plan";
 import type { WorkbenchModel, WorkbenchUnknownItem } from "@supplystrata/workbench-export";
+import type { ObservationCoverageReport, ObservationSeriesReadiness } from "./observation-coverage.js";
+import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { QuestionReadinessMatrix, QuestionReadinessStatus } from "./question-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 
-export type InvestigationBacklogKind = "readiness_gap" | "unknown_resolution" | "component_coverage" | "source_check";
+export type InvestigationBacklogKind =
+  | "readiness_gap"
+  | "unknown_resolution"
+  | "component_coverage"
+  | "source_check"
+  | "observation_series"
+  | "official_disclosure_coverage"
+  | "profile_expansion";
 export type InvestigationBacklogPriority = "P0" | "P1" | "P2" | "P3";
 
 export interface InvestigationBacklogTarget {
@@ -65,6 +74,8 @@ export interface InvestigationBacklogInput {
   components: readonly ComponentCardModel[];
   source_plan: readonly SourcePlanItem[];
   question_readiness: QuestionReadinessMatrix;
+  observation_coverage?: ObservationCoverageReport;
+  official_disclosure_readiness?: OfficialDisclosureReadinessReport;
   source_target_coverage?: SourceTargetCoverageReport;
 }
 
@@ -81,7 +92,15 @@ interface BacklogDraft {
 }
 
 export function buildInvestigationBacklog(input: InvestigationBacklogInput): InvestigationBacklog {
-  const items = [...readinessGapDrafts(input), ...unknownResolutionDrafts(input), ...componentCoverageDrafts(input), ...sourceCheckDrafts(input)]
+  const items = [
+    ...readinessGapDrafts(input),
+    ...unknownResolutionDrafts(input),
+    ...componentCoverageDrafts(input),
+    ...officialDisclosureCoverageDrafts(input),
+    ...profileExpansionDrafts(input),
+    ...observationSeriesDrafts(input),
+    ...sourceCheckDrafts(input)
+  ]
     .map(finalizeDraft)
     .sort(compareBacklogItems);
 
@@ -214,6 +233,57 @@ function componentCoverageDrafts(input: InvestigationBacklogInput): BacklogDraft
     });
 }
 
+function officialDisclosureCoverageDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
+  if (input.official_disclosure_readiness === undefined) return [];
+  return input.official_disclosure_readiness.gaps.map((gap) => ({
+    kind: "official_disclosure_coverage",
+    priority: gap.priority,
+    title: gap.title,
+    rationale: gap.rationale,
+    action: gap.action,
+    target: {
+      component_ids: gap.component_ids,
+      edge_ids: gap.edge_ids,
+      unknown_ids: [],
+      source_ids: gap.source_adapters,
+      question_ids: ["official_disclosure.readiness"]
+    },
+    supporting_refs: [
+      `official_disclosure_gap:${gap.gap_id}`,
+      ...gap.source_plan_refs,
+      ...gap.source_targets.flatMap((target) => (target.check_target_id === null ? [] : [`source_target:${target.check_target_id}`])),
+      ...gap.edge_ids.slice(0, 20).map((edgeId) => `edge:${edgeId}`),
+      ...gap.component_ids.slice(0, 20).map((componentId) => `component:${componentId}`)
+    ],
+    runnable_check_targets: [],
+    source_target_coverage: []
+  }));
+}
+
+function profileExpansionDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
+  return (input.official_disclosure_readiness?.profile_expansion_candidates ?? []).slice(0, 20).map((candidate) => ({
+    kind: "profile_expansion",
+    priority: candidate.suggested_priority,
+    title: `Review profile expansion candidate ${candidate.node_id}`,
+    rationale: candidate.reason,
+    action: "Review whether this discovered node belongs in the research target profile. Do not treat profile inclusion as a fact edge or evidence upgrade.",
+    target: {
+      component_ids: candidate.node_kind === "component" ? [candidate.node_id] : [],
+      edge_ids: candidate.fact_edge_ids,
+      unknown_ids: [],
+      source_ids: candidate.source_adapters,
+      question_ids: ["official_disclosure.profile_expansion"]
+    },
+    supporting_refs: [
+      `profile_candidate:${candidate.node_id}`,
+      ...candidate.source_plan_refs,
+      ...candidate.fact_edge_ids.slice(0, 20).map((edgeId) => `edge:${edgeId}`)
+    ],
+    runnable_check_targets: [],
+    source_target_coverage: []
+  }));
+}
+
 function sourceCheckDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
   const coverageByTarget = coverageByRunnableTarget(input);
   return input.source_plan
@@ -241,6 +311,29 @@ function sourceCheckDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
         source_target_coverage: coverageForTargets(coverageByTarget, runnableCheckTargets)
       };
     });
+}
+
+function observationSeriesDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
+  return (input.observation_coverage?.series ?? [])
+    .filter((series) => series.status === "sparse")
+    .slice(0, 10)
+    .map((series) => ({
+      kind: "observation_series",
+      priority: priorityForObservationSeries(series),
+      title: `Make observation series analyzable: ${series.metric_name}`,
+      rationale: series.reason,
+      action: actionForObservationSeries(series),
+      target: {
+        component_ids: series.component_id === null ? [] : [series.component_id],
+        edge_ids: [],
+        unknown_ids: [],
+        source_ids: series.source_adapters,
+        question_ids: ["signals.observation_series"]
+      },
+      supporting_refs: [`observation_series:${series.series_key}`, ...series.sample_observation_ids.map((observationId) => `observation:${observationId}`)],
+      runnable_check_targets: [],
+      source_target_coverage: []
+    }));
 }
 
 function finalizeDraft(draft: BacklogDraft): InvestigationBacklogItem {
@@ -293,6 +386,11 @@ function priorityForSourcePlanItem(item: SourcePlanItem): InvestigationBacklogPr
   return "P3";
 }
 
+function priorityForObservationSeries(series: ObservationSeriesReadiness): InvestigationBacklogPriority {
+  if (series.observation_type === "FINANCIAL_METRIC_OBSERVATION" || series.observation_type === "TRADE_FLOW_OBSERVATION") return "P2";
+  return "P3";
+}
+
 function actionForQuestion(questionId: string): string {
   if (questionId === "relationship.strength_freshness")
     return "Find explicit share, dependency, capacity, or qualitative evidence; otherwise keep the edge strength unknown open.";
@@ -309,6 +407,15 @@ function unknownAction(unknown: WorkbenchUnknownItem): string {
   if (unknown.blocking_data_sources.length > 0) return `Check blocking sources: ${unknown.blocking_data_sources.join(", ")}.`;
   if (unknown.proxies.length > 0) return `Use proxy signals only as observations or leads: ${unknown.proxies.join(", ")}.`;
   return "Keep this unknown explicit until a source can resolve it.";
+}
+
+function actionForObservationSeries(series: ObservationSeriesReadiness): string {
+  const windowGap = Math.max(0, 6 - series.windowed_points);
+  const numericGap = Math.max(0, 6 - series.numeric_points);
+  if (series.explicit_baseline_points === 0) {
+    return `Collect ${Math.max(windowGap, numericGap)} more comparable numeric/windowed observations or find an official disclosure with explicit baseline/change fields for ${series.metric_name}. Keep the result in observations until reviewed.`;
+  }
+  return `Review existing explicit baseline observations for ${series.metric_name}, then rerun observation anomaly refresh before deriving alert candidates.`;
 }
 
 function runnableTargetsForRefs(sourcePlan: readonly SourcePlanItem[], refs: readonly string[]): SourcePlanCheckTargetSuggestion[] {

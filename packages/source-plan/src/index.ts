@@ -58,9 +58,27 @@ export interface SourcePlanItem {
   suggested_check_targets: SourcePlanCheckTargetSuggestion[];
 }
 
+export type SourcePlanTargetNodeKind = "company" | "component";
+
+export interface SourcePlanOfficialDisclosureTargetConfig {
+  source_id: string;
+  target_kind: string;
+  target_config: Record<string, string | number | boolean | string[]>;
+  reason?: string;
+}
+
+export interface SourcePlanOfficialDisclosureTargetNode {
+  node_id: string;
+  node_kind: SourcePlanTargetNodeKind;
+  name?: string;
+  expected_source_ids?: readonly string[];
+  expected_source_targets?: readonly SourcePlanOfficialDisclosureTargetConfig[];
+}
+
 export interface SourcePlanForComponentsInput {
   component_ids: readonly string[];
   entity_ids?: readonly string[];
+  officialDisclosureTargetNodes?: readonly SourcePlanOfficialDisclosureTargetNode[];
   maxTierDepth?: number;
   tradeObservationMonth?: string;
   tradeObservationCountryCode?: string;
@@ -72,7 +90,7 @@ export interface SourcePlanForComponentsInput {
 
 interface SourcePlanDraft {
   sourceId: string;
-  parentComponentId: string;
+  parentComponentId: string | null;
   targetId: string;
   dependencyId: string;
   reason: string;
@@ -80,6 +98,7 @@ interface SourcePlanDraft {
 
 interface SourcePlanContext {
   entityIds: ReadonlySet<string>;
+  officialDisclosureTargetNodes: readonly SourcePlanOfficialDisclosureTargetNode[];
   officialDisclosure?: OfficialDisclosureContext;
   tradeObservation?: TradeObservationContext;
   materialObservation?: MaterialObservationContext;
@@ -158,6 +177,7 @@ export function planSourcesForComponents(input: SourcePlanForComponentsInput): S
   }
   if (context.tradeObservation !== undefined) drafts.push(...draftsForTradeTaxonomy([...taxonomyComponentIds]));
   if (context.materialObservation !== undefined) drafts.push(...draftsForMaterialTaxonomy([...taxonomyComponentIds]));
+  drafts.push(...draftsForOfficialDisclosureTargetNodes(context.officialDisclosureTargetNodes));
   return aggregateDrafts(drafts, context);
 }
 
@@ -239,10 +259,38 @@ function draftsForMaterialTaxonomy(componentIds: readonly string[]): SourcePlanD
   return drafts;
 }
 
+function draftsForOfficialDisclosureTargetNodes(targetNodes: readonly SourcePlanOfficialDisclosureTargetNode[]): SourcePlanDraft[] {
+  const drafts: SourcePlanDraft[] = [];
+  for (const node of targetNodes) {
+    const sourceIds = officialDisclosureSourceIdsForNode(node);
+    for (const sourceId of sourceIds) {
+      requireSource(sourceId);
+      drafts.push({
+        sourceId,
+        parentComponentId: node.node_kind === "component" ? node.node_id : null,
+        targetId: node.node_id,
+        dependencyId: `official-target:${node.node_id}:${sourceId}`,
+        reason: officialDisclosureTargetReason(node, sourceId)
+      });
+    }
+  }
+  return drafts;
+}
+
+function officialDisclosureSourceIdsForNode(node: SourcePlanOfficialDisclosureTargetNode): string[] {
+  return uniqueSorted([...(node.expected_source_ids ?? []), ...(node.expected_source_targets ?? []).map((target) => target.source_id)]);
+}
+
+function officialDisclosureTargetReason(node: SourcePlanOfficialDisclosureTargetNode, sourceId: string): string {
+  const name = node.name === undefined ? node.node_id : `${node.name} [${node.node_id}]`;
+  return `${name}: target profile expects ${sourceId} official disclosure coverage; planning does not create fact edges.`;
+}
+
 function createContext(
   input: Pick<
     SourcePlanForComponentsInput,
     | "entity_ids"
+    | "officialDisclosureTargetNodes"
     | "tradeObservationMonth"
     | "tradeObservationCountryCode"
     | "tradeObservationDirections"
@@ -253,6 +301,7 @@ function createContext(
 ): SourcePlanContext {
   return {
     entityIds: new Set(input.entity_ids ?? []),
+    officialDisclosureTargetNodes: input.officialDisclosureTargetNodes ?? [],
     ...(input.officialDisclosureYear === undefined
       ? {}
       : {
@@ -318,7 +367,7 @@ function toPlanItem(sourceId: string, drafts: readonly SourcePlanDraft[], contex
     requires_key: source.requires_key,
     expected_output_layer: outputLayerForSource(source),
     relation_policy: relationPolicyForSource(source),
-    parent_component_ids: uniqueSorted(drafts.map((draft) => draft.parentComponentId)),
+    parent_component_ids: uniqueSorted(drafts.map((draft) => draft.parentComponentId).filter(nonNullString)),
     target_ids: uniqueSorted(drafts.map((draft) => draft.targetId)),
     trigger_dependency_ids: uniqueSorted(drafts.map((draft) => draft.dependencyId)),
     reasons: uniqueSorted(drafts.map((draft) => draft.reason)),
@@ -333,7 +382,7 @@ function buildSuggestedCheckTargets(
 ): SourcePlanCheckTargetSuggestion[] {
   const suggestions: SourcePlanCheckTargetSuggestion[] = [];
   if (sourceId === "census-trade" && context?.tradeObservation !== undefined) {
-    const componentIds = uniqueSorted(drafts.flatMap((draft) => [draft.parentComponentId, draft.targetId]));
+    const componentIds = uniqueSorted(drafts.flatMap((draft) => [draft.parentComponentId, draft.targetId].filter(nonNullString)));
     for (const componentId of componentIds) {
       for (const code of listComponentHsCodes(componentId)) {
         for (const direction of context.tradeObservation.directions) {
@@ -344,6 +393,7 @@ function buildSuggestedCheckTargets(
   }
   if (context?.materialObservation !== undefined) {
     for (const draft of drafts) {
+      if (draft.parentComponentId === null) continue;
       for (const item of listComponentMaterialObservationTargets(draft.parentComponentId)) {
         if (item.target.source_adapter_id !== sourceId || item.material.material_id !== draft.targetId) continue;
         const suggestion = toMaterialObservationSuggestion(draft.parentComponentId, item.material, item.target, context.materialObservation);
@@ -351,11 +401,76 @@ function buildSuggestedCheckTargets(
       }
     }
   }
+  if (context !== undefined) {
+    suggestions.push(...explicitOfficialDisclosureSuggestionsForTargetNodes(sourceId, drafts, context.officialDisclosureTargetNodes));
+  }
   if (context?.officialDisclosure !== undefined) {
+    suggestions.push(
+      ...periodicOfficialDisclosureSuggestionsForTargetNodes(sourceId, drafts, context.officialDisclosure, context.officialDisclosureTargetNodes)
+    );
     const suggestion = officialDisclosureSuggestionForSource(sourceId, context.officialDisclosure);
     if (suggestion !== undefined) suggestions.push(suggestion);
   }
   return dedupeSuggestions(suggestions);
+}
+
+function explicitOfficialDisclosureSuggestionsForTargetNodes(
+  sourceId: string,
+  drafts: readonly SourcePlanDraft[],
+  targetNodes: readonly SourcePlanOfficialDisclosureTargetNode[]
+): SourcePlanCheckTargetSuggestion[] {
+  const targetIds = new Set(drafts.map((draft) => draft.targetId));
+  const suggestions: SourcePlanCheckTargetSuggestion[] = [];
+  for (const node of targetNodes) {
+    if (!targetIds.has(node.node_id)) continue;
+    const explicitTarget = node.expected_source_targets?.find((target) => target.source_id === sourceId);
+    if (explicitTarget === undefined) continue;
+    suggestions.push({
+      source_adapter_id: sourceId,
+      target_kind: explicitTarget.target_kind,
+      runnable: true,
+      target_config: cloneTargetConfig(explicitTarget.target_config),
+      reason: explicitTarget.reason ?? `${node.node_id} has explicit ${sourceId} target config from the research target profile.`
+    });
+  }
+  return suggestions;
+}
+
+function periodicOfficialDisclosureSuggestionsForTargetNodes(
+  sourceId: string,
+  drafts: readonly SourcePlanDraft[],
+  context: OfficialDisclosureContext,
+  targetNodes: readonly SourcePlanOfficialDisclosureTargetNode[]
+): SourcePlanCheckTargetSuggestion[] {
+  const targetIds = new Set(drafts.map((draft) => draft.targetId));
+  const suggestions: SourcePlanCheckTargetSuggestion[] = [];
+  for (const node of targetNodes) {
+    if (!targetIds.has(node.node_id)) continue;
+    if (!officialDisclosureSourceIdsForNode(node).includes(sourceId)) continue;
+    if (node.expected_source_targets?.some((target) => target.source_id === sourceId) === true) continue;
+    const suggestion = officialDisclosureSuggestionForTargetNodeSource(sourceId, node, context);
+    if (suggestion !== undefined) suggestions.push(suggestion);
+  }
+  return suggestions;
+}
+
+function officialDisclosureSuggestionForTargetNodeSource(
+  sourceId: string,
+  node: SourcePlanOfficialDisclosureTargetNode,
+  context: OfficialDisclosureContext
+): SourcePlanCheckTargetSuggestion | undefined {
+  const entityId = officialDisclosureEntityId(sourceId);
+  if (entityId === undefined) return undefined;
+  return {
+    source_adapter_id: sourceId,
+    target_kind: "official-html-disclosure",
+    runnable: true,
+    target_config: {
+      entity_id: entityId,
+      year: Number.parseInt(context.year, 10)
+    },
+    reason: `${node.node_id} expects ${sourceId}; ${sourceId} has a registered official disclosure connector for ${context.year}. Outputs remain observation/review context until evidence is reviewed.`
+  };
 }
 
 function officialDisclosureSuggestionForSource(sourceId: string, context: OfficialDisclosureContext): SourcePlanCheckTargetSuggestion | undefined {
@@ -449,6 +564,12 @@ function stableConfigKey(config: Record<string, string | number | boolean | stri
     .join(";");
 }
 
+function cloneTargetConfig(config: Record<string, string | number | boolean | string[]>): Record<string, string | number | boolean | string[]> {
+  const cloned: Record<string, string | number | boolean | string[]> = {};
+  for (const [key, value] of Object.entries(config)) cloned[key] = Array.isArray(value) ? [...value] : value;
+  return cloned;
+}
+
 function relationPolicyForSource(source: SourceRegistryEntry): SourceRelationPolicy {
   if (source.relation_authority === "registry_fact") return "entity_only";
   if (source.relation_authority === "macro_trend") return "observation_only";
@@ -511,6 +632,10 @@ function outputLayerRank(layer: PlannedOutputLayer): number {
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+function nonNullString(value: string | null): value is string {
+  return value !== null;
 }
 
 function normalizeTradeObservationMonth(value: string): string {

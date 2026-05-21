@@ -5,6 +5,7 @@ import {
   recordGraphProjectionFailure,
   type DatabaseStore,
   type DbTxClient,
+  type EdgeDeprecationSourceRef,
   type GraphProjectionOperation
 } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
@@ -32,6 +33,7 @@ export type { GraphConsistencyCheck, GraphProjectionRetrySummary } from "./proje
 export interface DeprecateEdgeRequest {
   edge_id: string;
   reason: string;
+  source_refs: readonly EdgeDeprecationSourceRef[];
   superseded_by_edge_id?: string;
   reviewer: string;
 }
@@ -39,6 +41,7 @@ export interface DeprecateEdgeRequest {
 export interface DeprecateEdgeApplyResult {
   edge_id: string;
   primary_evidence_id?: string;
+  source_refs: EdgeDeprecationSourceRef[];
   graph_sync: ApplyResult["graph_sync"];
 }
 
@@ -92,6 +95,7 @@ export class GraphBuilder {
       deprecateEdge(client, {
         edge_id: input.edge_id,
         reason: input.reason,
+        source_refs: input.source_refs,
         caused_by: input.reviewer,
         ...(input.superseded_by_edge_id === undefined ? {} : { superseded_by_edge_id: input.superseded_by_edge_id })
       })

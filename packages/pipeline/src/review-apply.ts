@@ -3,6 +3,7 @@ import { type ApplyResult, type ApprovedCandidate, type RelationType } from "@su
 import {
   loadDocument,
   markLeadObservationPromoted,
+  recordSemanticChange,
   recordPendingEntity,
   type DatabaseStore,
   type DbClient,
@@ -20,6 +21,7 @@ import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import {
+  isClaimConflictReviewCandidate,
   isEntitySourceReviewCandidate,
   isOshFacilityReviewCandidate,
   isSemanticChangeReviewCandidate,
@@ -54,6 +56,7 @@ export type ReviewApplyResult =
   | { status: "entity_applied"; review_id: string; import_result: Extract<EntityImportResult, { status: "applied" }> }
   | { status: "acknowledged"; review_id: string; kind: "semantic_change"; claim_id: string; reason: string }
   | { status: "acknowledged"; review_id: string; kind: "osh_facility_candidate"; reason: string; lead_id?: string }
+  | { status: "acknowledged"; review_id: string; kind: "claim_conflict_review"; claim_id: string; edge_id: string | null; reason: string }
   | { status: "blocked"; review_id: string; reason: string; pending_id?: string };
 
 export type ReviewApplyBatchItem = ReviewApplyResult | { status: "error"; review_id: string; reason: string };
@@ -118,6 +121,39 @@ export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewI
         kind: "osh_facility_candidate",
         reason,
         ...(sourceLeadId === undefined ? {} : { lead_id: sourceLeadId })
+      };
+    });
+  }
+  if (isClaimConflictReviewCandidate(item.candidate)) {
+    const candidate = item.candidate;
+    return store.transaction(async (client) => {
+      const reason = `acknowledged claim conflict review for ${candidate.payload.claim_id}; no fact edge or claim status is changed by design`;
+      await recordSemanticChange(client, {
+        scope_kind: "claim",
+        scope_id: candidate.payload.claim_id,
+        change_type: "CLAIM_CONFLICT_REVIEW_APPLIED",
+        after: {
+          review_id: item.review_id,
+          edge_id: candidate.payload.edge_id,
+          conflict_state: candidate.payload.conflict_state,
+          severity: candidate.payload.severity,
+          recommended_action: candidate.payload.recommended_action,
+          safe_write_status: candidate.payload.safe_write_status,
+          edge_review_required: candidate.payload.edge_review_required,
+          required_review_steps: candidate.payload.required_review_steps,
+          fact_write_policy: candidate.payload.fact_write_policy
+        },
+        evidence_ids: candidate.payload.evidence_refs.map((ref) => ref.evidence_id),
+        caused_by: reviewer
+      });
+      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+      return {
+        status: "acknowledged",
+        review_id: item.review_id,
+        kind: "claim_conflict_review",
+        claim_id: candidate.payload.claim_id,
+        edge_id: candidate.payload.edge_id,
+        reason
       };
     });
   }

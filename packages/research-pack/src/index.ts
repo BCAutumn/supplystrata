@@ -22,11 +22,33 @@ import {
 import { planSourcesForComponents, type SourcePlanItem, type TradeObservationDirection } from "@supplystrata/source-plan";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
 import { buildInvestigationBacklog, renderInvestigationBacklogMarkdown, type InvestigationBacklog } from "./investigation-backlog.js";
+import { buildObservationCoverageReport, renderObservationCoverageMarkdown, type ObservationCoverageReport } from "./observation-coverage.js";
+import {
+  buildOfficialDisclosureReadinessReport,
+  renderOfficialDisclosureReadinessMarkdown,
+  type OfficialDisclosureReadinessProfile,
+  type OfficialDisclosureReadinessReport,
+  type OfficialDisclosureReadinessTargetNode
+} from "./official-disclosure-readiness.js";
 import { buildQuestionReadinessMatrix, renderQuestionReadinessMarkdown, type QuestionReadinessMatrix } from "./question-readiness.js";
-import { buildSourceTargetCoverageReport, renderSourceTargetCoverageMarkdown, type SourceTargetCoverageReport } from "./source-target-coverage.js";
+import {
+  selectResearchTargetProfile,
+  type ResearchTargetProfile,
+  type ResearchTargetProfileOption,
+  type ResearchTargetProfileSelection
+} from "./research-target-profile.js";
+import {
+  buildExpectedSourceTargetCoverageReport,
+  buildSourceTargetCoverageReport,
+  renderSourceTargetCoverageMarkdown,
+  type SourceTargetCoverageReport
+} from "./source-target-coverage.js";
 
 export * from "./investigation-backlog.js";
+export * from "./observation-coverage.js";
+export * from "./official-disclosure-readiness.js";
 export * from "./question-readiness.js";
+export * from "./research-target-profile.js";
 export * from "./source-target-coverage.js";
 
 export interface ResearchPackInput {
@@ -49,6 +71,8 @@ export interface ResearchPackInput {
   materialObservationYear?: string;
   commodityObservationMonth?: string;
   sourceTargetNamespace?: string;
+  researchTargetProfileId?: ResearchTargetProfileOption;
+  officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
 }
 
 export interface ResearchPackManifest {
@@ -64,6 +88,7 @@ export interface ResearchPackManifest {
   claim_build: ResearchPackClaimBuild | null;
   intelligence_refresh: EdgeIntelligenceRefreshSummary | null;
   component_risk_refresh: ResearchPackComponentRiskRefresh | null;
+  research_target_profile: ResearchPackTargetProfile | null;
 }
 
 export interface ResearchPackFile {
@@ -78,6 +103,10 @@ export interface ResearchPackStats {
   fact_edges: number;
   claims: number;
   draft_claims: number;
+  claim_conflicts: number;
+  contradicting_evidence_links: number;
+  claim_lifecycle_warnings: number;
+  attention_items: number;
   evidences: number;
   unknown_items: number;
   source_plan_items: number;
@@ -104,6 +133,38 @@ export interface ResearchPackStats {
   source_target_degraded_targets: number;
   source_target_dead_targets: number;
   source_target_targets_with_observations: number;
+  observation_records: number;
+  observation_chain_segments: number;
+  observation_types_present: number;
+  observation_methodology_types_missing: number;
+  observation_series: number;
+  observation_time_series_ready: number;
+  observation_explicit_baseline_ready: number;
+  observation_sparse_series: number;
+  official_disclosure_visible_nodes: number;
+  official_disclosure_target_nodes: number;
+  official_disclosure_nodes_with_fact_edges: number;
+  official_disclosure_target_nodes_with_fact_edges: number;
+  official_disclosure_nodes_missing_coverage: number;
+  official_disclosure_target_nodes_missing_coverage: number;
+  official_disclosure_profile_expansion_candidates: number;
+  official_disclosure_expected_source_links: number;
+  official_disclosure_expected_source_links_with_coverage: number;
+  official_disclosure_expected_source_links_runnable: number;
+  official_disclosure_expected_source_links_connector_available: number;
+  official_disclosure_expected_source_links_unimplemented: number;
+  official_disclosure_expected_source_links_missing: number;
+  official_disclosure_l4_l5_edges: number;
+  official_disclosure_traceable_edges: number;
+  official_disclosure_cross_source_edges: number;
+  official_disclosure_corroboration_ratio: number;
+  official_disclosure_gaps: number;
+  official_disclosure_p0_gaps: number;
+  official_disclosure_runnable_targets: number;
+  official_disclosure_synced_targets: number;
+  official_disclosure_due_targets: number;
+  official_disclosure_degraded_targets: number;
+  official_disclosure_targets_with_observations: number;
 }
 
 export interface ResearchPackClaimBuild {
@@ -137,6 +198,8 @@ export interface ResearchPackModel {
   question_readiness: QuestionReadinessMatrix;
   investigation_backlog: InvestigationBacklog;
   source_target_coverage: SourceTargetCoverageReport;
+  observation_coverage: ObservationCoverageReport;
+  official_disclosure_readiness: OfficialDisclosureReadinessReport;
 }
 
 export interface WorkbenchSnapshotPackInput {
@@ -149,6 +212,9 @@ export interface WorkbenchSnapshotPackInput {
   officialDisclosureYear?: string;
   materialObservationYear?: string;
   commodityObservationMonth?: string;
+  researchTargetProfileId?: ResearchTargetProfileOption;
+  officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
+  sourceTargetNamespace?: string;
 }
 
 export interface WorkbenchSnapshotPackModel {
@@ -158,6 +224,18 @@ export interface WorkbenchSnapshotPackModel {
   source_plan: SourcePlanItem[];
   question_readiness: QuestionReadinessMatrix;
   investigation_backlog: InvestigationBacklog;
+  source_target_coverage: SourceTargetCoverageReport;
+  observation_coverage: ObservationCoverageReport;
+  official_disclosure_readiness: OfficialDisclosureReadinessReport;
+}
+
+export interface ResearchPackTargetProfile {
+  profile_id: string;
+  title: string;
+  version: string;
+  description: string;
+  selection_reason: string;
+  target_nodes: number;
 }
 
 export interface WrittenResearchPack {
@@ -178,7 +256,16 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     ...(input.sourceLimit === undefined ? {} : { sourceLimit: input.sourceLimit })
   });
   const components = collectResearchComponentIds(workbench, input.components ?? []);
-  const sourcePlan = components.length === 0 ? [] : planSourcesForComponents(sourcePlanInput(input, components, depth));
+  const targetProfileSelection = selectResearchTargetProfile({
+    ...(input.researchTargetProfileId === undefined ? {} : { profile_id: input.researchTargetProfileId }),
+    company_id: workbench.selected_company_id,
+    component_ids: components
+  });
+  const officialDisclosureTargetNodes = resolveOfficialDisclosureTargetNodes(input.officialDisclosureTargetNodes, targetProfileSelection.profile);
+  const sourcePlan =
+    components.length === 0 && officialDisclosureTargetNodes.length === 0
+      ? []
+      : planSourcesForComponents(sourcePlanInput(input, components, depth, officialDisclosureTargetNodes));
   const sourceTargetCoverage = await buildSourceTargetCoverageReport({
     client,
     generated_at: generatedAt,
@@ -202,6 +289,23 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_plan: sourcePlan,
     data_quality: dataQuality
   });
+  const observationCoverage = buildObservationCoverageReport({
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    workbench,
+    company,
+    components: componentCards
+  });
+  const officialDisclosureReadiness = buildOfficialDisclosureReadinessReport({
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    workbench,
+    component_ids: components,
+    ...(officialDisclosureTargetNodes.length === 0 ? {} : { target_nodes: officialDisclosureTargetNodes }),
+    ...(targetProfileSelection.profile === null ? {} : { target_profile: officialReadinessProfile(targetProfileSelection) }),
+    source_plan: sourcePlan,
+    source_target_coverage: sourceTargetCoverage
+  });
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
     company_id: workbench.selected_company_id,
@@ -209,6 +313,8 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     components: componentCards,
     source_plan: sourcePlan,
     question_readiness: questionReadiness,
+    observation_coverage: observationCoverage,
+    official_disclosure_readiness: officialDisclosureReadiness,
     source_target_coverage: sourceTargetCoverage
   });
   const manifest = manifestFromModel({
@@ -222,9 +328,12 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     dataQuality,
     questionReadiness,
     investigationBacklog,
+    observationCoverage,
+    officialDisclosureReadiness,
     claimBuild,
     intelligenceRefresh,
-    componentRiskRefresh
+    componentRiskRefresh,
+    targetProfileSelection
   });
   return {
     manifest,
@@ -236,14 +345,25 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     data_quality: dataQuality,
     question_readiness: questionReadiness,
     investigation_backlog: investigationBacklog,
-    source_target_coverage: sourceTargetCoverage
+    source_target_coverage: sourceTargetCoverage,
+    observation_coverage: observationCoverage,
+    official_disclosure_readiness: officialDisclosureReadiness
   };
 }
 
 export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput): WorkbenchSnapshotPackModel {
   const depth = input.depth ?? input.workbench.chain.max_depth;
   const components = collectResearchComponentIds(input.workbench, input.components ?? []);
-  const sourcePlan = components.length === 0 ? input.workbench.source_plan : planSourcesForComponents(sourcePlanInput(input, components, depth));
+  const targetProfileSelection = selectResearchTargetProfile({
+    ...(input.researchTargetProfileId === undefined ? {} : { profile_id: input.researchTargetProfileId }),
+    company_id: input.workbench.selected_company_id,
+    component_ids: components
+  });
+  const officialDisclosureTargetNodes = resolveOfficialDisclosureTargetNodes(input.officialDisclosureTargetNodes, targetProfileSelection.profile);
+  const sourcePlan =
+    components.length === 0 && officialDisclosureTargetNodes.length === 0
+      ? input.workbench.source_plan
+      : planSourcesForComponents(sourcePlanInput(input, components, depth, officialDisclosureTargetNodes));
   const dataQuality = emptyStaticDataQualitySummary();
   const generatedAt = new Date().toISOString();
   const staticInput: ResearchPackInput = {
@@ -258,9 +378,18 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
           ...(input.tradeObservationDirections === undefined ? {} : { tradeObservationDirections: input.tradeObservationDirections })
         }),
     ...(input.officialDisclosureYear === undefined ? {} : { officialDisclosureYear: input.officialDisclosureYear }),
+    ...(input.researchTargetProfileId === undefined ? {} : { researchTargetProfileId: input.researchTargetProfileId }),
+    ...(input.officialDisclosureTargetNodes === undefined ? {} : { officialDisclosureTargetNodes: input.officialDisclosureTargetNodes }),
     ...(input.materialObservationYear === undefined ? {} : { materialObservationYear: input.materialObservationYear }),
-    ...(input.commodityObservationMonth === undefined ? {} : { commodityObservationMonth: input.commodityObservationMonth })
+    ...(input.commodityObservationMonth === undefined ? {} : { commodityObservationMonth: input.commodityObservationMonth }),
+    ...(input.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: input.sourceTargetNamespace })
   };
+  const sourceTargetCoverage = buildExpectedSourceTargetCoverageReport({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    source_plan: sourcePlan,
+    ...(input.sourceTargetNamespace === undefined ? {} : { namespace: input.sourceTargetNamespace })
+  });
   const questionReadiness = buildQuestionReadinessMatrix({
     generated_at: generatedAt,
     company_id: input.workbench.selected_company_id,
@@ -270,13 +399,33 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_plan: sourcePlan,
     data_quality: null
   });
+  const observationCoverage = buildObservationCoverageReport({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    workbench: input.workbench,
+    company: null,
+    components: []
+  });
+  const officialDisclosureReadiness = buildOfficialDisclosureReadinessReport({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    workbench: input.workbench,
+    component_ids: components,
+    ...(officialDisclosureTargetNodes.length === 0 ? {} : { target_nodes: officialDisclosureTargetNodes }),
+    ...(targetProfileSelection.profile === null ? {} : { target_profile: officialReadinessProfile(targetProfileSelection) }),
+    source_plan: sourcePlan,
+    source_target_coverage: sourceTargetCoverage
+  });
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
     company_id: input.workbench.selected_company_id,
     workbench: input.workbench,
     components: [],
     source_plan: sourcePlan,
-    question_readiness: questionReadiness
+    question_readiness: questionReadiness,
+    observation_coverage: observationCoverage,
+    official_disclosure_readiness: officialDisclosureReadiness,
+    source_target_coverage: sourceTargetCoverage
   });
   const manifest = manifestFromModel({
     generatedAt,
@@ -285,12 +434,16 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     workbench: input.workbench,
     components,
     sourcePlan,
+    sourceTargetCoverage,
     dataQuality,
     questionReadiness,
     investigationBacklog,
+    observationCoverage,
+    officialDisclosureReadiness,
     claimBuild: null,
     intelligenceRefresh: null,
     componentRiskRefresh: null,
+    targetProfileSelection,
     mode: "workbench_snapshot"
   });
   return {
@@ -299,7 +452,10 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     chain: input.workbench.chain,
     source_plan: sourcePlan,
     question_readiness: questionReadiness,
-    investigation_backlog: investigationBacklog
+    investigation_backlog: investigationBacklog,
+    source_target_coverage: sourceTargetCoverage,
+    observation_coverage: observationCoverage,
+    official_disclosure_readiness: officialDisclosureReadiness
   };
 }
 
@@ -310,12 +466,33 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
   const files: ResearchPackFile[] = [
     await writeJsonFile(outDir, "manifest.json", pack.manifest, "Research pack manifest"),
     await writeJsonFile(outDir, "workbench.json", pack.workbench, "Workbench JSON consumed by apps/research-preview"),
+    await writeJsonFile(
+      outDir,
+      "attention-queue.json",
+      { schema_version: "1.0.0", attention_queue: pack.workbench.attention_queue },
+      "Unified attention queue from claim review, alerts, source health, and semantic changes"
+    ),
+    await writeMarkdownFile(outDir, "attention-queue.md", renderAttentionQueueMarkdown(pack.workbench), "Unified attention queue markdown"),
     await writeJsonFile(outDir, "source-plan.json", { schema_version: "1.0.0", source_plan: pack.source_plan }, "Source plan for existing component coverage"),
     await writeJsonFile(outDir, "quality.json", pack.data_quality, "Data quality summary"),
     await writeJsonFile(outDir, "company.json", { schema_version: "1.0.0", company: pack.company }, "Company card JSON"),
     await writeMarkdownFile(outDir, "company.md", renderCompanyCard(pack.company, "markdown"), "Company card markdown"),
     await writeJsonFile(outDir, "question-readiness.json", pack.question_readiness, "Question readiness matrix"),
     await writeMarkdownFile(outDir, "question-readiness.md", renderQuestionReadinessMarkdown(pack.question_readiness), "Question readiness matrix markdown"),
+    await writeJsonFile(outDir, "observation-coverage.json", pack.observation_coverage, "Observation signal coverage"),
+    await writeMarkdownFile(
+      outDir,
+      "observation-coverage.md",
+      renderObservationCoverageMarkdown(pack.observation_coverage),
+      "Observation signal coverage markdown"
+    ),
+    await writeJsonFile(outDir, "official-disclosure-readiness.json", pack.official_disclosure_readiness, "Official disclosure coverage readiness"),
+    await writeMarkdownFile(
+      outDir,
+      "official-disclosure-readiness.md",
+      renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness),
+      "Official disclosure coverage readiness markdown"
+    ),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
       outDir,
@@ -365,6 +542,13 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
   const files: ResearchPackFile[] = [
     await writeJsonFile(outDir, "manifest.json", pack.manifest, "Research snapshot manifest"),
     await writeJsonFile(outDir, "workbench.json", pack.workbench, "Workbench JSON consumed by apps/research-preview"),
+    await writeJsonFile(
+      outDir,
+      "attention-queue.json",
+      { schema_version: "1.0.0", attention_queue: pack.workbench.attention_queue },
+      "Unified attention queue from the Workbench export"
+    ),
+    await writeMarkdownFile(outDir, "attention-queue.md", renderAttentionQueueMarkdown(pack.workbench), "Unified attention queue markdown"),
     await writeJsonFile(outDir, "chain.json", pack.chain, "ChainView JSON copied from the Workbench export"),
     await writeMarkdownFile(outDir, "chain.md", renderChainCard(pack.chain, "markdown"), "ChainView markdown"),
     await writeJsonFile(
@@ -375,12 +559,33 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
     ),
     await writeJsonFile(outDir, "question-readiness.json", pack.question_readiness, "Question readiness matrix"),
     await writeMarkdownFile(outDir, "question-readiness.md", renderQuestionReadinessMarkdown(pack.question_readiness), "Question readiness matrix markdown"),
+    await writeJsonFile(outDir, "observation-coverage.json", pack.observation_coverage, "Observation signal coverage"),
+    await writeMarkdownFile(
+      outDir,
+      "observation-coverage.md",
+      renderObservationCoverageMarkdown(pack.observation_coverage),
+      "Observation signal coverage markdown"
+    ),
+    await writeJsonFile(outDir, "official-disclosure-readiness.json", pack.official_disclosure_readiness, "Official disclosure coverage readiness"),
+    await writeMarkdownFile(
+      outDir,
+      "official-disclosure-readiness.md",
+      renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness),
+      "Official disclosure coverage readiness markdown"
+    ),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
       outDir,
       "investigation-backlog.md",
       renderInvestigationBacklogMarkdown(pack.investigation_backlog),
       "Investigation backlog markdown"
+    ),
+    await writeJsonFile(outDir, "source-target-coverage.json", pack.source_target_coverage, "Expected source target coverage"),
+    await writeMarkdownFile(
+      outDir,
+      "source-target-coverage.md",
+      renderSourceTargetCoverageMarkdown(pack.source_target_coverage),
+      "Expected source target coverage markdown"
     ),
     await writeJsonFile(
       outDir,
@@ -499,11 +704,13 @@ function sourcePlanInput(
     | "commodityObservationMonth"
   >,
   componentIds: readonly string[],
-  depth: number
+  depth: number,
+  officialDisclosureTargetNodes: readonly OfficialDisclosureReadinessTargetNode[]
 ): Parameters<typeof planSourcesForComponents>[0] {
   return {
     component_ids: componentIds,
     entity_ids: [],
+    officialDisclosureTargetNodes,
     maxTierDepth: depth,
     ...(input.tradeObservationMonth === undefined
       ? {}
@@ -518,6 +725,37 @@ function sourcePlanInput(
   };
 }
 
+function resolveOfficialDisclosureTargetNodes(
+  explicitTargetNodes: readonly OfficialDisclosureReadinessTargetNode[] | undefined,
+  profile: ResearchTargetProfile | null
+): readonly OfficialDisclosureReadinessTargetNode[] {
+  if (explicitTargetNodes !== undefined) return explicitTargetNodes;
+  return profile?.target_nodes ?? [];
+}
+
+function officialReadinessProfile(selection: ResearchTargetProfileSelection): OfficialDisclosureReadinessProfile {
+  if (selection.profile === null) throw new Error("Cannot build official readiness profile without a selected profile");
+  return {
+    profile_id: selection.profile.profile_id,
+    title: selection.profile.title,
+    version: selection.profile.version,
+    description: selection.profile.description,
+    selection_reason: selection.reason
+  };
+}
+
+function researchPackTargetProfile(selection: ResearchTargetProfileSelection): ResearchPackTargetProfile | null {
+  if (selection.profile === null) return null;
+  return {
+    profile_id: selection.profile.profile_id,
+    title: selection.profile.title,
+    version: selection.profile.version,
+    description: selection.profile.description,
+    selection_reason: selection.reason,
+    target_nodes: selection.profile.target_nodes.length
+  };
+}
+
 function manifestFromModel(input: {
   generatedAt: string;
   input: ResearchPackInput;
@@ -529,9 +767,12 @@ function manifestFromModel(input: {
   dataQuality: DataQualitySummary;
   questionReadiness: QuestionReadinessMatrix;
   investigationBacklog: InvestigationBacklog;
+  observationCoverage: ObservationCoverageReport;
+  officialDisclosureReadiness: OfficialDisclosureReadinessReport;
   claimBuild: ResearchPackClaimBuild | null;
   intelligenceRefresh: EdgeIntelligenceRefreshSummary | null;
   componentRiskRefresh: ResearchPackComponentRiskRefresh | null;
+  targetProfileSelection: ResearchTargetProfileSelection;
   mode?: ResearchPackManifest["mode"];
 }): ResearchPackManifest {
   return {
@@ -549,6 +790,10 @@ function manifestFromModel(input: {
       fact_edges: input.workbench.edges.length,
       claims: input.workbench.claims.length,
       draft_claims: input.workbench.draft_claims.length,
+      claim_conflicts: countClaimConflicts(input.workbench),
+      contradicting_evidence_links: countContradictingEvidenceLinks(input.workbench),
+      claim_lifecycle_warnings: countClaimLifecycleWarnings(input.workbench),
+      attention_items: input.workbench.attention_queue.length,
       evidences: input.workbench.evidences.length,
       unknown_items: input.workbench.unknown_items.length,
       source_plan_items: input.sourcePlan.length,
@@ -574,11 +819,45 @@ function manifestFromModel(input: {
       source_target_active_jobs: input.sourceTargetCoverage?.summary.active_jobs ?? 0,
       source_target_degraded_targets: input.sourceTargetCoverage?.summary.degraded_targets ?? 0,
       source_target_dead_targets: input.sourceTargetCoverage?.summary.dead_targets ?? 0,
-      source_target_targets_with_observations: input.sourceTargetCoverage?.summary.targets_with_observations ?? 0
+      source_target_targets_with_observations: input.sourceTargetCoverage?.summary.targets_with_observations ?? 0,
+      observation_records: input.observationCoverage.summary.typed_observations,
+      observation_chain_segments: input.observationCoverage.summary.chain_observation_segments,
+      observation_types_present: input.observationCoverage.summary.observation_types_present,
+      observation_methodology_types_missing: input.observationCoverage.summary.methodology_types_missing,
+      observation_series: input.observationCoverage.summary.observation_series,
+      observation_time_series_ready: input.observationCoverage.summary.time_series_ready,
+      observation_explicit_baseline_ready: input.observationCoverage.summary.explicit_baseline_ready,
+      observation_sparse_series: input.observationCoverage.summary.sparse_series,
+      official_disclosure_visible_nodes: input.officialDisclosureReadiness.summary.visible_research_nodes,
+      official_disclosure_target_nodes: input.officialDisclosureReadiness.summary.target_research_nodes,
+      official_disclosure_nodes_with_fact_edges: input.officialDisclosureReadiness.summary.nodes_with_fact_edges,
+      official_disclosure_target_nodes_with_fact_edges: input.officialDisclosureReadiness.summary.target_nodes_with_fact_edges,
+      official_disclosure_nodes_missing_coverage: input.officialDisclosureReadiness.summary.nodes_missing_official_coverage,
+      official_disclosure_target_nodes_missing_coverage: input.officialDisclosureReadiness.summary.target_nodes_missing_official_coverage,
+      official_disclosure_profile_expansion_candidates: input.officialDisclosureReadiness.profile_expansion_candidates.length,
+      official_disclosure_expected_source_links: input.officialDisclosureReadiness.summary.expected_official_source_links,
+      official_disclosure_expected_source_links_with_coverage: input.officialDisclosureReadiness.summary.expected_official_source_links_with_coverage,
+      official_disclosure_expected_source_links_runnable: input.officialDisclosureReadiness.summary.expected_official_source_links_runnable,
+      official_disclosure_expected_source_links_connector_available:
+        input.officialDisclosureReadiness.summary.expected_official_source_links_connector_available,
+      official_disclosure_expected_source_links_unimplemented: input.officialDisclosureReadiness.summary.expected_official_source_links_unimplemented,
+      official_disclosure_expected_source_links_missing: input.officialDisclosureReadiness.summary.expected_official_source_links_missing,
+      official_disclosure_l4_l5_edges: input.officialDisclosureReadiness.summary.level_4_5_fact_edges,
+      official_disclosure_traceable_edges: input.officialDisclosureReadiness.summary.traceable_edges,
+      official_disclosure_cross_source_edges: input.officialDisclosureReadiness.summary.cross_source_edges,
+      official_disclosure_corroboration_ratio: input.officialDisclosureReadiness.summary.corroboration_ratio,
+      official_disclosure_gaps: input.officialDisclosureReadiness.gaps.length,
+      official_disclosure_p0_gaps: input.officialDisclosureReadiness.gaps.filter((gap) => gap.priority === "P0").length,
+      official_disclosure_runnable_targets: input.officialDisclosureReadiness.summary.runnable_official_targets,
+      official_disclosure_synced_targets: input.officialDisclosureReadiness.summary.synced_official_targets,
+      official_disclosure_due_targets: input.officialDisclosureReadiness.summary.due_official_targets,
+      official_disclosure_degraded_targets: input.officialDisclosureReadiness.summary.degraded_official_targets,
+      official_disclosure_targets_with_observations: input.officialDisclosureReadiness.summary.official_targets_with_observations
     },
     claim_build: input.claimBuild,
     intelligence_refresh: input.intelligenceRefresh,
-    component_risk_refresh: input.componentRiskRefresh
+    component_risk_refresh: input.componentRiskRefresh,
+    research_target_profile: researchPackTargetProfile(input.targetProfileSelection)
   };
 }
 
@@ -594,10 +873,24 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "",
     `- Fact edges: ${pack.manifest.stats.fact_edges}`,
     `- Claims: ${pack.manifest.stats.claims}`,
+    `- Claim conflicts: ${pack.manifest.stats.claim_conflicts}`,
+    `- Contradicting evidence links: ${pack.manifest.stats.contradicting_evidence_links}`,
+    `- Claim lifecycle warnings: ${pack.manifest.stats.claim_lifecycle_warnings}`,
+    `- Attention queue items: ${pack.manifest.stats.attention_items}`,
     `- Evidence records: ${pack.manifest.stats.evidences}`,
     `- Unknown items: ${pack.manifest.stats.unknown_items}`,
     `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
     `- Intelligence freshness records: ${pack.manifest.stats.intelligence_edge_freshness}`,
+    `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
+    `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
+    `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
+    `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
+    `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,
+    `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
+    `- Observation records: ${pack.manifest.stats.observation_records}`,
+    `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
+    `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
+    `- Observation methodology types missing: ${pack.manifest.stats.observation_methodology_types_missing}`,
     `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
@@ -611,8 +904,11 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "## Files",
     "",
     "- `workbench.json` feeds the TypeScript research preview.",
+    "- `attention-queue.json` and `attention-queue.md` unify immediate review items from claim conflicts, claim lifecycle warnings, alert candidates, degraded source monitors, and semantic changes.",
     "- `chain.md` and `company.md` are human-readable research cards with intelligence context.",
     "- `question-readiness.json` and `question-readiness.md` show which core supply-chain questions are ready, partial, or blocked.",
+    "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage and methodology gaps.",
+    "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show whether runnable source-plan targets are synced, enabled, due, running, failed, or producing observations.",
     "- `components/*.md` contains component-level evidence, observation, strength, freshness, and unknown context.",
@@ -636,26 +932,77 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "",
     `- Fact edges: ${pack.manifest.stats.fact_edges}`,
     `- Claims: ${pack.manifest.stats.claims}`,
+    `- Claim conflicts: ${pack.manifest.stats.claim_conflicts}`,
+    `- Contradicting evidence links: ${pack.manifest.stats.contradicting_evidence_links}`,
+    `- Claim lifecycle warnings: ${pack.manifest.stats.claim_lifecycle_warnings}`,
+    `- Attention queue items: ${pack.manifest.stats.attention_items}`,
     `- Evidence records: ${pack.manifest.stats.evidences}`,
     `- Unknown items: ${pack.manifest.stats.unknown_items}`,
     `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
     `- Intelligence freshness records: ${pack.manifest.stats.intelligence_edge_freshness}`,
+    `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
+    `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
+    `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
+    `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
+    `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,
+    `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
+    `- Observation records: ${pack.manifest.stats.observation_records}`,
+    `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
+    `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
+    `- Observation methodology types missing: ${pack.manifest.stats.observation_methodology_types_missing}`,
     `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1)`,
+    `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
     `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
     "",
     "## Files",
     "",
     "- `workbench.json` feeds the TypeScript research preview.",
+    "- `attention-queue.json` and `attention-queue.md` unify immediate review items carried by the packaged workbench context.",
     "- `chain.md` is a human-readable chain view.",
     "- `question-readiness.json` and `question-readiness.md` summarize answer readiness from the packaged workbench context.",
+    "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage visible from the snapshot.",
+    "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
+    "- `source-target-coverage.json` and `source-target-coverage.md` show expected runnable targets as `not_synced` until a SQL truth store syncs them into `source_check_targets`.",
     "- `source-plan.json` lists existing free/public source checks suggested by the components in this workbench.",
     "- `evidence-index.json` contains the evidence records carried by the workbench export."
   ];
+  return lines.join("\n");
+}
+
+function renderAttentionQueueMarkdown(workbench: WorkbenchModel): string {
+  const lines = [
+    "# Attention Queue",
+    "",
+    `Generated at: ${workbench.generated_at}`,
+    `Company: ${workbench.chain.root.name} [${workbench.selected_company_id}]`,
+    "",
+    "This queue is derived from existing backend context. It does not create fact edges and does not resolve conflicts automatically.",
+    "",
+    "## Items",
+    ""
+  ];
+  if (workbench.attention_queue.length === 0) {
+    lines.push("No open attention items.");
+    return lines.join("\n");
+  }
+  for (const item of workbench.attention_queue) {
+    lines.push(`### ${item.priority} ${item.title}`);
+    lines.push("");
+    lines.push(`- ID: ${item.attention_id}`);
+    lines.push(`- Kind: ${item.kind}`);
+    lines.push(`- Status: ${item.status}`);
+    lines.push(`- Scope: ${item.scope_kind}:${item.scope_id}`);
+    lines.push(`- Detected at: ${item.detected_at ?? "unknown"}`);
+    lines.push(`- Summary: ${item.summary}`);
+    lines.push(`- Action: ${item.action}`);
+    lines.push(`- Refs: ${item.refs.length === 0 ? "none" : item.refs.join(", ")}`);
+    lines.push("");
+  }
   return lines.join("\n");
 }
 
@@ -666,6 +1013,21 @@ function emptyStaticDataQualitySummary(): DataQualitySummary {
     counts: { error: 0, warn: 0, info: 0 },
     issues: []
   };
+}
+
+function countClaimConflicts(workbench: WorkbenchModel): number {
+  return [...workbench.claims, ...workbench.draft_claims].filter((claim) => claim.conflict_state !== "none").length;
+}
+
+function countContradictingEvidenceLinks(workbench: WorkbenchModel): number {
+  return [...workbench.claims, ...workbench.draft_claims].reduce(
+    (count, claim) => count + claim.evidence_refs.filter((ref) => ref.role === "contradicting").length,
+    0
+  );
+}
+
+function countClaimLifecycleWarnings(workbench: WorkbenchModel): number {
+  return [...workbench.claims, ...workbench.draft_claims].reduce((count, claim) => count + claim.lifecycle_warnings.length, 0);
 }
 
 async function writeJsonFile(outDir: string, relativePath: string, value: unknown, description: string): Promise<ResearchPackFile> {

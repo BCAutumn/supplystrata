@@ -1,14 +1,31 @@
 import {
+  adjudicateClaimConflict,
+  buildClaimConflictReviewPacket,
+  type ClaimConflictAdjudication,
+  type ClaimConflictReviewPacket,
+  type ClaimConflictAdjudicationState,
+  type ClaimConflictRecommendedAction
+} from "@supplystrata/claim-builder";
+import {
   getClaim,
   getEvidence,
+  listAlertCandidates,
+  listClaimEvidenceLinks,
+  listClaimUnknownLinks,
   listChangeTimeline,
+  listActiveClaimsOnInactiveEdges,
   listEdgeFreshness,
   listEdgeStrengthEstimates,
   listDraftClaims,
   listEvidenceForEdges,
   listUnknownItems,
   resolveEntityId,
+  type AlertCandidateRecord,
+  type AlertSeverity,
+  type AlertStatus,
   type ChangeTimelineItem,
+  type ClaimEvidenceRole,
+  type ClaimUnknownRole,
   type DbClient
 } from "@supplystrata/db";
 import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-view";
@@ -18,6 +35,7 @@ import { planSourcesForComponents, type SourcePlanItem } from "@supplystrata/sou
 import {
   RELATION_TYPES,
   type ClaimType,
+  type EdgeValidity,
   type EdgeFreshnessDecayModel,
   type EdgeFreshnessRecord,
   type EdgeStrengthEstimateRecord,
@@ -34,6 +52,9 @@ export interface WorkbenchExportInput {
   changeLimit?: number;
   sourceLimit?: number;
   draftClaimLimit?: number;
+  lifecycleClaimLimit?: number;
+  alertLimit?: number;
+  attentionLimit?: number;
 }
 
 export interface WorkbenchCompanyNode {
@@ -57,6 +78,19 @@ export interface WorkbenchEdge {
 }
 
 export type WorkbenchClaimStatus = "draft" | "active" | "superseded" | "rejected";
+export type WorkbenchClaimConflictState = ClaimConflictAdjudicationState;
+export type WorkbenchClaimConflictRecommendedAction = ClaimConflictRecommendedAction;
+
+export interface WorkbenchClaimEvidenceRef {
+  evidence_id: string;
+  role: ClaimEvidenceRole;
+}
+
+export interface WorkbenchClaimUnknownRef {
+  unknown_id: string;
+  role: ClaimUnknownRole;
+  status: string;
+}
 
 export interface WorkbenchClaim {
   claim_id: string;
@@ -66,6 +100,9 @@ export interface WorkbenchClaim {
   object_id: string | null;
   component_id: string | null;
   edge_id: string | null;
+  edge_validity: EdgeValidity | null;
+  edge_deprecated_reason: string | null;
+  edge_superseded_by_edge_id: string | null;
   review_id: string | null;
   status: WorkbenchClaimStatus;
   evidence_level: EvidenceLevel;
@@ -75,6 +112,18 @@ export interface WorkbenchClaim {
   last_verified_at: string;
   created_at: string;
   updated_at: string;
+  evidence_refs: WorkbenchClaimEvidenceRef[];
+  unknown_refs: WorkbenchClaimUnknownRef[];
+  conflict_state: WorkbenchClaimConflictState;
+  conflict_adjudication: ClaimConflictAdjudication;
+  conflict_review: ClaimConflictReviewPacket;
+  lifecycle_warnings: WorkbenchClaimLifecycleWarning[];
+}
+
+export interface WorkbenchClaimLifecycleWarning {
+  code: "active_claim_on_inactive_edge";
+  severity: "warn";
+  message: string;
 }
 
 export interface WorkbenchEvidence {
@@ -138,6 +187,24 @@ export interface WorkbenchSourceHealth {
   policy_notes: string | null;
 }
 
+export type WorkbenchAttentionKind = "claim_conflict" | "claim_lifecycle" | "alert" | "source_degraded" | "change_requires_attention";
+export type WorkbenchAttentionPriority = "P0" | "P1" | "P2" | "P3";
+export type WorkbenchAttentionStatus = "open" | "acknowledged" | "resolved" | "suppressed";
+
+export interface WorkbenchAttentionItem {
+  attention_id: string;
+  kind: WorkbenchAttentionKind;
+  priority: WorkbenchAttentionPriority;
+  status: WorkbenchAttentionStatus;
+  title: string;
+  summary: string;
+  action: string;
+  scope_kind: string;
+  scope_id: string;
+  refs: string[];
+  detected_at: string | null;
+}
+
 export interface WorkbenchEdgeStrength {
   strength_id: string;
   edge_id: string;
@@ -184,6 +251,7 @@ export interface WorkbenchModel {
   sources: WorkbenchSourceHealth[];
   source_plan: SourcePlanItem[];
   changes: ChangeTimelineItem[];
+  attention_queue: WorkbenchAttentionItem[];
   intelligence: WorkbenchIntelligenceContext;
 }
 
@@ -196,12 +264,23 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
   const edgeIds = uniqueStrings(edgeSegments.map((segment) => segment.edge_id));
   const claimIds = uniqueStrings(chain.segments.flatMap((segment) => (segment.claim_id === undefined ? [] : [segment.claim_id])));
   const evidenceIds = uniqueStrings(chain.segments.flatMap((segment) => segment.evidence_ids));
-  const claims = await loadClaims(client, claimIds);
-  const draftClaims = (await listDraftClaims(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.draftClaimLimit ?? 25 })).map(claimToDto);
+  const claims = mergeWorkbenchClaims([
+    ...(await loadClaims(client, claimIds)),
+    ...(await enrichClaims(
+      client,
+      await listActiveClaimsOnInactiveEdges(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.lifecycleClaimLimit ?? 25 })
+    ))
+  ]);
+  const draftClaims = await enrichClaims(
+    client,
+    await listDraftClaims(client, { scope: { kind: "entity", id: rootEntityId }, limit: input.draftClaimLimit ?? 25 })
+  );
   const evidences = await loadWorkbenchEvidences(client, { evidenceIds, edgeIds });
   const intelligence = await loadWorkbenchIntelligence(client, { edgeIds, computedAt: generatedAt });
-  const unknownItems = (await loadWorkbenchUnknowns(client, { rootEntityId, edgeIds })).map(unknownItemToDto);
+  const claimUnknownIds = uniqueStrings([...claims, ...draftClaims].flatMap((claim) => claim.unknown_refs.map((ref) => ref.unknown_id)));
+  const unknownItems = (await loadWorkbenchUnknowns(client, { rootEntityId, edgeIds, unknownIds: claimUnknownIds })).map(unknownItemToDto);
   const sources = (await listSourceHealthRows(client)).slice(0, input.sourceLimit ?? 50).map(sourceHealthToDto);
+  const alerts = await listAlertCandidates(client, { status: "open", limit: input.alertLimit ?? 50 });
   const sourcePlan = planSourcesForComponents({
     component_ids: componentIdsFromSegments(chain.segments),
     entity_ids: [rootEntityId],
@@ -211,6 +290,14 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     since: input.since ?? defaultSince(30),
     limit: input.changeLimit ?? 50,
     scope: { kind: "company", id: rootEntityId }
+  });
+  const attentionQueue = buildWorkbenchAttentionQueue({
+    claims,
+    draftClaims,
+    alerts,
+    sources,
+    changes,
+    limit: input.attentionLimit ?? 100
   });
 
   return {
@@ -230,6 +317,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     sources,
     source_plan: sourcePlan,
     changes,
+    attention_queue: attentionQueue,
     intelligence
   };
 }
@@ -288,7 +376,15 @@ async function loadClaims(client: DbClient, claimIds: readonly string[]): Promis
   const claims: WorkbenchClaim[] = [];
   for (const claimId of claimIds) {
     const claim = await getClaim(client, claimId);
-    if (claim !== undefined) claims.push(claimToDto(claim));
+    if (claim !== undefined) claims.push(await claimToDto(client, claim));
+  }
+  return claims;
+}
+
+async function enrichClaims(client: DbClient, rows: readonly ClaimDbShape[]): Promise<WorkbenchClaim[]> {
+  const claims: WorkbenchClaim[] = [];
+  for (const row of rows) {
+    claims.push(await claimToDto(client, row));
   }
   return claims;
 }
@@ -324,7 +420,10 @@ async function loadWorkbenchIntelligence(client: DbClient, input: { edgeIds: rea
   };
 }
 
-async function loadWorkbenchUnknowns(client: DbClient, input: { rootEntityId: string; edgeIds: readonly string[] }): Promise<UnknownDbShape[]> {
+async function loadWorkbenchUnknowns(
+  client: DbClient,
+  input: { rootEntityId: string; edgeIds: readonly string[]; unknownIds: readonly string[] }
+): Promise<UnknownDbShape[]> {
   const byId = new Map<string, UnknownDbShape>();
   for (const unknown of await listUnknownItems(client, input.rootEntityId)) {
     byId.set(unknown.unknown_id, unknown);
@@ -334,7 +433,23 @@ async function loadWorkbenchUnknowns(client: DbClient, input: { rootEntityId: st
       byId.set(unknown.unknown_id, unknown);
     }
   }
+  for (const unknown of await listUnknownsByIds(client, input.unknownIds)) {
+    byId.set(unknown.unknown_id, unknown);
+  }
   return [...byId.values()];
+}
+
+async function listUnknownsByIds(client: DbClient, unknownIds: readonly string[]): Promise<UnknownDbShape[]> {
+  const ids = uniqueStrings(unknownIds);
+  if (ids.length === 0) return [];
+  const result = await client.query<UnknownDbShape>(
+    `SELECT unknown_id, question, why_unknown, blocking_data_sources, proxies, status
+     FROM unknown_items
+     WHERE unknown_id = ANY($1::text[])
+     ORDER BY unknown_id`,
+    [ids]
+  );
+  return result.rows;
 }
 
 function compareWorkbenchEvidence(left: WorkbenchEvidence, right: WorkbenchEvidence): number {
@@ -355,6 +470,9 @@ interface ClaimDbShape {
   object_id: string | null;
   component_id: string | null;
   edge_id: string | null;
+  edge_validity: EdgeValidity | null;
+  edge_deprecated_reason: string | null;
+  edge_superseded_by_edge_id: string | null;
   review_id: string | null;
   status: WorkbenchClaimStatus;
   evidence_level: EvidenceLevel;
@@ -427,7 +545,24 @@ interface SourceHealthDbShape {
   policy_notes: string | null;
 }
 
-function claimToDto(row: ClaimDbShape): WorkbenchClaim {
+async function claimToDto(client: DbClient, row: ClaimDbShape): Promise<WorkbenchClaim> {
+  const [evidenceRefs, unknownRefs] = await Promise.all([listClaimEvidenceLinks(client, row.claim_id), listClaimUnknownLinks(client, row.claim_id)]);
+  const evidenceRefsDto = claimEvidenceRefsToDto(evidenceRefs);
+  const unknownRefsDto = claimUnknownRefsToDto(unknownRefs);
+  const adjudication = adjudicateClaimConflict({
+    claim_status: row.status,
+    edge_id: row.edge_id,
+    evidence_refs: evidenceRefsDto,
+    unknown_refs: unknownRefsDto
+  });
+  const conflictReview = buildClaimConflictReviewPacket({
+    claim_id: row.claim_id,
+    claim_text: row.claim_text,
+    claim_status: row.status,
+    edge_id: row.edge_id,
+    evidence_refs: evidenceRefsDto,
+    unknown_refs: unknownRefsDto
+  });
   return {
     claim_id: row.claim_id,
     claim_type: row.claim_type,
@@ -436,6 +571,9 @@ function claimToDto(row: ClaimDbShape): WorkbenchClaim {
     object_id: row.object_id,
     component_id: row.component_id,
     edge_id: row.edge_id,
+    edge_validity: row.edge_validity ?? null,
+    edge_deprecated_reason: row.edge_deprecated_reason ?? null,
+    edge_superseded_by_edge_id: row.edge_superseded_by_edge_id ?? null,
     review_id: row.review_id,
     status: row.status,
     evidence_level: row.evidence_level,
@@ -444,8 +582,47 @@ function claimToDto(row: ClaimDbShape): WorkbenchClaim {
     generated_by: row.generated_by,
     last_verified_at: toIsoString(row.last_verified_at),
     created_at: toIsoString(row.created_at),
-    updated_at: toIsoString(row.updated_at)
+    updated_at: toIsoString(row.updated_at),
+    evidence_refs: evidenceRefsDto,
+    unknown_refs: unknownRefsDto,
+    conflict_state: adjudication.state,
+    conflict_adjudication: adjudication,
+    conflict_review: conflictReview,
+    lifecycle_warnings: claimLifecycleWarnings(row)
   };
+}
+
+function mergeWorkbenchClaims(claims: readonly WorkbenchClaim[]): WorkbenchClaim[] {
+  const byId = new Map<string, WorkbenchClaim>();
+  for (const claim of claims) byId.set(claim.claim_id, claim);
+  return [...byId.values()].sort(compareWorkbenchClaims);
+}
+
+function compareWorkbenchClaims(left: WorkbenchClaim, right: WorkbenchClaim): number {
+  const lifecycleOrder = Number(right.lifecycle_warnings.length > 0) - Number(left.lifecycle_warnings.length > 0);
+  if (lifecycleOrder !== 0) return lifecycleOrder;
+  return right.evidence_level - left.evidence_level || right.confidence - left.confidence || left.claim_id.localeCompare(right.claim_id);
+}
+
+function claimLifecycleWarnings(row: ClaimDbShape): WorkbenchClaimLifecycleWarning[] {
+  if (row.status !== "active") return [];
+  if (row.edge_id === null || row.edge_validity === null || row.edge_validity === "current") return [];
+  const replacement = row.edge_superseded_by_edge_id === null ? "" : `; superseded by ${row.edge_superseded_by_edge_id}`;
+  return [
+    {
+      code: "active_claim_on_inactive_edge",
+      severity: "warn",
+      message: `Active claim is still linked to ${row.edge_validity} edge ${row.edge_id}${replacement}`
+    }
+  ];
+}
+
+function claimEvidenceRefsToDto(evidenceRefs: readonly { evidence_id: string; role: ClaimEvidenceRole }[]): WorkbenchClaimEvidenceRef[] {
+  return evidenceRefs.map((ref) => ({ evidence_id: ref.evidence_id, role: ref.role }));
+}
+
+function claimUnknownRefsToDto(unknownRefs: readonly { unknown_id: string; role: ClaimUnknownRole; status: string }[]): WorkbenchClaimUnknownRef[] {
+  return unknownRefs.map((ref) => ({ unknown_id: ref.unknown_id, role: ref.role, status: ref.status }));
 }
 
 function evidenceToDto(row: EvidenceDbShape): WorkbenchEvidence {
@@ -541,6 +718,174 @@ function edgeFreshnessToDto(row: EdgeFreshnessRecord): WorkbenchEdgeFreshness {
     computed_at: row.computed_at,
     source_evidence_id: row.source_evidence_id ?? null
   };
+}
+
+export function buildWorkbenchAttentionQueue(input: {
+  claims: readonly WorkbenchClaim[];
+  draftClaims: readonly WorkbenchClaim[];
+  alerts: readonly AlertCandidateRecord[];
+  sources: readonly WorkbenchSourceHealth[];
+  changes: readonly ChangeTimelineItem[];
+  limit?: number;
+}): WorkbenchAttentionItem[] {
+  const items = [
+    ...attentionItemsFromClaimConflicts(input.claims, input.draftClaims),
+    ...attentionItemsFromClaimLifecycle(input.claims),
+    ...input.alerts.map(attentionItemFromAlert),
+    ...input.sources.flatMap(attentionItemsFromSourceHealth),
+    ...input.changes.flatMap(attentionItemsFromChange)
+  ];
+  return items.sort(compareAttentionItems).slice(0, input.limit ?? 100);
+}
+
+function attentionItemsFromClaimConflicts(claims: readonly WorkbenchClaim[], draftClaims: readonly WorkbenchClaim[]): WorkbenchAttentionItem[] {
+  return [...claims, ...draftClaims].flatMap((claim) => {
+    if (claim.conflict_review.review_queue_kind !== "claim_conflict_review") return [];
+    return [
+      {
+        attention_id: `ATTN-CLAIM-CONFLICT-${claim.claim_id}`,
+        kind: "claim_conflict",
+        priority: priorityFromClaimConflict(claim),
+        status: "open",
+        title: "Claim conflict needs review",
+        summary: claim.conflict_review.fact_write_policy.reason_codes.join(", "),
+        action: "Review supporting evidence, contradicting evidence, and linked unknowns before changing any fact edge.",
+        scope_kind: "claim",
+        scope_id: claim.claim_id,
+        refs: uniqueStrings([
+          `claim:${claim.claim_id}`,
+          ...(claim.edge_id === null ? [] : [`edge:${claim.edge_id}`]),
+          ...claim.evidence_refs.map((ref) => `evidence:${ref.evidence_id}`),
+          ...claim.unknown_refs.map((ref) => `unknown:${ref.unknown_id}`)
+        ]),
+        detected_at: claim.updated_at
+      }
+    ];
+  });
+}
+
+function priorityFromClaimConflict(claim: WorkbenchClaim): WorkbenchAttentionPriority {
+  if (claim.conflict_review.edge_review_required || claim.conflict_review.severity === "high") return "P0";
+  if (claim.conflict_review.severity === "medium") return "P1";
+  if (claim.conflict_review.severity === "low") return "P2";
+  return "P3";
+}
+
+function attentionItemsFromClaimLifecycle(claims: readonly WorkbenchClaim[]): WorkbenchAttentionItem[] {
+  return claims.flatMap((claim) =>
+    claim.lifecycle_warnings.map((warning) => ({
+      attention_id: `ATTN-CLAIM-LIFECYCLE-${claim.claim_id}-${warning.code}`,
+      kind: "claim_lifecycle",
+      priority: "P0",
+      status: "open",
+      title: "Active claim is attached to an inactive fact edge",
+      summary: warning.message,
+      action: "Resolve the claim lifecycle before using the claim as current evidence context.",
+      scope_kind: "claim",
+      scope_id: claim.claim_id,
+      refs: uniqueStrings([`claim:${claim.claim_id}`, ...(claim.edge_id === null ? [] : [`edge:${claim.edge_id}`])]),
+      detected_at: claim.updated_at
+    }))
+  );
+}
+
+function attentionItemFromAlert(alert: AlertCandidateRecord): WorkbenchAttentionItem {
+  return {
+    attention_id: `ATTN-ALERT-${alert.alert_id}`,
+    kind: "alert",
+    priority: priorityFromAlertSeverity(alert.severity),
+    status: alert.status,
+    title: alert.title,
+    summary: alert.summary,
+    action: "Review alert provenance and either acknowledge, resolve, suppress, or convert it into follow-up research.",
+    scope_kind: alert.scope_kind,
+    scope_id: alert.scope_id,
+    refs: uniqueStrings([
+      `alert:${alert.alert_id}`,
+      ...(alert.observation_id === undefined ? [] : [`observation:${alert.observation_id}`]),
+      ...(alert.risk_view_id === undefined ? [] : [`risk_view:${alert.risk_view_id}`]),
+      ...(alert.risk_metric_id === undefined ? [] : [`risk_metric:${alert.risk_metric_id}`]),
+      ...(alert.change_id === undefined ? [] : [`change:${alert.change_id}`]),
+      ...(alert.source_event_id === undefined ? [] : [`source_event:${alert.source_event_id}`]),
+      ...(alert.source_adapter_id === undefined ? [] : [`source:${alert.source_adapter_id}`])
+    ]),
+    detected_at: alert.detected_at
+  };
+}
+
+function priorityFromAlertSeverity(severity: AlertSeverity): WorkbenchAttentionPriority {
+  if (severity === "critical") return "P0";
+  if (severity === "high") return "P1";
+  if (severity === "medium") return "P2";
+  return "P3";
+}
+
+function attentionItemsFromSourceHealth(source: WorkbenchSourceHealth): WorkbenchAttentionItem[] {
+  if (source.failure_count <= 0 && source.last_error_message === null) return [];
+  return [
+    {
+      attention_id: `ATTN-SOURCE-DEGRADED-${source.source_adapter_id}`,
+      kind: "source_degraded",
+      priority: source.failure_count >= 3 ? "P1" : "P2",
+      status: "open",
+      title: "Source monitor is degraded",
+      summary: source.last_error_message ?? `Source has ${source.failure_count} recorded monitor failure(s).`,
+      action: "Inspect the source monitor policy and latest run before trusting freshness or missing-data conclusions from this source.",
+      scope_kind: "source",
+      scope_id: source.source_adapter_id,
+      refs: [`source:${source.source_adapter_id}`],
+      detected_at: source.last_failure_at ?? source.last_checked_at
+    }
+  ];
+}
+
+function attentionItemsFromChange(change: ChangeTimelineItem): WorkbenchAttentionItem[] {
+  if (!change.requires_attention) return [];
+  const scope = changeAttentionScope(change);
+  return [
+    {
+      attention_id: `ATTN-CHANGE-${change.event_id}`,
+      kind: "change_requires_attention",
+      priority: "P1",
+      status: "open",
+      title: "Semantic change requires attention",
+      summary: `${change.event_family}/${change.event_type} changed ${scope.kind}:${scope.id}.`,
+      action: "Review before/after payloads and decide whether the change affects claims, evidence, source policy, or downstream research output.",
+      scope_kind: scope.kind,
+      scope_id: scope.id,
+      refs: [`change:${change.event_id}`],
+      detected_at: change.occurred_at
+    }
+  ];
+}
+
+function changeAttentionScope(change: ChangeTimelineItem): { kind: string; id: string } {
+  if (change.scope_kind !== undefined && change.scope_id !== undefined) return { kind: change.scope_kind, id: change.scope_id };
+  if (change.source_adapter_id !== undefined) return { kind: "source", id: change.source_adapter_id };
+  if (change.edge_id !== undefined) return { kind: "edge", id: change.edge_id };
+  if (change.evidence_id !== undefined) return { kind: "evidence", id: change.evidence_id };
+  return { kind: "change", id: change.event_id };
+}
+
+function compareAttentionItems(left: WorkbenchAttentionItem, right: WorkbenchAttentionItem): number {
+  const priorityOrder = attentionPriorityRank(left.priority) - attentionPriorityRank(right.priority);
+  if (priorityOrder !== 0) return priorityOrder;
+  const timeOrder = timestampRank(right.detected_at) - timestampRank(left.detected_at);
+  if (timeOrder !== 0) return timeOrder;
+  return left.attention_id.localeCompare(right.attention_id);
+}
+
+function attentionPriorityRank(priority: WorkbenchAttentionPriority): number {
+  if (priority === "P0") return 0;
+  if (priority === "P1") return 1;
+  if (priority === "P2") return 2;
+  return 3;
+}
+
+function timestampRank(value: string | null): number {
+  if (value === null) return 0;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 function toNullableIsoString(value: Date | string | null): string | null {

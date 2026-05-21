@@ -125,7 +125,68 @@ export interface OshFacilityReviewCandidate {
   review_reason: string;
 }
 
-export type ReviewCandidate = SupplierListReviewCandidate | EntitySourceReviewCandidate | SemanticChangeReviewCandidate | OshFacilityReviewCandidate;
+export type ClaimConflictReviewState = "open_conflict" | "contradicting_evidence";
+export type ClaimConflictReviewSeverity = "medium" | "high";
+export type ClaimConflictReviewRecommendedAction = "review_claim" | "review_edge_for_deprecation" | "collect_resolution_evidence";
+export type ClaimConflictReviewSafeWriteStatus = "blocked_pending_review";
+export type ClaimConflictReviewStep =
+  | "inspect_supporting_evidence"
+  | "inspect_contradicting_evidence"
+  | "resolve_conflict_unknown"
+  | "review_claim_scope"
+  | "review_fact_edge_for_deprecation";
+
+export interface ClaimConflictReviewEvidenceRef {
+  evidence_id: string;
+  role: "primary" | "supporting" | "contradicting" | "context";
+}
+
+export interface ClaimConflictReviewUnknownRef {
+  unknown_id: string;
+  role: "boundary" | "blocking" | "context";
+  status: string;
+}
+
+export interface ClaimConflictReviewFactWritePolicy {
+  automatic_fact_mutation_allowed: false;
+  allowed_edge_mutation: "none";
+  requires_human_review: true;
+  reason_codes: string[];
+}
+
+export interface ClaimConflictReviewPayload {
+  claim_id: string;
+  claim_text: string;
+  edge_id: string | null;
+  conflict_state: ClaimConflictReviewState;
+  severity: ClaimConflictReviewSeverity;
+  recommended_action: ClaimConflictReviewRecommendedAction;
+  safe_write_status: ClaimConflictReviewSafeWriteStatus;
+  edge_review_required: boolean;
+  required_review_steps: ClaimConflictReviewStep[];
+  evidence_refs: ClaimConflictReviewEvidenceRef[];
+  unknown_refs: ClaimConflictReviewUnknownRef[];
+  fact_write_policy: ClaimConflictReviewFactWritePolicy;
+}
+
+export interface ClaimConflictReviewCandidate {
+  review_id: string;
+  candidate_key: string;
+  kind: "claim_conflict_review";
+  title: string;
+  payload: ClaimConflictReviewPayload;
+  evidence: ReviewEvidenceContext;
+  confidence: number;
+  needs_review: true;
+  review_reason: string;
+}
+
+export type ReviewCandidate =
+  | SupplierListReviewCandidate
+  | EntitySourceReviewCandidate
+  | SemanticChangeReviewCandidate
+  | OshFacilityReviewCandidate
+  | ClaimConflictReviewCandidate;
 
 export function buildSupplierListReviewCandidate(input: {
   candidate: SupplierListCandidate;
@@ -296,6 +357,30 @@ export function buildOshFacilityReviewCandidate(input: {
   };
 }
 
+export function buildClaimConflictReviewCandidate(input: { payload: ClaimConflictReviewPayload }): ClaimConflictReviewCandidate {
+  const candidateKey = stableClaimConflictCandidateKey(input.payload);
+  const evidenceIds = input.payload.evidence_refs.map((ref) => `${ref.role}:${ref.evidence_id}`);
+  const unknownIds = input.payload.unknown_refs.map((ref) => `${ref.role}:${ref.status}:${ref.unknown_id}`);
+  return {
+    review_id: stableClaimConflictReviewId(input.payload, candidateKey),
+    candidate_key: candidateKey,
+    kind: "claim_conflict_review",
+    title: `Claim conflict: ${input.payload.claim_id}`,
+    payload: input.payload,
+    evidence: {
+      source_url: `supplystrata://claims/${input.payload.claim_id}/conflict-review`,
+      source_adapter_id: "claim-builder",
+      source_locator: input.payload.edge_id === null ? input.payload.claim_id : `${input.payload.claim_id} / ${input.payload.edge_id}`,
+      source_row_text: input.payload.claim_text,
+      normalized_record_text: [input.payload.claim_id, input.payload.conflict_state, ...evidenceIds, ...unknownIds].join(" | ")
+    },
+    confidence: claimConflictReviewConfidence(input.payload),
+    needs_review: true,
+    review_reason:
+      "Claim has contradicting evidence or an open conflict unknown. This review candidate blocks automatic fact mutation and requires human resolution before any edge deprecation or claim status change."
+  };
+}
+
 export interface SemanticChangeReviewPayloadSnapshot {
   doc_id: string;
   source_adapter_id: string;
@@ -318,6 +403,7 @@ export function isReviewCandidate(value: unknown): value is ReviewCandidate {
   if (value["kind"] === "entity_source_candidate") return isEntitySourceReviewCandidatePayload(value);
   if (value["kind"] === "semantic_change") return isSemanticChangeReviewCandidatePayload(value);
   if (value["kind"] === "osh_facility_candidate") return isOshFacilityReviewCandidatePayload(value);
+  if (value["kind"] === "claim_conflict_review") return isClaimConflictReviewCandidatePayload(value);
   return false;
 }
 
@@ -335,6 +421,10 @@ export function isSemanticChangeReviewCandidate(candidate: ReviewCandidate): can
 
 export function isOshFacilityReviewCandidate(candidate: ReviewCandidate): candidate is OshFacilityReviewCandidate {
   return candidate.kind === "osh_facility_candidate";
+}
+
+export function isClaimConflictReviewCandidate(candidate: ReviewCandidate): candidate is ClaimConflictReviewCandidate {
+  return candidate.kind === "claim_conflict_review";
 }
 
 export function supplierListReviewToSupplierRelation(candidate: SupplierListReviewCandidate): CandidateRelation {
@@ -516,6 +606,35 @@ function stableOshFacilityReviewId(candidate: OshFacilityCandidateSnapshot, cand
   return `REV-OSH-FACILITY-${readable}-${digest}`;
 }
 
+function stableClaimConflictCandidateKey(payload: ClaimConflictReviewPayload): string {
+  return [
+    "claim-conflict-review",
+    payload.claim_id,
+    payload.edge_id ?? "",
+    payload.conflict_state,
+    payload.safe_write_status,
+    payload.evidence_refs.map((ref) => `${ref.role}:${ref.evidence_id}`).join(","),
+    payload.unknown_refs.map((ref) => `${ref.role}:${ref.status}:${ref.unknown_id}`).join(",")
+  ].join("|");
+}
+
+function stableClaimConflictReviewId(payload: ClaimConflictReviewPayload, candidateKey: string): string {
+  const readable = [payload.claim_id, payload.conflict_state]
+    .join("|")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 56);
+  const digest = createHash("sha256").update(candidateKey).digest("hex").slice(0, 16);
+  return `REV-CLAIM-CONFLICT-${readable}-${digest}`;
+}
+
+function claimConflictReviewConfidence(payload: ClaimConflictReviewPayload): number {
+  if (payload.severity === "high") return 0.9;
+  return 0.78;
+}
+
 function oshFacilitySourceRowText(candidate: OshFacilityCandidateSnapshot): string {
   return [
     `os_id=${candidate.os_id}`,
@@ -614,6 +733,83 @@ function isOshFacilityReviewCandidatePayload(value: Record<string, unknown>): bo
   );
 }
 
+function isClaimConflictReviewCandidatePayload(value: Record<string, unknown>): boolean {
+  const payload = value["payload"];
+  const evidence = value["evidence"];
+  if (!hasCommonReviewFields(value) || !isRecord(payload) || !isReviewEvidenceContext(evidence)) return false;
+  return (
+    isNonEmptyString(payload["claim_id"]) &&
+    isNonEmptyString(payload["claim_text"]) &&
+    (payload["edge_id"] === null || isNonEmptyString(payload["edge_id"])) &&
+    isClaimConflictReviewState(payload["conflict_state"]) &&
+    isClaimConflictReviewSeverity(payload["severity"]) &&
+    isClaimConflictReviewRecommendedAction(payload["recommended_action"]) &&
+    payload["safe_write_status"] === "blocked_pending_review" &&
+    typeof payload["edge_review_required"] === "boolean" &&
+    isClaimConflictReviewStepArray(payload["required_review_steps"]) &&
+    isClaimConflictReviewEvidenceRefArray(payload["evidence_refs"]) &&
+    isClaimConflictReviewUnknownRefArray(payload["unknown_refs"]) &&
+    isClaimConflictReviewFactWritePolicy(payload["fact_write_policy"])
+  );
+}
+
+function isClaimConflictReviewState(value: unknown): value is ClaimConflictReviewState {
+  return value === "open_conflict" || value === "contradicting_evidence";
+}
+
+function isClaimConflictReviewSeverity(value: unknown): value is ClaimConflictReviewSeverity {
+  return value === "medium" || value === "high";
+}
+
+function isClaimConflictReviewRecommendedAction(value: unknown): value is ClaimConflictReviewRecommendedAction {
+  return value === "review_claim" || value === "review_edge_for_deprecation" || value === "collect_resolution_evidence";
+}
+
+function isClaimConflictReviewStepArray(value: unknown): value is ClaimConflictReviewStep[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (item) =>
+      item === "inspect_supporting_evidence" ||
+      item === "inspect_contradicting_evidence" ||
+      item === "resolve_conflict_unknown" ||
+      item === "review_claim_scope" ||
+      item === "review_fact_edge_for_deprecation"
+  );
+}
+
+function isClaimConflictReviewEvidenceRefArray(value: unknown): value is ClaimConflictReviewEvidenceRef[] {
+  if (!Array.isArray(value)) return false;
+  return value.every((item) => {
+    if (!isRecord(item)) return false;
+    return (
+      isNonEmptyString(item["evidence_id"]) &&
+      (item["role"] === "primary" || item["role"] === "supporting" || item["role"] === "contradicting" || item["role"] === "context")
+    );
+  });
+}
+
+function isClaimConflictReviewUnknownRefArray(value: unknown): value is ClaimConflictReviewUnknownRef[] {
+  if (!Array.isArray(value)) return false;
+  return value.every((item) => {
+    if (!isRecord(item)) return false;
+    return (
+      isNonEmptyString(item["unknown_id"]) &&
+      (item["role"] === "boundary" || item["role"] === "blocking" || item["role"] === "context") &&
+      isNonEmptyString(item["status"])
+    );
+  });
+}
+
+function isClaimConflictReviewFactWritePolicy(value: unknown): value is ClaimConflictReviewFactWritePolicy {
+  if (!isRecord(value)) return false;
+  return (
+    value["automatic_fact_mutation_allowed"] === false &&
+    value["allowed_edge_mutation"] === "none" &&
+    value["requires_human_review"] === true &&
+    isStringArray(value["reason_codes"])
+  );
+}
+
 function isOshFacilityCandidateRecord(value: unknown): boolean {
   if (!isRecord(value)) return false;
   const contributors = value["contributors"];
@@ -675,6 +871,10 @@ function isNumber(value: unknown): value is number {
 
 function isOptionalNumber(value: unknown): boolean {
   return value === undefined || isNumber(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function isRelationType(value: unknown): value is RelationType {

@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { createId, type EvidenceLevel, type RelationType } from "@supplystrata/core";
+import { RELATION_TYPES, createId, type EvidenceLevel, type RelationType } from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
 export type ChangeTimelineScope =
@@ -35,15 +35,23 @@ export interface ChangeTimelineItem {
   source_adapter_id?: string;
   source_item_id?: string;
   doc_id?: string;
+  previous_doc_id?: string;
+  next_doc_id?: string;
   edge_id?: string;
   evidence_id?: string;
   evidence_level?: EvidenceLevel;
+  superseded_evidence_ids?: string[];
+  superseded_by_evidence_id?: string;
   subject_id?: string;
   subject_name?: string;
   object_id?: string;
   object_name?: string;
   relation?: RelationType;
   component?: string;
+  semantic_relation_kind?: string;
+  relation_subject_surface?: string;
+  relation_object_surface?: string;
+  relation_fingerprint?: string;
   observation_scope_kind?: string;
   observation_scope_id?: string;
   metric_name?: string;
@@ -284,6 +292,8 @@ function withOptionalChangeFields(
 }
 
 function withSemanticChangeFields(item: ChangeTimelineItem, row: GraphChangeRow): ChangeTimelineItem {
+  if (row.change_type === "evidence_superseded") return withEvidenceSupersessionFields(item, row);
+  if (isRelationSemanticChange(row.change_type)) return withRelationSemanticChangeFields(item, row);
   if (row.change_type !== "OBSERVATION_ANOMALY") return item;
   const output = { ...item };
   const observationScopeKind = stringValue(row.after, "observation_scope_kind");
@@ -307,6 +317,44 @@ function withSemanticChangeFields(item: ChangeTimelineItem, row: GraphChangeRow)
   if (severity !== undefined) output.anomaly_severity = severity;
   if (direction !== undefined) output.anomaly_direction = direction;
   return output;
+}
+
+function withEvidenceSupersessionFields(item: ChangeTimelineItem, row: GraphChangeRow): ChangeTimelineItem {
+  const output = { ...item };
+  const supersededEvidenceIds = stringArrayValue(row.before, "superseded_evidence_ids");
+  const supersededBy = stringValue(row.after, "superseded_by");
+  if (supersededEvidenceIds.length > 0) output.superseded_evidence_ids = supersededEvidenceIds;
+  if (supersededBy !== undefined) output.superseded_by_evidence_id = supersededBy;
+  return output;
+}
+
+function withRelationSemanticChangeFields(item: ChangeTimelineItem, row: GraphChangeRow): ChangeTimelineItem {
+  const after = row.after;
+  const before = row.before;
+  const output = { ...item };
+  const sourceItemId = stringValue(after, "source_item_id") ?? stringValue(before, "source_item_id");
+  const previousDocId = stringValue(before, "doc_id");
+  const nextDocId = stringValue(after, "doc_id");
+  const relation = relationValue(after, "relation") ?? relationValue(before, "relation");
+  const component = stringValue(after, "component") ?? stringValue(before, "component");
+  const semanticRelationKind = stringValue(after, "semantic_relation_kind") ?? stringValue(before, "semantic_relation_kind");
+  const subjectSurface = stringValue(after, "subject_surface") ?? stringValue(before, "subject_surface");
+  const objectSurface = stringValue(after, "object_surface") ?? stringValue(before, "object_surface");
+  const fingerprint = stringValue(after, "fingerprint") ?? stringValue(before, "fingerprint");
+  if (sourceItemId !== undefined) output.source_item_id = sourceItemId;
+  if (previousDocId !== undefined) output.previous_doc_id = previousDocId;
+  if (nextDocId !== undefined) output.next_doc_id = nextDocId;
+  if (relation !== undefined) output.relation = relation;
+  if (component !== undefined) output.component = component;
+  if (semanticRelationKind !== undefined) output.semantic_relation_kind = semanticRelationKind;
+  if (subjectSurface !== undefined) output.relation_subject_surface = subjectSurface;
+  if (objectSurface !== undefined) output.relation_object_surface = objectSurface;
+  if (fingerprint !== undefined) output.relation_fingerprint = fingerprint;
+  return output;
+}
+
+function isRelationSemanticChange(changeType: string): boolean {
+  return /_(?:RELATION|OBLIGATION|RESERVATION|RISK)_(?:ADDED|CHANGED|REMOVED)$/u.test(changeType);
 }
 
 function normalizeGraphChangeType(changeType: string): string {
@@ -370,4 +418,19 @@ function stringValue(source: Record<string, unknown> | null, key: string): strin
 function numberValue(source: Record<string, unknown> | null, key: string): number | undefined {
   const value = source?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringArrayValue(source: Record<string, unknown> | null, key: string): string[] {
+  const value = source?.[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function relationValue(source: Record<string, unknown> | null, key: string): RelationType | undefined {
+  const value = source?.[key];
+  return typeof value === "string" && isRelationType(value) ? value : undefined;
+}
+
+function isRelationType(value: string): value is RelationType {
+  return (RELATION_TYPES as readonly string[]).includes(value);
 }

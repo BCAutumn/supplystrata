@@ -448,10 +448,10 @@ unknowns
 - 不在本仓库输出投资建议。
 - 不把 LLM 输出直接入图。
 
-## 文档/实现一致性待处理
+## 文档/实现一致性状态
 
-当前架构文档早期把 `pg-boss` 写得像 MVP 当前依赖，但 `v0.1.0-alpha.1` 代码还没有引入 `pg-boss`，实际是 CLI 单进程执行。下一步按这个原则修正：
+早期架构文档曾把 `pg-boss` 写得像后续队列方向。当前实现已经收敛为 Postgres-backed `source_check_jobs` + `apps/worker`，不引入 `pg-boss` 包。
 
-- Phase 2：继续保持单进程 CLI，先补 source/fetch/change 的数据模型。
-- Phase 3：如果开始持续监控和后台任务，再引入 `pg-boss`。
-- 任何引入队列的 PR 必须同时补 source health、失败归档、重试和可观测 CLI。
+- source-check 持续监控使用 `source_check_targets` / `source_check_jobs` / `source_change_events`。
+- CLI 仍保留本地复现入口；worker 只负责循环和退出信号，业务语义下沉到 source monitor / source workflows。
+- 后续如扩展 parse / extract / score / apply 的后台任务，也应先复用项目自有 job/outbox 语义，并同时补 source health、失败归档、重试和可观测 CLI/API。

@@ -1,8 +1,17 @@
-# Roadmap — 阶段化开发计划
+# Roadmap — 阶段化开发记录
 
 > **不承诺自然周**。原始的 Week 1-6 设计在实际工程中**几乎肯定会延期**，尤其是关系抽取和实体消歧。本文用 Phase 表示阶段，不写日期。每个 Phase 都有明确的入场 / 出场标准。
 >
-> 本路线图记录阶段推进，不再用来判断“后端是否完成”。后端完成需要事实层、观测层、风险派生层、持续监控、API 与质量门槛全部过关，详见 [backend-completion-criteria.md](./backend-completion-criteria.md)。
+> 本路线图只记录历史阶段和早期任务拆分，**不再作为当前后端进度或完成度的权威判断**。后端完成需要事实层、观测层、风险派生层、持续监控、API 与质量门槛全部过关，唯一权威 gate 见 [backend-completion-criteria.md](./backend-completion-criteria.md)。
+>
+> 如果本文与 `backend-completion-criteria.md` 冲突，以后者为准。本文中的 Phase 0/1/2/3 是历史推进标签，不代表当前必须线性等待的阻塞关系；很多 Phase 3 能力已经提前落地，仍缺的数据覆盖和产品化 gate 也不会因为某个 Phase checkbox 变成完成。
+
+## 当前阅读口径
+
+- 判断“后端是否完成”：只看 [backend-completion-criteria.md](./backend-completion-criteria.md)。
+- 判断“中期骨架是否成立”：看 [midterm-intelligence-network-plan.md](./midterm-intelligence-network-plan.md)。
+- 判断“v0.2-alpha 是否可发布”：看 [release-criteria.md](./release-criteria.md)。
+- 本文保留原因：帮助理解项目从 MVP 纵向切片演进到 intelligence network 的历史路径，不再用于宣称完成度。
 
 ## Phase 0 — Pre-flight（动工前）
 
@@ -22,7 +31,7 @@
 
 ### 出场条件
 
-文档定稿 + 数据 seed 入仓 + ADR 审议通过。**任何一项未完成，不进 Phase 1**。
+历史口径是“文档定稿 + 数据 seed 入仓 + ADR 审议通过”。当前代码已经越过这个早期阶段；剩余法律/ToS、non-goals 共识属于发布和治理 gate，不应再被解释为“代码不能进入 Phase 1”。
 
 ### 不做
 
@@ -34,7 +43,7 @@
 
 ### 入场条件
 
-Phase 0 全部出场条件满足。
+历史口径是 Phase 0 全部出场条件满足。当前 Phase 1 已完成，见本节出场条件。
 
 ### 任务
 
@@ -78,7 +87,8 @@ Phase 1 出场。
 - [x] `packages/parsers/html` + `packages/parsers/text`
 - [ ] `packages/sources/opencorporates` + `packages/sources/companies-house`：只拉 seeds 覆盖范围内的实体解析数据
 - [x] `packages/entity-resolver`：strict alias + fuzzy 候选不自动合并 + Samsung/Foxconn/TSMC 上下文消歧 + CIK/ticker identifier match
-- [ ] Golden set ≥ 200 条 + CI 跑通 + 准确率 ≥ 99%
+- [x] seed-derived golden set ≥ 200 条进入单测
+- [ ] precision / false-merge 质量门槛持续跟踪并与 backend Gate 10 对齐
 - [x] `packages/relation-extractor/rule`：10K foundry / memory / contract-manufacturer 规则
 - [x] `packages/evidence-scorer`：MVP 规则
 - [x] `packages/graph-builder`：apply / rebuild
@@ -104,7 +114,7 @@ Phase 1 出场。
 - [x] [v0.2-alpha-plan.md](./v0.2-alpha-plan.md)：v0.2-alpha 产品范围、P0/P1/P2 与不做事项
 - [x] [release-criteria.md](./release-criteria.md)：区分 v0.2 发布标准与 Phase 2 完整验收
 
-### 出场条件（即 MVP 验收）
+### 出场条件（历史 MVP 验收，不等于后端完成）
 
 详见 [mvp-scope.md](../01-product/mvp-scope.md) §"验收标准"。
 
@@ -118,9 +128,9 @@ Phase 1 出场。
 - [ ] CLI 输出始终有 unknown_map（≥ 5 项）
 - [x] 干净环境一条命令链跑通基础 pipeline（`pnpm smoke:local` / `pnpm smoke:network`；第一条正式 fixture e2e 已补）
 
-### 估时态度
+### 估时态度与当前口径
 
-不给估时。逐 task 跟踪即可，但**不要在 Phase 2 之内开始接 Comtrade / EIA 等数据源**。
+不给估时。逐 task 跟踪即可。早期规则是“不要在 Phase 2 之内开始接 Comtrade / EIA 等数据源”，它的真实含义是：不要为了制造热闹而堆新源。当前 backend criteria 已经把 observation/signal 层列为后端完成 gate，因此轻量、可审计、不会写 fact edge 的 observation connector 可以推进；是否接新源仍以 [backend-completion-criteria.md](./backend-completion-criteria.md) 的 gate 和当前数据准备短板为准。
 
 ### 下一批 PR 顺序
 
@@ -153,7 +163,7 @@ Phase 1 出场。
 | memory 被过度具体化为 HBM                          | 先修抽取规则与 component taxonomy；未明确出现 HBM 原文时只输出 `memory`               |
 | source cap 过粗导致宏观/线索源误入高等级边         | 引入 source authority matrix；宏观数据默认进 observations，不直接进 company edge      |
 | fuzzy resolver 误合并短别名或集团/子公司           | fuzzy 已改为只返回候选；短别名和弱别名必须有 strong alias、identifier 或 context 支撑 |
-| `pg-boss` 文档早于实现                             | Phase 2 保持单进程 CLI；队列化放到 Phase 3 monitoring layer，一起补 source health     |
+| `pg-boss` 文档早于实现                             | 已改为 Postgres-backed `source_check_jobs` + `apps/worker`，不引入 pg-boss 包         |
 | 静态 HTML 脚本继续膨胀                             | v0.2 迁移到 `apps/research-preview`，使用 TypeScript + Canvas，脚本只保留临时预览用途 |
 | LLM 策略已写但真实路径未启用                       | v0.2 主动搁置 LLM 真实抽取，等规则覆盖、review、golden set 稳定后再决策               |
 
@@ -186,12 +196,13 @@ Phase 2 出场。
 - [ ] `dart-kr` adapter（Samsung / SK Hynix 韩文披露的英文版）
 - [ ] 扩展亚洲/欧洲 IR 的历史覆盖与非 MVP 公司（MVP 的 4 家 IR 已在 Phase 2 接入）
 - [ ] `un-comtrade` adapter → macro_signals 表
-- [ ] `census-trade` adapter
-- [ ] `usitc-dataweb` adapter
-- [ ] `eia` / `fred` / `worldbank-pink` adapter
+- [x] `census-trade` 第一版 source check / observation target baseline
+- [ ] `census-trade` / `usitc-dataweb` trade flow 深接 ComponentCard / ChainView
+- [x] `worldbank-pink` 第一版 source check / observation target baseline
+- [ ] `eia` / `fred` energy / macro observation connector
 - [ ] `usgs-mcs` / `iea-critical-minerals` / `rmi-facilities` / `eu-crma` observation 流
 - [ ] `import-yeti` 手工流程的 CLI 子命令完善
-- [ ] `osh` adapter（与 Apple Supplier List 交叉建 facility）
+- [x] `osh` facility-search source check / review candidate baseline（与 Apple Supplier List 交叉建 facility）
 - [ ] Python sidecar (XBRL) 接入
 - [ ] `apps/api` 上线（只读 REST）
 - [ ] OpenSearch（可选）or Postgres FTS 升级
@@ -261,4 +272,4 @@ Phase 4 出场，且 ADR 通过"开放 Level 1-3 自动入图"。
 > - Phase 0: TBD
 > - Phase 1: 已落地。运行时发现并修复 3 个真实问题：workspace 直接依赖漏声明、seed alias 幂等性、Neo4j 关系索引语法。
 > - Phase 2: NVIDIA/SEC 纵向切片已跑通；运行时发现并修复文档去重后的 chunk 外键问题、Samsung 远距离列表误抽取问题、Apple supplier `3M` seed 缺口、review apply 与 Neo4j 双写一致性问题。
-> - Phase 2: 公开 alpha 后的静态审查发现 4 个可信度优先风险：memory/HBM 过度具体化、source cap 粗粒度、fuzzy resolver 自动合并风险、`pg-boss` 文档/实现不一致。前 3 项已开始逐步落地，整体计划沉淀为 [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md)。
+> - Phase 2: 公开 alpha 后的静态审查发现 4 个可信度优先风险：memory/HBM 过度具体化、source cap 粗粒度、fuzzy resolver 自动合并风险、`pg-boss` 文档/实现不一致。当前已改为 source authority matrix、严格 resolver、component taxonomy 和 Postgres-backed `source_check_jobs`，整体计划沉淀为 [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md)。

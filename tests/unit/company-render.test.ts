@@ -147,7 +147,7 @@ function companyCardFixture(): CompanyCardModel {
             value: "1",
             confidence: 0.85,
             provenance: { input_edges: ["EDGE-1"] },
-            attrs: { knockout_scope: "direct_component_fact_edges" }
+            attrs: { knockout_scope: "directed_component_fact_edge_reachability" }
           },
           {
             metric_id: "RKM-SINGLE",
@@ -167,7 +167,7 @@ function companyCardFixture(): CompanyCardModel {
             value: "0",
             confidence: 0.85,
             provenance: { supplier_ids: ["ENT-SKHYNIX"] },
-            attrs: { redundancy_scope: "direct_component_fact_edges" }
+            attrs: { redundancy_scope: "terminal_consumer_simple_paths" }
           }
         ]
       }

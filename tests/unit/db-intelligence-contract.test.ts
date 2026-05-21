@@ -88,6 +88,15 @@ class UnknownResolveDbClient extends RecordingDbClient {
 class EdgeDeprecationDbClient extends RecordingDbClient {
   override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
+    if (sql.includes("SELECT evidence_id AS id FROM evidence")) {
+      return {
+        command: "MOCK",
+        rowCount: 1,
+        oid: 0,
+        fields: [],
+        rows: [{ id: "EV-CONTRA" }] as unknown as T[]
+      };
+    }
     return {
       command: "MOCK",
       rowCount: sql.includes("UPDATE edges") ? 1 : 0,
@@ -343,15 +352,38 @@ describe("db intelligence-network repositories", () => {
     const result = await deprecateEdge(client, {
       edge_id: "EDGE-TEST",
       reason: "superseded by reviewed memory edge",
+      source_refs: [{ kind: "evidence", id: "EV-CONTRA" }],
       superseded_by_edge_id: "EDGE-MEMORY",
       caused_by: "unit-test"
     });
 
-    expect(result).toEqual({ edge_id: "EDGE-TEST", primary_evidence_id: "EV-TEST" });
-    expect(client.calls[0]?.sql).toContain("UPDATE edges");
-    expect(client.calls[0]?.sql).toContain("validity = 'deprecated'");
-    expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("edge_deprecated"))).toBe(true);
+    expect(result).toEqual({ edge_id: "EDGE-TEST", primary_evidence_id: "EV-TEST", source_refs: [{ kind: "evidence", id: "EV-CONTRA" }] });
+    const updateCall = client.calls.find((call) => call.sql.includes("UPDATE edges"));
+    expect(updateCall?.sql).toContain("validity = 'deprecated'");
+    expect(updateCall?.sql).toContain("validity = 'current'");
+    const changeCall = client.calls.find((call) => call.sql.includes("INSERT INTO change_records"));
+    expect(changeCall?.params).toContain("EDGE_DEPRECATED");
+    expect(changeCall?.params[5]).toMatchObject({
+      validity: "deprecated",
+      source_refs: [{ kind: "evidence", id: "EV-CONTRA" }]
+    });
+    expect(changeCall?.params[6]).toEqual(["EV-CONTRA", "EV-TEST"]);
     expect(client.calls.some((call) => call.sql.includes("DELETE FROM edges"))).toBe(false);
+  });
+
+  it("requires an auditable source ref before deprecating an edge", async () => {
+    const client = new EdgeDeprecationDbClient();
+
+    await expect(
+      deprecateEdge(client, {
+        edge_id: "EDGE-TEST",
+        reason: "superseded by reviewed memory edge",
+        source_refs: [],
+        superseded_by_edge_id: "EDGE-MEMORY",
+        caused_by: "unit-test"
+      })
+    ).rejects.toThrow("edge deprecation requires at least one source ref");
+    expect(client.calls.some((call) => call.sql.includes("UPDATE edges"))).toBe(false);
   });
 
   it("upserts and resolves unknown items through semantic changes", async () => {

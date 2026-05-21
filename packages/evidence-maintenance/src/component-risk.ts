@@ -11,7 +11,14 @@ import {
   type RiskMetricRecord
 } from "@supplystrata/db";
 import { recordComponentRiskMetricChanges } from "./component-risk-changes.js";
-import { calculateBetweennessCentrality, calculateDirectedReachability, calculateWeightedReachability } from "./component-risk-graph.js";
+import {
+  calculateBetweennessCentrality,
+  calculateDirectedReachability,
+  calculateTerminalPathRedundancy,
+  calculateWeightedPathCentrality,
+  calculateWeightedTerminalPathRedundancy,
+  calculateWeightedReachability
+} from "./component-risk-graph.js";
 
 interface ComponentRiskEdgeRow extends pg.QueryResultRow {
   edge_id: string;
@@ -157,20 +164,50 @@ function supplierConcentrationMetric(input: {
   componentId: string;
   edges: readonly ComponentRiskEdgeRow[];
   strengthsByEdgeId: ReadonlyMap<string, EdgeStrengthEstimateRecord[]>;
+  freshnessByEdgeId: ReadonlyMap<string, EdgeFreshnessRecord>;
 }): Omit<RiskMetricRecord, "risk_view_id"> {
   const missingShareEdgeIds: string[] = [];
+  const missingFreshnessEdgeIds: string[] = [];
   const sharesBySupplier = new Map<string, number>();
+  const freshnessAdjustedSharesBySupplier = new Map<string, number>();
+  const supplierShareInputs: Array<{
+    supplier_id: string;
+    edge_id: string;
+    raw_share: number;
+    freshness_score: number | null;
+    freshness_adjusted_share: number | null;
+  }> = [];
   for (const edge of input.edges) {
     const share = numericStrength(input.strengthsByEdgeId.get(edge.edge_id) ?? [], "share");
     if (share === undefined) {
       missingShareEdgeIds.push(edge.edge_id);
       continue;
     }
+    const freshness = input.freshnessByEdgeId.get(edge.edge_id);
+    if (freshness === undefined) {
+      missingFreshnessEdgeIds.push(edge.edge_id);
+    }
     const supplier = supplierForEdge(edge);
-    sharesBySupplier.set(supplier.supplier_id, (sharesBySupplier.get(supplier.supplier_id) ?? 0) + share / 100);
+    const rawShare = share / 100;
+    const freshnessAdjustedShare = freshness === undefined ? undefined : rawShare * freshness.freshness_score;
+    sharesBySupplier.set(supplier.supplier_id, (sharesBySupplier.get(supplier.supplier_id) ?? 0) + rawShare);
+    if (freshnessAdjustedShare !== undefined) {
+      freshnessAdjustedSharesBySupplier.set(supplier.supplier_id, (freshnessAdjustedSharesBySupplier.get(supplier.supplier_id) ?? 0) + freshnessAdjustedShare);
+    }
+    supplierShareInputs.push({
+      supplier_id: supplier.supplier_id,
+      edge_id: edge.edge_id,
+      raw_share: roundSix(rawShare),
+      freshness_score: freshness?.freshness_score ?? null,
+      freshness_adjusted_share: freshnessAdjustedShare === undefined ? null : roundSix(freshnessAdjustedShare)
+    });
   }
 
-  const hhi = missingShareEdgeIds.length === 0 && sharesBySupplier.size > 0 ? sum([...sharesBySupplier.values()].map((share) => share * share)) : undefined;
+  const rawHhi = missingShareEdgeIds.length === 0 && sharesBySupplier.size > 0 ? sum([...sharesBySupplier.values()].map((share) => share * share)) : undefined;
+  const hhi =
+    rawHhi !== undefined && missingFreshnessEdgeIds.length === 0
+      ? sum([...freshnessAdjustedSharesBySupplier.values()].map((share) => share * share))
+      : undefined;
   return {
     metric_id: deterministicRiskMetricId(input.riskViewId, "supplier_concentration_hhi", "component", input.componentId),
     metric_kind: "supplier_concentration_hhi",
@@ -182,7 +219,12 @@ function supplierConcentrationMetric(input: {
     provenance: { model_version: COMPONENT_RISK_MODEL_VERSION, input_edges: input.edges.map((edge) => edge.edge_id) },
     attrs: {
       share_unknown: missingShareEdgeIds.length > 0,
-      missing_share_edge_ids: missingShareEdgeIds
+      freshness_missing: missingFreshnessEdgeIds.length > 0,
+      missing_share_edge_ids: missingShareEdgeIds,
+      missing_freshness_edge_ids: missingFreshnessEdgeIds,
+      raw_hhi: rawHhi === undefined ? null : roundSix(rawHhi),
+      freshness_adjustment: "share_weighted_by_edge_freshness_score",
+      supplier_share_inputs: supplierShareInputs
     }
   };
 }
@@ -217,28 +259,47 @@ function pathRedundancyMetric(input: {
   riskViewId: string;
   componentId: string;
   edges: readonly ComponentRiskEdgeRow[];
+  strengthsByEdgeId: ReadonlyMap<string, EdgeStrengthEstimateRecord[]>;
+  freshnessByEdgeId: ReadonlyMap<string, EdgeFreshnessRecord>;
 }): Omit<RiskMetricRecord, "risk_view_id"> {
   const suppliers = uniqueSuppliers(input.edges);
-  const alternateSupplierCount = Math.max(0, suppliers.length - 1);
+  const directAlternateSupplierCount = Math.max(0, suppliers.length - 1);
+  const terminalScores = calculateTerminalPathRedundancy(componentRiskGraphEdges(input.edges));
+  const multiHopAlternatePathCount = sum(terminalScores.map((score) => score.alternate_path_count));
+  const weightedTerminalScores = calculateWeightedTerminalPathRedundancy(componentRiskWeightedGraphEdges(input));
+  const weightedMissingEdgeIds = uniqueSorted(weightedTerminalScores.flatMap((score) => score.missing_weight_edge_ids));
+  const knownWeightedAlternatePathScore = sum(weightedTerminalScores.map((score) => score.known_weighted_alternate_path_score ?? 0));
+  const weightedAlternatePathScore =
+    weightedMissingEdgeIds.length === 0 ? sum(weightedTerminalScores.map((score) => score.weighted_alternate_path_score ?? 0)) : null;
   return {
     metric_id: deterministicRiskMetricId(input.riskViewId, "path_redundancy", "component", input.componentId),
     metric_kind: "path_redundancy",
     subject_kind: "component",
     subject_id: input.componentId,
     component_id: input.componentId,
-    value: alternateSupplierCount.toString(),
+    value: multiHopAlternatePathCount.toString(),
     confidence: suppliers.length === 0 ? 0 : Math.min(0.85, average(input.edges.map((edge) => edge.confidence))),
     provenance: {
       model_version: COMPONENT_RISK_MODEL_VERSION,
-      method: "component-risk.direct-alternate-supplier-count.v1",
+      method: "component-risk.terminal-consumer-path-redundancy.v1",
       input_edges: input.edges.map((edge) => edge.edge_id),
-      supplier_ids: suppliers.map((supplier) => supplier.supplier_id)
+      supplier_ids: suppliers.map((supplier) => supplier.supplier_id),
+      terminal_entity_ids: terminalScores.map((score) => score.terminal_entity_id)
     },
     attrs: {
-      supplier_count: suppliers.length,
-      alternate_supplier_count: alternateSupplierCount,
-      redundancy_scope: "direct_component_fact_edges",
-      limitation: "Counts distinct direct Level 4/5 suppliers for the component; multi-hop path redundancy is not included yet."
+      direct_supplier_count: suppliers.length,
+      direct_alternate_supplier_count: directAlternateSupplierCount,
+      multi_hop_alternate_path_count: multiHopAlternatePathCount,
+      terminal_path_redundancy: terminalScores,
+      weighted_alternate_path_score: weightedAlternatePathScore === null ? null : roundSix(weightedAlternatePathScore),
+      known_weighted_alternate_path_score: roundSix(knownWeightedAlternatePathScore),
+      weighted_path_missing: weightedMissingEdgeIds.length > 0,
+      weighted_missing_edge_ids: weightedMissingEdgeIds,
+      weighted_terminal_path_redundancy: weightedTerminalScores,
+      redundancy_scope: "terminal_consumer_simple_paths",
+      weighted_redundancy_scope: "terminal_consumer_strength_freshness_simple_paths",
+      limitation:
+        "Counts alternate simple upstream paths from source suppliers to terminal consumers in the component-scoped Level 4/5 fact-edge graph; duplicate route edges are collapsed so repeated evidence does not become false redundancy. Weighted redundancy uses strength*freshness path products and stays null when any path weight is missing."
     }
   };
 }
@@ -331,7 +392,7 @@ function nodeKnockoutWeightedImpactMetrics(input: {
         weight_unknown: !hasWeightedPath,
         propagation_scope: "directed_component_fact_edge_strength_freshness",
         limitation:
-          "Uses max-product paths over known strength*freshness edge weights; edges missing strength or freshness are listed and not imputed, and alternate-path redundancy is not aggregated yet."
+          "Uses max-product paths over known strength*freshness edge weights; edges missing strength or freshness are listed and not imputed. Alternate-path redundancy is emitted as a separate path_redundancy metric."
       }
     };
   });
@@ -341,12 +402,18 @@ function betweennessCentralityMetrics(input: {
   riskViewId: string;
   componentId: string;
   edges: readonly ComponentRiskEdgeRow[];
+  strengthsByEdgeId: ReadonlyMap<string, EdgeStrengthEstimateRecord[]>;
+  freshnessByEdgeId: ReadonlyMap<string, EdgeFreshnessRecord>;
 }): Array<Omit<RiskMetricRecord, "risk_view_id">> {
   const graphEdges = componentRiskGraphEdges(input.edges);
+  const weightedCentralityByEntityId = new Map(
+    calculateWeightedPathCentrality(componentRiskWeightedGraphEdges(input)).map((score) => [score.entity_id, score])
+  );
   const entityNamesById = entityNames(input.edges);
   const edgesByEntityId = groupEdgesByEntityId(input.edges);
   return calculateBetweennessCentrality(graphEdges).map((score) => {
     const incidentEdges = edgesByEntityId.get(score.entity_id) ?? [];
+    const weightedCentrality = weightedCentralityByEntityId.get(score.entity_id);
     return {
       metric_id: deterministicRiskMetricId(input.riskViewId, "betweenness_centrality", "entity", score.entity_id),
       metric_kind: "betweenness_centrality",
@@ -365,8 +432,15 @@ function betweennessCentralityMetrics(input: {
         entity_name: entityNamesById.get(score.entity_id) ?? score.entity_id,
         raw_score: score.raw_score,
         normalized_score: score.normalized_score,
+        weighted_path_centrality_raw_score: weightedCentrality?.raw_score ?? null,
+        weighted_path_centrality_score: weightedCentrality?.normalized_score ?? null,
+        weighted_path_count: weightedCentrality?.path_count ?? 0,
+        weighted_contributing_path_edge_ids: weightedCentrality?.contributing_path_edge_ids ?? [],
+        weighted_missing_weight_edge_ids: weightedCentrality?.missing_weight_edge_ids ?? [],
         centrality_scope: "directed_component_fact_edge_graph",
-        limitation: "Uses the current component-scoped Level 4/5 fact-edge graph only; weighted multi-hop propagation is not included yet."
+        weighted_centrality_scope: "terminal_consumer_strength_freshness_simple_paths",
+        limitation:
+          "Unweighted value uses directed shortest-path betweenness. Weighted attrs use strength*freshness simple paths from source suppliers to terminal consumers and stay explicit about missing weights."
       }
     };
   });
@@ -628,6 +702,10 @@ function sum(values: readonly number[]): number {
 
 function average(values: readonly number[]): number {
   return values.length === 0 ? 0 : sum(values) / values.length;
+}
+
+function roundSix(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
 
 function stableJson(value: StableJsonValue): string {

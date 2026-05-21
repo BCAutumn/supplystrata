@@ -1,15 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
   buildInvestigationBacklog,
+  buildObservationCoverageReport,
+  buildOfficialDisclosureReadinessReport,
   buildResearchPackFromWorkbench,
   collectResearchComponentIds,
+  getBuiltInResearchTargetProfile,
+  listBuiltInResearchTargetProfiles,
   renderInvestigationBacklogMarkdown,
+  renderObservationCoverageMarkdown,
+  renderOfficialDisclosureReadinessMarkdown,
   renderQuestionReadinessMarkdown,
+  renderSourceTargetCoverageMarkdown,
   safeFileSegment
 } from "@supplystrata/research-pack";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
-import type { QuestionReadinessMatrix, SourceTargetCoverageReport } from "@supplystrata/research-pack";
+import type {
+  ObservationCoverageObservation,
+  ObservationCoverageReport,
+  QuestionReadinessMatrix,
+  SourceTargetCoverageReport
+} from "@supplystrata/research-pack";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 describe("research-pack", () => {
@@ -93,23 +105,427 @@ describe("research-pack", () => {
       downstream_edges: [],
       claims: [],
       draft_claims: [],
-      evidences: [],
+      evidences: [
+        evidenceFixture("EV-1", {
+          edge_id: "EDGE-1",
+          evidence_level: 5,
+          confidence: 0.95,
+          source_adapter_id: "sec-edgar",
+          source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+          cite_text_sha256: "abc123"
+        })
+      ],
       unknown_items: [],
       sources: [],
       source_plan: [],
       changes: [],
-      intelligence: { edge_strengths: [], edge_freshness: [] }
+      attention_queue: [],
+      intelligence: {
+        edge_strengths: [
+          {
+            strength_id: "STR-1",
+            edge_id: "EDGE-1",
+            strength_kind: "qualitative",
+            value: "critical",
+            lower_bound: null,
+            upper_bound: null,
+            unit: null,
+            evidence_id: "EV-1",
+            method: "fixture",
+            valid_from: null,
+            valid_to: null
+          }
+        ],
+        edge_freshness: [
+          {
+            edge_id: "EDGE-1",
+            last_verified_at: "2025-01-01T00:00:00.000Z",
+            decay_model: "methodology.v1",
+            age_days: 365,
+            freshness_score: 0.7,
+            computed_at: "2026-01-01T00:00:00.000Z",
+            source_evidence_id: "EV-1"
+          }
+        ]
+      }
     };
 
-    const pack = buildResearchPackFromWorkbench({ workbench, components: ["COMP-HBM"], depth: 3 });
+    const pack = buildResearchPackFromWorkbench({ workbench, components: ["COMP-HBM"], depth: 3, sourceTargetNamespace: "nvidia-memory-2025" });
     expect(pack.manifest.mode).toBe("workbench_snapshot");
+    expect(pack.manifest.research_target_profile?.profile_id).toBe("ai-compute-memory.v0");
+    expect(pack.manifest.stats.official_disclosure_target_nodes).toBe(25);
     expect(pack.manifest.stats.fact_edges).toBe(1);
     expect(pack.manifest.components).toEqual(["COMP-HBM", "COMP-MEMORY"]);
+    const secTargets = pack.source_plan.find((item) => item.source_id === "sec-edgar")?.suggested_check_targets ?? [];
+    expect(secTargets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "sec-edgar",
+        target_kind: "sec-company-filings",
+        runnable: true
+      })
+    );
+    expect(secTargets.some((target) => target.target_config["cik"] === "0001045810" && target.target_config["entity_id"] === "ENT-NVIDIA")).toBe(true);
+    expect(pack.source_target_coverage.namespace).toBe("nvidia-memory-2025");
+    expect(pack.source_target_coverage.summary.expected_targets).toBeGreaterThan(0);
+    expect(pack.source_target_coverage.summary.not_synced).toBe(pack.source_target_coverage.summary.expected_targets);
+    expect(pack.source_target_coverage.items.every((item) => item.state === "not_synced")).toBe(true);
+    expect(pack.manifest.stats.source_target_expected_targets).toBe(pack.source_target_coverage.summary.expected_targets);
+    expect(pack.manifest.stats.observation_records).toBe(0);
+    expect(pack.manifest.stats.observation_types_present).toBe(0);
+    expect(pack.manifest.stats.official_disclosure_l4_l5_edges).toBe(1);
+    expect(pack.manifest.stats.official_disclosure_traceable_edges).toBe(1);
+    expect(pack.official_disclosure_readiness.summary.edges_with_strength).toBe(1);
     expect(pack.manifest.stats.question_readiness_partial).toBeGreaterThan(0);
     expect(pack.manifest.stats.investigation_backlog_items).toBeGreaterThan(0);
     expect(pack.question_readiness.items.some((item) => item.question_id === "company.upstream_dependencies" && item.status === "partial")).toBe(true);
     expect(renderQuestionReadinessMarkdown(pack.question_readiness)).toContain("company.upstream_dependencies");
     expect(renderInvestigationBacklogMarkdown(pack.investigation_backlog)).toContain("Investigation Backlog");
+    expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Not synced");
+    expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
+    expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Target profile: ai-compute-memory.v0");
+  });
+
+  it("reports official disclosure readiness gaps without inferring corroboration from silence", () => {
+    const workbench = emptyWorkbench();
+    const edge = {
+      edge_id: "EDGE-OFFICIAL-1",
+      from_id: "ENT-NVIDIA",
+      from_name: "NVIDIA",
+      to_id: "ENT-MICRON",
+      to_name: "Micron",
+      relation: "BUYS_FROM" as const,
+      component: "memory",
+      component_id: "COMP-MEMORY",
+      evidence_level: 5 as const,
+      confidence: 0.95,
+      evidence_ids: ["EV-OFFICIAL-1"]
+    };
+    const report = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-MEMORY"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: officialSourceTargetCoverage("due"),
+      workbench: {
+        ...workbench,
+        companies: [
+          { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
+          { entity_id: "ENT-MICRON", name: "Micron", role: "counterparty" }
+        ],
+        edges: [edge],
+        evidences: [
+          evidenceFixture("EV-OFFICIAL-1", {
+            edge_id: "EDGE-OFFICIAL-1",
+            evidence_level: 5,
+            source_adapter_id: "sec-edgar",
+            source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+            cite_text_sha256: "abc123"
+          })
+        ],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    expect(report.summary.level_4_5_fact_edges).toBe(1);
+    expect(report.summary.traceable_edges).toBe(1);
+    expect(report.summary.cross_source_edges).toBe(0);
+    expect(report.summary.single_source_edges).toBe(1);
+    expect(report.summary.visible_research_nodes).toBe(5);
+    expect(report.summary.nodes_with_fact_edges).toBe(3);
+    expect(report.summary.nodes_with_runnable_official_targets).toBe(2);
+    expect(report.summary.runnable_official_targets).toBe(1);
+    expect(report.summary.synced_official_targets).toBe(1);
+    expect(report.summary.due_official_targets).toBe(1);
+    expect(report.source_plan_items[0]?.source_targets[0]?.state).toBe("due");
+    expect(report.nodes.find((node) => node.node_id === "COMP-DRAM")?.coverage_state).toBe("official_target_synced");
+    expect(report.nodes.find((node) => node.node_id === "ENT-SAMSUNG-ELECTRONICS")?.coverage_state).toBe("official_target_synced");
+    expect(report.gaps.map((gap) => gap.kind)).toContain("cross_source_corroboration");
+    expect(report.gaps.map((gap) => gap.kind)).toContain("edge_strength");
+    expect(report.gaps.find((gap) => gap.kind === "level_4_5_edge_coverage")?.action).toContain("Run due official disclosure targets");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Add second-source corroboration or explicit single-source disposition");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("samsung-ir/official-html-disclosure=due");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Node coverage");
+  });
+
+  it("measures official disclosure coverage against an explicit target node set", () => {
+    const report = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: [],
+      target_nodes: [
+        {
+          node_id: "ENT-SAMSUNG-ELECTRONICS",
+          node_kind: "company",
+          name: "Samsung Electronics",
+          priority: "P0",
+          expected_source_ids: ["samsung-ir"]
+        },
+        { node_id: "COMP-DRAM", node_kind: "component", priority: "P0", expected_source_ids: ["samsung-ir"] },
+        { node_id: "COMP-HBM", node_kind: "component", priority: "P0", expected_source_ids: ["skhynix-ir", "micron-ir"] }
+      ],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: officialSourceTargetCoverage("due"),
+      workbench: {
+        ...emptyWorkbench(),
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    expect(report.targets.core_nodes).toBe(3);
+    expect(report.summary.target_research_nodes).toBe(3);
+    expect(report.summary.target_nodes_missing_official_coverage).toBe(1);
+    expect(report.summary.target_nodes_with_runnable_official_targets).toBe(2);
+    expect(report.summary.expected_official_source_links).toBe(4);
+    expect(report.summary.expected_official_source_links_with_coverage).toBe(2);
+    expect(report.summary.expected_official_source_links_runnable).toBe(2);
+    expect(report.summary.expected_official_source_links_connector_available).toBe(1);
+    expect(report.summary.expected_official_source_links_unimplemented).toBe(1);
+    expect(report.expected_source_coverage).toEqual([
+      expect.objectContaining({
+        node_id: "COMP-HBM",
+        expected_source_id: "micron-ir",
+        coverage_state: "source_registered_unimplemented"
+      }),
+      expect.objectContaining({
+        node_id: "COMP-HBM",
+        expected_source_id: "skhynix-ir",
+        coverage_state: "connector_available"
+      }),
+      expect.objectContaining({
+        node_id: "ENT-SAMSUNG-ELECTRONICS",
+        expected_source_id: "samsung-ir",
+        coverage_state: "official_target_synced"
+      }),
+      expect.objectContaining({
+        node_id: "COMP-DRAM",
+        expected_source_id: "samsung-ir",
+        coverage_state: "official_target_synced"
+      })
+    ]);
+    expect(report.gates.find((gate) => gate.gate_id === "official_disclosure.core_nodes")).toEqual(
+      expect.objectContaining({ measured: 2, target: 3, status: "partial" })
+    );
+    expect(report.gaps.find((gap) => gap.kind === "expected_official_source_coverage")).toEqual(
+      expect.objectContaining({
+        priority: "P0",
+        source_adapters: ["micron-ir", "skhynix-ir"]
+      })
+    );
+    expect(report.nodes.find((node) => node.node_id === "COMP-HBM")).toEqual(
+      expect.objectContaining({
+        is_target_node: true,
+        coverage_state: "missing",
+        expected_source_ids: ["micron-ir", "skhynix-ir"]
+      })
+    );
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Explicit target nodes: 3 supplied; 1 missing");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Expected official source links: 2/4 covered");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("source_registered_unimplemented COMP-HBM via micron-ir");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("[target] COMP-HBM");
+  });
+
+  it("keeps built-in research target profiles deterministic and reviewable", () => {
+    const profiles = listBuiltInResearchTargetProfiles();
+    const profile = getBuiltInResearchTargetProfile("ai-compute-memory.v0");
+
+    expect(profiles.map((item) => item.profile_id)).toEqual(["ai-compute-memory.v0"]);
+    expect(profile.target_nodes).toHaveLength(25);
+    expect(profile.target_nodes.find((node) => node.node_id === "ENT-NVIDIA")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-HBM")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["skhynix-ir", "samsung-ir", "micron-ir"] })
+    );
+  });
+
+  it("reports discovered nodes outside a target profile as expansion candidates", () => {
+    const report = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-MEMORY"],
+      target_nodes: [{ node_id: "ENT-NVIDIA", node_kind: "company", name: "NVIDIA", priority: "P0", expected_source_ids: ["sec-edgar"] }],
+      target_profile: {
+        profile_id: "fixture-profile",
+        title: "Fixture profile",
+        version: "0.1.0",
+        description: "Fixture profile for expansion testing.",
+        selection_reason: "test"
+      },
+      workbench: {
+        ...emptyWorkbench(),
+        companies: [
+          { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
+          { entity_id: "ENT-MICRON", name: "Micron", role: "counterparty" }
+        ],
+        edges: [
+          {
+            edge_id: "EDGE-MICRON",
+            from_id: "ENT-NVIDIA",
+            from_name: "NVIDIA",
+            to_id: "ENT-MICRON",
+            to_name: "Micron",
+            relation: "BUYS_FROM",
+            component: "memory",
+            component_id: "COMP-MEMORY",
+            evidence_level: 5,
+            confidence: 0.95,
+            evidence_ids: ["EV-MICRON"]
+          }
+        ],
+        evidences: [
+          evidenceFixture("EV-MICRON", {
+            edge_id: "EDGE-MICRON",
+            evidence_level: 5,
+            source_adapter_id: "sec-edgar",
+            source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+            cite_text_sha256: "abc123"
+          })
+        ],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    expect(report.profile_expansion_candidates.map((candidate) => candidate.node_id)).toEqual(["ENT-MICRON", "COMP-MEMORY"]);
+    expect(report.profile_expansion_candidates[0]).toEqual(
+      expect.objectContaining({
+        suggested_priority: "P1",
+        reason: "Visible Level 4/5 fact coverage exists outside the current target profile."
+      })
+    );
+    const backlog = buildInvestigationBacklog({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      components: [],
+      source_plan: [],
+      question_readiness: readyQuestionReadiness(),
+      official_disclosure_readiness: report
+    });
+    expect(backlog.items.find((item) => item.kind === "profile_expansion" && item.title.includes("ENT-MICRON"))).toEqual(
+      expect.objectContaining({
+        priority: "P1",
+        title: "Review profile expansion candidate ENT-MICRON"
+      })
+    );
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Profile expansion candidates: 2");
+    expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("ENT-MICRON");
+  });
+
+  it("summarizes typed observation coverage without upgrading signals into facts", () => {
+    const financial = observationFixture("OBS-FIN", "FINANCIAL_METRIC_OBSERVATION", {
+      source_adapter_id: "sec-edgar",
+      source_item_id: "SRCITEM-1",
+      doc_id: "DOC-SEC",
+      scope_kind: "company",
+      scope_id: "ENT-MICRON",
+      metric_name: "revenue",
+      metric_value: "30391000000",
+      metric_unit: "USD",
+      time_window_end: "2025-08-28T00:00:00.000Z",
+      baseline_value: "8440000000",
+      change_percent: 260.08,
+      anomaly: { is_anomaly: true, method: "observation-anomaly.baseline-change-percent.v1" }
+    });
+    const trade = observationFixture("OBS-TRADE", "TRADE_FLOW_OBSERVATION", {
+      source_adapter_id: "census-trade",
+      scope_kind: "component",
+      scope_id: "COMP-MEMORY",
+      component_id: "COMP-MEMORY",
+      geography_kind: "country",
+      geography_id: "KR",
+      metric_name: "imports_value_usd",
+      metric_value: "1000000",
+      metric_unit: "USD"
+    });
+    const inventory = observationFixture("OBS-INV", "INVENTORY_OBSERVATION", {
+      source_adapter_id: "official-disclosure",
+      scope_kind: "component",
+      scope_id: "COMP-MEMORY",
+      component_id: "COMP-MEMORY",
+      metric_name: "official_inventory_mention",
+      metric_value: "1",
+      metric_unit: null
+    });
+
+    const report = buildObservationCoverageReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: {
+        chain_segments: [
+          {
+            semantic_layer: "observation",
+            observation_id: "OBS-TRADE",
+            component_id: "COMP-MEMORY"
+          }
+        ]
+      },
+      company: {
+        related_observations: [financial]
+      },
+      components: [
+        {
+          component: { component_id: "COMP-MEMORY", name: "memory" },
+          related_observations: [trade, inventory],
+          linked_company_observations: [
+            {
+              entity_id: "ENT-MICRON",
+              entity_name: "Micron",
+              role: "supplier",
+              observations: [financial]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(report.summary.typed_observations).toBe(3);
+    expect(report.summary.chain_observation_segments).toBe(1);
+    expect(report.summary.observation_types_present).toBe(3);
+    expect(report.summary.observation_series).toBe(3);
+    expect(report.summary.explicit_baseline_ready).toBe(1);
+    expect(report.summary.sparse_series).toBe(2);
+    expect(report.types.map((item) => item.observation_type)).toEqual(["FINANCIAL_METRIC_OBSERVATION", "INVENTORY_OBSERVATION", "TRADE_FLOW_OBSERVATION"]);
+    expect(report.types.find((item) => item.observation_type === "FINANCIAL_METRIC_OBSERVATION")?.contexts).toEqual([
+      expect.objectContaining({ kind: "company_card" }),
+      expect.objectContaining({ kind: "linked_company" })
+    ]);
+    expect(report.gaps.some((gap) => gap.observation_type === "PORT_ACTIVITY_OBSERVATION")).toBe(true);
+    expect(renderObservationCoverageMarkdown(report)).toContain("Observation types present: 3/14");
+    expect(renderObservationCoverageMarkdown(report)).toContain("Explicit-baseline ready: 1");
+    expect(renderObservationCoverageMarkdown(report)).toContain("TRADE_FLOW_OBSERVATION: 1");
+  });
+
+  it("marks comparable numeric observation series as time-series ready", () => {
+    const report = buildObservationCoverageReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: { chain_segments: [] },
+      company: {
+        related_observations: Array.from({ length: 6 }, (_, index) =>
+          observationFixture(`OBS-REV-${index}`, "FINANCIAL_METRIC_OBSERVATION", {
+            source_adapter_id: "sec-edgar",
+            scope_kind: "company",
+            scope_id: "ENT-NVIDIA",
+            metric_name: "revenue",
+            metric_value: String(100 + index),
+            metric_unit: "USD",
+            time_window_end: `2026-0${index + 1}-28T00:00:00.000Z`
+          })
+        )
+      },
+      components: []
+    });
+
+    expect(report.summary.observation_series).toBe(1);
+    expect(report.summary.time_series_ready).toBe(1);
+    expect(report.series[0]).toEqual(
+      expect.objectContaining({
+        status: "time_series_ready",
+        observations: 6,
+        numeric_points: 6,
+        windowed_points: 6
+      })
+    );
   });
 
   it("uses source target coverage to make backlog actions operational", () => {
@@ -254,7 +670,193 @@ describe("research-pack", () => {
     const degradedSourceCheck = degradedBacklog.items.find((item) => item.kind === "source_check");
     expect(degradedSourceCheck?.action).toContain("Inspect degraded source fetches");
   });
+
+  it("turns sparse observation series into investigation backlog actions", () => {
+    const coverage: ObservationCoverageReport = buildObservationCoverageReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: { chain_segments: [] },
+      company: {
+        related_observations: [
+          observationFixture("OBS-REV-1", "FINANCIAL_METRIC_OBSERVATION", {
+            source_adapter_id: "sec-edgar",
+            scope_kind: "company",
+            scope_id: "ENT-NVIDIA",
+            metric_name: "revenue",
+            metric_value: "100",
+            metric_unit: "USD",
+            time_window_end: "2026-01-31T00:00:00.000Z"
+          })
+        ]
+      },
+      components: []
+    });
+    const readiness: QuestionReadinessMatrix = {
+      schema_version: "1.0.0",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      summary: { ready: 1, partial: 0, blocked: 0 },
+      items: [
+        {
+          question_id: "signals.financial_context",
+          question: "财务指标是否有跨期变化或同行位置线索？",
+          status: "ready",
+          confidence: 0.7,
+          ready_signals: ["fixture"],
+          missing_requirements: [],
+          supporting_refs: [],
+          unknown_ids: []
+        }
+      ]
+    };
+
+    const backlog = buildInvestigationBacklog({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      components: [],
+      source_plan: [],
+      question_readiness: readiness,
+      observation_coverage: coverage
+    });
+
+    const seriesItem = backlog.items.find((item) => item.kind === "observation_series");
+    expect(seriesItem).toEqual(
+      expect.objectContaining({
+        priority: "P2",
+        title: "Make observation series analyzable: revenue"
+      })
+    );
+    expect(seriesItem?.action).toContain("Collect 5 more comparable numeric/windowed observations");
+    expect(seriesItem?.supporting_refs).toContain("observation:OBS-REV-1");
+    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("observation_series");
+  });
+
+  it("turns official disclosure readiness gaps into investigation backlog actions", () => {
+    const readiness: QuestionReadinessMatrix = {
+      schema_version: "1.0.0",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      summary: { ready: 1, partial: 0, blocked: 0 },
+      items: [
+        {
+          question_id: "company.upstream_dependencies",
+          question: "一级供应商是否可审计？",
+          status: "ready",
+          confidence: 0.7,
+          ready_signals: ["fixture"],
+          missing_requirements: [],
+          supporting_refs: [],
+          unknown_ids: []
+        }
+      ]
+    };
+    const officialDisclosureReadiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-MEMORY"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: officialSourceTargetCoverage("disabled"),
+      workbench: {
+        ...emptyWorkbench(),
+        companies: [{ entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" }],
+        edges: [],
+        evidences: [],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    const backlog = buildInvestigationBacklog({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      components: [],
+      source_plan: [],
+      question_readiness: readiness,
+      official_disclosure_readiness: officialDisclosureReadiness
+    });
+
+    const officialItem = backlog.items.find((item) => item.kind === "official_disclosure_coverage");
+    expect(officialItem?.priority).toBe("P0");
+    expect(officialItem?.target.question_ids).toEqual(["official_disclosure.readiness"]);
+    expect(officialItem?.supporting_refs).toContain("source_plan:samsung-ir");
+    expect(officialItem?.supporting_refs).toContain("source_target:plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6");
+    expect(officialItem?.action).toContain("Enable synced official disclosure targets");
+    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("official_disclosure_coverage");
+  });
 });
+
+function officialSourcePlanItem(): SourcePlanItem {
+  return {
+    source_id: "samsung-ir",
+    source_name: "Samsung Electronics Investor Relations",
+    purpose: "official_disclosure",
+    priority: "P0",
+    status: "preview",
+    automation: "allowed",
+    requires_key: false,
+    expected_output_layer: "edge",
+    relation_policy: "can_create_fact_edge",
+    parent_component_ids: ["COMP-MEMORY"],
+    target_ids: ["COMP-DRAM"],
+    trigger_dependency_ids: ["CDEP-MEMORY-DRAM"],
+    reasons: ["Samsung IR can disclose memory supplier context."],
+    suggested_check_targets: [
+      {
+        source_adapter_id: "samsung-ir",
+        target_kind: "official-html-disclosure",
+        runnable: true,
+        target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 },
+        reason: "Samsung IR has a registered official disclosure connector for 2025."
+      }
+    ]
+  };
+}
+
+function officialSourceTargetCoverage(state: SourceTargetCoverageReport["items"][number]["state"]): SourceTargetCoverageReport {
+  return {
+    schema_version: "1.0.0",
+    generated_at: "2026-01-01T00:00:00.000Z",
+    company_id: "ENT-NVIDIA",
+    namespace: "nvidia-memory-2025",
+    summary: {
+      expected_targets: 1,
+      synced_targets: 1,
+      not_synced: 0,
+      enabled_targets: state === "disabled" ? 0 : 1,
+      due_targets: state === "due" ? 1 : 0,
+      active_jobs: 0,
+      retry_wait: 0,
+      degraded_targets: state === "degraded" ? 1 : 0,
+      dead_targets: 0,
+      targets_with_observations: 0
+    },
+    items: [
+      {
+        expected_target: {
+          check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6",
+          source_adapter_id: "samsung-ir",
+          target_kind: "official-html-disclosure",
+          enabled: true,
+          target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 }
+        },
+        synced: true,
+        match_kind: "check_target_id",
+        matched_check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6",
+        state,
+        target_enabled: state !== "disabled",
+        policy_enabled: true,
+        next_check_at: state === "due" ? "2025-12-31T00:00:00.000Z" : null,
+        effective_check_cadence_minutes: 10080,
+        effective_jitter_minutes: 120,
+        latest_job: null,
+        latest_event: null,
+        observations: 0,
+        latest_observation_at: null
+      }
+    ]
+  };
+}
 
 function emptyWorkbench(): WorkbenchModel {
   return {
@@ -282,6 +884,89 @@ function emptyWorkbench(): WorkbenchModel {
     sources: [],
     source_plan: [],
     changes: [],
+    attention_queue: [],
     intelligence: { edge_strengths: [], edge_freshness: [] }
+  };
+}
+
+function readyQuestionReadiness(): QuestionReadinessMatrix {
+  return {
+    schema_version: "1.0.0",
+    generated_at: "2026-01-01T00:00:00.000Z",
+    company_id: "ENT-NVIDIA",
+    summary: { ready: 1, partial: 0, blocked: 0 },
+    items: [
+      {
+        question_id: "company.upstream_dependencies",
+        question: "一级供应商是否可审计？",
+        status: "ready",
+        confidence: 0.7,
+        ready_signals: ["fixture"],
+        missing_requirements: [],
+        supporting_refs: [],
+        unknown_ids: []
+      }
+    ]
+  };
+}
+
+function observationFixture(
+  observationId: string,
+  observationType: ObservationCoverageObservation["observation_type"],
+  overrides: Partial<ObservationCoverageObservation> = {}
+): ObservationCoverageObservation {
+  return {
+    observation_id: observationId,
+    observation_type: observationType,
+    source_adapter_id: "fixture",
+    source_item_id: null,
+    doc_id: null,
+    scope_kind: "company",
+    scope_id: "ENT-NVIDIA",
+    geography_kind: null,
+    geography_id: null,
+    component_id: null,
+    metric_name: "fixture_metric",
+    metric_value: null,
+    metric_unit: null,
+    time_window_start: null,
+    time_window_end: null,
+    baseline_value: null,
+    change_percent: null,
+    confidence: 0.8,
+    anomaly: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    ...overrides
+  };
+}
+
+function evidenceFixture(evidenceId: string, overrides: Partial<WorkbenchModel["evidences"][number]> = {}): WorkbenchModel["evidences"][number] {
+  return {
+    evidence_id: evidenceId,
+    edge_id: null,
+    superseded_by: null,
+    cite_text: "NVIDIA depends on third-party suppliers for memory.",
+    cite_locator: "10-K",
+    cite_start_char: 10,
+    cite_end_char: 68,
+    cite_text_sha256: null,
+    normalized_cite_text_sha256: null,
+    source_snapshot_sha256: null,
+    parser_version: "fixture",
+    extractor_version: "fixture",
+    relation_candidate_hash: "fixture",
+    evidence_level: 5,
+    confidence: 0.95,
+    is_inferred: false,
+    extraction_method: "rule",
+    source_url: "https://example.com/source",
+    source_date: "2025-01-01T00:00:00.000Z",
+    fetched_at: "2026-01-01T00:00:00.000Z",
+    source_adapter_id: "fixture",
+    document_type: "10-K",
+    subject_name: "NVIDIA",
+    object_name: "Micron",
+    relation: "BUYS_FROM",
+    ...overrides
   };
 }

@@ -10,7 +10,18 @@ interface QueryCall {
 }
 
 class WorkbenchDbClient implements DbClient {
-  constructor(private readonly includeEdgeEvidence: boolean = false) {}
+  private readonly options: { includeEdgeEvidence: boolean; includeDeprecatedClaim: boolean; includeAttentionSignals: boolean };
+
+  constructor(input: boolean | { includeEdgeEvidence?: boolean; includeDeprecatedClaim?: boolean; includeAttentionSignals?: boolean } = false) {
+    this.options =
+      typeof input === "boolean"
+        ? { includeEdgeEvidence: input, includeDeprecatedClaim: false, includeAttentionSignals: false }
+        : {
+            includeEdgeEvidence: input.includeEdgeEvidence ?? false,
+            includeDeprecatedClaim: input.includeDeprecatedClaim ?? false,
+            includeAttentionSignals: input.includeAttentionSignals ?? false
+          };
+  }
 
   readonly calls: QueryCall[] = [];
 
@@ -21,7 +32,7 @@ class WorkbenchDbClient implements DbClient {
       rowCount: 0,
       oid: 0,
       fields: [],
-      rows: rowsForWorkbench<T>(sql, params, { includeEdgeEvidence: this.includeEdgeEvidence })
+      rows: rowsForWorkbench<T>(sql, params, this.options)
     };
   }
 }
@@ -86,8 +97,44 @@ describe("workbench-export", () => {
     expect(model.edges).toHaveLength(0);
     expect(model.draft_claims).toHaveLength(1);
     expect(model.draft_claims[0]?.status).toBe("draft");
+    expect(model.draft_claims[0]?.evidence_refs).toEqual([
+      { evidence_id: "EV-PRIMARY", role: "primary" },
+      { evidence_id: "EV-CONTRA", role: "contradicting" }
+    ]);
+    expect(model.draft_claims[0]?.unknown_refs).toEqual([{ unknown_id: "UNK-CONFLICT-1", role: "blocking", status: "open" }]);
+    expect(model.draft_claims[0]?.conflict_state).toBe("open_conflict");
+    expect(model.draft_claims[0]?.conflict_adjudication).toMatchObject({
+      state: "open_conflict",
+      severity: "medium",
+      recommended_action: "collect_resolution_evidence",
+      edge_review_required: false,
+      allowed_edge_mutation: "none",
+      reason_codes: ["open_conflict_unknown", "contradicting_evidence_linked", "draft_or_non_edge_claim"]
+    });
+    expect(model.draft_claims[0]?.conflict_review).toMatchObject({
+      conflict_state: "open_conflict",
+      review_queue_kind: "claim_conflict_review",
+      safe_write_status: "blocked_pending_review",
+      required_review_steps: ["inspect_supporting_evidence", "inspect_contradicting_evidence", "resolve_conflict_unknown"],
+      fact_write_policy: {
+        automatic_fact_mutation_allowed: false,
+        allowed_edge_mutation: "none",
+        requires_human_review: true
+      }
+    });
+    expect(model.unknown_items.map((item) => item.unknown_id)).toContain("UNK-CONFLICT-1");
+    expect(model.attention_queue).toContainEqual(
+      expect.objectContaining({
+        attention_id: "ATTN-CLAIM-CONFLICT-CLM-REVIEW-1",
+        kind: "claim_conflict",
+        priority: "P1",
+        scope_kind: "claim",
+        scope_id: "CLM-REVIEW-1",
+        refs: ["claim:CLM-REVIEW-1", "evidence:EV-CONTRA", "evidence:EV-PRIMARY", "unknown:UNK-CONFLICT-1"]
+      })
+    );
     expect(model.chain_segments.some((segment) => segment.claim_id === model.draft_claims[0]?.claim_id)).toBe(false);
-    expect(client.calls.some((call) => call.sql.includes("WHERE status = 'draft'"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("WHERE c.status = 'draft'"))).toBe(true);
   });
 
   it("exports all evidence attached to chain edges, including superseded evidence", async () => {
@@ -106,9 +153,67 @@ describe("workbench-export", () => {
       freshness_score: 1
     });
   });
+
+  it("exports active claims still attached to deprecated edges as lifecycle warnings", async () => {
+    const client = new WorkbenchDbClient({ includeDeprecatedClaim: true });
+
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, lifecycleClaimLimit: 5 });
+
+    expect(model.claims).toHaveLength(1);
+    expect(model.claims[0]).toMatchObject({
+      claim_id: "CLM-STALE-EDGE",
+      status: "active",
+      edge_id: "EDGE-DEPRECATED",
+      edge_validity: "deprecated",
+      edge_deprecated_reason: "Reviewed counterparty disclosure contradicted the edge.",
+      edge_superseded_by_edge_id: "EDGE-REPLACEMENT",
+      lifecycle_warnings: [
+        {
+          code: "active_claim_on_inactive_edge",
+          severity: "warn"
+        }
+      ]
+    });
+    expect(model.claims[0]?.lifecycle_warnings[0]?.message).toContain("deprecated edge EDGE-DEPRECATED");
+    expect(model.attention_queue).toContainEqual(
+      expect.objectContaining({
+        attention_id: "ATTN-CLAIM-LIFECYCLE-CLM-STALE-EDGE-active_claim_on_inactive_edge",
+        kind: "claim_lifecycle",
+        priority: "P0",
+        scope_kind: "claim",
+        scope_id: "CLM-STALE-EDGE",
+        refs: ["claim:CLM-STALE-EDGE", "edge:EDGE-DEPRECATED"]
+      })
+    );
+    expect(client.calls.some((call) => call.sql.includes("e.validity <> 'current'"))).toBe(true);
+  });
+
+  it("exports alert candidates into the unified attention queue", async () => {
+    const client = new WorkbenchDbClient({ includeAttentionSignals: true });
+
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, alertLimit: 10 });
+
+    expect(model.attention_queue).toContainEqual(
+      expect.objectContaining({
+        attention_id: "ATTN-ALERT-ALERT-OBS-1",
+        kind: "alert",
+        priority: "P0",
+        status: "open",
+        title: "Critical revenue anomaly",
+        scope_kind: "component",
+        scope_id: "COMP-GPU",
+        refs: ["alert:ALERT-OBS-1", "observation:OBS-REVENUE-1", "risk_metric:RISK-METRIC-1", "source:sec-edgar"]
+      })
+    );
+    expect(client.calls.some((call) => call.sql.includes("FROM alert_candidates"))).toBe(true);
+  });
 });
 
-function rowsForWorkbench<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[], input: { includeEdgeEvidence: boolean }): T[] {
+function rowsForWorkbench<T extends pg.QueryResultRow>(
+  sql: string,
+  params: readonly unknown[],
+  input: { includeEdgeEvidence: boolean; includeDeprecatedClaim: boolean; includeAttentionSignals: boolean }
+): T[] {
   if (sql.includes("SELECT entity_id FROM entity_master")) {
     return [{ entity_id: "ENT-NVIDIA" }] as unknown as T[];
   }
@@ -171,8 +276,34 @@ function rowsForWorkbench<T extends pg.QueryResultRow>(sql: string, params: read
       }
     ] as unknown as T[];
   }
-  if (sql.includes("FROM claims") && sql.includes("WHERE status = 'draft'")) {
-    expect(sql).toContain("(subject_id = $1 OR object_id = $1)");
+  if (sql.includes("JOIN edges e ON e.edge_id = c.edge_id") && sql.includes("e.validity <> 'current'")) {
+    if (!input.includeDeprecatedClaim) return [];
+    return [
+      {
+        claim_id: "CLM-STALE-EDGE",
+        claim_type: "SUPPLY_RELATION_CLAIM",
+        claim_text: "NVIDIA publicly discloses that it buys memory from SK Hynix.",
+        subject_id: "ENT-NVIDIA",
+        object_id: "ENT-SKHYNIX",
+        component_id: "COMP-MEMORY",
+        edge_id: "EDGE-DEPRECATED",
+        edge_validity: "deprecated",
+        edge_deprecated_reason: "Reviewed counterparty disclosure contradicted the edge.",
+        edge_superseded_by_edge_id: "EDGE-REPLACEMENT",
+        review_id: null,
+        status: "active",
+        evidence_level: 5,
+        confidence: 0.91,
+        is_inferred: false,
+        generated_by: "claim-builder.edge-fact.v1",
+        last_verified_at: new Date("2026-01-01T00:00:00.000Z"),
+        created_at: new Date("2026-01-01T00:00:00.000Z"),
+        updated_at: new Date("2026-05-20T00:00:00.000Z")
+      }
+    ] as unknown as T[];
+  }
+  if (sql.includes("FROM claims") && sql.includes("WHERE c.status = 'draft'")) {
+    expect(sql).toContain("(c.subject_id = $1 OR c.object_id = $1)");
     expect(params[0]).toBe("ENT-NVIDIA");
     expect(params[1]).toBeTypeOf("number");
     return [
@@ -184,6 +315,9 @@ function rowsForWorkbench<T extends pg.QueryResultRow>(sql: string, params: read
         object_id: "ENT-TSMC",
         component_id: null,
         edge_id: null,
+        edge_validity: null,
+        edge_deprecated_reason: null,
+        edge_superseded_by_edge_id: null,
         review_id: "REV-SEMANTIC-1",
         status: "draft",
         evidence_level: 3,
@@ -193,6 +327,58 @@ function rowsForWorkbench<T extends pg.QueryResultRow>(sql: string, params: read
         last_verified_at: new Date("2026-05-18T00:00:00.000Z"),
         created_at: new Date("2026-05-18T00:00:00.000Z"),
         updated_at: new Date("2026-05-18T00:00:00.000Z")
+      }
+    ] as unknown as T[];
+  }
+  if (sql.includes("FROM claim_evidence") && params[0] === "CLM-REVIEW-1") {
+    return [
+      { claim_id: "CLM-REVIEW-1", evidence_id: "EV-PRIMARY", role: "primary" },
+      { claim_id: "CLM-REVIEW-1", evidence_id: "EV-CONTRA", role: "contradicting" }
+    ] as unknown as T[];
+  }
+  if (sql.includes("FROM claim_unknowns") && params[0] === "CLM-REVIEW-1") {
+    return [{ claim_id: "CLM-REVIEW-1", unknown_id: "UNK-CONFLICT-1", role: "blocking", status: "open" }] as unknown as T[];
+  }
+  if (sql.includes("FROM claim_evidence") && params[0] === "CLM-STALE-EDGE") {
+    return [{ claim_id: "CLM-STALE-EDGE", evidence_id: "EV-STALE", role: "primary" }] as unknown as T[];
+  }
+  if (sql.includes("FROM claim_unknowns") && params[0] === "CLM-STALE-EDGE") {
+    return [] as T[];
+  }
+  if (sql.includes("FROM unknown_items") && sql.includes("unknown_id = ANY")) {
+    expect(params).toEqual([["UNK-CONFLICT-1"]]);
+    return [
+      {
+        unknown_id: "UNK-CONFLICT-1",
+        question: "Does this claim remain valid?",
+        why_unknown: "Counterparty disclosure no longer lists this relationship.",
+        blocking_data_sources: ["tsmc-ir"],
+        proxies: ["EV-CONTRA"],
+        status: "open"
+      }
+    ] as unknown as T[];
+  }
+  if (input.includeAttentionSignals && sql.includes("FROM alert_candidates")) {
+    return [
+      {
+        alert_id: "ALERT-OBS-1",
+        alert_kind: "observation_anomaly",
+        severity: "critical",
+        status: "open",
+        scope_kind: "component",
+        scope_id: "COMP-GPU",
+        title: "Critical revenue anomaly",
+        summary: "Revenue moved well outside the explicit baseline.",
+        dedupe_key: "financial_anomaly:COMP-GPU:revenue",
+        observation_id: "OBS-REVENUE-1",
+        risk_view_id: null,
+        risk_metric_id: "RISK-METRIC-1",
+        change_id: null,
+        source_event_id: null,
+        source_adapter_id: "sec-edgar",
+        detected_at: new Date("2026-05-20T00:00:00.000Z"),
+        provenance: {},
+        attrs: {}
       }
     ] as unknown as T[];
   }

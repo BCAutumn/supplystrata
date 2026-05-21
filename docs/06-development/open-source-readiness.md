@@ -12,13 +12,14 @@
 - Release tag: `v0.1.0-alpha.1`
 - License: Apache-2.0
 
-下一阶段按 [phase-2-upgrade-plan.md](./phase-2-upgrade-plan.md) 推进，先修可信度，再扩数据源。
+下一阶段以后端完成 gate 为准，见 [backend-completion-criteria.md](./backend-completion-criteria.md)。`phase-2-upgrade-plan.md` 仍保留为可信度修复的历史计划，不再代表当前全部后端进度。
 
 适合对外表述：
 
 - `alpha`
 - `MVP vertical slice`
 - `evidence-first supply-chain graph`
+- `critical technology supply-chain intelligence workbench`
 - `not investment advice`
 - `public-data only`
 
@@ -26,6 +27,9 @@
 
 - "完整供应链数据库"
 - "自动供应链发现"
+- "全球供应链监控系统"
+- "实时货物流追踪系统"
+- "成熟风险提示产品"
 - "投资 alpha 系统"
 - "覆盖所有 Apple/NVIDIA 供应商"
 
@@ -55,47 +59,44 @@
 - [x] 删除或确认不提交 `reports/`。
 - [x] 确认没有 raw PDF / raw HTML / API response 进入 git。
 - [x] README 当前状态与 CLI 命令一致。
-- [x] `docs/06-development/roadmap.md` 反映真实进度。
+- [x] `docs/06-development/backend-completion-criteria.md` 作为后端完成权威 gate。
+- [x] `docs/06-development/roadmap.md` 已改为历史阶段记录，避免被误读为后端完成门槛。
 - [x] `docs/09-risks-compliance/legal-tos.md` 与实际 adapter 一致。
 - [x] GitHub 启用 private vulnerability reporting。
 - [x] CI 至少跑 type-check、unit、integration、fixture e2e、lint、dep-check。
 - [x] 本地发布前跑 `pnpm release:check`。
 
-## MVP 仍缺
+## 后端仍缺
 
-按当前 docs 的 Phase 2 验收，主要还缺：
+按 [backend-completion-criteria.md](./backend-completion-criteria.md)，主要还缺：
 
-- Golden set ≥ 200 条 + resolver 准确率目标。
-- 至少 100 条 `evidence_level >= 4` 的边。
-- ComponentCard。
-- `component / changes / search` CLI。
-- graph deprecate。
-- 独立 `parse / extract / score / apply` 子命令。
-- Entity resolver identifier match。
-- OpenCorporates / Companies House 的更完整种子范围导入。
-- manual evidence CLI。
-- 更完整的多源 e2e（当前已具备 NVIDIA fixture e2e，仍缺 Apple review/apply fixture e2e）。
+- 官方披露事实覆盖：至少 25 个核心节点、100 条 Level 4/5 fact edge、30% 二来源或 single-source 标记。
+- Claim 多源融合：支持支持源、反证源、unknown / conflict，并有 regression fixtures。
+- Observation / signal 深度：至少 3 类 observation 进入 ComponentCard / ChainView，并保持不写 fact edge。
+- API / 嵌入契约：`apps/api` contract tests、只读 DTO、review action API。
+- Agent / LLM 安全接入：schema validation、cite_text 校验、review queue、audit log。
+- 质量与性能：contract / integration / perf baseline、code-quality-hardening 无 P0/P1 open item。
 
 ## 粗略完成度
 
 这是工程判断，不是承诺日期：
 
-- 开源 alpha 准备度：约 80%。
-- Phase 1：完成。
-- Phase 2/MVP Core：约 55-65%，取决于是否把 "100 条 Level 4+ 边" 作为硬门槛。
-- 可展示研究体验：NVIDIA 预览、Apple supplier review/apply 纵向链路已可展示；还不是大规模覆盖。
+- 开源 alpha 准备度：已具备。
+- 中期 intelligence network 骨架：基本成立。
+- 后端完成度：不要用本文估算；以 [backend-completion-criteria.md](./backend-completion-criteria.md) 的十个 gate 为准。
+- 可展示研究体验：NVIDIA / SEC / Apple supplier / research-pack / ChainView / source monitor / risk baseline 已可展示；还不是大规模全球覆盖。
 
 ## 建议开源发布语
 
-> SupplyStrata is an alpha TypeScript monorepo for building an evidence-backed public supply-chain graph. It currently includes a working SEC/NVIDIA vertical slice, Apple supplier-list review workflow, Postgres truth store, Neo4j materialized graph, and CLI renderers. It is not an investment advice system and does not redistribute raw source documents.
+> SupplyStrata is an alpha TypeScript monorepo for building an evidence-backed public supply-chain intelligence network. It includes a working SEC/NVIDIA slice, Apple supplier-list review workflow, Postgres truth store, Neo4j materialized graph, ChainView / research-pack exports, source-check worker baseline, and deterministic risk/intelligence context. It is not an investment advice system and does not redistribute raw source documents.
 
 ## 发布后的第一批 issue
 
 - `good first issue`: add docs for one CLI command with example output.
 - `good first issue`: add source adapter README for an existing adapter.
-- `help wanted`: build Golden Set for entity resolver.
-- `help wanted`: ComponentCard renderer.
-- `help wanted`: graph deprecate flow.
-- `help wanted`: manual evidence CLI.
-- `help wanted`: source authority matrix fixtures.
+- `help wanted`: expand official disclosure coverage toward backend Gate 1.
+- `help wanted`: add claim fusion fixtures and conflict handling.
+- `help wanted`: add API contract tests.
+- `help wanted`: expand observation source contract tests.
+- `help wanted`: harden performance / integration baseline.
 - `help wanted`: evidence offset / fingerprint migration plan.

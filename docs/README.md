@@ -120,8 +120,9 @@ docs/
 4. [05-modules/ingestion.md](./05-modules/ingestion.md)（source adapter 契约）
 5. [10-decisions/ADR-001-language-choice.md](./10-decisions/ADR-001-language-choice.md)
 6. [10-decisions/ADR-004-monorepo-structure.md](./10-decisions/ADR-004-monorepo-structure.md)
-7. [06-development/roadmap.md](./06-development/roadmap.md)
-8. [06-development/phase-2-upgrade-plan.md](./06-development/phase-2-upgrade-plan.md)
+7. [06-development/backend-completion-criteria.md](./06-development/backend-completion-criteria.md)
+8. [06-development/roadmap.md](./06-development/roadmap.md)
+9. [06-development/phase-2-upgrade-plan.md](./06-development/phase-2-upgrade-plan.md)
 
 ### 公开 alpha 后继续 Phase 2 前必读
 
@@ -140,10 +141,10 @@ docs/
 ### 判断“后端完成”前必读
 
 1. [06-development/backend-completion-criteria.md](./06-development/backend-completion-criteria.md)
-2. [06-development/roadmap.md](./06-development/roadmap.md)
+2. [03-data-model/intelligence-methodology.md](./03-data-model/intelligence-methodology.md)
 3. [04-data-sources/coverage-research-2026-05.md](./04-data-sources/coverage-research-2026-05.md)
-4. [03-data-model/intelligence-methodology.md](./03-data-model/intelligence-methodology.md)
-5. [06-development/code-quality-hardening.md](./06-development/code-quality-hardening.md)
+4. [06-development/code-quality-hardening.md](./06-development/code-quality-hardening.md)
+5. [06-development/roadmap.md](./06-development/roadmap.md)（历史阶段记录，不作为完成门槛）
 
 ### 接入新数据源前必读
 

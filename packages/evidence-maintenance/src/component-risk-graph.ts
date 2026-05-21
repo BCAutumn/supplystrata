@@ -35,6 +35,49 @@ export interface WeightedEntityImpact {
   path_edge_ids: readonly string[];
 }
 
+export interface TerminalPathRedundancyPath {
+  source_entity_id: string;
+  terminal_entity_id: string;
+  entity_ids: readonly string[];
+  edge_ids: readonly string[];
+}
+
+export interface TerminalPathRedundancyScore {
+  terminal_entity_id: string;
+  path_count: number;
+  alternate_path_count: number;
+  source_entity_ids: readonly string[];
+  paths: readonly TerminalPathRedundancyPath[];
+}
+
+export interface WeightedTerminalPathRedundancyPath extends TerminalPathRedundancyPath {
+  path_weight: number | null;
+  missing_weight_edge_ids: readonly string[];
+}
+
+export interface WeightedTerminalPathRedundancyScore {
+  terminal_entity_id: string;
+  path_count: number;
+  known_path_count: number;
+  alternate_path_count: number;
+  weighted_alternate_path_score: number | null;
+  known_weighted_alternate_path_score: number | null;
+  strongest_path_weight: number | null;
+  weight_complete: boolean;
+  source_entity_ids: readonly string[];
+  missing_weight_edge_ids: readonly string[];
+  paths: readonly WeightedTerminalPathRedundancyPath[];
+}
+
+export interface WeightedPathCentralityScore {
+  entity_id: string;
+  raw_score: number;
+  normalized_score: number;
+  path_count: number;
+  contributing_path_edge_ids: readonly string[];
+  missing_weight_edge_ids: readonly string[];
+}
+
 export function calculateDirectedReachability(edges: readonly ComponentRiskGraphEdge[]): ReachabilityScore[] {
   const nodeIds = uniqueSorted(edges.flatMap((edge) => [edge.from_entity_id, edge.to_entity_id]));
   const adjacency = buildEdgeAdjacency(nodeIds, edges);
@@ -51,6 +94,106 @@ export function calculateWeightedReachability(edges: readonly WeightedComponentR
     .map((entityId) => weightedReachableFrom(entityId, adjacency))
     .filter((score) => score.reachable_entity_ids.length > 0 || score.missing_weight_edge_ids.length > 0)
     .sort((left, right) => right.weighted_score - left.weighted_score || left.entity_id.localeCompare(right.entity_id));
+}
+
+export function calculateTerminalPathRedundancy(edges: readonly ComponentRiskGraphEdge[]): TerminalPathRedundancyScore[] {
+  const routeEdges = dedupeRouteEdges(edges);
+  const nodeIds = uniqueSorted(routeEdges.flatMap((edge) => [edge.from_entity_id, edge.to_entity_id]));
+  if (nodeIds.length === 0) return [];
+
+  const adjacency = buildEdgeAdjacency(nodeIds, routeEdges);
+  const incomingCounts = new Map(nodeIds.map((nodeId) => [nodeId, 0]));
+  const outgoingCounts = new Map(nodeIds.map((nodeId) => [nodeId, 0]));
+  for (const edge of routeEdges) {
+    incomingCounts.set(edge.to_entity_id, (incomingCounts.get(edge.to_entity_id) ?? 0) + 1);
+    outgoingCounts.set(edge.from_entity_id, (outgoingCounts.get(edge.from_entity_id) ?? 0) + 1);
+  }
+
+  const sources = nodeIds.filter((nodeId) => (incomingCounts.get(nodeId) ?? 0) === 0 && (outgoingCounts.get(nodeId) ?? 0) > 0);
+  const terminals = nodeIds.filter((nodeId) => (incomingCounts.get(nodeId) ?? 0) > 0 && (outgoingCounts.get(nodeId) ?? 0) === 0);
+
+  return terminals
+    .map((terminalEntityId) => {
+      const paths = sources.flatMap((sourceEntityId) => simplePathsToTerminal(sourceEntityId, terminalEntityId, adjacency));
+      return {
+        terminal_entity_id: terminalEntityId,
+        path_count: paths.length,
+        alternate_path_count: Math.max(0, paths.length - 1),
+        source_entity_ids: uniqueSorted(paths.map((path) => path.source_entity_id)),
+        paths
+      };
+    })
+    .filter((score) => score.path_count > 0)
+    .sort((left, right) => right.alternate_path_count - left.alternate_path_count || left.terminal_entity_id.localeCompare(right.terminal_entity_id));
+}
+
+export function calculateWeightedTerminalPathRedundancy(edges: readonly WeightedComponentRiskGraphEdge[]): WeightedTerminalPathRedundancyScore[] {
+  const routeEdges = dedupeWeightedRouteEdges(edges);
+  const unweightedScores = calculateTerminalPathRedundancy(routeEdges);
+  const weightByEdgeId = new Map(routeEdges.map((edge) => [edge.edge_id, edge.weight]));
+  return unweightedScores.map((score) => {
+    const paths = score.paths.map((path) => {
+      const missingWeightEdgeIds = path.edge_ids.filter((edgeId) => weightByEdgeId.get(edgeId) === undefined);
+      return {
+        ...path,
+        path_weight: missingWeightEdgeIds.length === 0 ? roundSix(product(path.edge_ids.map((edgeId) => weightByEdgeId.get(edgeId) ?? 0))) : null,
+        missing_weight_edge_ids: missingWeightEdgeIds
+      };
+    });
+    const knownPathWeights = paths.flatMap((path) => (path.path_weight === null ? [] : [path.path_weight]));
+    const strongestPathWeight = knownPathWeights.length === 0 ? null : Math.max(...knownPathWeights);
+    const knownWeightedAlternatePathScore = strongestPathWeight === null ? null : roundSix(sum(knownPathWeights) - strongestPathWeight);
+    const missingWeightEdgeIds = uniqueSorted(paths.flatMap((path) => path.missing_weight_edge_ids));
+    const weightComplete = missingWeightEdgeIds.length === 0;
+    return {
+      terminal_entity_id: score.terminal_entity_id,
+      path_count: score.path_count,
+      known_path_count: knownPathWeights.length,
+      alternate_path_count: score.alternate_path_count,
+      weighted_alternate_path_score: weightComplete ? knownWeightedAlternatePathScore : null,
+      known_weighted_alternate_path_score: knownWeightedAlternatePathScore,
+      strongest_path_weight: strongestPathWeight === null ? null : roundSix(strongestPathWeight),
+      weight_complete: weightComplete,
+      source_entity_ids: score.source_entity_ids,
+      missing_weight_edge_ids: missingWeightEdgeIds,
+      paths
+    };
+  });
+}
+
+export function calculateWeightedPathCentrality(edges: readonly WeightedComponentRiskGraphEdge[]): WeightedPathCentralityScore[] {
+  const terminalScores = calculateWeightedTerminalPathRedundancy(edges);
+  const rawScores = new Map<string, number>();
+  const pathCounts = new Map<string, number>();
+  const contributingPathEdgeIds = new Map<string, Set<string>>();
+  const missingWeightEdgeIds = uniqueSorted(terminalScores.flatMap((score) => score.missing_weight_edge_ids));
+  let totalKnownPathWeight = 0;
+
+  for (const terminalScore of terminalScores) {
+    for (const path of terminalScore.paths) {
+      if (path.path_weight === null) continue;
+      totalKnownPathWeight += path.path_weight;
+      for (const entityId of path.entity_ids.slice(1, -1)) {
+        rawScores.set(entityId, (rawScores.get(entityId) ?? 0) + path.path_weight);
+        pathCounts.set(entityId, (pathCounts.get(entityId) ?? 0) + 1);
+        const edgeIds = contributingPathEdgeIds.get(entityId) ?? new Set<string>();
+        for (const edgeId of path.edge_ids) edgeIds.add(edgeId);
+        contributingPathEdgeIds.set(entityId, edgeIds);
+      }
+    }
+  }
+
+  return [...rawScores.entries()]
+    .map(([entityId, rawScore]) => ({
+      entity_id: entityId,
+      raw_score: roundSix(rawScore),
+      normalized_score: totalKnownPathWeight === 0 ? 0 : roundSix(rawScore / totalKnownPathWeight),
+      path_count: pathCounts.get(entityId) ?? 0,
+      contributing_path_edge_ids: [...(contributingPathEdgeIds.get(entityId) ?? new Set<string>())].sort(),
+      missing_weight_edge_ids: missingWeightEdgeIds
+    }))
+    .filter((score) => score.raw_score > 0)
+    .sort((left, right) => right.normalized_score - left.normalized_score || left.entity_id.localeCompare(right.entity_id));
 }
 
 export function calculateBetweennessCentrality(edges: readonly ComponentRiskGraphEdge[]): BetweennessCentralityScore[] {
@@ -155,6 +298,48 @@ function weightedReachableFrom(source: string, adjacency: ReadonlyMap<string, re
   };
 }
 
+function simplePathsToTerminal(
+  sourceEntityId: string,
+  terminalEntityId: string,
+  adjacency: ReadonlyMap<string, readonly ComponentRiskGraphEdge[]>
+): TerminalPathRedundancyPath[] {
+  const paths: TerminalPathRedundancyPath[] = [];
+  const stack: Array<{
+    entity_id: string;
+    entity_ids: readonly string[];
+    edge_ids: readonly string[];
+    visited_entity_ids: ReadonlySet<string>;
+  }> = [{ entity_id: sourceEntityId, entity_ids: [sourceEntityId], edge_ids: [], visited_entity_ids: new Set([sourceEntityId]) }];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === undefined) break;
+    if (current.entity_id === terminalEntityId && current.edge_ids.length > 0) {
+      paths.push({
+        source_entity_id: sourceEntityId,
+        terminal_entity_id: terminalEntityId,
+        entity_ids: current.entity_ids,
+        edge_ids: current.edge_ids
+      });
+      continue;
+    }
+    const nextEdges = adjacency.get(current.entity_id) ?? [];
+    for (const edge of [...nextEdges].reverse()) {
+      if (current.visited_entity_ids.has(edge.to_entity_id)) continue;
+      const visitedEntityIds = new Set(current.visited_entity_ids);
+      visitedEntityIds.add(edge.to_entity_id);
+      stack.push({
+        entity_id: edge.to_entity_id,
+        entity_ids: [...current.entity_ids, edge.to_entity_id],
+        edge_ids: [...current.edge_ids, edge.edge_id],
+        visited_entity_ids: visitedEntityIds
+      });
+    }
+  }
+
+  return paths.sort((left, right) => left.edge_ids.join("\u0000").localeCompare(right.edge_ids.join("\u0000")));
+}
+
 function buildEdgeAdjacency<TEdge extends ComponentRiskGraphEdge>(nodeIds: readonly string[], edges: readonly TEdge[]): Map<string, TEdge[]> {
   const adjacency = new Map(nodeIds.map((nodeId) => [nodeId, [] as TEdge[]]));
   for (const edge of edges) {
@@ -169,6 +354,43 @@ function buildEdgeAdjacency<TEdge extends ComponentRiskGraphEdge>(nodeIds: reado
     );
   }
   return adjacency;
+}
+
+function dedupeRouteEdges(edges: readonly ComponentRiskGraphEdge[]): ComponentRiskGraphEdge[] {
+  const byRoute = new Map<string, ComponentRiskGraphEdge>();
+  for (const edge of edges) {
+    const key = `${edge.from_entity_id}\u0000${edge.to_entity_id}`;
+    const previous = byRoute.get(key);
+    if (previous === undefined || edge.edge_id.localeCompare(previous.edge_id) < 0) byRoute.set(key, edge);
+  }
+  return [...byRoute.values()].sort(
+    (left, right) =>
+      left.from_entity_id.localeCompare(right.from_entity_id) ||
+      left.to_entity_id.localeCompare(right.to_entity_id) ||
+      left.edge_id.localeCompare(right.edge_id)
+  );
+}
+
+function dedupeWeightedRouteEdges(edges: readonly WeightedComponentRiskGraphEdge[]): WeightedComponentRiskGraphEdge[] {
+  const byRoute = new Map<string, WeightedComponentRiskGraphEdge>();
+  for (const edge of edges) {
+    const key = `${edge.from_entity_id}\u0000${edge.to_entity_id}`;
+    const previous = byRoute.get(key);
+    if (previous === undefined || compareWeightedRouteEdge(edge, previous) < 0) byRoute.set(key, edge);
+  }
+  return [...byRoute.values()].sort(
+    (left, right) =>
+      left.from_entity_id.localeCompare(right.from_entity_id) ||
+      left.to_entity_id.localeCompare(right.to_entity_id) ||
+      left.edge_id.localeCompare(right.edge_id)
+  );
+}
+
+function compareWeightedRouteEdge(left: WeightedComponentRiskGraphEdge, right: WeightedComponentRiskGraphEdge): number {
+  if (left.weight !== undefined && right.weight === undefined) return -1;
+  if (left.weight === undefined && right.weight !== undefined) return 1;
+  if (left.weight !== undefined && right.weight !== undefined && left.weight !== right.weight) return right.weight - left.weight;
+  return left.edge_id.localeCompare(right.edge_id);
 }
 
 function shortestPathState(
@@ -228,6 +450,10 @@ function uniqueSorted(values: readonly string[]): string[] {
 
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0);
+}
+
+function product(values: readonly number[]): number {
+  return values.reduce((total, value) => total * value, 1);
 }
 
 function roundSix(value: number): number {

@@ -4,35 +4,35 @@
 
 ## 总览
 
-| 层             | 选型                                       | 备选 / 备注                                                            |
-| -------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
-| 主语言         | TypeScript (strict)                        | XBRL 与个别 NLP 任务通过 Python sidecar                                |
-| 运行时         | Node.js LTS (>= 22)                        | 不用 Bun（生态稳定优先）                                               |
-| 包管理         | pnpm + workspaces                          | 不用 npm/yarn                                                          |
-| 构建/任务      | Turborepo                                  | 仅作 task pipeline 用，不强依赖                                        |
-| 测试           | vitest                                     | + supertest（API 测试 phase 3）                                        |
-| 代码规范       | eslint + prettier + typescript-eslint      | + dependency-cruiser (循环/反向依赖检查)                               |
-| 类型/校验      | zod                                        | 所有外部 IO 必须过 zod                                                 |
-| HTTP           | undici                                     | Node 内置；不引入 axios                                                |
-| HTML 解析      | cheerio                                    | + parse5（备）                                                         |
-| 抓取（必要时） | Playwright (Chromium)                      | 仅在数据源明确允许且必要时                                             |
-| PDF 解析       | pdfjs-dist 或 unpdf                        | MVP 复杂 PDF 走半自动 CSV + 人工 review；Phase 3 再评估 Python sidecar |
-| XBRL           | SEC company facts JSON                     | Phase 3 起完整 XBRL 再接 Python sidecar (arelle)                       |
-| Excel/CSV      | xlsx + papaparse                           |                                                                        |
-| 主数据库       | PostgreSQL 16                              | 通过 docker-compose                                                    |
-| 图数据库       | Neo4j 5 Community                          | 仅作"图谱当前状态"物化视图                                             |
-| ORM            | drizzle-orm                                | 不用 prisma（drizzle 更贴近 SQL，迁移控制更细）                        |
-| 队列           | Phase 2 暂无后台队列；Phase 3 评估 pg-boss | alpha 当前是单进程 CLI；开始持续监控时再引入，不提前加复杂度           |
-| 对象存储       | 本地 FS（默认）/ MinIO（可选）             | S3 接口兼容                                                            |
-| LLM            | Anthropic / OpenAI（任一）                 | 通过 `llm-bridge` 抽象                                                 |
-| 嵌入向量       | （Phase 3 再评估）pgvector                 | MVP 不做语义检索                                                       |
-| 全文搜索       | Postgres tsvector（够用）                  | OpenSearch 留 Phase 3                                                  |
-| 日志           | pino                                       | + pino-pretty (dev)                                                    |
-| 指标           | （Phase 3）prom-client                     | MVP 用结构化日志                                                       |
-| CLI            | commander                                  | 简单。oclif 太重                                                       |
-| 配置           | env + zod schema                           | 不引入 config 库                                                       |
-| Docker         | docker-compose v2                          | 不上 K8s                                                               |
-| CI             | GitHub Actions                             | 单 workflow，分 lint/test/build 三 job                                 |
+| 层             | 选型                                  | 备选 / 备注                                                            |
+| -------------- | ------------------------------------- | ---------------------------------------------------------------------- |
+| 主语言         | TypeScript (strict)                   | XBRL 与个别 NLP 任务通过 Python sidecar                                |
+| 运行时         | Node.js LTS (>= 22)                   | 不用 Bun（生态稳定优先）                                               |
+| 包管理         | pnpm + workspaces                     | 不用 npm/yarn                                                          |
+| 构建/任务      | Turborepo                             | 仅作 task pipeline 用，不强依赖                                        |
+| 测试           | vitest                                | + supertest（API 测试 phase 3）                                        |
+| 代码规范       | eslint + prettier + typescript-eslint | + dependency-cruiser (循环/反向依赖检查)                               |
+| 类型/校验      | zod                                   | 所有外部 IO 必须过 zod                                                 |
+| HTTP           | undici                                | Node 内置；不引入 axios                                                |
+| HTML 解析      | cheerio                               | + parse5（备）                                                         |
+| 抓取（必要时） | Playwright (Chromium)                 | 仅在数据源明确允许且必要时                                             |
+| PDF 解析       | pdfjs-dist 或 unpdf                   | MVP 复杂 PDF 走半自动 CSV + 人工 review；Phase 3 再评估 Python sidecar |
+| XBRL           | SEC company facts JSON                | Phase 3 起完整 XBRL 再接 Python sidecar (arelle)                       |
+| Excel/CSV      | xlsx + papaparse                      |                                                                        |
+| 主数据库       | PostgreSQL 16                         | 通过 docker-compose                                                    |
+| 图数据库       | Neo4j 5 Community                     | 仅作"图谱当前状态"物化视图                                             |
+| ORM            | drizzle-orm                           | 不用 prisma（drizzle 更贴近 SQL，迁移控制更细）                        |
+| 队列           | Postgres-backed `source_check_jobs`   | `apps/worker` 常驻消费 source-check job；不引入 pg-boss / Redis        |
+| 对象存储       | 本地 FS（默认）/ MinIO（可选）        | S3 接口兼容                                                            |
+| LLM            | Anthropic / OpenAI（任一）            | 通过 `llm-bridge` 抽象                                                 |
+| 嵌入向量       | （Phase 3 再评估）pgvector            | MVP 不做语义检索                                                       |
+| 全文搜索       | Postgres tsvector（够用）             | OpenSearch 留 Phase 3                                                  |
+| 日志           | pino                                  | + pino-pretty (dev)                                                    |
+| 指标           | （Phase 3）prom-client                | MVP 用结构化日志                                                       |
+| CLI            | commander                             | 简单。oclif 太重                                                       |
+| 配置           | env + zod schema                      | 不引入 config 库                                                       |
+| Docker         | docker-compose v2                     | 不上 K8s                                                               |
+| CI             | GitHub Actions                        | 单 workflow，分 lint/test/build 三 job                                 |
 
 ## 为什么是 TypeScript（与不是别的）
 
@@ -49,7 +49,7 @@
 2. 复杂 PDF（pdfminer.six / pypdf）
 3. NER / spaCy 这种成熟 NLP
 
-这些在 Phase 3 起用 Python sidecar 调用，不强行 TS 化。MVP（Phase 0-2）保持纯 TypeScript，复杂 PDF 以半自动流程和人工 review 兜底。
+这些在后续完整 XBRL / 复杂 PDF 阶段再用 Python sidecar 调用，不强行 TS 化。当前主路径保持纯 TypeScript；复杂 PDF 以半自动流程和人工 review 兜底。
 
 ## docker-compose（开发用）
 
@@ -147,11 +147,11 @@ interface LlmExtractor<TIn, TOut> {
 
 | 不用                  | 理由                                                                               |
 | --------------------- | ---------------------------------------------------------------------------------- |
-| Express / Koa         | MVP 没 HTTP API；Phase 3 上 Hono                                                   |
+| Express / Koa         | 暂无 HTTP API；后续 `apps/api` 优先评估 Hono                                       |
 | Prisma                | 偏 ORM 重，迁移控制粒度不如 drizzle                                                |
 | Knex                  | 老旧                                                                               |
-| Redis                 | Phase 3 如需队列，优先 pg-boss 替代                                                |
-| Kafka                 | 单机够用；Phase 3 如需持续监控，用 pg-boss + 事件表替代                            |
+| Redis                 | 现有 source-check worker 使用 Postgres job/outbox，不需要 Redis                    |
+| Kafka                 | 单机够用；持续监控用 Postgres job/outbox + 事件表替代                              |
 | Airflow / Prefect     | 单进程 + 队列足够                                                                  |
 | LangChain / LangGraph | 抽象太重，等价功能用直接 SDK + zod 几十行即可，且 LLM 流水线太复杂会变 fail-silent |
 | ChromaDB              | 用 pgvector                                                                        |
@@ -162,7 +162,7 @@ interface LlmExtractor<TIn, TOut> {
 
 - `package.json` 固定 minor 版本（`^x.y.z` -> `~x.y.z`）
 - `pnpm-lock.yaml` 必须入仓
-- 关键依赖（drizzle / neo4j-driver / undici / playwright / cheerio / pdfjs / vitest / zod；Phase 3 后如引入 pg-boss 也算关键依赖）任何升级都要在 PR 标题写 `[deps]` 并跑全测试
+- 关键依赖（drizzle / neo4j-driver / undici / playwright / cheerio / pdfjs / vitest / zod）任何升级都要在 PR 标题写 `[deps]` 并跑全测试
 
 ## 性能目标（MVP）
 

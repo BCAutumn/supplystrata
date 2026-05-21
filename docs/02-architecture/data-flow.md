@@ -47,20 +47,21 @@
 
 ### Step 1: Trigger
 
-CLI 命令或未来 cron：
+CLI 命令、source-check worker 或未来调度器：
 
 ```
 supplystrata ingest sec-edgar --cik 0001045810 --types 10-K --since 2024-01-01
 ```
 
-`v0.1.0-alpha.1` 仍由 CLI 单进程直接执行。Phase 3 如果引入持续监控，pipeline 再创建 `pg-boss` job：
+早期 ingestion 仍可由 CLI 单进程直接执行。持续 source-check 监控已经使用 `source_check_jobs`，由 `apps/worker` claim due job 并复用 source workflow；不使用 `pg-boss`。示意结构如下：
 
 ```json
 {
-  "queue": "ingest",
+  "job_table": "source_check_jobs",
   "data": {
     "adapter": "sec-edgar",
-    "input": { "cik": "0001045810", "types": ["10-K"], "since": "2024-01-01" }
+    "target_kind": "sec-company-filings",
+    "target_config": { "cik": "0001045810", "types": ["10-K"] }
   }
 }
 ```
@@ -180,7 +181,7 @@ if extractor is "trade.bol.repeat-importer" AND evidence_count >= 6:
 3. 如有 → append evidence；如无 → 创建新 edge
 4. 在 Postgres 事务内写 `evidence`、`edges`、`change_records`
 5. Postgres commit 成功后写 Neo4j：MERGE node + MERGE edge
-6. Neo4j 写失败则进入 `pgboss.failed-graph-write` 重试；必要时通过 `rebuild()` 恢复
+6. Neo4j 写失败时保留 Postgres truth store，通过 `graph rebuild` 恢复物化视图；后续如需异步补偿，必须走项目自有 job/outbox 语义
 7. 触发 `change.detected` 事件（可选，给将来用）
 
 物理上：
@@ -208,14 +209,14 @@ if extractor is "trade.bol.repeat-importer" AND evidence_count >= 6:
 
 ## 失败模式与重试
 
-| 失败点                     | 处理                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| 数据源 HTTP 失败           | alpha 单进程 CLI 直接报错；Phase 3 队列化后由 pg-boss 自动重试并进入 dead-letter |
-| 文档已存在（同 sha256）    | 跳过 fetch；但仍重新跑 parse+extract（用最新规则）                               |
-| 解析器抛错                 | 文档标 `parse_failed`，入失败队列；不阻塞其它文档                                |
-| EntityResolver `ambiguous` | 抽取器跳过该 mention；mention 进 review queue                                    |
-| LLM 超时 / cost 超限       | 候选 status = "deferred"；下次跑                                                 |
-| Neo4j 写失败               | Postgres 已写，Neo4j 重试；可通过 `rebuild()` 全量重建                           |
+| 失败点                     | 处理                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| 数据源 HTTP 失败           | source-check job 写入 failed 并按 target/policy backoff 重试；超过 max_attempts 进入 dead |
+| 文档已存在（同 sha256）    | 跳过 fetch；但仍重新跑 parse+extract（用最新规则）                                        |
+| 解析器抛错                 | 文档标 `parse_failed`，入失败队列；不阻塞其它文档                                         |
+| EntityResolver `ambiguous` | 抽取器跳过该 mention；mention 进 review queue                                             |
+| LLM 超时 / cost 超限       | 候选 status = "deferred"；下次跑                                                          |
+| Neo4j 写失败               | Postgres 已写，Neo4j 重试；可通过 `rebuild()` 全量重建                                    |
 
 ## 不允许的反模式
 

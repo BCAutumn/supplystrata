@@ -1,11 +1,12 @@
 import type { Command } from "commander";
 import { loadChainCard, loadCompanyCard, loadComponentCard, loadEvidenceCard, loadUnknownMap } from "@supplystrata/card-builder";
 import { runDataQualityChecks } from "@supplystrata/data-quality";
+import type { EdgeDeprecationSourceRef, EdgeDeprecationSourceKind } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { Neo4jGraphStore } from "@supplystrata/graph";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import { renderChainCard, renderCompanyCard, renderComponentCard, renderEvidenceCard, renderUnknownMapCard } from "@supplystrata/render";
-import { parseFormat, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
+import { parseFormat, parseGraphSyncMode, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderDataQuality } from "../dq-render.js";
 import { renderGraphCheck } from "../graph-render.js";
 
@@ -58,6 +59,60 @@ export function registerGraphDqAndCardCommands(program: Command): void {
         }
       });
     });
+  graph
+    .command("deprecate-edge")
+    .argument("<edge-id>", "current fact edge id to deprecate")
+    .requiredOption("--source <refs>", "comma-separated refs: evidence:EV,review:REV,claim:CLM,unknown:UNK,semantic-change:CHG")
+    .requiredOption("--reviewer <id>", "reviewer id")
+    .requiredOption("--reason <text>", "deprecation reason")
+    .option("--superseded-by <edgeId>", "replacement edge id")
+    .option("--graph-sync <mode>", "sync or defer", "defer")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("soft-deprecate a current fact edge with auditable source refs")
+    .action(
+      async (
+        edgeId: string,
+        options: {
+          source: string;
+          reviewer: string;
+          reason: string;
+          supersededBy?: string;
+          graphSync: string;
+          format: string;
+        }
+      ) => {
+        await withDatabase(async (pool) => {
+          const graphSyncMode = parseGraphSyncMode(options.graphSync);
+          const resolver = new DbEntityResolver(pool);
+          const builder = new GraphBuilder(pool, resolver, graphSyncMode === "sync" ? { graphSyncMode, graphStore: new Neo4jGraphStore() } : { graphSyncMode });
+          try {
+            const result = await builder.deprecate({
+              edge_id: edgeId,
+              source_refs: parseEdgeDeprecationSourceRefs(options.source),
+              reviewer: options.reviewer,
+              reason: options.reason,
+              ...(options.supersededBy === undefined ? {} : { superseded_by_edge_id: options.supersededBy })
+            });
+            if (parseFormat(options.format) === "json") {
+              writeJson({ ok: true, ...result });
+              return;
+            }
+            write(
+              [
+                "# Edge Deprecation",
+                "",
+                `Edge: ${result.edge_id}`,
+                `Primary evidence: ${result.primary_evidence_id ?? "none"}`,
+                `Source refs: ${result.source_refs.map((ref) => `${ref.kind}:${ref.id}`).join(", ")}`,
+                `Graph sync: ${result.graph_sync.status}`
+              ].join("\n")
+            );
+          } finally {
+            await builder.close();
+          }
+        });
+      }
+    );
 
   const dq = program.command("dq").description("data quality commands");
   dq.command("run")
@@ -125,4 +180,32 @@ export function registerGraphDqAndCardCommands(program: Command): void {
         write(renderUnknownMapCard(await loadUnknownMap(pool, query), parseFormat(options.format)));
       });
     });
+}
+
+function parseEdgeDeprecationSourceRefs(value: string): EdgeDeprecationSourceRef[] {
+  const refs = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .map(parseEdgeDeprecationSourceRef);
+  if (refs.length === 0) throw new Error("At least one edge deprecation source ref is required");
+  return refs;
+}
+
+function parseEdgeDeprecationSourceRef(value: string): EdgeDeprecationSourceRef {
+  const separator = value.indexOf(":");
+  if (separator < 1 || separator === value.length - 1) throw new Error(`Unsupported edge deprecation source ref: ${value}`);
+  return {
+    kind: parseEdgeDeprecationSourceKind(value.slice(0, separator)),
+    id: value.slice(separator + 1)
+  };
+}
+
+function parseEdgeDeprecationSourceKind(value: string): EdgeDeprecationSourceKind {
+  if (value === "evidence") return "evidence";
+  if (value === "review") return "review";
+  if (value === "claim") return "claim";
+  if (value === "unknown") return "unknown";
+  if (value === "semantic-change") return "semantic_change";
+  throw new Error(`Unsupported edge deprecation source kind: ${value}`);
 }
