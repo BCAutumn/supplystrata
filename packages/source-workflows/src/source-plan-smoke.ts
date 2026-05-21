@@ -68,6 +68,12 @@ export interface SourcePlanSmokeDocument {
   chunks?: number;
 }
 
+export interface SourcePlanSmokeMissingCredential {
+  env_key: string;
+  description: string;
+  required: boolean;
+}
+
 export interface SourcePlanSmokeItem {
   check_target_id: string;
   source_adapter_id: string;
@@ -80,6 +86,7 @@ export interface SourcePlanSmokeItem {
   documents: readonly SourcePlanSmokeDocument[];
   issue_kind?: SourcePlanSmokeIssueKind;
   error_message?: string;
+  missing_credentials?: readonly SourcePlanSmokeMissingCredential[];
 }
 
 export interface SourcePlanSmokeSummary {
@@ -118,7 +125,7 @@ export interface SourcePlanSmokeReport {
 interface SourcePlanSmokeRunner {
   source_adapter_id: string;
   target_kind: string;
-  credential_requirements?: readonly { env_key: string; required: boolean }[];
+  credential_requirements?: readonly SourcePlanSmokeMissingCredential[];
   run(target: SourcePlanSmokeTarget): Promise<SourcePlanSmokeItem>;
 }
 
@@ -267,7 +274,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
 function createSmokeRunner<TInput>(input: {
   source_adapter_id: string;
   target_kind: string;
-  credential_requirements?: readonly { env_key: string; required: boolean }[];
+  credential_requirements?: readonly SourcePlanSmokeMissingCredential[];
   adapter: SourceAdapter<TInput, Uint8Array>;
   inputFromConfig(config: Record<string, unknown>): TInput;
   createContext(): AdapterContext;
@@ -277,8 +284,8 @@ function createSmokeRunner<TInput>(input: {
     target_kind: input.target_kind,
     ...(input.credential_requirements === undefined ? {} : { credential_requirements: input.credential_requirements }),
     run(target) {
-      const missingCredentials = missingCredentialKeys(input.credential_requirements);
-      if (missingCredentials.length > 0) throw new Error(`Missing required source credentials: ${missingCredentials.join(", ")}`);
+      const missingCredentials = missingCredentialRequirements(input.credential_requirements);
+      if (missingCredentials.length > 0) throw new MissingSourceCredentialsError(missingCredentials);
       return runSourceTargetSmoke({
         target,
         adapter: input.adapter,
@@ -363,6 +370,7 @@ function failedSmokeItem(
   }
 ): SourcePlanSmokeItem {
   const message = messageFromUnknown(error);
+  const missingCredentials = error instanceof MissingSourceCredentialsError ? error.missingCredentials : [];
   return {
     check_target_id: target.check_target_id,
     source_adapter_id: target.source_adapter_id,
@@ -374,7 +382,8 @@ function failedSmokeItem(
     degraded_documents: counts.degradedDocuments,
     documents: counts.documents,
     issue_kind: classifySmokeIssue(message),
-    error_message: message
+    error_message: message,
+    ...(missingCredentials.length === 0 ? {} : { missing_credentials: missingCredentials })
   };
 }
 
@@ -391,17 +400,23 @@ export function classifySmokeIssue(message: string): SourcePlanSmokeIssueKind {
   return "adapter_error";
 }
 
-function missingCredentialKeys(requirements: readonly { env_key: string; required: boolean }[] | undefined): string[] {
+class MissingSourceCredentialsError extends Error {
+  constructor(readonly missingCredentials: readonly SourcePlanSmokeMissingCredential[]) {
+    super(`Missing required source credentials: ${missingCredentials.map((credential) => credential.env_key).join(", ")}`);
+  }
+}
+
+function missingCredentialRequirements(requirements: readonly SourcePlanSmokeMissingCredential[] | undefined): readonly SourcePlanSmokeMissingCredential[] {
   if (requirements === undefined) return [];
   // 和 adapter 使用同一个 .env 加载路径，避免 smoke 预检与真实 fetch 对凭据是否存在得出不同结论。
   loadEnv();
-  const missingKeys: string[] = [];
+  const missingCredentials: SourcePlanSmokeMissingCredential[] = [];
   for (const requirement of requirements) {
     if (!requirement.required) continue;
     const value = process.env[requirement.env_key];
-    if (value === undefined || value.trim().length === 0) missingKeys.push(requirement.env_key);
+    if (value === undefined || value.trim().length === 0) missingCredentials.push(requirement);
   }
-  return missingKeys;
+  return missingCredentials;
 }
 
 function isTargetConfigIssue(message: string): boolean {

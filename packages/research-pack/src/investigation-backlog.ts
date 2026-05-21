@@ -58,6 +58,7 @@ export interface InvestigationBacklogSourceTargetCoverage {
   preflight_status: SourceTargetPreflightStatus | null;
   preflight_issue_kind: SourceTargetPreflightIssueKind | null;
   preflight_error_message: string | null;
+  preflight_missing_credential_env_keys: readonly string[];
   preflight_normalized_documents: number;
   preflight_degraded_documents: number;
 }
@@ -165,10 +166,12 @@ export function renderInvestigationBacklogMarkdown(backlog: InvestigationBacklog
 }
 
 function coverageLine(coverage: InvestigationBacklogSourceTargetCoverage): string {
+  const missingCredentials =
+    coverage.preflight_missing_credential_env_keys.length === 0 ? "" : `, missing_credentials=${coverage.preflight_missing_credential_env_keys.join("+")}`;
   const preflight =
     coverage.preflight_status === null
       ? ""
-      : `, preflight=${coverage.preflight_status}${coverage.preflight_issue_kind === null ? "" : `/${coverage.preflight_issue_kind}`}, normalized=${coverage.preflight_normalized_documents}, degraded=${coverage.preflight_degraded_documents}`;
+      : `, preflight=${coverage.preflight_status}${coverage.preflight_issue_kind === null ? "" : `/${coverage.preflight_issue_kind}`}${missingCredentials}, normalized=${coverage.preflight_normalized_documents}, degraded=${coverage.preflight_degraded_documents}`;
   return `${coverage.state}, observations=${coverage.observations}${preflight}`;
 }
 
@@ -497,13 +500,19 @@ function preflightFields(
   item: SourceTargetPreflightItem | undefined
 ): Pick<
   InvestigationBacklogSourceTargetCoverage,
-  "preflight_status" | "preflight_issue_kind" | "preflight_error_message" | "preflight_normalized_documents" | "preflight_degraded_documents"
+  | "preflight_status"
+  | "preflight_issue_kind"
+  | "preflight_error_message"
+  | "preflight_missing_credential_env_keys"
+  | "preflight_normalized_documents"
+  | "preflight_degraded_documents"
 > {
   if (item === undefined) {
     return {
       preflight_status: null,
       preflight_issue_kind: null,
       preflight_error_message: null,
+      preflight_missing_credential_env_keys: [],
       preflight_normalized_documents: 0,
       preflight_degraded_documents: 0
     };
@@ -512,6 +521,7 @@ function preflightFields(
     preflight_status: item.status,
     preflight_issue_kind: item.issue_kind ?? null,
     preflight_error_message: item.error_message ?? null,
+    preflight_missing_credential_env_keys: (item.missing_credentials ?? []).map((credential) => credential.env_key).sort(),
     preflight_normalized_documents: item.normalized_documents,
     preflight_degraded_documents: item.degraded_documents
   };
@@ -540,8 +550,11 @@ function coverageActionPrefix(coverage: readonly InvestigationBacklogSourceTarge
   if (coverage.some((item) => item.state === "retry_wait"))
     return "Inspect failed source-check attempts and wait for configured retry or rerun after fixing the source issue.";
   if (coverage.some((item) => item.state === "degraded")) return "Inspect degraded source fetches before treating the latest check as usable evidence.";
-  if (coverage.some((item) => item.preflight_issue_kind === "missing_credentials"))
-    return "Configure required source credentials before syncing or enabling this source-plan target.";
+  if (coverage.some((item) => item.preflight_issue_kind === "missing_credentials")) {
+    const keys = uniqueSorted(coverage.flatMap((item) => item.preflight_missing_credential_env_keys));
+    const suffix = keys.length === 0 ? "" : ` (${keys.join(", ")})`;
+    return `Configure required source credentials${suffix} before syncing or enabling this source-plan target.`;
+  }
   if (coverage.some((item) => item.preflight_issue_kind === "target_config_invalid"))
     return "Fix the source-plan target configuration before syncing or enabling this target.";
   if (coverage.some((item) => item.preflight_issue_kind === "connector_unsupported"))

@@ -127,6 +127,9 @@ describe("source-plan connectivity smoke", () => {
       const [item] = report.items;
       expect(item?.issue_kind).toBe("missing_credentials");
       expect(item?.planned_tasks).toBe(0);
+      expect(item?.missing_credentials).toEqual([
+        { env_key: "EDINET_API_KEY", required: true, description: "Japan FSA EDINET API v2 key used for documents.json daily filing list monitoring." }
+      ]);
       expect(item?.error_message).toContain("Missing required source credentials: EDINET_API_KEY");
     } finally {
       if (previous === undefined) delete process.env["EDINET_API_KEY"];

@@ -404,7 +404,7 @@ supplystrata sources policy preview-plan-targets --source-plan reports/nvidia-re
 --format markdown | json
 ```
 
-无数据库执行 `source-plan.json` 里的 runnable target：只跑对应 adapter 的 `plan / fetch / normalize`，输出每个 target 的 planned task、fetched document、normalized document、degraded fallback 和错误信息。它不连接 Postgres、不写 `source_check_targets`、不记录 source monitor event，也不写 observation / fact edge；适合在同步到持续监控队列前先验证外部源是否可达、凭据是否缺失、target config 是否真的能执行。需要凭据的 connector 会在访问外部源前按 capability 上的 `credential_requirements` 检查 `.env` / 环境变量，缺失时稳定输出 `issue_kind='missing_credentials'`。
+无数据库执行 `source-plan.json` 里的 runnable target：只跑对应 adapter 的 `plan / fetch / normalize`，输出每个 target 的 planned task、fetched document、normalized document、degraded fallback 和错误信息。它不连接 Postgres、不写 `source_check_targets`、不记录 source monitor event，也不写 observation / fact edge；适合在同步到持续监控队列前先验证外部源是否可达、凭据是否缺失、target config 是否真的能执行。需要凭据的 connector 会在访问外部源前按 capability 上的 `credential_requirements` 检查 `.env` / 环境变量，缺失时稳定输出 `issue_kind='missing_credentials'` 和 `missing_credentials[]` env key。
 
 这条路径和 `sources run-due` 复用同一批 adapter 与 target config 解析函数，但不复用 DB 写入流程。也就是说，smoke 成功只说明“源能抓、能 normalize”，不代表已经进入持续监控闭环；正式调度仍要走 `sync-plan-targets / enable-plan-targets / due / run-due`。
 

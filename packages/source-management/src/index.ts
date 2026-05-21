@@ -202,7 +202,7 @@ export function previewSourceCheckTargetsFromPlan(input: SourcePlanTargetPreview
       generated_targets: config.check_targets.length,
       duplicate_targets_skipped: runnableSuggestions - config.check_targets.length,
       enabled_targets: config.check_targets.filter((target) => target.enabled).length,
-      targets_requiring_credentials: countTargetsRequiringCredentials(config.check_targets, input.sources ?? listSources()),
+      targets_requiring_credentials: countTargetsRequiringCredentials(config.check_targets, input.sources ?? listSources(), input.connector_capabilities ?? []),
       validation_errors: validation.errors.length,
       validation_warnings: validation.warnings.length,
       by_source: countTargetsBy(config.check_targets, (target) => target.source_adapter_id),
@@ -313,14 +313,15 @@ export function validateSourceManagementConfig(config: SourceManagementConfig, i
       });
     }
 
-    if (target.enabled && source.requires_key) {
+    const credentialKeys = credentialKeysForTarget(target, source, connector);
+    if (target.enabled && credentialKeys.length > 0) {
       issues.push({
         severity: "warning",
         code: "SOURCE_REQUIRES_KEY",
         source_adapter_id: target.source_adapter_id,
         target_kind: target.target_kind,
         check_target_id: target.check_target_id,
-        message: `Source check target ${target.check_target_id} needs credentials for ${target.source_adapter_id}`
+        message: `Source check target ${target.check_target_id} needs credentials for ${target.source_adapter_id}: ${credentialKeys.join(", ")}`
       });
     }
   }
@@ -394,9 +395,27 @@ function countRunnableSuggestions(sourcePlan: readonly ManagedSourcePlanItem[]):
   return sourcePlan.reduce((count, item) => count + item.suggested_check_targets.filter((target) => target.runnable).length, 0);
 }
 
-function countTargetsRequiringCredentials(targets: readonly SourceManagementTargetInput[], sources: readonly SourceRegistryEntry[]): number {
+function countTargetsRequiringCredentials(
+  targets: readonly SourceManagementTargetInput[],
+  sources: readonly SourceRegistryEntry[],
+  connectors: readonly SourceCheckConnectorCapability[]
+): number {
   const sourcesById = new Map(sources.map((source) => [source.id, source]));
-  return targets.filter((target) => sourcesById.get(target.source_adapter_id)?.requires_key === true).length;
+  const connectorByKey = new Map(connectors.map((connector) => [connector.key, connector]));
+  return targets.filter((target) => {
+    const source = sourcesById.get(target.source_adapter_id);
+    return source !== undefined && credentialKeysForTarget(target, source, connectorByKey.get(connectorKey(target))).length > 0;
+  }).length;
+}
+
+function credentialKeysForTarget(
+  target: Pick<SourceCheckTargetRow, "source_adapter_id" | "target_kind">,
+  source: SourceRegistryEntry,
+  connector: SourceCheckConnectorCapability | undefined
+): string[] {
+  const keys = connector?.credential_requirements?.filter((requirement) => requirement.required).map((requirement) => requirement.env_key) ?? [];
+  if (keys.length > 0) return [...keys].sort();
+  return source.requires_key ? ["source credential"] : [];
 }
 
 function countTargetsBy(

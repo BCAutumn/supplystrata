@@ -116,6 +116,9 @@ export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, forma
       `  Tasks: ${item.planned_tasks}; fetched: ${item.fetched_documents}; normalized: ${item.normalized_documents}; degraded: ${item.degraded_documents}`
     );
     if (item.issue_kind !== undefined) lines.push(`  Issue kind: ${item.issue_kind}`);
+    if (item.missing_credentials !== undefined && item.missing_credentials.length > 0) {
+      lines.push(`  Missing credentials: ${item.missing_credentials.map((credential) => credential.env_key).join(", ")}`);
+    }
     if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
     for (const document of item.documents.slice(0, 3)) {
       lines.push(

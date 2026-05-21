@@ -158,6 +158,7 @@ describe("source-management", () => {
         source_adapter_id: "osh"
       })
     ]);
+    expect(result.warnings[0]?.message).toContain("OSH_API_TOKEN");
   });
 
   it("keeps the example source policy runnable and covers five SEC company facts targets", () => {
@@ -337,6 +338,7 @@ describe("source-management", () => {
       by_priority: { "10": 1 }
     });
     expect(report.validation.warnings).toEqual([expect.objectContaining({ code: "SOURCE_REQUIRES_KEY", source_adapter_id: "dart-kr" })]);
+    expect(report.validation.warnings[0]?.message).toContain("OPENDART_API_KEY");
     const [target] = report.config.check_targets;
     expect(target?.check_target_id).toContain("plan:gate-1-dart:dart-kr:company-filings:");
     expect(target).toEqual(

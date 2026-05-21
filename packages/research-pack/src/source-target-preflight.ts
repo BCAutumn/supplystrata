@@ -18,6 +18,12 @@ export interface SourceTargetPreflightDocument {
   chunks?: number;
 }
 
+export interface SourceTargetPreflightMissingCredential {
+  env_key: string;
+  description: string;
+  required: boolean;
+}
+
 export interface SourceTargetPreflightItem {
   check_target_id: string;
   source_adapter_id: string;
@@ -30,6 +36,7 @@ export interface SourceTargetPreflightItem {
   documents: readonly SourceTargetPreflightDocument[];
   issue_kind?: SourceTargetPreflightIssueKind;
   error_message?: string;
+  missing_credentials?: readonly SourceTargetPreflightMissingCredential[];
 }
 
 export interface SourceTargetPreflightSummary {
@@ -121,6 +128,9 @@ export function renderSourceTargetPreflightMarkdown(report: SourceTargetPrefligh
       `  Tasks: ${item.planned_tasks}; fetched: ${item.fetched_documents}; normalized: ${item.normalized_documents}; degraded: ${item.degraded_documents}`
     );
     if (item.issue_kind !== undefined) lines.push(`  Issue kind: ${item.issue_kind}`);
+    if (item.missing_credentials !== undefined && item.missing_credentials.length > 0) {
+      lines.push(`  Missing credentials: ${item.missing_credentials.map((credential) => credential.env_key).join(", ")}`);
+    }
     if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
     for (const document of item.documents.slice(0, 3)) {
       lines.push(
@@ -182,6 +192,7 @@ function parseItem(value: unknown, label: string): SourceTargetPreflightItem {
   if (!Array.isArray(documentsValue)) throw new Error(`${label} documents must be an array`);
   const errorMessage = optionalString(item["error_message"]);
   const issueKind = optionalIssueKind(item["issue_kind"], `${label} issue_kind`);
+  const missingCredentials = optionalMissingCredentials(item["missing_credentials"], `${label} missing_credentials`);
   return {
     check_target_id: requireString(item["check_target_id"], `${label} check_target_id`),
     source_adapter_id: requireString(item["source_adapter_id"], `${label} source_adapter_id`),
@@ -193,7 +204,23 @@ function parseItem(value: unknown, label: string): SourceTargetPreflightItem {
     degraded_documents: requireNonNegativeInteger(item["degraded_documents"], `${label} degraded_documents`),
     documents: documentsValue.map((document, index) => parseDocument(document, `${label} documents[${index}]`)),
     ...(issueKind === undefined ? {} : { issue_kind: issueKind }),
-    ...(errorMessage === undefined ? {} : { error_message: errorMessage })
+    ...(errorMessage === undefined ? {} : { error_message: errorMessage }),
+    ...(missingCredentials === undefined ? {} : { missing_credentials: missingCredentials })
+  };
+}
+
+function optionalMissingCredentials(value: unknown, label: string): readonly SourceTargetPreflightMissingCredential[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  return value.map((item, index) => parseMissingCredential(item, `${label}[${index}]`));
+}
+
+function parseMissingCredential(value: unknown, label: string): SourceTargetPreflightMissingCredential {
+  const credential = requireRecord(value, label);
+  return {
+    env_key: requireString(credential["env_key"], `${label} env_key`),
+    description: requireString(credential["description"], `${label} description`),
+    required: requireBoolean(credential["required"], `${label} required`)
   };
 }
 
@@ -305,6 +332,11 @@ function requireNonNegativeInteger(value: unknown, label: string): number {
 
 function requireString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${label} must be a non-empty string`);
+  return value;
+}
+
+function requireBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") throw new Error(`${label} must be a boolean`);
   return value;
 }
 

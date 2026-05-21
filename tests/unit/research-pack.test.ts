@@ -800,7 +800,8 @@ describe("research-pack", () => {
             degraded_documents: 0,
             documents: [],
             issue_kind: "missing_credentials",
-            error_message: "fixture source unavailable"
+            error_message: "fixture source unavailable",
+            missing_credentials: [{ env_key: "SAMSUNG_IR_TOKEN", required: true, description: "Fixture credential." }]
           }
         ]
       })
@@ -825,11 +826,13 @@ describe("research-pack", () => {
         state: "not_synced",
         preflight_status: "failed",
         preflight_issue_kind: "missing_credentials",
+        preflight_missing_credential_env_keys: ["SAMSUNG_IR_TOKEN"],
         preflight_error_message: "fixture source unavailable"
       })
     ]);
     expect(sourceCheck?.supporting_refs).toContain("source_preflight:plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6");
-    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("preflight=failed/missing_credentials");
+    expect(sourceCheck?.action).toContain("SAMSUNG_IR_TOKEN");
+    expect(renderInvestigationBacklogMarkdown(backlog)).toContain("preflight=failed/missing_credentials, missing_credentials=SAMSUNG_IR_TOKEN");
   });
 
   it("turns sparse observation series into investigation backlog actions", () => {

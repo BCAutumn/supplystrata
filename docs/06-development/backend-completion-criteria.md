@@ -151,7 +151,7 @@ Gate 1 现在还会输出 `expected_source_coverage`：把每个 target node 的
 
 Gate 1 的 core node 指标按目标节点中已有 fact/source-plan/target/observation 覆盖的数量衡量，未出现在当前 Workbench 里的目标节点也会显式显示为 `missing`。该报告只是 Gate 1 的仪表盘，不会把 single-source silence 自动解释为已审计 single-source，也不会写事实边；真实覆盖数量仍需继续补足。
 
-无数据库连通性 smoke 已补上：`sources policy smoke-plan-targets` 会从同一个 `source-plan.json + namespace` 生成 runnable target，复用 source-check 的 target config 解析和 adapter，执行 `plan / fetch / normalize`，但不连接 Postgres、不写 `source_check_targets`、不写 source monitor event、不写 observation / fact edge。source-check connector capability 现在统一声明 target 级 `credential_requirements`，source-management catalog / preview 和 smoke 都读取同一份凭据契约；缺失凭据会在访问外部源前归类为 `missing_credentials`，不会散落成各命令自己的 env key 判断。它用于同步和启用前发现外部源不可达、凭据缺失或 target config 失效；smoke 成功不等于进入持续监控闭环，正式调度仍以 `sync-plan-targets / enable-plan-targets / due / run-due / worker` 为准。
+无数据库连通性 smoke 已补上：`sources policy smoke-plan-targets` 会从同一个 `source-plan.json + namespace` 生成 runnable target，复用 source-check 的 target config 解析和 adapter，执行 `plan / fetch / normalize`，但不连接 Postgres、不写 `source_check_targets`、不写 source monitor event、不写 observation / fact edge。source-check connector capability 现在统一声明 target 级 `credential_requirements`，source-management catalog / preview 和 smoke 都读取同一份凭据契约；缺失凭据会在访问外部源前归类为 `missing_credentials`，并在 preflight item / investigation backlog coverage 中结构化输出缺失 env key，不会散落成各命令自己的字符串判断。它用于同步和启用前发现外部源不可达、凭据缺失或 target config 失效；smoke 成功不等于进入持续监控闭环，正式调度仍以 `sync-plan-targets / enable-plan-targets / due / run-due / worker` 为准。
 
 参考官方源：
 
