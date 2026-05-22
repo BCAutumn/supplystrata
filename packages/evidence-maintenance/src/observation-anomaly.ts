@@ -273,7 +273,7 @@ function historyCandidatePayload(row: ObservationAnomalyRow): {
 }
 
 async function recordObservationAnomalyChangeIfMissing(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     row: ObservationAnomalyRow;
     evaluation: ObservationChangeEvaluation;

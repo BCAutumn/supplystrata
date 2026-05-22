@@ -127,6 +127,7 @@
 [x] `DatabaseStore` 与 `DbClient` 类型解耦：store 不再继承 query client，只暴露 `read` 端口、`transaction()` 和生命周期；调用方必须显式选择 `store.read` 或事务客户端。
 [x] source adapter API key / token 的 header 与 query 参数拼装收敛到 `@supplystrata/source-adapter-runtime`；各 adapter 保留 source label、credential key、ToS 和 URL 语义，不再各自手写 base64、Token header 或 key query 参数。
 [x] `source-workflows` 移除对 `@supplystrata/pipeline` / graph projection 包的直接依赖；监控 runner 默认只写 source document observation，完整 SEC pipeline 由 CLI 作为 app-level orchestration 显式组合 fetch + pipeline run。
+[x] 旧写入 repository 的事务边界继续收紧：claim / unknown / document chunk / edge deprecation / edge intelligence / pending entity / observation / lead observation / semantic change 写入口改为要求 `DbTxClient`，source workflow 与 observation-store 内部 helper 同步表达事务契约，普通读连接不能再误写审计状态。
 ```
 
 ## 下一批质量修复
@@ -135,7 +136,6 @@
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
-[ ] 部分旧写入 repository 仍接受普通 `DbClient`；后续应继续把剩余普通连接写入口收紧为显式事务入口或明确的 write use-case。
 ```
 
 ## 验收门槛

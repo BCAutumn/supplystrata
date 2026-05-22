@@ -1,4 +1,4 @@
-import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db/write";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -103,7 +103,7 @@ async function runWorldBankPinkSourceCheck(store: DatabaseStore, input: WorldBan
 }
 
 async function storeCommodityPriceObservations(
-  client: DbClient,
+  client: DbTxClient,
   rows: readonly WorldBankPinkRow[],
   input: { docId: string; sourceItemId: string; sourceUrl: string; targetConfig: Record<string, unknown> }
 ): Promise<number> {

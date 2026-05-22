@@ -1,4 +1,4 @@
-import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db/write";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { storeObservation } from "@supplystrata/observation-store";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -181,7 +181,7 @@ function requireSecForms(config: Record<string, unknown>): SecEdgarFormType[] {
 }
 
 async function storeSecCompanyFactObservations(
-  client: DbClient,
+  client: DbTxClient,
   observations: readonly SecCompanyFactObservationDraft[],
   input: { entityId: string; docId: string; sourceItemId: string; sourceUrl: string }
 ): Promise<number> {

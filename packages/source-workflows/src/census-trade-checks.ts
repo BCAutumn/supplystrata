@@ -1,4 +1,4 @@
-import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db/write";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { findComponentTradeCode, listComponentMaterialExposures } from "@supplystrata/component-context";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
@@ -109,7 +109,7 @@ async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTrad
 }
 
 async function storeTradeFlowObservations(
-  client: DbClient,
+  client: DbTxClient,
   rows: readonly CensusTradeRow[],
   input: { docId: string; sourceItemId: string; sourceUrl: string; targetConfig: Record<string, unknown> }
 ): Promise<number> {

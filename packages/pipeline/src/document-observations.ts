@@ -72,7 +72,7 @@ export async function persistDocumentObservations(
   };
 }
 
-async function storeOfficialDisclosureObservations(client: DbClient, normalized: NormalizedDocument, docId: string): Promise<number> {
+async function storeOfficialDisclosureObservations(client: DbTxClient, normalized: NormalizedDocument, docId: string): Promise<number> {
   const drafts = extractDisclosureObservations(normalized);
   let count = 0;
   for (const draft of drafts) {
@@ -84,7 +84,7 @@ async function storeOfficialDisclosureObservations(client: DbClient, normalized:
 }
 
 async function recordOfficialDisclosureSectionChanges(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     previous: NormalizedDocument;
     next: NormalizedDocument;
@@ -167,7 +167,7 @@ function changeTypeForSection(sectionKind: SemanticSectionKind, status: "added" 
 }
 
 async function recordSectionChange(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     changeType: string;
     normalized: NormalizedDocument;

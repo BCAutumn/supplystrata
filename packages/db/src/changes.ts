@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { RELATION_TYPES, createId, type EvidenceLevel, type RelationType } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 export type ChangeTimelineScope =
   | { kind: "company"; id: string }
@@ -123,7 +123,7 @@ export async function listChangeTimeline(client: DbClient, input: ChangeTimeline
   return items.slice(0, input.limit);
 }
 
-export async function recordSemanticChange(client: DbClient, input: SemanticChangeInput): Promise<{ change_id: string }> {
+export async function recordSemanticChange(client: DbTxClient, input: SemanticChangeInput): Promise<{ change_id: string }> {
   const changeId = createId("CHG");
   await client.query(
     `INSERT INTO change_records (change_id, scope_kind, scope_id, change_type, before, after, evidence_ids, caused_by)

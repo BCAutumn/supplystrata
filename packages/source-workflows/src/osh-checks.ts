@@ -1,4 +1,4 @@
-import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db/write";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation } from "@supplystrata/observation-store";
 import { buildOshFacilityReviewCandidate } from "@supplystrata/review-candidates";
@@ -114,7 +114,7 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
 }
 
 async function storeOshFacilityObservations(
-  client: DbClient,
+  client: DbTxClient,
   candidates: readonly OshFacilityCandidate[],
   input: { docId: string; sourceItemId: string; sourceUrl: string; query: string; targetConfig: Record<string, unknown> }
 ): Promise<{ observations: number; reviewCandidates: ReturnType<typeof buildOshFacilityReviewCandidate>[] }> {

@@ -7,7 +7,7 @@ import {
   type EdgeStrengthEstimateRecord,
   type EdgeStrengthKind
 } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 interface EdgeStrengthEstimateRow extends pg.QueryResultRow {
   strength_id: string;
@@ -56,7 +56,7 @@ export interface UpsertEdgeStrengthEstimateInput {
   attrs?: Record<string, unknown>;
 }
 
-export async function upsertEdgeStrengthEstimate(client: DbClient, input: UpsertEdgeStrengthEstimateInput): Promise<EdgeStrengthEstimateRecord> {
+export async function upsertEdgeStrengthEstimate(client: DbTxClient, input: UpsertEdgeStrengthEstimateInput): Promise<EdgeStrengthEstimateRecord> {
   const identityKey = edgeStrengthIdentityKey(input);
   const result = await client.query<EdgeStrengthEstimateRow>(
     `INSERT INTO edge_strength_estimates (
@@ -113,7 +113,7 @@ export async function listEdgeStrengthEstimates(client: DbClient, edgeIds: reado
   return result.rows.map(strengthRowToRecord);
 }
 
-export async function refreshEdgeFreshness(client: DbClient, input: { edgeIds: readonly string[]; computedAt: string }): Promise<EdgeFreshnessRecord[]> {
+export async function refreshEdgeFreshness(client: DbTxClient, input: { edgeIds: readonly string[]; computedAt: string }): Promise<EdgeFreshnessRecord[]> {
   if (input.edgeIds.length === 0) return [];
   const sourceRows = await client.query<EdgeFreshnessSourceRow>(
     `SELECT edge_id, last_verified_at, primary_evidence_id

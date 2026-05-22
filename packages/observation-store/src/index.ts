@@ -4,7 +4,7 @@ import {
   recordSemanticChange,
   upsertLeadObservation,
   upsertObservation,
-  type DbClient,
+  type DbTxClient,
   type LeadStatus,
   type NewLeadObservationInput,
   type NewObservationInput
@@ -57,7 +57,7 @@ export interface StoreResult {
   inserted: boolean;
 }
 
-export async function storeObservation(client: DbClient, input: ObservationStoreInput): Promise<StoreResult> {
+export async function storeObservation(client: DbTxClient, input: ObservationStoreInput): Promise<StoreResult> {
   validateConfidence(input.confidence);
   validateObservationWindow(input);
   // 观测层只保存可复现信号，不在这里升级成 graph fact edge。
@@ -81,7 +81,7 @@ export async function storeObservation(client: DbClient, input: ObservationStore
   return { id: result.observation_id, inserted: result.inserted };
 }
 
-export async function storeLeadObservation(client: DbClient, input: LeadStoreInput): Promise<StoreResult> {
+export async function storeLeadObservation(client: DbTxClient, input: LeadStoreInput): Promise<StoreResult> {
   const leadInput = toNewLeadObservationInput(input, input.lead_id ?? deterministicLeadId(input));
   const result = await upsertLeadObservation(client, leadInput);
   await recordSemanticChange(client, {

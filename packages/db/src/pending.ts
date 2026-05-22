@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { createId } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 interface PendingEntityUpsertRow extends pg.QueryResultRow {
   pending_id: string;
@@ -8,7 +8,7 @@ interface PendingEntityUpsertRow extends pg.QueryResultRow {
 }
 
 export async function recordPendingEntity(
-  client: DbClient,
+  client: DbTxClient,
   input: { surface: string; context: Record<string, unknown> }
 ): Promise<{ pending_id: string; is_new: boolean }> {
   const pendingId = createId("PND");

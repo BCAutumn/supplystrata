@@ -1,7 +1,7 @@
 import type pg from "pg";
 import type { RelationType } from "@supplystrata/core";
 import { recordSemanticChange } from "./changes.js";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 interface DeprecatedEdgeRow extends pg.QueryResultRow {
   edge_id: string;
@@ -34,7 +34,7 @@ export interface DeprecateEdgeResult {
   source_refs: EdgeDeprecationSourceRef[];
 }
 
-export async function deprecateEdge(client: DbClient, input: DeprecateEdgeInput): Promise<DeprecateEdgeResult> {
+export async function deprecateEdge(client: DbTxClient, input: DeprecateEdgeInput): Promise<DeprecateEdgeResult> {
   const sourceRefs = normalizeDeprecationSourceRefs(input.source_refs);
   if (input.reason.trim().length === 0) throw new Error("edge deprecation requires a non-empty reason");
   await requireDeprecationSourceRefs(client, sourceRefs);

@@ -106,7 +106,7 @@ export interface CorrectObservationMeasurementResult {
   change_id: string;
 }
 
-export async function insertObservation(client: DbClient, input: NewObservationInput): Promise<{ observation_id: string }> {
+export async function insertObservation(client: DbTxClient, input: NewObservationInput): Promise<{ observation_id: string }> {
   const observationId = input.observation_id ?? createId("OBS");
   await client.query(
     `INSERT INTO observations (
@@ -121,7 +121,7 @@ export async function insertObservation(client: DbClient, input: NewObservationI
   return { observation_id: observationId };
 }
 
-export async function upsertObservation(client: DbClient, input: NewObservationInput): Promise<UpsertObservationResult> {
+export async function upsertObservation(client: DbTxClient, input: NewObservationInput): Promise<UpsertObservationResult> {
   const observationId = input.observation_id ?? createId("OBS");
   const result = await client.query<UpsertObservationRow>(
     `INSERT INTO observations (
@@ -141,7 +141,7 @@ export async function upsertObservation(client: DbClient, input: NewObservationI
   return { observation_id: row.observation_id, inserted: row.inserted };
 }
 
-export async function patchObservationMetadata(client: DbClient, input: PatchObservationMetadataInput): Promise<{ observation_id: string } | undefined> {
+export async function patchObservationMetadata(client: DbTxClient, input: PatchObservationMetadataInput): Promise<{ observation_id: string } | undefined> {
   const result = await client.query<ObservationPatchRow>(
     `UPDATE observations
      SET provenance = provenance || $2::jsonb,
@@ -376,7 +376,7 @@ export interface UpsertLeadObservationResult {
   inserted: boolean;
 }
 
-export async function insertLeadObservation(client: DbClient, input: NewLeadObservationInput): Promise<{ lead_id: string }> {
+export async function insertLeadObservation(client: DbTxClient, input: NewLeadObservationInput): Promise<{ lead_id: string }> {
   const leadId = input.lead_id ?? createId("LEAD");
   await client.query(
     `INSERT INTO lead_observations (
@@ -389,7 +389,7 @@ export async function insertLeadObservation(client: DbClient, input: NewLeadObse
   return { lead_id: leadId };
 }
 
-export async function upsertLeadObservation(client: DbClient, input: NewLeadObservationInput): Promise<UpsertLeadObservationResult> {
+export async function upsertLeadObservation(client: DbTxClient, input: NewLeadObservationInput): Promise<UpsertLeadObservationResult> {
   const leadId = input.lead_id ?? createId("LEAD");
   const result = await client.query<UpsertLeadRow>(
     `INSERT INTO lead_observations (
@@ -465,7 +465,7 @@ export async function getLeadObservation(client: DbClient, leadId: string): Prom
 }
 
 export async function markLeadObservationInReview(
-  client: DbClient,
+  client: DbTxClient,
   input: { leadId: string; attrsPatch?: Record<string, unknown> }
 ): Promise<{ lead_id: string; status: LeadStatus } | undefined> {
   const result = await client.query<LeadStatusUpdateRow>(
@@ -484,7 +484,7 @@ export async function markLeadObservationInReview(
 }
 
 export async function markLeadObservationPromoted(
-  client: DbClient,
+  client: DbTxClient,
   input: { leadId: string; reviewId: string; attrsPatch?: Record<string, unknown> }
 ): Promise<{ lead_id: string; status: LeadStatus } | undefined> {
   const result = await client.query<LeadStatusUpdateRow>(

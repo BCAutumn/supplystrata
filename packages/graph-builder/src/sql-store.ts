@@ -7,7 +7,7 @@ import {
   type ComponentSpecificity,
   type EvidenceLevel
 } from "@supplystrata/core";
-import { recordSemanticChange, type DbClient, type DbRow } from "@supplystrata/db/write";
+import { recordSemanticChange, type DbClient, type DbRow, type DbTxClient } from "@supplystrata/db/write";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { ComponentLookupRow, EdgeIdentityRow, EvidenceChunkRow, EvidenceDocumentRow } from "./db-rows.js";
 
@@ -17,7 +17,7 @@ export interface ApplyApprovedCandidateSqlInput {
   object_id: string;
 }
 
-export async function applyApprovedCandidateToSql(client: DbClient, input: ApplyApprovedCandidateSqlInput): Promise<Omit<ApplyResult, "graph_sync">> {
+export async function applyApprovedCandidateToSql(client: DbTxClient, input: ApplyApprovedCandidateSqlInput): Promise<Omit<ApplyResult, "graph_sync">> {
   const component = await resolveComponentReference(client, input.approved.candidate);
   await lockEdgeIdentity(client, {
     subject_id: input.subject_id,
@@ -230,7 +230,7 @@ async function insertEvidence(
   );
 }
 
-async function supersedeOlderEvidence(client: DbClient, input: { edgeId: string; evidenceId: string; approved: ApprovedCandidate }): Promise<void> {
+async function supersedeOlderEvidence(client: DbTxClient, input: { edgeId: string; evidenceId: string; approved: ApprovedCandidate }): Promise<void> {
   const superseded = await client.query<{ evidence_id: string } & DbRow>(
     `UPDATE evidence
      SET superseded_by = $2

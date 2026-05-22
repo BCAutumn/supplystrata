@@ -8,7 +8,7 @@ import {
   type EdgeValidity,
   type EvidenceLevel
 } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 export type { ClaimEvidenceRole, ClaimStatus, ClaimUnknownRole } from "@supplystrata/core";
 
@@ -74,7 +74,7 @@ export interface UpsertClaimResult {
   inserted: boolean;
 }
 
-export async function insertClaim(client: DbClient, input: NewClaimInput): Promise<{ claim_id: string }> {
+export async function insertClaim(client: DbTxClient, input: NewClaimInput): Promise<{ claim_id: string }> {
   const claimId = input.claim_id ?? createId("CLM");
   await client.query(
     `INSERT INTO claims (
@@ -102,7 +102,7 @@ export async function insertClaim(client: DbClient, input: NewClaimInput): Promi
   return { claim_id: claimId };
 }
 
-export async function upsertClaim(client: DbClient, input: NewClaimInput): Promise<UpsertClaimResult> {
+export async function upsertClaim(client: DbTxClient, input: NewClaimInput): Promise<UpsertClaimResult> {
   const claimId = input.claim_id ?? createId("CLM");
   const result = await client.query<UpsertClaimRow>(
     `INSERT INTO claims (
@@ -151,7 +151,7 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
   return { claim_id: row.claim_id, inserted: row.inserted };
 }
 
-export async function linkClaimEvidence(client: DbClient, input: { claim_id: string; evidence_id: string; role: ClaimEvidenceRole }): Promise<void> {
+export async function linkClaimEvidence(client: DbTxClient, input: { claim_id: string; evidence_id: string; role: ClaimEvidenceRole }): Promise<void> {
   await client.query(
     `INSERT INTO claim_evidence (claim_id, evidence_id, role)
      VALUES ($1,$2,$3)
@@ -160,7 +160,7 @@ export async function linkClaimEvidence(client: DbClient, input: { claim_id: str
   );
 }
 
-export async function linkClaimUnknown(client: DbClient, input: { claim_id: string; unknown_id: string; role: ClaimUnknownRole }): Promise<void> {
+export async function linkClaimUnknown(client: DbTxClient, input: { claim_id: string; unknown_id: string; role: ClaimUnknownRole }): Promise<void> {
   await client.query(
     `INSERT INTO claim_unknowns (claim_id, unknown_id, role)
      VALUES ($1,$2,$3)

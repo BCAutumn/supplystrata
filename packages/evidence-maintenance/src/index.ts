@@ -320,7 +320,7 @@ function missingStrengthUnknown(edge: IntelligenceRefreshEdgeRow, createdBy: str
 }
 
 async function resolveGeneratedStrengthUnknownIfOpen(
-  client: DbClient,
+  client: DbTxClient,
   input: { edge: IntelligenceRefreshEdgeRow; evidenceId: string; reviewer: string }
 ): Promise<number> {
   const unknownId = deterministicEdgeStrengthUnknownId(input.edge.edge_id);

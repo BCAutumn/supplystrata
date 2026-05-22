@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { createId } from "@supplystrata/core";
 import { recordSemanticChange } from "./changes.js";
-import type { DbClient } from "./client.js";
+import type { DbTxClient } from "./client.js";
 
 export type UnknownItemStatus = "open" | "resolved";
 
@@ -43,7 +43,7 @@ interface UpsertUnknownItemRow extends pg.QueryResultRow {
   question: string;
 }
 
-export async function upsertUnknownItem(client: DbClient, input: NewUnknownItemInput): Promise<{ unknown_id: string; inserted: boolean }> {
+export async function upsertUnknownItem(client: DbTxClient, input: NewUnknownItemInput): Promise<{ unknown_id: string; inserted: boolean }> {
   const unknownId = input.unknown_id ?? createId("UNK");
   const existing = await client.query<UnknownIdRow>("SELECT unknown_id FROM unknown_items WHERE unknown_id = $1", [unknownId]);
   const upserted = await client.query<UpsertUnknownItemRow>(
@@ -95,7 +95,7 @@ function unknownChangeType(inserted: boolean, status: UnknownItemStatus): "UNKNO
 }
 
 export async function resolveUnknownItem(
-  client: DbClient,
+  client: DbTxClient,
   input: { unknown_id: string; resolved_evidence_ids: readonly string[]; reviewer: string }
 ): Promise<{ unknown_id: string }> {
   if (input.resolved_evidence_ids.length === 0) throw new Error("resolved_evidence_ids must contain at least one evidence id");
