@@ -8,6 +8,7 @@ import {
   upsertUnknownItem,
   type DatabaseStore,
   type DbClient,
+  type DbTxClient,
   type NewClaimInput
 } from "@supplystrata/db";
 import type { SemanticChangeReviewCandidate } from "@supplystrata/review-candidates";
@@ -93,7 +94,7 @@ export interface ResolveClaimConflictReviewResult {
 }
 
 export async function upsertSemanticChangeClaimDraft(
-  client: DbClient,
+  client: DbTxClient,
   candidate: SemanticChangeReviewCandidate,
   input: { generated_by?: string; reviewed_at?: string; caused_by?: string } = {}
 ): Promise<SemanticChangeClaimDraftResult> {
@@ -154,7 +155,7 @@ async function resolveSemanticChangeScope(client: DbClient, candidate: SemanticC
 }
 
 async function upsertConflictUnknownForSemanticChange(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     candidate: SemanticChangeReviewCandidate;
     draft: SemanticChangeClaimDraft;
@@ -224,7 +225,7 @@ async function listActiveClaimsForSemanticChange(
   return result.rows;
 }
 
-export async function buildEdgeClaimsFromCurrentEdges(client: DbClient, input: BuildEdgeClaimsInput = {}): Promise<BuildEdgeClaimsSummary> {
+export async function buildEdgeClaimsFromCurrentEdges(client: DbTxClient, input: BuildEdgeClaimsInput = {}): Promise<BuildEdgeClaimsSummary> {
   const generatedBy = input.generated_by ?? "claim-builder.edge-fact.v1";
   const edges = await listClaimableFactEdges(client, { min_evidence_level: input.min_evidence_level ?? 4, limit: input.limit ?? 500 });
   let inserted = 0;
@@ -300,7 +301,7 @@ export async function buildEdgeClaimsFromCurrentEdgesTransactionally(store: Data
   return store.transaction((client) => buildEdgeClaimsFromCurrentEdges(client, input));
 }
 
-export async function linkContradictingEvidenceToClaim(client: DbClient, input: LinkContradictingEvidenceInput): Promise<LinkContradictingEvidenceResult> {
+export async function linkContradictingEvidenceToClaim(client: DbTxClient, input: LinkContradictingEvidenceInput): Promise<LinkContradictingEvidenceResult> {
   const claim = await requireConflictTargetClaim(client, input.claim_id);
   const evidence = await requireConflictEvidence(client, input.evidence_id);
   const unknown = await upsertUnknownItem(client, {
@@ -335,7 +336,7 @@ export async function linkContradictingEvidenceToClaim(client: DbClient, input: 
 }
 
 export async function resolveClaimConflictUnknown(
-  client: DbClient,
+  client: DbTxClient,
   input: ResolveClaimConflictUnknownInput
 ): Promise<{ claim_id: string; unknown_id: string }> {
   await requireClaimUnknownLink(client, input.claim_id, input.unknown_id);
@@ -358,7 +359,7 @@ export async function resolveClaimConflictUnknown(
   return { claim_id: input.claim_id, unknown_id: input.unknown_id };
 }
 
-export async function resolveClaimConflictReview(client: DbClient, input: ResolveClaimConflictReviewInput): Promise<ResolveClaimConflictReviewResult> {
+export async function resolveClaimConflictReview(client: DbTxClient, input: ResolveClaimConflictReviewInput): Promise<ResolveClaimConflictReviewResult> {
   const claim = await requireConflictTargetClaim(client, input.claim_id);
   const resolutionEvidenceIds = [...(input.resolution_evidence_ids ?? [])];
 
@@ -488,7 +489,7 @@ async function requireClaimUnknownLink(client: DbClient, claimId: string, unknow
 }
 
 async function recordClaimConflictResolutionAction(
-  client: DbClient,
+  client: DbTxClient,
   input: ResolveClaimConflictReviewInput & {
     claim: ClaimConflictTargetRow;
     resolutionEvidenceIds: string[];

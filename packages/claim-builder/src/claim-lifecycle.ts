@@ -1,4 +1,4 @@
-import { getClaim, recordSemanticChange, type ClaimRow, type ClaimStatus, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { getClaim, recordSemanticChange, type ClaimRow, type ClaimStatus, type DatabaseStore, type DbClient, type DbTxClient } from "@supplystrata/db";
 import type { ClaimLifecycleSourceRefRow, ClaimLifecycleStatusUpdateRow } from "./db-rows.js";
 
 export type ClaimLifecycleAction = "supersede_claim" | "reject_claim" | "keep_with_context";
@@ -30,7 +30,7 @@ export interface ResolveClaimLifecycleResult {
   superseded_by_claim_id?: string;
 }
 
-export async function resolveClaimLifecycle(client: DbClient, input: ResolveClaimLifecycleInput): Promise<ResolveClaimLifecycleResult> {
+export async function resolveClaimLifecycle(client: DbTxClient, input: ResolveClaimLifecycleInput): Promise<ResolveClaimLifecycleResult> {
   const claim = await requireClaimLifecycleTarget(client, input.claim_id);
   const sourceRefs = normalizeClaimLifecycleSourceRefs(input.source_refs);
   if (input.reason.trim().length === 0) throw new Error("claim lifecycle action requires a non-empty reason");
@@ -69,7 +69,7 @@ async function requireClaimLifecycleTarget(client: DbClient, claimId: string): P
 }
 
 async function updateClaimLifecycleStatus(
-  client: DbClient,
+  client: DbTxClient,
   claimId: string,
   status: Extract<ClaimStatus, "superseded" | "rejected">
 ): Promise<{ status: ClaimStatus }> {
@@ -134,7 +134,7 @@ function claimLifecycleIdsByKind(sourceRefs: readonly ClaimLifecycleSourceRef[],
 }
 
 async function recordClaimLifecycleAction(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     input: ResolveClaimLifecycleInput;
     claim: ClaimRow;

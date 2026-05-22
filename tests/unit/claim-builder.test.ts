@@ -23,7 +23,7 @@ import {
   type ClaimableFactEdge,
   type ClaimFusionEvidence
 } from "@supplystrata/claim-builder";
-import type { DbClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db";
 import { buildSemanticChangeReviewCandidate } from "@supplystrata/review-candidates";
 
 interface QueryCall {
@@ -31,7 +31,8 @@ interface QueryCall {
   params: readonly unknown[];
 }
 
-class EmptyDbClient implements DbClient {
+class EmptyDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {

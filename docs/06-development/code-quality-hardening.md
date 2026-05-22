@@ -108,6 +108,7 @@
 [x] `upsertLeadObservation()` 对 promoted / rejected / closed lead 改为终态内容保护，并阻止 `in_review` lead 被普通 upsert 降回 open。
 [x] `upsertObservation()` 收紧为 deterministic observation reassert：冲突时不再改 measurement / provenance / attrs；metadata 修改必须走显式 `patchObservationMetadata()`。
 [x] edge intelligence refresh 与 single-source disposition unknown materialization 的函数签名收紧到 `DbTxClient`，调用方必须通过事务客户端执行 unknown/change 写入链路。
+[x] claim-builder 的 claim refresh、semantic change draft、contradicting evidence、conflict review 和 lifecycle 写入口收紧到 `DbTxClient`；普通调用方应使用 `*Transactionally()` 包装，避免在类型层面把普通连接误传给多写入链路。
 [x] candidate relation citation 校验下沉到 core 纯函数；pipeline 与 source preview 复用同一规则，避免 preview 为了轻量入口继续反向依赖 pipeline。
 [x] source-workflows 的 Census / OSH / Apple / World Bank Pink / SEC facts 监控写入改为使用本包 `saved-document-observation` 窄适配层，直接调用 source-monitor 的事务内 observation 入口，不再为了记录文档变化依赖 pipeline helper。
 [x] CLI 公共入口按 runtime / parse / output 拆分；`cli-utils.ts` 只保留兼容 re-export，数据库生命周期、参数解析和输出错误格式化不再混在同一文件里。
@@ -126,7 +127,7 @@
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
 [ ] `source-workflows` 包级别仍包含 legacy SEC full-pipeline demo 与 source-check runner 默认 document-observation bridge，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与监控 workflow 的默认持久化 bridge 继续拆边界。
-[ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已开始把 unknown/change 写入型 use-case 收紧到 `DbTxClient`，后续继续覆盖 claim/review/risk 等写路径。
+[ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已覆盖 intelligence / single-source disposition / claim-builder 关键多写入链路，后续继续覆盖 review/risk/alert 等写路径。
 [ ] `db/src/index.ts` 仍是宽 barrel export；已补 read/write/admin 子路径出口，后续应逐包迁移旧 import 并在迁移完成后收窄 root，而不是一次性大规模改 import。
 ```
 
