@@ -91,7 +91,7 @@ export interface UpdateAlertCandidateStatusResult {
   change_id?: string;
 }
 
-export async function upsertAlertCandidate(client: DbClient, input: UpsertAlertCandidateInput): Promise<UpsertAlertCandidateResult> {
+export async function upsertAlertCandidate(client: DbTxClient, input: UpsertAlertCandidateInput): Promise<UpsertAlertCandidateResult> {
   const result = await client.query<AlertUpsertRow>(
     `INSERT INTO alert_candidates (
        alert_id, alert_kind, severity, scope_kind, scope_id, title, summary, dedupe_key,

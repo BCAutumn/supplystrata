@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
-import type { DbClient, RiskMetricRecord } from "@supplystrata/db";
+import type { DbClient, DbTxClient, RiskMetricRecord } from "@supplystrata/db";
 import { replaceRiskView } from "@supplystrata/db";
 import type { FinancialMetricObservationRow } from "./db-rows.js";
 
@@ -49,7 +49,7 @@ const FINANCIAL_PEER_MODEL_VERSION = "financial-peer-comparison.v1";
 const FINANCIAL_PEER_METRIC_KIND: RiskMetricKind = "financial_metric_peer_zscore";
 
 export async function refreshFinancialMetricPeerComparisonViews(
-  client: DbClient,
+  client: DbTxClient,
   input: RefreshFinancialMetricPeerComparisonInput = {}
 ): Promise<FinancialMetricPeerComparisonSummary> {
   const limit = input.limit ?? 1000;

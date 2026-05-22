@@ -1,5 +1,5 @@
 import type { EdgeStrengthEstimateRecord } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient, DbTxClient } from "@supplystrata/db";
 import { getLatestRiskViewByScope, listEdgeFreshness, listEdgeStrengthEstimates, listRiskMetricsForView, replaceRiskView } from "@supplystrata/db";
 import { COMPONENT_RISK_MODEL_VERSION, type ComponentRiskRefreshSummary, type RefreshComponentRiskViewInput } from "./component-risk-definitions.js";
 import { recordComponentRiskMetricChanges } from "./component-risk-changes.js";
@@ -9,7 +9,7 @@ import { listComponentRiskEdges, listRefreshableComponentRiskComponentIds } from
 export type { ComponentRiskRefreshSummary, RefreshComponentRiskViewInput } from "./component-risk-definitions.js";
 export { listRefreshableComponentRiskComponentIds } from "./component-risk-repository.js";
 
-export async function refreshComponentRiskView(client: DbClient, input: RefreshComponentRiskViewInput): Promise<ComponentRiskRefreshSummary> {
+export async function refreshComponentRiskView(client: DbTxClient, input: RefreshComponentRiskViewInput): Promise<ComponentRiskRefreshSummary> {
   const computedAt = input.computed_at ?? new Date().toISOString();
   const edges = await listComponentRiskEdges(client, input.component_id);
   const edgeIds = edges.map((edge) => edge.edge_id);

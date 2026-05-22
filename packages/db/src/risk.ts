@@ -1,6 +1,6 @@
 import type pg from "pg";
 import type { RiskMetricKind } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 interface RiskViewRow extends pg.QueryResultRow {
   risk_view_id: string;
@@ -62,7 +62,7 @@ export interface ReplaceRiskViewInput {
   metrics: readonly Omit<RiskMetricRecord, "risk_view_id">[];
 }
 
-export async function replaceRiskView(client: DbClient, input: ReplaceRiskViewInput): Promise<{ risk_view_id: string; metrics: number }> {
+export async function replaceRiskView(client: DbTxClient, input: ReplaceRiskViewInput): Promise<{ risk_view_id: string; metrics: number }> {
   const result = await client.query<{ risk_view_id: string } & pg.QueryResultRow>(
     `INSERT INTO risk_views (
        risk_view_id, scope_kind, scope_id, generated_at, model_version, inputs_fingerprint, summary, attrs

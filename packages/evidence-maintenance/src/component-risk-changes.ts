@@ -1,5 +1,5 @@
 import type { RiskMetricKind } from "@supplystrata/core";
-import type { DbClient, RiskMetricRecord, RiskViewRecord } from "@supplystrata/db";
+import type { DbClient, DbTxClient, RiskMetricRecord, RiskViewRecord } from "@supplystrata/db";
 import { recordSemanticChange } from "@supplystrata/db";
 import type { ComponentRiskChangeRow } from "./db-rows.js";
 
@@ -24,7 +24,7 @@ const RISK_CHANGE_ABSOLUTE_THRESHOLDS: Partial<Record<RiskMetricKind, number>> =
   freshness_adjusted_exposure: 0.25
 };
 
-export async function recordComponentRiskMetricChanges(client: DbClient, input: RecordComponentRiskMetricChangesInput): Promise<number> {
+export async function recordComponentRiskMetricChanges(client: DbTxClient, input: RecordComponentRiskMetricChangesInput): Promise<number> {
   if (input.previousRiskView === undefined || input.previousRiskView.risk_view_id === input.riskViewId) return 0;
 
   const previousByKey = metricsByStableKey(input.previousMetrics);

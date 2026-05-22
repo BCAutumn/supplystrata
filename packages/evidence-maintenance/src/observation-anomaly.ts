@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ObservationType, RiskMetricKind } from "@supplystrata/core";
-import type { DbClient, RiskMetricRecord } from "@supplystrata/db";
+import type { DbClient, DbTxClient, RiskMetricRecord } from "@supplystrata/db";
 import { recordSemanticChange, replaceRiskView } from "@supplystrata/db";
 import type { ExistingSemanticChangeRow, ObservationAnomalyHistoryRow, ObservationAnomalyRow } from "./db-rows.js";
 
@@ -41,7 +41,7 @@ type StableJsonObject = { readonly [key: string]: StableJsonValue };
 type StableJsonValue = null | string | number | boolean | StableJsonArray | StableJsonObject;
 
 export async function refreshObservationAnomalyViews(
-  client: DbClient,
+  client: DbTxClient,
   input: RefreshObservationAnomalyViewsInput = {}
 ): Promise<ObservationAnomalyRefreshSummary> {
   const limit = input.limit ?? 1000;

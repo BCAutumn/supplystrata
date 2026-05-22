@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
-import type { AlertSeverity, DbClient, UpsertAlertCandidateInput } from "@supplystrata/db";
+import type { AlertSeverity, DbClient, DbTxClient, UpsertAlertCandidateInput } from "@supplystrata/db";
 import { upsertAlertCandidate } from "@supplystrata/db";
 import type { ComponentRiskMetricAlertRow, ObservationAnomalyChangeRow, SourceFailureEventRow } from "./db-rows.js";
 
@@ -117,7 +117,7 @@ export function summarizeComponentRiskAlertPolicy(samples: readonly ComponentRis
   };
 }
 
-export async function refreshAlertCandidates(client: DbClient, input: RefreshAlertCandidatesInput = {}): Promise<AlertCandidateRefreshSummary> {
+export async function refreshAlertCandidates(client: DbTxClient, input: RefreshAlertCandidatesInput = {}): Promise<AlertCandidateRefreshSummary> {
   const since = input.since ?? new Date(Date.now() - DEFAULT_ALERT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const limit = input.limit ?? 1000;
   if (!Number.isInteger(limit) || limit <= 0) throw new Error(`Alert refresh limit must be a positive integer: ${limit}`);

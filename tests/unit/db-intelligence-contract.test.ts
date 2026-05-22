@@ -59,7 +59,8 @@ interface QueryCall {
   params: readonly unknown[];
 }
 
-class RecordingDbClient implements DbClient {
+class RecordingDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -142,9 +143,7 @@ class EdgeDeprecationDbClient extends RecordingDbClient {
   }
 }
 
-class AlertStatusDbClient extends RecordingDbClient implements DbTxClient {
-  readonly [dbTxClientBrand]: true = true;
-
+class AlertStatusDbClient extends RecordingDbClient {
   override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
     const rows = rowsForAlertStatusUpdate<T>(sql, params);

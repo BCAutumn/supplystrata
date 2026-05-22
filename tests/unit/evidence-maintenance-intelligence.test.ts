@@ -70,7 +70,8 @@ class SingleSourceDispositionDbClient implements DbTxClient {
   }
 }
 
-class ComponentRiskDbClient implements DbClient {
+class ComponentRiskDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -86,7 +87,8 @@ class ComponentRiskDbClient implements DbClient {
   }
 }
 
-class ComponentRiskCentralityDbClient implements DbClient {
+class ComponentRiskCentralityDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -102,7 +104,8 @@ class ComponentRiskCentralityDbClient implements DbClient {
   }
 }
 
-class ComponentRiskFreshnessWeightedDbClient implements DbClient {
+class ComponentRiskFreshnessWeightedDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -118,7 +121,8 @@ class ComponentRiskFreshnessWeightedDbClient implements DbClient {
   }
 }
 
-class ComponentRiskMissingFreshnessDbClient implements DbClient {
+class ComponentRiskMissingFreshnessDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -134,7 +138,8 @@ class ComponentRiskMissingFreshnessDbClient implements DbClient {
   }
 }
 
-class ComponentRiskChangeDbClient implements DbClient {
+class ComponentRiskChangeDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -150,7 +155,8 @@ class ComponentRiskChangeDbClient implements DbClient {
   }
 }
 
-class ObservationAnomalyDbClient implements DbClient {
+class ObservationAnomalyDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -166,7 +172,8 @@ class ObservationAnomalyDbClient implements DbClient {
   }
 }
 
-class FinancialPeerComparisonDbClient implements DbClient {
+class FinancialPeerComparisonDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -182,7 +189,8 @@ class FinancialPeerComparisonDbClient implements DbClient {
   }
 }
 
-class AlertRulesDbClient implements DbClient {
+class AlertRulesDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
