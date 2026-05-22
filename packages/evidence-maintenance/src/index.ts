@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { CandidateRelation, EdgeStrengthKind, EvidenceLevel, RelationType } from "@supplystrata/core";
-import type { DbClient, DbRow } from "@supplystrata/db";
+import type { DbClient, DbRow, DbTxClient } from "@supplystrata/db";
 import { listEdgeStrengthEstimates, recordSemanticChange, refreshEdgeFreshness, upsertEdgeStrengthEstimate, upsertUnknownItem } from "@supplystrata/db";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { EvidenceTraceBackfillRow, IntelligenceRefreshEdgeRow } from "./db-rows.js";
@@ -123,7 +123,7 @@ export async function backfillEvidenceTrace(client: DbClient, input: { limit?: n
   return { scanned: rows.rowCount ?? rows.rows.length, updated, offset_missing: offsetMissing };
 }
 
-export async function refreshEdgeIntelligenceContext(client: DbClient, input: RefreshEdgeIntelligenceInput = {}): Promise<EdgeIntelligenceRefreshSummary> {
+export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: RefreshEdgeIntelligenceInput = {}): Promise<EdgeIntelligenceRefreshSummary> {
   const generatedBy = input.generated_by ?? "evidence-maintenance.intelligence-refresh.v1";
   const computedAt = input.computed_at ?? new Date().toISOString();
   const edges = await listRefreshableIntelligenceEdges(client, { minEvidenceLevel: input.min_evidence_level ?? 4, limit: input.limit ?? 1000 });

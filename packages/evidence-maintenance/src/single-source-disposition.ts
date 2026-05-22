@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { upsertUnknownItem, type DbClient } from "@supplystrata/db";
+import { upsertUnknownItem, type DbClient, type DbTxClient } from "@supplystrata/db";
 import type { ExistingEdgeRow, OfficialSignalDispositionChangeRow } from "./db-rows.js";
 
 export interface ProposedSingleSourceDispositionUnknown {
@@ -91,7 +91,7 @@ export function extractOfficialDisclosureReadinessProposedUnknowns(value: unknow
 }
 
 export async function materializeSingleSourceDispositionUnknowns(
-  client: DbClient,
+  client: DbTxClient,
   input: MaterializeSingleSourceDispositionUnknownsInput
 ): Promise<MaterializeSingleSourceDispositionUnknownsSummary> {
   const generatedBy = input.generated_by ?? "evidence-maintenance.single-source-disposition.v1";
@@ -137,7 +137,7 @@ export async function materializeSingleSourceDispositionUnknowns(
 }
 
 export async function materializeOfficialSignalDispositionUnknowns(
-  client: DbClient,
+  client: DbTxClient,
   input: MaterializeOfficialSignalDispositionUnknownsInput = {}
 ): Promise<MaterializeOfficialSignalDispositionUnknownsSummary> {
   // review-store 只记录人工结论；unknown 的持久化必须留在 evidence-maintenance，

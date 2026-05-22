@@ -16,7 +16,7 @@ import {
   refreshObservationAnomalyViews,
   summarizeComponentRiskAlertPolicy
 } from "@supplystrata/evidence-maintenance";
-import type { DbClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
 
 interface QueryCall {
   sql: string;
@@ -30,7 +30,8 @@ interface TestOfficialSignalDispositionChange {
   detected_at: Date;
 }
 
-class IntelligenceDbClient implements DbClient {
+class IntelligenceDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -46,7 +47,8 @@ class IntelligenceDbClient implements DbClient {
   }
 }
 
-class SingleSourceDispositionDbClient implements DbClient {
+class SingleSourceDispositionDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   constructor(
