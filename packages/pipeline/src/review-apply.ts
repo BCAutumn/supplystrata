@@ -20,14 +20,10 @@ import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphSqlWriter } from "@supplystrata/graph-builder";
 import {
-  isClaimConflictReviewCandidate,
-  isEntitySourceReviewCandidate,
-  isOfficialDisclosureSignalReviewCandidate,
-  isOshFacilityReviewCandidate,
-  isSemanticChangeReviewCandidate,
-  isSupplierListReviewCandidate,
   supplierListReviewToFacilityRelation,
   supplierListReviewToSupplierRelation,
+  type ReviewCandidate,
+  type ReviewCandidateKind,
   type SupplierListReviewCandidate
 } from "@supplystrata/review-candidates";
 import {
@@ -75,26 +71,24 @@ export interface ReviewApplyBatchSummary {
 }
 
 type SupplierListReviewItem = ReviewQueueItem & { candidate: SupplierListReviewCandidate };
+type ReviewItemByKind<K extends ReviewCandidateKind> = ReviewQueueItem & { kind: K; candidate: Extract<ReviewCandidate, { kind: K }> };
 
 export interface ReviewApplyOptions {
   logger?: SupplyStrataLogger;
 }
 
-type ReviewApplyStrategy = (
-  store: DatabaseStore,
-  item: ReviewQueueItem,
-  reviewer: string,
-  options: Required<ReviewApplyOptions>
-) => Promise<ReviewApplyResult | undefined>;
+type ReviewApplyStrategy = (store: DatabaseStore, item: ReviewQueueItem, reviewer: string, options: Required<ReviewApplyOptions>) => Promise<ReviewApplyResult>;
 
-const reviewApplyStrategies: readonly ReviewApplyStrategy[] = [
-  applyEntityReviewStrategy,
-  applySupplierListReviewStrategy,
-  applySemanticChangeReviewStrategy,
-  applyOshFacilityReviewStrategy,
-  applyClaimConflictReviewStrategy,
-  applyOfficialDisclosureSignalReviewStrategy
-];
+type ReviewApplyStrategyRegistry = { readonly [K in ReviewCandidateKind]: ReviewApplyStrategy };
+
+const reviewApplyStrategies: ReviewApplyStrategyRegistry = {
+  entity_source_candidate: applyEntityReviewStrategy,
+  supplier_list_row: applySupplierListReviewStrategy,
+  semantic_change: applySemanticChangeReviewStrategy,
+  osh_facility_candidate: applyOshFacilityReviewStrategy,
+  claim_conflict_review: applyClaimConflictReviewStrategy,
+  official_disclosure_signal: applyOfficialDisclosureSignalReviewStrategy
+};
 
 export async function applyApprovedReviewCandidate(
   store: DatabaseStore,
@@ -107,12 +101,13 @@ export async function applyApprovedReviewCandidate(
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
   if (!canApplyReviewItem(item))
     return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };
-
-  for (const strategy of reviewApplyStrategies) {
-    const result = await strategy(store, item, reviewer, { logger });
-    if (result !== undefined) return result;
+  if (item.kind !== item.candidate.kind) {
+    return store.transaction((client) =>
+      blockReviewCandidate(client, reviewId, `review candidate kind mismatch: row=${item.kind}, payload=${item.candidate.kind}`)
+    );
   }
-  return store.transaction((client) => blockReviewCandidate(client, reviewId, `unsupported review candidate kind: ${item.kind}`));
+
+  return reviewApplyStrategies[item.kind](store, item, reviewer, { logger });
 }
 
 function canApplyReviewItem(item: ReviewQueueItem): boolean {
@@ -120,10 +115,11 @@ function canApplyReviewItem(item: ReviewQueueItem): boolean {
   return item.status === "approved" || item.status === "blocked" || (item.status === "in_review" && item.reviewed_at !== undefined);
 }
 
-async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
-  if (!isEntitySourceReviewCandidate(item.candidate)) {
-    return store.transaction((client) => blockReviewCandidate(client, item.review_id, `unsupported entity review candidate kind: ${item.kind}`));
-  }
+async function applyEntityReviewCandidate(
+  store: DatabaseStore,
+  item: ReviewItemByKind<"entity_source_candidate">,
+  reviewer: string
+): Promise<ReviewApplyResult> {
   const candidate = item.candidate;
   return store.transaction(async (client) => {
     const importResult = await applyEntitySourceReviewCandidate(client, candidate, reviewer);
@@ -133,8 +129,8 @@ async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueu
   });
 }
 
-async function applyEntityReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult | undefined> {
-  if (!isEntitySourceReviewCandidate(item.candidate)) return undefined;
+async function applyEntityReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
+  assertReviewItemKind(item, "entity_source_candidate");
   return applyEntityReviewCandidate(store, item, reviewer);
 }
 
@@ -143,13 +139,13 @@ async function applySupplierListReviewStrategy(
   item: ReviewQueueItem,
   reviewer: string,
   options: Required<ReviewApplyOptions>
-): Promise<ReviewApplyResult | undefined> {
-  if (!isSupplierListReviewCandidate(item.candidate)) return undefined;
-  return applySupplierListReviewCandidate(store, { ...item, candidate: item.candidate }, reviewer, options);
+): Promise<ReviewApplyResult> {
+  assertReviewItemKind(item, "supplier_list_row");
+  return applySupplierListReviewCandidate(store, item, reviewer, options);
 }
 
-async function applySemanticChangeReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult | undefined> {
-  if (!isSemanticChangeReviewCandidate(item.candidate)) return undefined;
+async function applySemanticChangeReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
+  assertReviewItemKind(item, "semantic_change");
   const candidate = item.candidate;
   return store.transaction(async (client) => {
     const draft = await upsertSemanticChangeClaimDraft(client, candidate, {
@@ -162,8 +158,8 @@ async function applySemanticChangeReviewStrategy(store: DatabaseStore, item: Rev
   });
 }
 
-async function applyOshFacilityReviewStrategy(store: DatabaseStore, item: ReviewQueueItem): Promise<ReviewApplyResult | undefined> {
-  if (!isOshFacilityReviewCandidate(item.candidate)) return undefined;
+async function applyOshFacilityReviewStrategy(store: DatabaseStore, item: ReviewQueueItem): Promise<ReviewApplyResult> {
+  assertReviewItemKind(item, "osh_facility_candidate");
   const candidate = item.candidate;
   return store.transaction(async (client) => {
     const sourceLeadId = candidate.payload.source_lead_id;
@@ -190,8 +186,8 @@ async function applyOshFacilityReviewStrategy(store: DatabaseStore, item: Review
   });
 }
 
-async function applyClaimConflictReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult | undefined> {
-  if (!isClaimConflictReviewCandidate(item.candidate)) return undefined;
+async function applyClaimConflictReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
+  assertReviewItemKind(item, "claim_conflict_review");
   const candidate = item.candidate;
   return store.transaction(async (client) => {
     const reason = `acknowledged claim conflict review for ${candidate.payload.claim_id}; no fact edge or claim status is changed by design`;
@@ -225,12 +221,8 @@ async function applyClaimConflictReviewStrategy(store: DatabaseStore, item: Revi
   });
 }
 
-async function applyOfficialDisclosureSignalReviewStrategy(
-  store: DatabaseStore,
-  item: ReviewQueueItem,
-  reviewer: string
-): Promise<ReviewApplyResult | undefined> {
-  if (!isOfficialDisclosureSignalReviewCandidate(item.candidate)) return undefined;
+async function applyOfficialDisclosureSignalReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
+  assertReviewItemKind(item, "official_disclosure_signal");
   const candidate = item.candidate;
   return store.transaction(async (client) => {
     const reason = `acknowledged official disclosure signal ${candidate.payload.signal_title}; no fact edge is applied by design`;
@@ -258,6 +250,11 @@ async function applyOfficialDisclosureSignalReviewStrategy(
       reason
     };
   });
+}
+
+function assertReviewItemKind<K extends ReviewCandidateKind>(item: ReviewQueueItem, kind: K): asserts item is ReviewItemByKind<K> {
+  if (item.kind === kind && item.candidate.kind === kind) return;
+  throw new Error(`Review apply strategy received ${item.kind}/${item.candidate.kind}, expected ${kind}`);
 }
 
 async function applySupplierListReviewCandidate(

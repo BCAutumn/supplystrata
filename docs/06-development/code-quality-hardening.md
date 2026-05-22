@@ -111,6 +111,7 @@
 [x] claim-builder 的 claim refresh、semantic change draft、contradicting evidence、conflict review 和 lifecycle 写入口收紧到 `DbTxClient`；普通调用方应使用 `*Transactionally()` 包装，避免在类型层面把普通连接误传给多写入链路。
 [x] review-store 的 enqueue / claim / decide / apply / block / official signal disposition 写入口收紧到 `DbTxClient`，CLI 与 integration 入口改用 transactionally 包装；只读查询继续接受 `DbClient`。
 [x] risk / alert 派生写路径收紧到 `DbTxClient`：`replaceRiskView()`、component risk / observation anomaly / financial peer refresh、`upsertAlertCandidate()` 与 alert refresh 必须在事务客户端内运行，避免 risk view metric replacement 或批量 alert upsert 半写。
+[x] review apply 分发由顺序 type-guard 分支收敛成 `ReviewCandidateKind` 策略注册表；行 kind 与 payload kind 不一致时显式 block，避免错误策略误写事实边或状态。
 [x] candidate relation citation 校验下沉到 core 纯函数；pipeline 与 source preview 复用同一规则，避免 preview 为了轻量入口继续反向依赖 pipeline。
 [x] source-workflows 的 Census / OSH / Apple / World Bank Pink / SEC facts 监控写入改为使用本包 `saved-document-observation` 窄适配层，直接调用 source-monitor 的事务内 observation 入口，不再为了记录文档变化依赖 pipeline helper。
 [x] CLI 公共入口按 runtime / parse / output 拆分；`cli-utils.ts` 只保留兼容 re-export，数据库生命周期、参数解析和输出错误格式化不再混在同一文件里。

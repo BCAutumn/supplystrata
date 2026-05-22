@@ -49,11 +49,27 @@ describe("review apply", () => {
     expect(store.calls.some((call) => call.sql.includes("UPDATE claims"))).toBe(false);
     expect(store.calls.some((call) => call.sql.includes("UPDATE unknown_items"))).toBe(false);
   });
+
+  it("blocks review rows whose stored kind does not match the candidate payload kind", async () => {
+    const store = new ReviewApplyDbStore();
+
+    const result = await applyApprovedReviewCandidate(store, "REV-KIND-MISMATCH", "analyst");
+
+    expect(result).toEqual({
+      status: "blocked",
+      review_id: "REV-KIND-MISMATCH",
+      reason: "review candidate kind mismatch: row=semantic_change, payload=claim_conflict_review"
+    });
+    expect(store.calls.some((call) => call.sql.includes("UPDATE review_candidates") && call.sql.includes("status = 'blocked'"))).toBe(true);
+    expect(store.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("CLAIM_CONFLICT_REVIEW_APPLIED"))).toBe(false);
+  });
 });
 
 function rowsForReviewApply<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
   if (sql.includes("FROM review_candidates") || sql.includes("UPDATE review_candidates")) {
-    return [reviewCandidateRow(String(params[0] ?? "REV-CLAIM-CONFLICT"))] as unknown as T[];
+    const reviewId = String(params[0] ?? "REV-CLAIM-CONFLICT");
+    if (reviewId === "REV-KIND-MISMATCH") return [reviewCandidateKindMismatchRow(reviewId)] as unknown as T[];
+    return [reviewCandidateRow(reviewId)] as unknown as T[];
   }
   return [];
 }
@@ -94,6 +110,13 @@ function reviewCandidateRow(reviewId: string): pg.QueryResultRow {
     reviewed_at: new Date("2026-05-20T00:00:00.000Z"),
     decision_reason: "reviewed conflict",
     created_at: new Date("2026-05-20T00:00:00.000Z")
+  };
+}
+
+function reviewCandidateKindMismatchRow(reviewId: string): pg.QueryResultRow {
+  return {
+    ...reviewCandidateRow(reviewId),
+    kind: "semantic_change"
   };
 }
 
