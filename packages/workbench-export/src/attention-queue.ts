@@ -1,5 +1,5 @@
 import type { AlertCandidateRecord, AlertSeverity, ChangeTimelineItem } from "@supplystrata/db";
-import type { WorkbenchAttentionItem, WorkbenchAttentionPriority, WorkbenchClaim, WorkbenchSourceHealth } from "./index.js";
+import type { WorkbenchAttentionItem, WorkbenchAttentionPriority, WorkbenchClaim, WorkbenchSourceHealth } from "./definitions.js";
 
 export function buildWorkbenchAttentionQueue(input: {
   claims: readonly WorkbenchClaim[];

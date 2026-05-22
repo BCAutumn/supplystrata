@@ -1,10 +1,4 @@
-import {
-  buildClaimConflictContext,
-  type ClaimConflictAdjudication,
-  type ClaimConflictReviewPacket,
-  type ClaimConflictAdjudicationState,
-  type ClaimConflictRecommendedAction
-} from "@supplystrata/claim-builder";
+import { buildClaimConflictContext } from "@supplystrata/claim-builder";
 import {
   getClaim,
   getEvidence,
@@ -19,7 +13,6 @@ import {
   listEvidenceForEdges,
   listUnknownItems,
   resolveEntityId,
-  type ChangeTimelineItem,
   type ClaimEvidenceRole,
   type ClaimUnknownRole,
   type DbClient
@@ -27,289 +20,64 @@ import {
 import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-view";
 import { buildCompanyChainView } from "@supplystrata/chain-view-builder";
 import { listSourceHealthRows } from "@supplystrata/source-monitor";
-import { planSourcesForComponents, type SourcePlanItem } from "@supplystrata/source-plan";
+import { planSourcesForComponents } from "@supplystrata/source-plan";
 import {
   RELATION_TYPES,
   type ClaimType,
   type EdgeValidity,
-  type EdgeFreshnessDecayModel,
   type EdgeFreshnessRecord,
   type EdgeStrengthEstimateRecord,
-  type EdgeStrengthKind,
   type EvidenceLevel,
   type ExtractionMethod,
   type RelationType
 } from "@supplystrata/core";
 export { buildWorkbenchAttentionQueue } from "./attention-queue.js";
 import { buildWorkbenchAttentionQueue } from "./attention-queue.js";
-
-export interface WorkbenchExportInput {
-  company: string;
-  depth?: number;
-  since?: string;
-  changeLimit?: number;
-  sourceLimit?: number;
-  draftClaimLimit?: number;
-  lifecycleClaimLimit?: number;
-  reviewCandidateLimit?: number;
-  alertLimit?: number;
-  attentionLimit?: number;
-}
-
-export interface WorkbenchCompanyNode {
-  entity_id: string;
-  name: string;
-  role: "root" | "counterparty";
-}
-
-export interface WorkbenchEdge {
-  edge_id: string;
-  from_id: string;
-  from_name: string;
-  to_id: string;
-  to_name: string;
-  relation: RelationType;
-  component: string | null;
-  component_id: string | null;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  evidence_ids: string[];
-}
-
-export type WorkbenchClaimStatus = "draft" | "active" | "superseded" | "rejected";
-export type WorkbenchClaimConflictState = ClaimConflictAdjudicationState;
-export type WorkbenchClaimConflictRecommendedAction = ClaimConflictRecommendedAction;
-
-export interface WorkbenchClaimEvidenceRef {
-  evidence_id: string;
-  role: ClaimEvidenceRole;
-}
-
-export interface WorkbenchClaimUnknownRef {
-  unknown_id: string;
-  role: ClaimUnknownRole;
-  status: string;
-}
-
-export interface WorkbenchClaim {
-  claim_id: string;
-  claim_type: ClaimType;
-  claim_text: string;
-  subject_id: string | null;
-  object_id: string | null;
-  component_id: string | null;
-  edge_id: string | null;
-  edge_validity: EdgeValidity | null;
-  edge_deprecated_reason: string | null;
-  edge_superseded_by_edge_id: string | null;
-  review_id: string | null;
-  status: WorkbenchClaimStatus;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  generated_by: string;
-  last_verified_at: string;
-  created_at: string;
-  updated_at: string;
-  evidence_refs: WorkbenchClaimEvidenceRef[];
-  unknown_refs: WorkbenchClaimUnknownRef[];
-  conflict_state: WorkbenchClaimConflictState;
-  conflict_adjudication: ClaimConflictAdjudication;
-  conflict_review: ClaimConflictReviewPacket;
-  lifecycle_warnings: WorkbenchClaimLifecycleWarning[];
-}
-
-export interface WorkbenchClaimLifecycleWarning {
-  code: "active_claim_on_inactive_edge";
-  severity: "warn";
-  message: string;
-}
-
-export interface WorkbenchEvidence {
-  evidence_id: string;
-  edge_id: string | null;
-  superseded_by: string | null;
-  cite_text: string;
-  cite_locator: string | null;
-  cite_start_char: number | null;
-  cite_end_char: number | null;
-  cite_text_sha256: string | null;
-  normalized_cite_text_sha256: string | null;
-  source_snapshot_sha256: string | null;
-  parser_version: string | null;
-  extractor_version: string | null;
-  relation_candidate_hash: string | null;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  extraction_method: ExtractionMethod;
-  source_url: string;
-  source_date: string | null;
-  fetched_at: string;
-  source_adapter_id: string;
-  document_type: string;
-  subject_name: string | null;
-  object_name: string | null;
-  relation: RelationType | null;
-}
-
-export interface WorkbenchUnknownItem {
-  unknown_id: string;
-  scope_kind: string;
-  scope_id: string;
-  question: string;
-  why_unknown: string;
-  blocking_data_sources: string[];
-  proxies: string[];
-  status: string;
-}
-
-export interface WorkbenchSourceHealth {
-  source_adapter_id: string;
-  tier: string;
-  category: string;
-  registry_status: string;
-  automation: string;
-  tos_url: string;
-  official_url: string;
-  requires_key: boolean;
-  last_checked_at: string | null;
-  last_success_at: string | null;
-  last_failure_at: string | null;
-  failure_count: number;
-  last_change_at: string | null;
-  last_error_message: string | null;
-  policy_enabled: boolean | null;
-  check_cadence_minutes: number | null;
-  jitter_minutes: number | null;
-  priority: number | null;
-  next_check_at: string | null;
-  policy_config_source: string | null;
-  policy_notes: string | null;
-}
-
-export type WorkbenchAttentionKind = "claim_conflict" | "claim_lifecycle" | "alert" | "source_degraded" | "change_requires_attention";
-export type WorkbenchAttentionPriority = "P0" | "P1" | "P2" | "P3";
-export type WorkbenchAttentionStatus = "open" | "acknowledged" | "resolved" | "suppressed";
-
-export interface WorkbenchAttentionItem {
-  attention_id: string;
-  kind: WorkbenchAttentionKind;
-  priority: WorkbenchAttentionPriority;
-  status: WorkbenchAttentionStatus;
-  title: string;
-  summary: string;
-  action: string;
-  scope_kind: string;
-  scope_id: string;
-  refs: string[];
-  detected_at: string | null;
-}
-
-export interface WorkbenchEdgeStrength {
-  strength_id: string;
-  edge_id: string;
-  strength_kind: EdgeStrengthKind;
-  value: string | null;
-  lower_bound: string | null;
-  upper_bound: string | null;
-  unit: string | null;
-  evidence_id: string | null;
-  method: string;
-  valid_from: string | null;
-  valid_to: string | null;
-}
-
-export interface WorkbenchEdgeFreshness {
-  edge_id: string;
-  last_verified_at: string;
-  decay_model: EdgeFreshnessDecayModel;
-  age_days: number;
-  freshness_score: number;
-  computed_at: string;
-  source_evidence_id: string | null;
-}
-
-export interface WorkbenchIntelligenceContext {
-  edge_strengths: WorkbenchEdgeStrength[];
-  edge_freshness: WorkbenchEdgeFreshness[];
-}
-
-export type WorkbenchReviewCandidateStatus = "pending" | "in_review" | "approved" | "rejected" | "blocked" | "applied";
-
-export interface WorkbenchReviewCandidateSignal {
-  signal_title: string;
-  evidence_level_hint: number;
-  automatic_fact_mutation_allowed: boolean;
-}
-
-export type WorkbenchOfficialDisclosureSignalDispositionDecision =
-  | "supports_existing_edge"
-  | "needs_more_evidence"
-  | "not_relevant"
-  | "record_single_source_unknown"
-  | "create_counterparty_source_target";
-
-export interface WorkbenchOfficialDisclosureSignalDisposition {
-  change_id: string;
-  review_id: string;
-  edge_id: string;
-  decision: WorkbenchOfficialDisclosureSignalDispositionDecision;
-  reviewer: string;
-  reason: string;
-  source_adapter_id: string;
-  doc_id: string | null;
-  signal_title: string;
-  evidence_id: string | null;
-  unknown_id: string | null;
-  check_target_id: string | null;
-  recorded_at: string;
-  fact_write_policy: {
-    automatic_fact_mutation_allowed: false;
-    allowed_edge_mutation: "none";
-    requires_human_review: true;
-  };
-}
-
-export interface WorkbenchReviewCandidate {
-  review_id: string;
-  kind: string;
-  status: WorkbenchReviewCandidateStatus;
-  title: string;
-  confidence: number;
-  source_adapter_id: string;
-  doc_id: string | null;
-  source_url: string;
-  source_locator: string;
-  source_row_text: string;
-  created_at: string;
-  reviewed_at: string | null;
-  decision_reason: string | null;
-  signal: WorkbenchReviewCandidateSignal | null;
-  dispositions: WorkbenchOfficialDisclosureSignalDisposition[];
-}
-
-export interface WorkbenchModel {
-  schema_version: "1.0.0";
-  generated_at: string;
-  selected_company_id: string;
-  companies: WorkbenchCompanyNode[];
-  chain: ChainViewModel;
-  chain_segments: ChainViewSegmentModel[];
-  edges: WorkbenchEdge[];
-  upstream_edges: WorkbenchEdge[];
-  downstream_edges: WorkbenchEdge[];
-  claims: WorkbenchClaim[];
-  draft_claims: WorkbenchClaim[];
-  evidences: WorkbenchEvidence[];
-  unknown_items: WorkbenchUnknownItem[];
-  sources: WorkbenchSourceHealth[];
-  source_plan: SourcePlanItem[];
-  changes: ChangeTimelineItem[];
-  attention_queue: WorkbenchAttentionItem[];
-  review_queue: WorkbenchReviewCandidate[];
-  intelligence: WorkbenchIntelligenceContext;
-}
+export type {
+  WorkbenchAttentionItem,
+  WorkbenchAttentionKind,
+  WorkbenchAttentionPriority,
+  WorkbenchAttentionStatus,
+  WorkbenchClaimConflictRecommendedAction,
+  WorkbenchClaimConflictState,
+  WorkbenchClaimEvidenceRef,
+  WorkbenchClaimLifecycleWarning,
+  WorkbenchClaimStatus,
+  WorkbenchClaimUnknownRef,
+  WorkbenchCompanyNode,
+  WorkbenchEdge,
+  WorkbenchEdgeFreshness,
+  WorkbenchEdgeStrength,
+  WorkbenchEvidence,
+  WorkbenchExportInput,
+  WorkbenchIntelligenceContext,
+  WorkbenchModel,
+  WorkbenchOfficialDisclosureSignalDisposition,
+  WorkbenchOfficialDisclosureSignalDispositionDecision,
+  WorkbenchReviewCandidate,
+  WorkbenchReviewCandidateSignal,
+  WorkbenchReviewCandidateStatus,
+  WorkbenchSourceHealth,
+  WorkbenchUnknownItem
+} from "./definitions.js";
+import type {
+  WorkbenchClaim,
+  WorkbenchClaimEvidenceRef,
+  WorkbenchClaimLifecycleWarning,
+  WorkbenchClaimStatus,
+  WorkbenchClaimUnknownRef,
+  WorkbenchCompanyNode,
+  WorkbenchEdge,
+  WorkbenchEdgeFreshness,
+  WorkbenchEdgeStrength,
+  WorkbenchEvidence,
+  WorkbenchExportInput,
+  WorkbenchIntelligenceContext,
+  WorkbenchModel,
+  WorkbenchSourceHealth,
+  WorkbenchUnknownItem
+} from "./definitions.js";
+import { loadWorkbenchReviewQueue, reviewQueueSourceAdapterIds } from "./review-queue.js";
 
 export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExportInput): Promise<WorkbenchModel> {
   const generatedAt = new Date().toISOString();
@@ -606,212 +374,6 @@ interface SourceHealthDbShape {
   next_check_at: Date | string | null;
   policy_config_source: string | null;
   policy_notes: string | null;
-}
-
-interface ReviewCandidateDbShape {
-  review_id: string;
-  kind: string;
-  status: WorkbenchReviewCandidateStatus;
-  title: string | null;
-  confidence: string | null;
-  source_adapter_id: string;
-  doc_id: string | null;
-  source_url: string | null;
-  source_locator: string | null;
-  source_row_text: string | null;
-  signal_title: string | null;
-  signal_evidence_level_hint: string | null;
-  signal_automatic_fact_mutation_allowed: string | null;
-  reviewed_at: Date | string | null;
-  decision_reason: string | null;
-  created_at: Date | string;
-}
-
-async function loadWorkbenchReviewQueue(client: DbClient, input: { sourceAdapterIds: readonly string[]; limit: number }): Promise<WorkbenchReviewCandidate[]> {
-  const sourceAdapterIds = uniqueStrings(input.sourceAdapterIds);
-  if (sourceAdapterIds.length === 0) return [];
-  const result = await client.query<ReviewCandidateDbShape>(
-    `SELECT review_id,
-            kind,
-            status,
-            candidate->>'title' AS title,
-            candidate->>'confidence' AS confidence,
-            source_adapter_id,
-            doc_id,
-            candidate #>> '{evidence,source_url}' AS source_url,
-            candidate #>> '{evidence,source_locator}' AS source_locator,
-            candidate #>> '{evidence,source_row_text}' AS source_row_text,
-            candidate #>> '{payload,signal_title}' AS signal_title,
-            candidate #>> '{payload,evidence_level_hint}' AS signal_evidence_level_hint,
-            candidate #>> '{payload,fact_write_policy,automatic_fact_mutation_allowed}' AS signal_automatic_fact_mutation_allowed,
-            reviewed_at,
-            decision_reason,
-            created_at
-     FROM review_candidates
-     WHERE source_adapter_id = ANY($1::text[])
-       AND status IN ('pending','in_review','approved','blocked')
-     ORDER BY CASE WHEN kind = 'official_disclosure_signal' THEN 0 ELSE 1 END, created_at DESC, review_id
-     LIMIT $2`,
-    [sourceAdapterIds, input.limit]
-  );
-  const candidates = result.rows.map(reviewCandidateToDto);
-  const dispositions = await loadOfficialDisclosureSignalDispositions(client, {
-    reviewIds: candidates.filter((candidate) => candidate.kind === "official_disclosure_signal").map((candidate) => candidate.review_id)
-  });
-  const dispositionsByReviewId = groupDispositionsByReviewId(dispositions);
-  return candidates.map((candidate) => ({
-    ...candidate,
-    dispositions: dispositionsByReviewId.get(candidate.review_id) ?? []
-  }));
-}
-
-interface OfficialSignalDispositionDbShape {
-  change_id: string;
-  review_id: string;
-  after: Record<string, unknown> | null;
-  caused_by: string;
-  detected_at: Date | string;
-}
-
-async function loadOfficialDisclosureSignalDispositions(
-  client: DbClient,
-  input: { reviewIds: readonly string[] }
-): Promise<WorkbenchOfficialDisclosureSignalDisposition[]> {
-  const reviewIds = uniqueStrings(input.reviewIds);
-  if (reviewIds.length === 0) return [];
-  const result = await client.query<OfficialSignalDispositionDbShape>(
-    `SELECT change_id, scope_id AS review_id, after, caused_by, detected_at
-     FROM change_records
-     WHERE change_type = 'OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'
-       AND scope_kind = 'review'
-       AND scope_id = ANY($1::text[])
-     ORDER BY detected_at DESC, change_id DESC`,
-    [reviewIds]
-  );
-  return result.rows.map(officialSignalDispositionToDto);
-}
-
-function officialSignalDispositionToDto(row: OfficialSignalDispositionDbShape): WorkbenchOfficialDisclosureSignalDisposition {
-  const after = row.after;
-  if (after === null) throw new Error(`Official signal disposition change is missing payload: ${row.change_id}`);
-  const policy = recordField(after, "fact_write_policy", row.change_id);
-  if (policy["automatic_fact_mutation_allowed"] !== false || policy["allowed_edge_mutation"] !== "none" || policy["requires_human_review"] !== true)
-    throw new Error(`Official signal disposition cannot authorize fact mutation: ${row.change_id}`);
-  return {
-    change_id: row.change_id,
-    review_id: textField(after, "review_id", row.review_id),
-    edge_id: textField(after, "edge_id", row.review_id),
-    decision: dispositionDecision(textField(after, "decision", row.review_id), row.change_id),
-    reviewer: textField(after, "reviewer", row.caused_by),
-    reason: textField(after, "reason", row.change_id),
-    source_adapter_id: textField(after, "source_adapter_id", row.change_id),
-    doc_id: nullableTextField(after, "doc_id", row.change_id),
-    signal_title: textField(after, "signal_title", row.change_id),
-    evidence_id: nullableTextField(after, "evidence_id", row.change_id),
-    unknown_id: nullableTextField(after, "unknown_id", row.change_id),
-    check_target_id: nullableTextField(after, "check_target_id", row.change_id),
-    recorded_at: textField(after, "recorded_at", toIsoString(row.detected_at)),
-    fact_write_policy: {
-      automatic_fact_mutation_allowed: false,
-      allowed_edge_mutation: "none",
-      requires_human_review: true
-    }
-  };
-}
-
-function dispositionDecision(value: string, changeId: string): WorkbenchOfficialDisclosureSignalDispositionDecision {
-  if (
-    value === "supports_existing_edge" ||
-    value === "needs_more_evidence" ||
-    value === "not_relevant" ||
-    value === "record_single_source_unknown" ||
-    value === "create_counterparty_source_target"
-  ) {
-    return value;
-  }
-  throw new Error(`Invalid official signal disposition decision for ${changeId}: ${value}`);
-}
-
-function recordField(record: Record<string, unknown>, key: string, context: string): Record<string, unknown> {
-  const value = record[key];
-  if (!isRecord(value)) throw new Error(`Expected object field ${key} in ${context}`);
-  return value;
-}
-
-function textField(record: Record<string, unknown>, key: string, context: string): string {
-  const value = record[key];
-  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`Expected non-empty string field ${key} in ${context}`);
-  return value;
-}
-
-function nullableTextField(record: Record<string, unknown>, key: string, context: string): string | null {
-  const value = record[key];
-  if (value === null || value === undefined) return null;
-  if (typeof value !== "string") throw new Error(`Expected nullable string field ${key} in ${context}`);
-  return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function reviewCandidateToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandidate {
-  return {
-    review_id: row.review_id,
-    kind: row.kind,
-    status: row.status,
-    title: requiredText(row.title, row.review_id, "title"),
-    confidence: parseReviewCandidateNumber(row.confidence, row.review_id, "confidence"),
-    source_adapter_id: row.source_adapter_id,
-    doc_id: row.doc_id,
-    source_url: requiredText(row.source_url, row.review_id, "source_url"),
-    source_locator: requiredText(row.source_locator, row.review_id, "source_locator"),
-    source_row_text: requiredText(row.source_row_text, row.review_id, "source_row_text"),
-    created_at: toIsoString(row.created_at),
-    reviewed_at: toNullableIsoString(row.reviewed_at),
-    decision_reason: row.decision_reason,
-    signal: reviewCandidateSignalToDto(row),
-    dispositions: []
-  };
-}
-
-function reviewCandidateSignalToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandidateSignal | null {
-  if (row.kind !== "official_disclosure_signal") return null;
-  return {
-    signal_title: requiredText(row.signal_title, row.review_id, "signal_title"),
-    evidence_level_hint: parseReviewCandidateNumber(row.signal_evidence_level_hint, row.review_id, "evidence_level_hint"),
-    automatic_fact_mutation_allowed: row.signal_automatic_fact_mutation_allowed === "true"
-  };
-}
-
-function reviewQueueSourceAdapterIds(input: { evidences: readonly WorkbenchEvidence[]; sourcePlan: readonly SourcePlanItem[] }): string[] {
-  return uniqueStrings([
-    ...input.evidences.map((evidence) => evidence.source_adapter_id),
-    ...input.sourcePlan.map((item) => item.source_id),
-    ...input.sourcePlan.flatMap((item) => item.suggested_check_targets.map((target) => target.source_adapter_id))
-  ]);
-}
-
-function requiredText(value: string | null, reviewId: string, field: string): string {
-  if (value === null || value.trim().length === 0) throw new Error(`Review candidate ${reviewId} is missing ${field}`);
-  return value;
-}
-
-function parseReviewCandidateNumber(value: string | null, reviewId: string, field: string): number {
-  const parsed = value === null ? Number.NaN : Number.parseFloat(value);
-  if (!Number.isFinite(parsed)) throw new Error(`Review candidate ${reviewId} has invalid ${field}`);
-  return parsed;
-}
-
-function groupDispositionsByReviewId(
-  dispositions: readonly WorkbenchOfficialDisclosureSignalDisposition[]
-): Map<string, WorkbenchOfficialDisclosureSignalDisposition[]> {
-  const byId = new Map<string, WorkbenchOfficialDisclosureSignalDisposition[]>();
-  for (const disposition of dispositions) {
-    const existing = byId.get(disposition.review_id) ?? [];
-    byId.set(disposition.review_id, [...existing, disposition]);
-  }
-  return byId;
 }
 
 async function claimToDto(client: DbClient, row: ClaimDbShape): Promise<WorkbenchClaim> {

@@ -1,4 +1,4 @@
-import type { WorkbenchModel } from "./index.js";
+import type { WorkbenchModel } from "./definitions.js";
 import { EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS } from "@supplystrata/core";
 
 export function parseWorkbenchModel(text: string): WorkbenchModel {
