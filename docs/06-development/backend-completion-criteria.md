@@ -155,6 +155,8 @@ Gate 1 的 core node 指标按目标节点中已有 fact/source-plan/target/obse
 
 DB-backed source-check 现在会在保存 TSMC / Samsung / SK hynix / Micron / ASML 等官方披露文档后，按确定性 `signal-extractor` 规则把可引用的供应链、产能、需求或技术路线信号写入 `review_candidates(kind='official_disclosure_signal')`。这解决的是“官方文档已经跑进监控，但还没形成 fact edge / observation 时，研究员下一步看什么”的问题；它不会抽 counterparty 边、不会自动生成 claim，也不会把 signal 当成二源 corroboration。approved 后的 `review apply` 只 acknowledge 并写 `OFFICIAL_DISCLOSURE_SIGNAL_REVIEW_APPLIED` / `REVIEW_APPLIED` 审计事件。
 
+Workbench / research-pack 已把相关 review queue 摘要纳入只读输出：`WorkbenchModel.review_queue` 会导出当前研究包 evidence/source-plan 相关 source adapter 下的 open review candidates，`official-disclosure-readiness` 会单独汇总 `official_disclosure_signal` 数量和明细。这个指标只表示“已有官方信号待复核”，不能提升 Gate 1 data progress、不能替代 L4/L5 fact edge，也不能把 signal 自动关联到某条边作为 corroboration。
+
 参考官方源：
 
 - SEC EDGAR 官方检索与 API 入口：<https://www.sec.gov/search-filings>

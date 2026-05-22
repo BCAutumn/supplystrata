@@ -182,6 +182,28 @@ function validWorkbenchModel(): Record<string, unknown> & { evidences: Record<st
         requires_attention: false
       }
     ],
+    review_queue: [
+      {
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        kind: "official_disclosure_signal",
+        status: "pending",
+        title: "Official disclosure signal: TSMC links demand to AI and HPC",
+        confidence: 0.84,
+        source_adapter_id: "tsmc-ir",
+        doc_id: "DOC-TSMC-IR",
+        source_url: "https://investor.tsmc.com/fixture",
+        source_locator: "page 4",
+        source_row_text: "TSMC observed AI and HPC demand across customer products.",
+        created_at: "2026-01-01T00:00:00.000Z",
+        reviewed_at: null,
+        decision_reason: null,
+        signal: {
+          signal_title: "TSMC links demand to AI and HPC",
+          evidence_level_hint: 4,
+          automatic_fact_mutation_allowed: false
+        }
+      }
+    ],
     intelligence: {
       edge_strengths: [
         {

@@ -46,6 +46,7 @@ const SOURCE_RELATION_POLICIES = ["can_create_fact_edge", "observation_only", "l
 const ATTENTION_KINDS = ["claim_conflict", "claim_lifecycle", "alert", "source_degraded", "change_requires_attention"] as const;
 const ATTENTION_PRIORITIES = ["P0", "P1", "P2", "P3"] as const;
 const ATTENTION_STATUSES = ["open", "acknowledged", "resolved", "suppressed"] as const;
+const REVIEW_CANDIDATE_STATUSES = ["pending", "in_review", "approved", "rejected", "blocked", "applied"] as const;
 
 function assertWorkbenchModel(value: unknown): asserts value is WorkbenchModel {
   const errors: string[] = [];
@@ -74,6 +75,7 @@ function validateWorkbenchModel(value: unknown, path: string, errors: string[]):
   validateArrayField(value, "source_plan", path, errors, validateSourcePlanItem);
   validateArrayField(value, "changes", path, errors, validateChange);
   validateArrayField(value, "attention_queue", path, errors, validateAttentionItem);
+  validateArrayField(value, "review_queue", path, errors, validateReviewCandidate);
   validateIntelligenceContext(value["intelligence"], `${path}.intelligence`, errors);
 }
 
@@ -83,6 +85,8 @@ function normalizeWorkbenchModelJson(value: unknown): void {
   if (value["draft_claims"] === undefined) value["draft_claims"] = [];
   // 旧版 Workbench 没有统一 attention queue；读取端统一补空数组以保持静态 snapshot 可重放。
   if (value["attention_queue"] === undefined) value["attention_queue"] = [];
+  // 旧版 Workbench 没有 review queue 摘要；读取端统一补空数组以保持静态 snapshot 可重放。
+  if (value["review_queue"] === undefined) value["review_queue"] = [];
   // 旧版 Workbench 没有关系强度和新鲜度上下文；前端用空对象维持稳定读取路径。
   if (value["intelligence"] === undefined) value["intelligence"] = { edge_strengths: [], edge_freshness: [] };
   normalizeUnknownArray(value["unknown_items"]);
@@ -437,6 +441,32 @@ function validateAttentionItem(value: unknown, path: string, errors: string[]): 
   expectString(value, "scope_id", path, errors);
   expectStringArray(value, "refs", path, errors);
   expectNullableString(value, "detected_at", path, errors);
+}
+
+function validateReviewCandidate(value: unknown, path: string, errors: string[]): void {
+  if (!isRecordAt(value, path, errors)) return;
+  expectString(value, "review_id", path, errors);
+  expectString(value, "kind", path, errors);
+  expectEnum(value, "status", REVIEW_CANDIDATE_STATUSES, path, errors);
+  expectString(value, "title", path, errors);
+  expectNumber(value, "confidence", path, errors);
+  expectString(value, "source_adapter_id", path, errors);
+  expectNullableString(value, "doc_id", path, errors);
+  expectString(value, "source_url", path, errors);
+  expectString(value, "source_locator", path, errors);
+  expectString(value, "source_row_text", path, errors);
+  expectString(value, "created_at", path, errors);
+  expectNullableString(value, "reviewed_at", path, errors);
+  expectNullableString(value, "decision_reason", path, errors);
+  const signal = value["signal"];
+  if (signal !== null) validateReviewCandidateSignal(signal, `${path}.signal`, errors);
+}
+
+function validateReviewCandidateSignal(value: unknown, path: string, errors: string[]): void {
+  if (!isRecordAt(value, path, errors)) return;
+  expectString(value, "signal_title", path, errors);
+  expectNumber(value, "evidence_level_hint", path, errors);
+  expectBoolean(value, "automatic_fact_mutation_allowed", path, errors);
 }
 
 function validateIntelligenceContext(value: unknown, path: string, errors: string[]): void {

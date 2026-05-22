@@ -53,6 +53,7 @@ export interface WorkbenchExportInput {
   sourceLimit?: number;
   draftClaimLimit?: number;
   lifecycleClaimLimit?: number;
+  reviewCandidateLimit?: number;
   alertLimit?: number;
   attentionLimit?: number;
 }
@@ -236,6 +237,31 @@ export interface WorkbenchIntelligenceContext {
   edge_freshness: WorkbenchEdgeFreshness[];
 }
 
+export type WorkbenchReviewCandidateStatus = "pending" | "in_review" | "approved" | "rejected" | "blocked" | "applied";
+
+export interface WorkbenchReviewCandidateSignal {
+  signal_title: string;
+  evidence_level_hint: number;
+  automatic_fact_mutation_allowed: boolean;
+}
+
+export interface WorkbenchReviewCandidate {
+  review_id: string;
+  kind: string;
+  status: WorkbenchReviewCandidateStatus;
+  title: string;
+  confidence: number;
+  source_adapter_id: string;
+  doc_id: string | null;
+  source_url: string;
+  source_locator: string;
+  source_row_text: string;
+  created_at: string;
+  reviewed_at: string | null;
+  decision_reason: string | null;
+  signal: WorkbenchReviewCandidateSignal | null;
+}
+
 export interface WorkbenchModel {
   schema_version: "1.0.0";
   generated_at: string;
@@ -254,6 +280,7 @@ export interface WorkbenchModel {
   source_plan: SourcePlanItem[];
   changes: ChangeTimelineItem[];
   attention_queue: WorkbenchAttentionItem[];
+  review_queue: WorkbenchReviewCandidate[];
   intelligence: WorkbenchIntelligenceContext;
 }
 
@@ -288,6 +315,10 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     entity_ids: [rootEntityId],
     maxTierDepth: input.depth ?? 2
   });
+  const reviewQueue = await loadWorkbenchReviewQueue(client, {
+    sourceAdapterIds: reviewQueueSourceAdapterIds({ evidences, sourcePlan }),
+    limit: input.reviewCandidateLimit ?? 50
+  });
   const changes = await listChangeTimeline(client, {
     since: input.since ?? defaultSince(30),
     limit: input.changeLimit ?? 50,
@@ -320,6 +351,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     source_plan: sourcePlan,
     changes,
     attention_queue: attentionQueue,
+    review_queue: reviewQueue,
     intelligence
   };
 }
@@ -547,6 +579,102 @@ interface SourceHealthDbShape {
   next_check_at: Date | string | null;
   policy_config_source: string | null;
   policy_notes: string | null;
+}
+
+interface ReviewCandidateDbShape {
+  review_id: string;
+  kind: string;
+  status: WorkbenchReviewCandidateStatus;
+  title: string | null;
+  confidence: string | null;
+  source_adapter_id: string;
+  doc_id: string | null;
+  source_url: string | null;
+  source_locator: string | null;
+  source_row_text: string | null;
+  signal_title: string | null;
+  signal_evidence_level_hint: string | null;
+  signal_automatic_fact_mutation_allowed: string | null;
+  reviewed_at: Date | string | null;
+  decision_reason: string | null;
+  created_at: Date | string;
+}
+
+async function loadWorkbenchReviewQueue(client: DbClient, input: { sourceAdapterIds: readonly string[]; limit: number }): Promise<WorkbenchReviewCandidate[]> {
+  const sourceAdapterIds = uniqueStrings(input.sourceAdapterIds);
+  if (sourceAdapterIds.length === 0) return [];
+  const result = await client.query<ReviewCandidateDbShape>(
+    `SELECT review_id,
+            kind,
+            status,
+            candidate->>'title' AS title,
+            candidate->>'confidence' AS confidence,
+            source_adapter_id,
+            doc_id,
+            candidate #>> '{evidence,source_url}' AS source_url,
+            candidate #>> '{evidence,source_locator}' AS source_locator,
+            candidate #>> '{evidence,source_row_text}' AS source_row_text,
+            candidate #>> '{payload,signal_title}' AS signal_title,
+            candidate #>> '{payload,evidence_level_hint}' AS signal_evidence_level_hint,
+            candidate #>> '{payload,fact_write_policy,automatic_fact_mutation_allowed}' AS signal_automatic_fact_mutation_allowed,
+            reviewed_at,
+            decision_reason,
+            created_at
+     FROM review_candidates
+     WHERE source_adapter_id = ANY($1::text[])
+       AND status IN ('pending','in_review','approved','blocked')
+     ORDER BY CASE WHEN kind = 'official_disclosure_signal' THEN 0 ELSE 1 END, created_at DESC, review_id
+     LIMIT $2`,
+    [sourceAdapterIds, input.limit]
+  );
+  return result.rows.map(reviewCandidateToDto);
+}
+
+function reviewCandidateToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandidate {
+  return {
+    review_id: row.review_id,
+    kind: row.kind,
+    status: row.status,
+    title: requiredText(row.title, row.review_id, "title"),
+    confidence: parseReviewCandidateNumber(row.confidence, row.review_id, "confidence"),
+    source_adapter_id: row.source_adapter_id,
+    doc_id: row.doc_id,
+    source_url: requiredText(row.source_url, row.review_id, "source_url"),
+    source_locator: requiredText(row.source_locator, row.review_id, "source_locator"),
+    source_row_text: requiredText(row.source_row_text, row.review_id, "source_row_text"),
+    created_at: toIsoString(row.created_at),
+    reviewed_at: toNullableIsoString(row.reviewed_at),
+    decision_reason: row.decision_reason,
+    signal: reviewCandidateSignalToDto(row)
+  };
+}
+
+function reviewCandidateSignalToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandidateSignal | null {
+  if (row.kind !== "official_disclosure_signal") return null;
+  return {
+    signal_title: requiredText(row.signal_title, row.review_id, "signal_title"),
+    evidence_level_hint: parseReviewCandidateNumber(row.signal_evidence_level_hint, row.review_id, "evidence_level_hint"),
+    automatic_fact_mutation_allowed: row.signal_automatic_fact_mutation_allowed === "true"
+  };
+}
+
+function reviewQueueSourceAdapterIds(input: { evidences: readonly WorkbenchEvidence[]; sourcePlan: readonly SourcePlanItem[] }): string[] {
+  return uniqueStrings([
+    ...input.evidences.map((evidence) => evidence.source_adapter_id),
+    ...input.sourcePlan.map((item) => item.source_id),
+    ...input.sourcePlan.flatMap((item) => item.suggested_check_targets.map((target) => target.source_adapter_id))
+  ]);
+}
+
+function requiredText(value: string | null, reviewId: string, field: string): string {
+  if (value === null || value.trim().length === 0) throw new Error(`Review candidate ${reviewId} is missing ${field}`);
+  return value;
+}
+
+function parseReviewCandidateNumber(value: string | null, reviewId: string, field: string): number {
+  const parsed = value === null ? Number.NaN : Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) throw new Error(`Review candidate ${reviewId} has invalid ${field}`);
+  return parsed;
 }
 
 async function claimToDto(client: DbClient, row: ClaimDbShape): Promise<WorkbenchClaim> {

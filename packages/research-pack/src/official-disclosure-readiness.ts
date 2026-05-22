@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import { buildSourceManagementCatalog } from "@supplystrata/source-management";
-import type { WorkbenchEdge, WorkbenchEvidence, WorkbenchModel, WorkbenchUnknownItem } from "@supplystrata/workbench-export";
+import type { WorkbenchEdge, WorkbenchEvidence, WorkbenchModel, WorkbenchReviewCandidate, WorkbenchUnknownItem } from "@supplystrata/workbench-export";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 
 export type OfficialDisclosureTraceabilityState = "complete" | "partial" | "missing";
@@ -58,6 +58,8 @@ export interface OfficialDisclosureReadinessSummary {
   due_official_targets: number;
   degraded_official_targets: number;
   official_targets_with_observations: number;
+  official_disclosure_signal_review_candidates: number;
+  open_official_disclosure_signal_review_candidates: number;
 }
 
 export interface OfficialDisclosureGateStatus {
@@ -294,6 +296,7 @@ export interface OfficialDisclosureReadinessReport {
   nodes: OfficialDisclosureReadinessNode[];
   profile_expansion_candidates: OfficialDisclosureProfileExpansionCandidate[];
   expected_source_coverage: OfficialDisclosureExpectedSourceCoverage[];
+  official_disclosure_signals: OfficialDisclosureSignalReviewSummary[];
   corroboration_queue: OfficialDisclosureCorroborationQueueItem[];
   edges: OfficialDisclosureReadinessEdge[];
   source_plan_items: OfficialDisclosureReadinessSourcePlanItem[];
@@ -303,13 +306,26 @@ export interface OfficialDisclosureReadinessReport {
 export interface OfficialDisclosureReadinessInput {
   generated_at: string;
   company_id: string;
-  workbench: Pick<WorkbenchModel, "companies" | "edges" | "evidences" | "unknown_items" | "intelligence">;
+  workbench: Pick<WorkbenchModel, "companies" | "edges" | "evidences" | "unknown_items" | "review_queue" | "intelligence">;
   component_ids: readonly string[];
   target_nodes?: readonly OfficialDisclosureReadinessTargetNode[];
   target_profile?: OfficialDisclosureReadinessProfile;
   source_plan?: readonly SourcePlanItem[];
   source_target_coverage?: SourceTargetCoverageReport;
   targets?: Partial<OfficialDisclosureReadinessTargets>;
+}
+
+export interface OfficialDisclosureSignalReviewSummary {
+  review_id: string;
+  status: string;
+  source_adapter_id: string;
+  doc_id: string | null;
+  signal_title: string;
+  evidence_level_hint: number;
+  confidence: number;
+  source_url: string;
+  source_locator: string;
+  cite_text: string;
 }
 
 const DEFAULT_TARGETS: OfficialDisclosureReadinessTargets = {
@@ -349,6 +365,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
   const strengthEdgeIds = new Set(input.workbench.intelligence.edge_strengths.map((strength) => strength.edge_id));
   const freshnessEdgeIds = new Set(input.workbench.intelligence.edge_freshness.map((freshness) => freshness.edge_id));
   const sourcePlanItems = summarizeOfficialSourcePlan(input.source_plan ?? [], input.source_target_coverage);
+  const officialDisclosureSignals = summarizeOfficialDisclosureSignals(input.workbench.review_queue);
   const unknownsByEdge = unknownsByReferencedEdge(
     input.workbench.unknown_items,
     input.workbench.edges.map((edge) => edge.edge_id)
@@ -379,7 +396,8 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     unknownItems: input.workbench.unknown_items.length,
     sourcePlanItems,
     expectedSourceCoverage,
-    corroborationQueue
+    corroborationQueue,
+    officialDisclosureSignals
   });
   const scorecard = gate1Scorecard({ targets, summary });
   const profileExpansionCandidates = buildProfileExpansionCandidates({
@@ -400,6 +418,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     nodes,
     profile_expansion_candidates: profileExpansionCandidates,
     expected_source_coverage: expectedSourceCoverage,
+    official_disclosure_signals: officialDisclosureSignals,
     corroboration_queue: corroborationQueue,
     edges,
     source_plan_items: sourcePlanItems,
@@ -441,6 +460,9 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
     `- Expected official source links: ${report.summary.expected_official_source_links_with_coverage}/${report.summary.expected_official_source_links} covered; ${report.summary.expected_official_source_links_runnable} runnable paths; ${report.summary.expected_official_source_links_connector_available} connector-only; ${report.summary.expected_official_source_links_unimplemented} unimplemented; ${report.summary.expected_official_source_links_missing} missing`,
     `- Runnable official targets: ${report.summary.runnable_official_targets}; synced ${report.summary.synced_official_targets}; due ${report.summary.due_official_targets}; degraded ${report.summary.degraded_official_targets}; with observations ${report.summary.official_targets_with_observations}`
   ];
+  lines.push(
+    `- Official disclosure review signals: ${report.summary.official_disclosure_signal_review_candidates} total; ${report.summary.open_official_disclosure_signal_review_candidates} open`
+  );
 
   lines.push("", "## Gate 1 scorecard", "");
   for (const criterion of report.scorecard.criteria) {
@@ -506,6 +528,20 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
         lines.push(`  Proposed unknown: ${item.proposed_unknown.unknown_id}`);
         lines.push(`  Unknown question: ${item.proposed_unknown.question}`);
       }
+    }
+  }
+
+  lines.push("", "## Official disclosure review signals", "");
+  if (report.official_disclosure_signals.length === 0) {
+    lines.push("No official disclosure signal review candidates are visible in this pack.");
+  } else {
+    for (const signal of report.official_disclosure_signals.slice(0, 40)) {
+      lines.push(`- ${signal.status} ${signal.review_id}: ${signal.signal_title}`);
+      lines.push(
+        `  Source: ${signal.source_adapter_id}; doc=${signal.doc_id ?? "unknown"}; L${signal.evidence_level_hint}; confidence=${signal.confidence.toFixed(2)}`
+      );
+      lines.push(`  Locator: ${signal.source_locator}`);
+      lines.push(`  Text: ${signal.cite_text}`);
     }
   }
 
@@ -672,6 +708,7 @@ function readinessSummary(input: {
   sourcePlanItems: readonly OfficialDisclosureReadinessSourcePlanItem[];
   expectedSourceCoverage: readonly OfficialDisclosureExpectedSourceCoverage[];
   corroborationQueue: readonly OfficialDisclosureCorroborationQueueItem[];
+  officialDisclosureSignals: readonly OfficialDisclosureSignalReviewSummary[];
 }): OfficialDisclosureReadinessSummary {
   const edgeCount = input.edges.length;
   const crossSourceEdges = input.edges.filter((edge) => edge.corroboration_state === "cross_source").length;
@@ -723,8 +760,37 @@ function readinessSummary(input: {
     synced_official_targets: sourceTargets.filter((target) => target.synced === true).length,
     due_official_targets: sourceTargets.filter((target) => target.state === "due").length,
     degraded_official_targets: sourceTargets.filter((target) => target.state === "degraded").length,
-    official_targets_with_observations: sourceTargets.filter((target) => (target.observations ?? 0) > 0).length
+    official_targets_with_observations: sourceTargets.filter((target) => (target.observations ?? 0) > 0).length,
+    official_disclosure_signal_review_candidates: input.officialDisclosureSignals.length,
+    open_official_disclosure_signal_review_candidates: input.officialDisclosureSignals.filter((signal) =>
+      ["pending", "in_review", "approved", "blocked"].includes(signal.status)
+    ).length
   };
+}
+
+function summarizeOfficialDisclosureSignals(reviewQueue: readonly WorkbenchReviewCandidate[]): OfficialDisclosureSignalReviewSummary[] {
+  return reviewQueue
+    .filter((candidate) => candidate.kind === "official_disclosure_signal" && candidate.signal !== null)
+    .map((candidate) => ({
+      review_id: candidate.review_id,
+      status: candidate.status,
+      source_adapter_id: candidate.source_adapter_id,
+      doc_id: candidate.doc_id,
+      signal_title: candidate.signal?.signal_title ?? "",
+      evidence_level_hint: candidate.signal?.evidence_level_hint ?? 0,
+      confidence: candidate.confidence,
+      source_url: candidate.source_url,
+      source_locator: candidate.source_locator,
+      cite_text: candidate.source_row_text
+    }))
+    .filter((signal) => signal.signal_title.length > 0 && signal.evidence_level_hint > 0)
+    .sort(compareOfficialDisclosureSignals);
+}
+
+function compareOfficialDisclosureSignals(left: OfficialDisclosureSignalReviewSummary, right: OfficialDisclosureSignalReviewSummary): number {
+  return (
+    left.status.localeCompare(right.status) || left.source_adapter_id.localeCompare(right.source_adapter_id) || left.review_id.localeCompare(right.review_id)
+  );
 }
 
 function gateStatuses(targets: OfficialDisclosureReadinessTargets, summary: OfficialDisclosureReadinessSummary): OfficialDisclosureGateStatus[] {

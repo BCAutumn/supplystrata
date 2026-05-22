@@ -10,16 +10,21 @@ interface QueryCall {
 }
 
 class WorkbenchDbClient implements DbClient {
-  private readonly options: { includeEdgeEvidence: boolean; includeDeprecatedClaim: boolean; includeAttentionSignals: boolean };
+  private readonly options: { includeEdgeEvidence: boolean; includeDeprecatedClaim: boolean; includeAttentionSignals: boolean; includeReviewSignals: boolean };
 
-  constructor(input: boolean | { includeEdgeEvidence?: boolean; includeDeprecatedClaim?: boolean; includeAttentionSignals?: boolean } = false) {
+  constructor(
+    input:
+      | boolean
+      | { includeEdgeEvidence?: boolean; includeDeprecatedClaim?: boolean; includeAttentionSignals?: boolean; includeReviewSignals?: boolean } = false
+  ) {
     this.options =
       typeof input === "boolean"
-        ? { includeEdgeEvidence: input, includeDeprecatedClaim: false, includeAttentionSignals: false }
+        ? { includeEdgeEvidence: input, includeDeprecatedClaim: false, includeAttentionSignals: false, includeReviewSignals: false }
         : {
             includeEdgeEvidence: input.includeEdgeEvidence ?? false,
             includeDeprecatedClaim: input.includeDeprecatedClaim ?? false,
-            includeAttentionSignals: input.includeAttentionSignals ?? false
+            includeAttentionSignals: input.includeAttentionSignals ?? false,
+            includeReviewSignals: input.includeReviewSignals ?? false
           };
   }
 
@@ -211,12 +216,32 @@ describe("workbench-export", () => {
     );
     expect(client.calls.some((call) => call.sql.includes("FROM alert_candidates"))).toBe(true);
   });
+
+  it("exports official disclosure review signals as read-only workbench context", async () => {
+    const client = new WorkbenchDbClient({ includeEdgeEvidence: true, includeReviewSignals: true });
+
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, reviewCandidateLimit: 10 });
+
+    expect(model.review_queue).toHaveLength(1);
+    expect(model.review_queue[0]).toMatchObject({
+      review_id: "REV-OFFICIAL-SIGNAL-1",
+      kind: "official_disclosure_signal",
+      status: "pending",
+      source_adapter_id: "tsmc-ir",
+      signal: {
+        signal_title: "TSMC links demand to AI and HPC",
+        evidence_level_hint: 4,
+        automatic_fact_mutation_allowed: false
+      }
+    });
+    expect(client.calls.some((call) => call.sql.includes("FROM review_candidates") && call.params[1] === 10)).toBe(true);
+  });
 });
 
 function rowsForWorkbench<T extends pg.QueryResultRow>(
   sql: string,
   params: readonly unknown[],
-  input: { includeEdgeEvidence: boolean; includeDeprecatedClaim: boolean; includeAttentionSignals: boolean }
+  input: { includeEdgeEvidence: boolean; includeDeprecatedClaim: boolean; includeAttentionSignals: boolean; includeReviewSignals: boolean }
 ): T[] {
   if (sql.includes("SELECT entity_id FROM entity_master")) {
     return [{ entity_id: "ENT-NVIDIA" }] as unknown as T[];
@@ -385,6 +410,29 @@ function rowsForWorkbench<T extends pg.QueryResultRow>(
         detected_at: new Date("2026-05-20T00:00:00.000Z"),
         provenance: {},
         attrs: {}
+      }
+    ] as unknown as T[];
+  }
+  if (input.includeReviewSignals && sql.includes("FROM review_candidates")) {
+    expect(params[0]).toContain("tsmc-ir");
+    return [
+      {
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        kind: "official_disclosure_signal",
+        status: "pending",
+        title: "Official disclosure signal: TSMC links demand to AI and HPC",
+        confidence: "0.84",
+        source_adapter_id: "tsmc-ir",
+        doc_id: "DOC-TSMC-IR",
+        source_url: "https://investor.tsmc.com/fixture",
+        source_locator: "page 4",
+        source_row_text: "TSMC observed AI and HPC demand across customer products.",
+        signal_title: "TSMC links demand to AI and HPC",
+        signal_evidence_level_hint: "4",
+        signal_automatic_fact_mutation_allowed: "false",
+        reviewed_at: null,
+        decision_reason: null,
+        created_at: new Date("2026-05-21T00:00:00.000Z")
       }
     ] as unknown as T[];
   }

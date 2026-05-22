@@ -128,6 +128,28 @@ describe("research-pack", () => {
       source_plan: [],
       changes: [],
       attention_queue: [],
+      review_queue: [
+        {
+          review_id: "REV-OFFICIAL-SIGNAL-1",
+          kind: "official_disclosure_signal",
+          status: "pending",
+          title: "Official disclosure signal: SK hynix links results to HBM demand",
+          confidence: 0.84,
+          source_adapter_id: "skhynix-ir",
+          doc_id: "DOC-SKHYNIX-IR",
+          source_url: "https://www.skhynix.com/ir/fixture",
+          source_locator: "page 3",
+          source_row_text: "SK hynix reported that HBM demand from AI customers remained strong.",
+          created_at: "2026-01-01T00:00:00.000Z",
+          reviewed_at: null,
+          decision_reason: null,
+          signal: {
+            signal_title: "SK hynix links results to HBM demand",
+            evidence_level_hint: 4,
+            automatic_fact_mutation_allowed: false
+          }
+        }
+      ],
       intelligence: {
         edge_strengths: [
           {
@@ -256,6 +278,9 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.observation_records).toBe(0);
     expect(pack.manifest.stats.observation_types_present).toBe(0);
     expect(pack.manifest.stats.official_disclosure_l4_l5_edges).toBe(1);
+    expect(pack.manifest.stats.review_candidates).toBe(1);
+    expect(pack.manifest.stats.official_disclosure_signal_review_candidates).toBe(1);
+    expect(pack.official_disclosure_readiness.official_disclosure_signals[0]?.review_id).toBe("REV-OFFICIAL-SIGNAL-1");
     expect(pack.manifest.stats.official_disclosure_traceable_edges).toBe(1);
     expect(pack.manifest.stats.official_disclosure_gate1_overall_progress).toBe(pack.official_disclosure_readiness.scorecard.overall_progress);
     expect(pack.manifest.stats.official_disclosure_corroboration_queue_items).toBe(pack.official_disclosure_readiness.summary.corroboration_queue_items);
@@ -1472,6 +1497,7 @@ function emptyWorkbench(): WorkbenchModel {
     source_plan: [],
     changes: [],
     attention_queue: [],
+    review_queue: [],
     intelligence: { edge_strengths: [], edge_freshness: [] }
   };
 }

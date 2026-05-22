@@ -118,6 +118,9 @@ export interface ResearchPackStats {
   contradicting_evidence_links: number;
   claim_lifecycle_warnings: number;
   attention_items: number;
+  review_candidates: number;
+  official_disclosure_signal_review_candidates: number;
+  open_official_disclosure_signal_review_candidates: number;
   evidences: number;
   unknown_items: number;
   source_plan_items: number;
@@ -888,6 +891,7 @@ function manifestFromModel(input: {
       contradicting_evidence_links: countContradictingEvidenceLinks(input.workbench),
       claim_lifecycle_warnings: countClaimLifecycleWarnings(input.workbench),
       attention_items: input.workbench.attention_queue.length,
+      review_candidates: input.workbench.review_queue.length,
       evidences: input.workbench.evidences.length,
       unknown_items: input.workbench.unknown_items.length,
       source_plan_items: input.sourcePlan.length,
@@ -979,6 +983,8 @@ function manifestFromModel(input: {
       official_disclosure_due_targets: input.officialDisclosureReadiness.summary.due_official_targets,
       official_disclosure_degraded_targets: input.officialDisclosureReadiness.summary.degraded_official_targets,
       official_disclosure_targets_with_observations: input.officialDisclosureReadiness.summary.official_targets_with_observations,
+      official_disclosure_signal_review_candidates: input.officialDisclosureReadiness.summary.official_disclosure_signal_review_candidates,
+      open_official_disclosure_signal_review_candidates: input.officialDisclosureReadiness.summary.open_official_disclosure_signal_review_candidates,
       official_disclosure_gate1_overall_progress: input.officialDisclosureReadiness.scorecard.overall_progress,
       official_disclosure_gate1_data_progress: input.officialDisclosureReadiness.scorecard.data_progress,
       official_disclosure_gate1_source_path_progress: input.officialDisclosureReadiness.scorecard.source_path_progress
@@ -1006,6 +1012,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Contradicting evidence links: ${pack.manifest.stats.contradicting_evidence_links}`,
     `- Claim lifecycle warnings: ${pack.manifest.stats.claim_lifecycle_warnings}`,
     `- Attention queue items: ${pack.manifest.stats.attention_items}`,
+    `- Review candidates: ${pack.manifest.stats.review_candidates}; official disclosure signals ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
     `- Evidence records: ${pack.manifest.stats.evidences}`,
     `- Unknown items: ${pack.manifest.stats.unknown_items}`,
     `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
@@ -1018,6 +1025,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
     `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,
     `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
+    `- Official disclosure review signals: ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
     `- Observation records: ${pack.manifest.stats.observation_records}`,
     `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
     `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
@@ -1071,6 +1079,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Contradicting evidence links: ${pack.manifest.stats.contradicting_evidence_links}`,
     `- Claim lifecycle warnings: ${pack.manifest.stats.claim_lifecycle_warnings}`,
     `- Attention queue items: ${pack.manifest.stats.attention_items}`,
+    `- Review candidates: ${pack.manifest.stats.review_candidates}; official disclosure signals ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
     `- Evidence records: ${pack.manifest.stats.evidences}`,
     `- Unknown items: ${pack.manifest.stats.unknown_items}`,
     `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
@@ -1083,6 +1092,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
     `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,
     `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
+    `- Official disclosure review signals: ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
     `- Observation records: ${pack.manifest.stats.observation_records}`,
     `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
     `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
