@@ -1,9 +1,6 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
-import type { GraphSyncMode } from "@supplystrata/graph-builder";
-import type { GraphStore } from "@supplystrata/graph-store";
 import { storeObservation } from "@supplystrata/observation-store";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
-import { runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
   optionalConfigPositiveInteger,
@@ -26,7 +23,6 @@ import {
   type SecEdgarFormType,
   type SecEdgarInput
 } from "@supplystrata/sources-sec-edgar";
-import { fetchAndParseSecEdgar } from "./source-documents.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { recordSavedDocumentObservation } from "./saved-document-observation.js";
 
@@ -81,39 +77,6 @@ export const secCompanyFactsSourceCheckConnector: SourceCheckConnector<DatabaseS
     });
   }
 };
-
-export async function runSecEdgarPipeline(
-  store: DatabaseStore,
-  input: SecEdgarInput,
-  options: { adapterContextInput: SourceCheckAdapterContextInput; graphSyncMode?: GraphSyncMode; graphStore?: GraphStore }
-): Promise<PipelineSummary> {
-  let fetched: Awaited<ReturnType<typeof fetchAndParseSecEdgar>>;
-  try {
-    fetched = await fetchAndParseSecEdgar(input, { adapterContextInput: options.adapterContextInput });
-  } catch (error) {
-    await store.transaction(async (client) => {
-      await recordSourceFailure(client, {
-        source_adapter_id: "sec-edgar",
-        error_message: messageFromUnknown(error),
-        caused_by: "pipeline.sec-edgar"
-      });
-    });
-    throw error;
-  }
-  return runSupplyChainPipelineFromNormalized(store, {
-    normalized: fetched.normalized,
-    fetchedUrl: fetched.raw.url,
-    ...(options.graphSyncMode === undefined ? {} : { graphSyncMode: options.graphSyncMode }),
-    ...(options.graphStore === undefined ? {} : { graphStore: options.graphStore })
-  });
-}
-
-export async function runDefaultNvidiaSlice(
-  store: DatabaseStore,
-  options: { adapterContextInput: SourceCheckAdapterContextInput; graphSyncMode?: GraphSyncMode; graphStore?: GraphStore }
-): Promise<PipelineSummary> {
-  return runSecEdgarPipeline(store, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, options);
-}
 
 export async function checkSecEdgarSource(store: DatabaseStore, input: SecEdgarInput, options: SourceCheckOptions): Promise<SourceCheckSummary[]> {
   const context = createAdapterContext(options.adapterContextInput);

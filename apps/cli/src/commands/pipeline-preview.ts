@@ -1,13 +1,15 @@
 import type { Command } from "commander";
 import { loadEnv } from "@supplystrata/config";
+import type { DatabaseStore } from "@supplystrata/db";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
+import { runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
+import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
+  fetchAndParseSecEdgar,
   previewAppleSuppliers,
   previewDefaultNvidiaSlice,
   previewNvidiaResearchReport,
   previewSecEdgarSupplyChain,
-  runDefaultNvidiaSlice,
-  runSecEdgarPipeline,
   sourceWorkflowAdapterContextInput
 } from "@supplystrata/source-workflows";
 import {
@@ -107,7 +109,45 @@ function parseFormTypes(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
     .filter(isSupportedFormType);
 }
 
-function graphOptions(graphSyncMode: GraphSyncMode): Parameters<typeof runDefaultNvidiaSlice>[1] {
+interface SecPipelineInput {
+  cik: string;
+  entityId: string;
+  formTypes: ("10-K" | "10-Q" | "20-F" | "8-K")[];
+}
+
+interface SecPipelineOptions {
+  adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput>;
+  graphSyncMode?: GraphSyncMode;
+  graphStore?: ReturnType<typeof createCliNeo4jGraphStore>;
+}
+
+async function runSecEdgarPipeline(store: DatabaseStore, input: SecPipelineInput, options: SecPipelineOptions): Promise<PipelineSummary> {
+  let fetched: Awaited<ReturnType<typeof fetchAndParseSecEdgar>>;
+  try {
+    fetched = await fetchAndParseSecEdgar(input, { adapterContextInput: options.adapterContextInput });
+  } catch (error) {
+    await store.transaction(async (client) => {
+      await recordSourceFailure(client, {
+        source_adapter_id: "sec-edgar",
+        error_message: messageFromUnknown(error),
+        caused_by: "pipeline.sec-edgar"
+      });
+    });
+    throw error;
+  }
+  return runSupplyChainPipelineFromNormalized(store, {
+    normalized: fetched.normalized,
+    fetchedUrl: fetched.raw.url,
+    ...(options.graphSyncMode === undefined ? {} : { graphSyncMode: options.graphSyncMode }),
+    ...(options.graphStore === undefined ? {} : { graphStore: options.graphStore })
+  });
+}
+
+function runDefaultNvidiaSlice(store: DatabaseStore, options: SecPipelineOptions): Promise<PipelineSummary> {
+  return runSecEdgarPipeline(store, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, options);
+}
+
+function graphOptions(graphSyncMode: GraphSyncMode): SecPipelineOptions {
   const runtime = sourceWorkflowRuntime();
   if (graphSyncMode === "defer") return { graphSyncMode, ...runtime };
   return { graphSyncMode, graphStore: createCliNeo4jGraphStore(), ...runtime };
@@ -115,4 +155,9 @@ function graphOptions(graphSyncMode: GraphSyncMode): Parameters<typeof runDefaul
 
 function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput> } {
   return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()) };
+}
+
+function messageFromUnknown(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }

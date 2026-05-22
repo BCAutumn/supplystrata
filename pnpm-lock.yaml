@@ -653,21 +653,12 @@ importers:
       '@supplystrata/evidence-scorer':
         specifier: workspace:*
         version: link:../evidence-scorer
-      '@supplystrata/graph-builder':
-        specifier: workspace:*
-        version: link:../graph-builder
-      '@supplystrata/graph-store':
-        specifier: workspace:*
-        version: link:../graph-store
       '@supplystrata/observability':
         specifier: workspace:*
         version: link:../observability
       '@supplystrata/observation-store':
         specifier: workspace:*
         version: link:../observation-store
-      '@supplystrata/pipeline':
-        specifier: workspace:*
-        version: link:../pipeline
       '@supplystrata/relation-extractor-rule':
         specifier: workspace:*
         version: link:../relation-extractor/rule

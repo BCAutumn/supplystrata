@@ -30,7 +30,7 @@ export {
   previewSkHynixIr,
   previewTsmcIr
 } from "./previews.js";
-export { checkSecCompanyFactsSource, checkSecEdgarSource, runDefaultNvidiaSlice, runSecEdgarPipeline } from "./sec-edgar.js";
+export { checkSecCompanyFactsSource, checkSecEdgarSource } from "./sec-edgar.js";
 export {
   asmlAnnualReportUrl,
   asmlIrAdapter,
@@ -47,6 +47,8 @@ export {
 } from "./official-ir-adapters.js";
 export type { AsmlIrInput, CompanyIrExplicitUrlInput, MicronIrInput, SamsungIrInput, SkHynixIrInput, TsmcIrInput } from "./official-ir-adapters.js";
 export type { SourceCheckSummary } from "./source-check-runner.js";
+export { fetchAndParseSecEdgar } from "./source-documents.js";
+export type { FetchedSecDocument } from "./source-documents.js";
 export { listRegisteredSourceCheckConnectorCapabilities, listSourceCheckConnectorIds, runDueSourceChecks, runManualSourceCheck } from "./source-checks.js";
 export type { DueSourceCheckRunInput, DueSourceCheckRunItem, DueSourceCheckRunResult, ManualSourceCheckInput } from "./source-checks.js";
 export { listSourcePlanSmokeRunnerIds, runSourcePlanConnectivitySmoke, selectSourcePlanSmokeTargets } from "./source-plan-smoke.js";

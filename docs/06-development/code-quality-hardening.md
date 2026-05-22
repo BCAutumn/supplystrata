@@ -124,6 +124,7 @@
 [x] Source plan layer / relation policy 收敛到 `@supplystrata/source-plan` 公共常量，Workbench attention kind / priority / status 收敛到 workbench definitions；schema 校验不再维护这些重复数组。
 [x] `@supplystrata/db` 新增 `./read`、`./write`、`./admin` 子路径出口；root barrel 暂保留兼容，但新代码可以按只读 repository、写入 repository、迁移/seed admin 明确依赖面。
 [x] source adapter API key / token 的 header 与 query 参数拼装收敛到 `@supplystrata/source-adapter-runtime`；各 adapter 保留 source label、credential key、ToS 和 URL 语义，不再各自手写 base64、Token header 或 key query 参数。
+[x] `source-workflows` 移除对 `@supplystrata/pipeline` / graph projection 包的直接依赖；监控 runner 默认只写 source document observation，完整 SEC pipeline 由 CLI 作为 app-level orchestration 显式组合 fetch + pipeline run。
 ```
 
 ## 下一批质量修复
@@ -133,7 +134,6 @@
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
-[ ] `source-workflows` 包级别仍包含 legacy SEC full-pipeline demo 与 source-check runner 默认 document-observation bridge，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与监控 workflow 的默认持久化 bridge 继续拆边界。
 [ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已覆盖 intelligence / single-source disposition / claim-builder / review-store / risk / alert / graph projection job status / calibration / chain view build 关键多写入链路；后续应继续迁移旧 import 到 read/write/admin 子路径，并逐步缩小 root barrel。
 [ ] `db/src/index.ts` 仍是宽 barrel export；已补 read/write/admin 子路径出口，后续应逐包迁移旧 import 并在迁移完成后收窄 root，而不是一次性大规模改 import。
 ```

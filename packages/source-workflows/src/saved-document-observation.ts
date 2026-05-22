@@ -1,6 +1,7 @@
 import type { NormalizedDocument } from "@supplystrata/core";
 import { type DbTxClient } from "@supplystrata/db";
 import { recordDocumentObservation, type DocumentObservationResult } from "@supplystrata/source-monitor";
+import type { SourceDocumentObservationStore } from "./document-observation-port.js";
 
 export interface SavedDocumentObservationOptions {
   checkTargetId?: string;
@@ -23,3 +24,16 @@ export function recordSavedDocumentObservation(
     caused_by: "source-workflows"
   });
 }
+
+export const SAVED_DOCUMENT_OBSERVATION_STORE: SourceDocumentObservationStore = {
+  async persistDocumentObservations(client, normalized, docId, options = {}) {
+    const observation = await recordSavedDocumentObservation(client, normalized, docId, options);
+    return {
+      ...observation,
+      stored_observations: 0,
+      review_candidates: 0,
+      semantic_changes: 0,
+      relation_changes: 0
+    };
+  }
+};
