@@ -72,67 +72,87 @@ export interface ClaimConflictContext {
   review_packet: ClaimConflictReviewPacket;
 }
 
+interface ClaimConflictFacts {
+  claim_is_inactive: boolean;
+  has_conflict_context: boolean;
+  has_contradicting_evidence: boolean;
+  has_open_blocking_unknown: boolean;
+  has_resolved_conflict_unknown: boolean;
+  is_active_fact_claim: boolean;
+}
+
+interface ClaimConflictAdjudicationRule {
+  matches(facts: ClaimConflictFacts): boolean;
+  adjudicate(facts: ClaimConflictFacts): ClaimConflictAdjudication;
+}
+
+const CLAIM_CONFLICT_ADJUDICATION_RULES: readonly ClaimConflictAdjudicationRule[] = [
+  {
+    matches: (facts) => facts.claim_is_inactive,
+    adjudicate: (facts) =>
+      conflictAdjudication({
+        state: facts.has_conflict_context ? "resolved_conflict" : "none",
+        severity: "none",
+        recommended_action: "keep_resolved_context",
+        edge_review_required: false,
+        reason_codes: ["claim_inactive"]
+      })
+  },
+  {
+    matches: (facts) => facts.has_open_blocking_unknown,
+    adjudicate: (facts) =>
+      conflictAdjudication({
+        state: "open_conflict",
+        severity: facts.is_active_fact_claim && facts.has_contradicting_evidence ? "high" : "medium",
+        recommended_action: facts.is_active_fact_claim && facts.has_contradicting_evidence ? "review_edge_for_deprecation" : "collect_resolution_evidence",
+        edge_review_required: facts.is_active_fact_claim && facts.has_contradicting_evidence,
+        reason_codes: claimConflictReasonCodes("open_conflict_unknown", facts)
+      })
+  },
+  {
+    matches: (facts) => facts.has_contradicting_evidence,
+    adjudicate: (facts) =>
+      conflictAdjudication({
+        state: facts.has_resolved_conflict_unknown ? "resolved_conflict" : "contradicting_evidence",
+        severity: facts.has_resolved_conflict_unknown ? "low" : facts.is_active_fact_claim ? "high" : "medium",
+        recommended_action: facts.has_resolved_conflict_unknown
+          ? "keep_resolved_context"
+          : facts.is_active_fact_claim
+            ? "review_edge_for_deprecation"
+            : "review_claim",
+        edge_review_required: !facts.has_resolved_conflict_unknown && facts.is_active_fact_claim,
+        reason_codes: claimConflictReasonCodes("contradicting_evidence_linked", facts)
+      })
+  },
+  {
+    matches: (facts) => facts.has_resolved_conflict_unknown,
+    adjudicate: () =>
+      conflictAdjudication({
+        state: "resolved_conflict",
+        severity: "low",
+        recommended_action: "keep_resolved_context",
+        edge_review_required: false,
+        reason_codes: ["conflict_unknown_resolved"]
+      })
+  },
+  {
+    matches: () => true,
+    adjudicate: () =>
+      conflictAdjudication({
+        state: "none",
+        severity: "none",
+        recommended_action: "none",
+        edge_review_required: false,
+        reason_codes: []
+      })
+  }
+];
+
 export function adjudicateClaimConflict(input: ClaimConflictAdjudicationInput): ClaimConflictAdjudication {
-  const hasContradictingEvidence = input.evidence_refs.some((ref) => ref.role === "contradicting");
-  const hasOpenBlockingUnknown = input.unknown_refs.some((ref) => ref.status === "open" && (ref.role === "blocking" || ref.role === "boundary"));
-  const hasResolvedConflictUnknown = input.unknown_refs.some((ref) => ref.status === "resolved" && (ref.role === "blocking" || ref.role === "boundary"));
-  const isActiveFactClaim = input.claim_status === "active" && input.edge_id !== null;
-
-  if (input.claim_status === "rejected" || input.claim_status === "superseded") {
-    return conflictAdjudication({
-      state: hasContradictingEvidence || hasOpenBlockingUnknown || hasResolvedConflictUnknown ? "resolved_conflict" : "none",
-      severity: "none",
-      recommended_action: "keep_resolved_context",
-      edge_review_required: false,
-      reason_codes: ["claim_inactive"]
-    });
-  }
-
-  if (hasOpenBlockingUnknown) {
-    return conflictAdjudication({
-      state: "open_conflict",
-      severity: isActiveFactClaim && hasContradictingEvidence ? "high" : "medium",
-      recommended_action: isActiveFactClaim && hasContradictingEvidence ? "review_edge_for_deprecation" : "collect_resolution_evidence",
-      edge_review_required: isActiveFactClaim && hasContradictingEvidence,
-      reason_codes: [
-        "open_conflict_unknown",
-        ...(hasContradictingEvidence ? ["contradicting_evidence_linked"] : []),
-        ...(isActiveFactClaim ? ["active_fact_claim"] : ["draft_or_non_edge_claim"])
-      ]
-    });
-  }
-
-  if (hasContradictingEvidence) {
-    return conflictAdjudication({
-      state: hasResolvedConflictUnknown ? "resolved_conflict" : "contradicting_evidence",
-      severity: hasResolvedConflictUnknown ? "low" : isActiveFactClaim ? "high" : "medium",
-      recommended_action: hasResolvedConflictUnknown ? "keep_resolved_context" : isActiveFactClaim ? "review_edge_for_deprecation" : "review_claim",
-      edge_review_required: !hasResolvedConflictUnknown && isActiveFactClaim,
-      reason_codes: [
-        "contradicting_evidence_linked",
-        ...(hasResolvedConflictUnknown ? ["conflict_unknown_resolved"] : []),
-        ...(isActiveFactClaim ? ["active_fact_claim"] : ["draft_or_non_edge_claim"])
-      ]
-    });
-  }
-
-  if (hasResolvedConflictUnknown) {
-    return conflictAdjudication({
-      state: "resolved_conflict",
-      severity: "low",
-      recommended_action: "keep_resolved_context",
-      edge_review_required: false,
-      reason_codes: ["conflict_unknown_resolved"]
-    });
-  }
-
-  return conflictAdjudication({
-    state: "none",
-    severity: "none",
-    recommended_action: "none",
-    edge_review_required: false,
-    reason_codes: []
-  });
+  const facts = claimConflictFacts(input);
+  const rule = CLAIM_CONFLICT_ADJUDICATION_RULES.find((candidate) => candidate.matches(facts));
+  if (rule === undefined) throw new Error("Claim conflict adjudication rules must include a fallback rule");
+  return rule.adjudicate(facts);
 }
 
 export function buildClaimConflictContext(input: ClaimConflictReviewPacketInput): ClaimConflictContext {
@@ -147,6 +167,39 @@ export function buildClaimConflictContext(input: ClaimConflictReviewPacketInput)
 export function buildClaimConflictReviewPacket(input: ClaimConflictReviewPacketInput): ClaimConflictReviewPacket {
   const adjudication = adjudicateClaimConflict(input);
   return buildClaimConflictReviewPacketFromAdjudication(input, adjudication);
+}
+
+function claimConflictFacts(input: ClaimConflictAdjudicationInput): ClaimConflictFacts {
+  const hasContradictingEvidence = input.evidence_refs.some((ref) => ref.role === "contradicting");
+  const hasOpenBlockingUnknown = input.unknown_refs.some((ref) => ref.status === "open" && isConflictUnknownRole(ref.role));
+  const hasResolvedConflictUnknown = input.unknown_refs.some((ref) => ref.status === "resolved" && isConflictUnknownRole(ref.role));
+  return {
+    claim_is_inactive: input.claim_status === "rejected" || input.claim_status === "superseded",
+    has_conflict_context: hasContradictingEvidence || hasOpenBlockingUnknown || hasResolvedConflictUnknown,
+    has_contradicting_evidence: hasContradictingEvidence,
+    has_open_blocking_unknown: hasOpenBlockingUnknown,
+    has_resolved_conflict_unknown: hasResolvedConflictUnknown,
+    is_active_fact_claim: input.claim_status === "active" && input.edge_id !== null
+  };
+}
+
+function isConflictUnknownRole(role: ClaimConflictAdjudicationUnknownRef["role"]): boolean {
+  return role === "blocking" || role === "boundary";
+}
+
+function claimConflictReasonCodes(primaryReason: string, facts: ClaimConflictFacts): string[] {
+  if (primaryReason === "open_conflict_unknown") {
+    return [
+      primaryReason,
+      ...(facts.has_contradicting_evidence ? ["contradicting_evidence_linked"] : []),
+      facts.is_active_fact_claim ? "active_fact_claim" : "draft_or_non_edge_claim"
+    ];
+  }
+  return [
+    primaryReason,
+    ...(facts.has_resolved_conflict_unknown ? ["conflict_unknown_resolved"] : []),
+    facts.is_active_fact_claim ? "active_fact_claim" : "draft_or_non_edge_claim"
+  ];
 }
 
 function buildClaimConflictReviewPacketFromAdjudication(
