@@ -107,6 +107,7 @@
 [x] `upsertClaim()` 对 rejected / superseded claim 改为终态内容保护；重复生成 claim 不能覆写原 claim 文案、范围、edge 关联、置信度或验证时间。
 [x] `upsertLeadObservation()` 对 promoted / rejected / closed lead 改为终态内容保护，并阻止 `in_review` lead 被普通 upsert 降回 open。
 [x] `upsertObservation()` 收紧为 deterministic observation reassert：冲突时不再改 measurement / provenance / attrs；metadata 修改必须走显式 `patchObservationMetadata()`。
+[x] observation measurement correction 新增显式 `correctObservationMeasurement()` 入口：修正测量值必须带 reason / corrected_by，并在同一事务写 `OBSERVATION_CORRECTED` change record。
 [x] edge intelligence refresh 与 single-source disposition unknown materialization 的函数签名收紧到 `DbTxClient`，调用方必须通过事务客户端执行 unknown/change 写入链路。
 [x] claim-builder 的 claim refresh、semantic change draft、contradicting evidence、conflict review 和 lifecycle 写入口收紧到 `DbTxClient`；普通调用方应使用 `*Transactionally()` 包装，避免在类型层面把普通连接误传给多写入链路。
 [x] review-store 的 enqueue / claim / decide / apply / block / official signal disposition 写入口收紧到 `DbTxClient`，CLI 与 integration 入口改用 transactionally 包装；只读查询继续接受 `DbClient`。
@@ -133,7 +134,6 @@
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
-[ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
 [ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已覆盖 intelligence / single-source disposition / claim-builder / review-store / risk / alert / graph projection job status / calibration / chain view build 关键多写入链路；后续应继续迁移旧 import 到 read/write/admin 子路径，并逐步缩小 root barrel。
 [ ] `db/src/index.ts` 仍是宽 barrel export；已补 read/write/admin 子路径出口，后续应逐包迁移旧 import 并在迁移完成后收窄 root，而不是一次性大规模改 import。
 ```

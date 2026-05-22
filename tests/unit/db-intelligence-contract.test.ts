@@ -36,6 +36,7 @@ import {
   insertClaim,
   insertLeadObservation,
   insertObservation,
+  correctObservationMeasurement,
   upsertEdgeStrengthEstimate,
   recordSemanticChange,
   resolveUnknownItem,
@@ -377,6 +378,30 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[0]?.sql).toContain("provenance = provenance || $2::jsonb");
     expect(client.calls[0]?.sql).toContain("attrs = attrs || $3::jsonb");
     expect(client.calls[0]?.params[0]).toBe("OBS-TEST");
+  });
+
+  it("corrects observation measurements through an auditable correction entrypoint", async () => {
+    const client = new RecordingDbClient();
+
+    const result = await correctObservationMeasurement(client, {
+      observation_id: "OBS-TEST",
+      metric_value: "42",
+      metric_unit: "days",
+      confidence: 0.82,
+      reason: "analyst corrected stale parser output",
+      corrected_by: "unit-test"
+    });
+
+    expect(result?.observation_id).toBe("OBS-TEST");
+    expect(result?.change_id).toMatch(/^CHG-/);
+    expect(client.calls[0]?.sql).toContain("FOR UPDATE");
+    expect(client.calls[1]?.sql).toContain("UPDATE observations");
+    expect(client.calls[1]?.sql).toContain("metric_value = CASE WHEN $2 THEN $3::numeric ELSE metric_value END");
+    expect(client.calls[1]?.sql).toContain("confidence = CASE WHEN $12 THEN $13::real ELSE confidence END");
+    expect(client.calls[2]?.sql).toContain("INSERT INTO change_records");
+    expect(client.calls[2]?.params).toContain("OBSERVATION_CORRECTED");
+    expect(client.calls[2]?.params).toContain("unit-test");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges") || call.sql.includes("UPDATE edges"))).toBe(false);
   });
 
   it("does not reopen or rewrite terminal lead observations through ordinary upserts", async () => {
@@ -798,6 +823,19 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
   if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ observation_id: params[0], inserted: true }] as unknown as T[];
   }
+  if (sql.includes("FROM observations") && sql.includes("FOR UPDATE") && typeof params[0] === "string") {
+    return [observationMeasurementSnapshot({ observation_id: params[0], metric_value: "41", metric_unit: "day", confidence: 0.7 })] as unknown as T[];
+  }
+  if (sql.includes("RETURNING observation_id, observation_type") && sql.includes("UPDATE observations") && typeof params[0] === "string") {
+    return [
+      observationMeasurementSnapshot({
+        observation_id: params[0],
+        metric_value: String(params[2] ?? "41"),
+        metric_unit: String(params[4] ?? "day"),
+        confidence: Number(params[12] ?? 0.7)
+      })
+    ] as unknown as T[];
+  }
   if (sql.includes("RETURNING observation_id") && sql.includes("UPDATE observations") && typeof params[0] === "string") {
     return [{ observation_id: params[0] }] as unknown as T[];
   }
@@ -865,6 +903,25 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
     return [{ run_id: params[0] }] as unknown as T[];
   }
   return [];
+}
+
+function observationMeasurementSnapshot(input: { observation_id: string; metric_value: string; metric_unit: string; confidence: number }): pg.QueryResultRow {
+  return {
+    observation_id: input.observation_id,
+    observation_type: "INVENTORY_OBSERVATION",
+    source_adapter_id: "sec-edgar",
+    source_item_id: "SRCITEM-TEST",
+    doc_id: "DOC-TEST",
+    scope_kind: "company",
+    scope_id: "ENT-NVIDIA",
+    metric_name: "inventory_days",
+    metric_value: input.metric_value,
+    metric_unit: input.metric_unit,
+    baseline_value: null,
+    change_value: null,
+    change_percent: null,
+    confidence: input.confidence
+  };
 }
 
 function queryResult<T extends pg.QueryResultRow>(rows: T[]): pg.QueryResult<T> {

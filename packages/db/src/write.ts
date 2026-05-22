@@ -26,6 +26,7 @@ export { refreshEdgeFreshness, upsertEdgeStrengthEstimate, type UpsertEdgeStreng
 export {
   insertLeadObservation,
   insertObservation,
+  correctObservationMeasurement,
   markLeadObservationInReview,
   markLeadObservationPromoted,
   patchObservationMetadata,
@@ -33,6 +34,7 @@ export {
   upsertObservation,
   type NewLeadObservationInput,
   type NewObservationInput,
+  type CorrectObservationMeasurementInput,
   type PatchObservationMetadataInput
 } from "./observations.js";
 export { recordPendingEntity } from "./pending.js";
