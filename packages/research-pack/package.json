@@ -12,6 +12,7 @@
   "dependencies": {
     "@supplystrata/card-builder": "workspace:*",
     "@supplystrata/claim-builder": "workspace:*",
+    "@supplystrata/component-context": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/data-quality": "workspace:*",
     "@supplystrata/db": "workspace:*",

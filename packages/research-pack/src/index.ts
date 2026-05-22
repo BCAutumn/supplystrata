@@ -51,6 +51,7 @@ import {
   type SourceTargetCoverageReport
 } from "./source-target-coverage.js";
 import { renderSourceTargetPreflightMarkdown, type SourceTargetPreflightReport } from "./source-target-preflight.js";
+import { buildSupplyChainExpansionPlan, renderSupplyChainExpansionPlanMarkdown, type SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 
 export * from "./investigation-backlog.js";
 export * from "./corroboration-source-plan.js";
@@ -61,6 +62,7 @@ export * from "./question-readiness.js";
 export * from "./research-target-profile.js";
 export * from "./source-target-coverage.js";
 export * from "./source-target-preflight.js";
+export * from "./supply-chain-expansion-plan.js";
 
 export interface ResearchPackInput {
   company: string;
@@ -85,6 +87,7 @@ export interface ResearchPackInput {
   sourceTargetPreflight?: SourceTargetPreflightReport;
   researchTargetProfileId?: ResearchTargetProfileOption;
   officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
+  supplyChainExpansionMaxDepth?: number;
 }
 
 export interface ResearchPackManifest {
@@ -217,6 +220,12 @@ export interface ResearchPackStats {
   official_disclosure_gate1_overall_progress: number;
   official_disclosure_gate1_data_progress: number;
   official_disclosure_gate1_source_path_progress: number;
+  supply_chain_expansion_frontier_edges: number;
+  supply_chain_expansion_frontier_companies: number;
+  supply_chain_expansion_component_dependency_leads: number;
+  supply_chain_expansion_leads_with_source_path: number;
+  supply_chain_expansion_blocked_frontier_edges: number;
+  supply_chain_expansion_stop_conditions: number;
 }
 
 export interface ResearchPackClaimBuild {
@@ -254,6 +263,7 @@ export interface ResearchPackModel {
   source_target_preflight: SourceTargetPreflightReport | null;
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
+  supply_chain_expansion_plan: SupplyChainExpansionPlan;
 }
 
 export interface WorkbenchSnapshotPackInput {
@@ -270,6 +280,7 @@ export interface WorkbenchSnapshotPackInput {
   officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
   sourceTargetNamespace?: string;
   sourceTargetPreflight?: SourceTargetPreflightReport;
+  supplyChainExpansionMaxDepth?: number;
 }
 
 export interface WorkbenchSnapshotPackModel {
@@ -284,6 +295,7 @@ export interface WorkbenchSnapshotPackModel {
   source_target_preflight: SourceTargetPreflightReport | null;
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
+  supply_chain_expansion_plan: SupplyChainExpansionPlan;
 }
 
 export interface ResearchPackTargetProfile {
@@ -363,6 +375,15 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_plan: sourcePlan,
     source_target_coverage: sourceTargetCoverage
   });
+  const supplyChainExpansionPlan = buildSupplyChainExpansionPlan({
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    workbench,
+    component_ids: components,
+    source_plan: sourcePlan,
+    official_disclosure_readiness: officialDisclosureReadiness,
+    max_depth: input.supplyChainExpansionMaxDepth ?? 7
+  });
   const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
@@ -373,6 +394,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     question_readiness: questionReadiness,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
     source_target_coverage: sourceTargetCoverage,
     ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });
@@ -397,6 +419,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     corroborationSourcePlan,
     observationCoverage,
     officialDisclosureReadiness,
+    supplyChainExpansionPlan,
     claimBuild,
     intelligenceRefresh,
     componentRiskRefresh,
@@ -416,7 +439,8 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_target_coverage: sourceTargetCoverage,
     source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
-    official_disclosure_readiness: officialDisclosureReadiness
+    official_disclosure_readiness: officialDisclosureReadiness,
+    supply_chain_expansion_plan: supplyChainExpansionPlan
   };
 }
 
@@ -451,7 +475,8 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     ...(input.officialDisclosureTargetNodes === undefined ? {} : { officialDisclosureTargetNodes: input.officialDisclosureTargetNodes }),
     ...(input.materialObservationYear === undefined ? {} : { materialObservationYear: input.materialObservationYear }),
     ...(input.commodityObservationMonth === undefined ? {} : { commodityObservationMonth: input.commodityObservationMonth }),
-    ...(input.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: input.sourceTargetNamespace })
+    ...(input.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: input.sourceTargetNamespace }),
+    ...(input.supplyChainExpansionMaxDepth === undefined ? {} : { supplyChainExpansionMaxDepth: input.supplyChainExpansionMaxDepth })
   };
   const sourceTargetCoverage = buildExpectedSourceTargetCoverageReport({
     generated_at: generatedAt,
@@ -486,6 +511,15 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_plan: sourcePlan,
     source_target_coverage: sourceTargetCoverage
   });
+  const supplyChainExpansionPlan = buildSupplyChainExpansionPlan({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    workbench: input.workbench,
+    component_ids: components,
+    source_plan: sourcePlan,
+    official_disclosure_readiness: officialDisclosureReadiness,
+    max_depth: input.supplyChainExpansionMaxDepth ?? 7
+  });
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
     company_id: input.workbench.selected_company_id,
@@ -495,6 +529,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     question_readiness: questionReadiness,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
     source_target_coverage: sourceTargetCoverage,
     ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });
@@ -519,6 +554,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     corroborationSourcePlan,
     observationCoverage,
     officialDisclosureReadiness,
+    supplyChainExpansionPlan,
     claimBuild: null,
     intelligenceRefresh: null,
     componentRiskRefresh: null,
@@ -536,7 +572,8 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_target_coverage: sourceTargetCoverage,
     source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
-    official_disclosure_readiness: officialDisclosureReadiness
+    official_disclosure_readiness: officialDisclosureReadiness,
+    supply_chain_expansion_plan: supplyChainExpansionPlan
   };
 }
 
@@ -573,6 +610,13 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
       "official-disclosure-readiness.md",
       renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness),
       "Official disclosure coverage readiness markdown"
+    ),
+    await writeJsonFile(outDir, "supply-chain-expansion-plan.json", pack.supply_chain_expansion_plan, "Recursive supply-chain expansion plan"),
+    await writeMarkdownFile(
+      outDir,
+      "supply-chain-expansion-plan.md",
+      renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
+      "Recursive supply-chain expansion plan markdown"
     ),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
@@ -662,6 +706,13 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
       "official-disclosure-readiness.md",
       renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness),
       "Official disclosure coverage readiness markdown"
+    ),
+    await writeJsonFile(outDir, "supply-chain-expansion-plan.json", pack.supply_chain_expansion_plan, "Recursive supply-chain expansion plan"),
+    await writeMarkdownFile(
+      outDir,
+      "supply-chain-expansion-plan.md",
+      renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
+      "Recursive supply-chain expansion plan markdown"
     ),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
@@ -870,6 +921,7 @@ function manifestFromModel(input: {
   corroborationSourcePlan: CorroborationSourcePlan;
   observationCoverage: ObservationCoverageReport;
   officialDisclosureReadiness: OfficialDisclosureReadinessReport;
+  supplyChainExpansionPlan: SupplyChainExpansionPlan;
   claimBuild: ResearchPackClaimBuild | null;
   intelligenceRefresh: EdgeIntelligenceRefreshSummary | null;
   componentRiskRefresh: ResearchPackComponentRiskRefresh | null;
@@ -994,7 +1046,13 @@ function manifestFromModel(input: {
       open_official_disclosure_signal_correlation_hints: input.officialDisclosureReadiness.summary.open_official_disclosure_signal_correlation_hints,
       official_disclosure_gate1_overall_progress: input.officialDisclosureReadiness.scorecard.overall_progress,
       official_disclosure_gate1_data_progress: input.officialDisclosureReadiness.scorecard.data_progress,
-      official_disclosure_gate1_source_path_progress: input.officialDisclosureReadiness.scorecard.source_path_progress
+      official_disclosure_gate1_source_path_progress: input.officialDisclosureReadiness.scorecard.source_path_progress,
+      supply_chain_expansion_frontier_edges: input.supplyChainExpansionPlan.summary.frontier_edges,
+      supply_chain_expansion_frontier_companies: input.supplyChainExpansionPlan.summary.frontier_companies,
+      supply_chain_expansion_component_dependency_leads: input.supplyChainExpansionPlan.summary.component_dependency_leads,
+      supply_chain_expansion_leads_with_source_path: input.supplyChainExpansionPlan.summary.leads_with_source_path,
+      supply_chain_expansion_blocked_frontier_edges: input.supplyChainExpansionPlan.summary.blocked_frontier_edges,
+      supply_chain_expansion_stop_conditions: input.supplyChainExpansionPlan.summary.stop_conditions
     },
     claim_build: input.claimBuild,
     intelligence_refresh: input.intelligenceRefresh,
@@ -1034,6 +1092,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
     `- Official disclosure review signals: ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
     `- Official disclosure signal correlation hints: ${pack.manifest.stats.open_official_disclosure_signal_correlation_hints}/${pack.manifest.stats.official_disclosure_signal_correlation_hints} open; dispositions ${pack.manifest.stats.official_disclosure_signal_dispositions}`,
+    `- Supply-chain expansion plan: ${pack.manifest.stats.supply_chain_expansion_frontier_edges} frontier edges, ${pack.manifest.stats.supply_chain_expansion_frontier_companies} frontier companies, ${pack.manifest.stats.supply_chain_expansion_component_dependency_leads} component leads (${pack.manifest.stats.supply_chain_expansion_leads_with_source_path} with source path), ${pack.manifest.stats.supply_chain_expansion_stop_conditions} stop conditions`,
     `- Observation records: ${pack.manifest.stats.observation_records}`,
     `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
     `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
@@ -1058,6 +1117,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `question-readiness.json` and `question-readiness.md` show which core supply-chain questions are ready, partial, or blocked.",
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage and methodology gaps.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
+    "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show whether runnable source-plan targets are synced, enabled, due, running, failed, or producing observations.",
@@ -1102,6 +1162,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
     `- Official disclosure review signals: ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
     `- Official disclosure signal correlation hints: ${pack.manifest.stats.open_official_disclosure_signal_correlation_hints}/${pack.manifest.stats.official_disclosure_signal_correlation_hints} open; dispositions ${pack.manifest.stats.official_disclosure_signal_dispositions}`,
+    `- Supply-chain expansion plan: ${pack.manifest.stats.supply_chain_expansion_frontier_edges} frontier edges, ${pack.manifest.stats.supply_chain_expansion_frontier_companies} frontier companies, ${pack.manifest.stats.supply_chain_expansion_component_dependency_leads} component leads (${pack.manifest.stats.supply_chain_expansion_leads_with_source_path} with source path), ${pack.manifest.stats.supply_chain_expansion_stop_conditions} stop conditions`,
     `- Observation records: ${pack.manifest.stats.observation_records}`,
     `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
     `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
@@ -1124,6 +1185,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `question-readiness.json` and `question-readiness.md` summarize answer readiness from the packaged workbench context.",
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage visible from the snapshot.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
+    "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show expected runnable targets as `not_synced` until a SQL truth store syncs them into `source_check_targets`.",

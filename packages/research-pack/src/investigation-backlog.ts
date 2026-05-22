@@ -7,6 +7,7 @@ import type { ObservationCoverageReport, ObservationSeriesReadiness } from "./ob
 import type { OfficialDisclosureCorroborationQueueItem, OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { QuestionReadinessMatrix, QuestionReadinessStatus } from "./question-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
+import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 import type {
   SourceTargetPreflightIssueKind,
   SourceTargetPreflightItem,
@@ -22,7 +23,8 @@ export type InvestigationBacklogKind =
   | "observation_series"
   | "official_disclosure_coverage"
   | "corroboration_review"
-  | "profile_expansion";
+  | "profile_expansion"
+  | "supply_chain_expansion";
 export type InvestigationBacklogPriority = "P0" | "P1" | "P2" | "P3";
 
 export interface InvestigationBacklogTarget {
@@ -103,6 +105,7 @@ export interface InvestigationBacklogInput {
   question_readiness: QuestionReadinessMatrix;
   observation_coverage?: ObservationCoverageReport;
   official_disclosure_readiness?: OfficialDisclosureReadinessReport;
+  supply_chain_expansion_plan?: SupplyChainExpansionPlan;
   source_target_coverage?: SourceTargetCoverageReport;
   source_target_preflight?: SourceTargetPreflightReport;
 }
@@ -127,6 +130,7 @@ export function buildInvestigationBacklog(input: InvestigationBacklogInput): Inv
     ...officialDisclosureCoverageDrafts(input),
     ...corroborationReviewDrafts(input),
     ...profileExpansionDrafts(input),
+    ...supplyChainExpansionDrafts(input),
     ...observationSeriesDrafts(input),
     ...sourceCheckDrafts(input)
   ]
@@ -360,6 +364,66 @@ function profileExpansionDrafts(input: InvestigationBacklogInput): BacklogDraft[
     runnable_check_targets: [],
     source_target_coverage: []
   }));
+}
+
+function supplyChainExpansionDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
+  const plan = input.supply_chain_expansion_plan;
+  if (plan === undefined) return [];
+  const coverageByTarget = coverageByRunnableTarget(input);
+  const frontierDrafts: BacklogDraft[] = plan.frontier
+    .filter((item) => item.expansion_state !== "stop_depth_limit")
+    .slice(0, 20)
+    .map((item) => {
+      const sourceIds = sourceIdsFromRefs(item.source_plan_refs);
+      const runnableCheckTargets = runnableTargetsForSources(input.source_plan, sourceIds);
+      return {
+        kind: "supply_chain_expansion",
+        priority: item.expansion_state === "needs_component_context" ? "P0" : "P1",
+        title: `Expand supply-chain frontier ${item.edge_id}`,
+        rationale: item.rationale,
+        action: item.action,
+        target: {
+          component_ids: item.component_id === null ? [] : [item.component_id],
+          edge_ids: [item.edge_id],
+          unknown_ids: item.unknown_ids,
+          source_ids: sourceIds,
+          question_ids: ["supply_chain.recursive_expansion"]
+        },
+        supporting_refs: [`supply_chain_frontier:${item.frontier_id}`, `edge:${item.edge_id}`, ...item.source_plan_refs],
+        runnable_check_targets: runnableCheckTargets,
+        source_target_coverage: coverageForTargets(coverageByTarget, runnableCheckTargets)
+      };
+    });
+
+  const leadDrafts: BacklogDraft[] = plan.component_dependency_leads
+    .filter((lead) => lead.state !== "fact_covered")
+    .slice(0, 30)
+    .map((lead) => {
+      const runnableCheckTargets = runnableTargetsForSources(input.source_plan, lead.source_ids);
+      return {
+        kind: "supply_chain_expansion",
+        priority: lead.state === "lead_only" ? "P2" : "P1",
+        title: `Review recursive component lead ${lead.parent_component_id} -> ${lead.target_id}`,
+        rationale: lead.rationale,
+        action: lead.action,
+        target: {
+          component_ids: uniqueSorted([lead.parent_component_id, lead.target_id]),
+          edge_ids: lead.supporting_edge_ids,
+          unknown_ids: [],
+          source_ids: lead.source_ids,
+          question_ids: ["supply_chain.component_frontier"]
+        },
+        supporting_refs: [
+          `component_dependency:${lead.dependency_id}`,
+          ...lead.source_plan_refs,
+          ...lead.supporting_edge_ids.map((edgeId) => `edge:${edgeId}`)
+        ],
+        runnable_check_targets: runnableCheckTargets,
+        source_target_coverage: coverageForTargets(coverageByTarget, runnableCheckTargets)
+      };
+    });
+
+  return [...frontierDrafts, ...leadDrafts];
 }
 
 function sourceCheckDrafts(input: InvestigationBacklogInput): BacklogDraft[] {

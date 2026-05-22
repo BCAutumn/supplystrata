@@ -218,6 +218,7 @@ z_like_score = (current - baseline) / max(mad, epsilon)
 - 输入指纹包含 observation id、类型、scope、metric、baseline/change 或历史点 id、confidence、阈值和模型参数；同一输入应得到稳定 view / metric id。
 - CompanyCard / ComponentCard / research-pack 会在已有 observation anomaly view 时把 anomaly summary 带进 JSON/Markdown 输出；ComponentCard 还会基于当前组件的 Level 4/5 fact edges，显示 supplier/consumer 公司级 `FINANCIAL_METRIC_OBSERVATION`，作为 linked company financial signals。
 - research-pack 会输出 `observation-coverage.json/md`，按本研究包可见的 typed observation 汇总 source adapter、scope、component、geography、metric、样本 id 和 methodology gap；它还会按同一 `observation_type / scope / geography / component / metric / unit` 汇总 series readiness，区分 `sparse`、`explicit_baseline_ready` 和 `time_series_ready`。`investigation-backlog` 会把 `sparse` series 转成数据积累任务，提示继续积累同序列窗口点或寻找 explicit baseline/change。它只描述数据准备覆盖和下一步调查，不给风险结论，也不把 observation 升级为事实边。
+- research-pack 会输出 `supply-chain-expansion-plan.json/md`，把当前 L4/L5 fact edge frontier、component-context taxonomy、source-plan、official-disclosure readiness 和 edge unknown map 组合成确定性递归展开计划。它回答“下一层应该研究哪个 counterparty / component / route，为什么，现有 source path 是否可跑，在哪里停止”，但只生成 planning/backlog context，不写 fact edge、evidence、claim、observation 或 unknown。递归展开必须带 component/process 语义；没有 `component_id` 的事实边只进入 `needs_component_context`，到达 `max_depth`、catalog boundary 或 logistics/route observation layer 时显式停止，避免把公司级供应商列表无限外推成事实图。
 - `is_anomaly=true` 时会幂等写入 `OBSERVATION_ANOMALY` semantic change；该事件只引用 observation/risk_view，并把 observation scope、metric、baseline、change percent、severity 和 direction 写入 `after`，用于 timeline 和后续 alert rules，不改变事实层。
 
 第一版同行横向比较由 `refreshFinancialMetricPeerComparisonViews()` 生成：
@@ -415,6 +416,7 @@ Phase 6+
 [x] research-pack 能输出 official disclosure readiness，把内置研究 target profile、逐节点覆盖、显式 target node 覆盖、逐 expected source 覆盖、edge-level corroboration queue、profile expansion candidates、Level 4/5 边数量、traceability、cross-source corroboration、single-source disposition/unknown、intelligence context gap 和官方披露 source target 状态量化
 [x] evidence-maintenance 能把 official-disclosure readiness 的 single-source disposition `proposed_unknown` 受控落库为 edge-scoped unknown，并默认跳过缺失或非 current 的 fact edge
 [x] evidence-maintenance 能把 official signal disposition 中的 `record_single_source_unknown` 审计结论受控物化为 edge-scoped unknown，且不写 fact edge / evidence
+[x] research-pack 能输出 supply-chain expansion plan，把 L4/L5 fact frontier 转成带 component/process 约束、source path、unknown 和 stop condition 的下一层研究计划
 [x] investigation backlog action 能随 source target coverage 细化为同步、启用、运行、等待、排错或 review observation
 [x] 所有风险结论都能追溯到 fact/observation/algorithm version
 [x] calibration run 能从人工 edge labels 计算 precision / reliability buckets / error summary

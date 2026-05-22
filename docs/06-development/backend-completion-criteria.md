@@ -157,6 +157,8 @@ DB-backed source-check 现在会在保存 TSMC / Samsung / SK hynix / Micron / A
 
 Workbench / research-pack 已把相关 review queue 摘要纳入只读输出：`WorkbenchModel.review_queue` 会导出当前研究包 evidence/source-plan 相关 source adapter 下的 open review candidates，`official-disclosure-readiness` 会单独汇总 `official_disclosure_signal` 数量和明细，并通过 research-pack 内部纯算法模块生成 `official_disclosure_signal_correlation_hints`。这些 hints 只按来源命中、runnable target、公司/组件 token 命中给待复核 edge 排序，输出 match reasons 和 `review_only_no_fact_mutation` policy；它们不能提升 Gate 1 data progress、不能替代 L4/L5 fact edge，也不能把 signal 自动计为二源 corroboration。人工处理 hint 后，`review-store` 会把 `supports_existing_edge / needs_more_evidence / not_relevant / record_single_source_unknown / create_counterparty_source_target` disposition 记录为 review-scoped change；Workbench 和 readiness 会把 recorded disposition 带回研究包，用于区分仍 open 的 hint 和已有结论的 hint。`record_single_source_unknown` 的下一步由 `evidence-maintenance.materializeOfficialSignalDispositionUnknowns()` 承接：它读取审计 change，默认只处理仍为 current 的 edge，经 unknown repository 写入 deterministic edge-scoped unknown，并记录 `UNKNOWN_ADDED/UPDATED`。这个 workflow 仍不写 evidence、source target 或 fact edge。
 
+research-pack 现在还会输出 `supply-chain-expansion-plan.json/md`：它把当前 L4/L5 fact edge frontier 变成可重复的下一层研究计划，约束条件是 component/process 语义、source-plan 可执行路径、official-disclosure readiness、edge unknown 和最大递归深度。它会把可继续研究的 counterparty 标成 `expand_candidate`，把缺组件语义的边标成 `needs_component_context`，把达到深度上限的边标成 `stop_depth_limit`；component dependency lead 只来自 `component-context` taxonomy，并区分已有事实覆盖、已有 runnable source path、仅 planning、observation-only 和 lead-only。这个 planner 只写 research-pack / backlog planning context，不写 `edges`、`evidence`、`claims`、`observations` 或 `unknown_items`。
+
 参考官方源：
 
 - SEC EDGAR 官方检索与 API 入口：<https://www.sec.gov/search-filings>
@@ -522,6 +524,7 @@ POST /review/:id/reject
 [x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
 [x] research-pack 能按 audited next-action 输出非空的 action-specific corroboration source-plan 批次，避免把仍需 smoke / 修凭据 / 修配置的 target 直接混入 sync / enable / run-due 执行
 [x] research-pack manifest / README 汇总 source target preflight issue kind 分布，让 Gate 1 smoke 卡点能直接显示为缺凭据、配置错误、connector 未实现、源不可达或 adapter 异常
+[x] supply-chain expansion plan 能把 L4/L5 fact frontier、component taxonomy lead、source path、unknown 和 stop condition 接进 research-pack / backlog，形成下一层递归研究计划且不写事实边
 [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 

@@ -500,6 +500,9 @@ importers:
       '@supplystrata/claim-builder':
         specifier: workspace:*
         version: link:../claim-builder
+      '@supplystrata/component-context':
+        specifier: workspace:*
+        version: link:../component-context
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core

@@ -7,6 +7,7 @@ import {
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
   buildResearchPackFromWorkbench,
+  buildSupplyChainExpansionPlan,
   collectResearchComponentIds,
   getBuiltInResearchTargetProfile,
   listBuiltInResearchTargetProfiles,
@@ -18,6 +19,7 @@ import {
   renderQuestionReadinessMarkdown,
   renderSourceTargetPreflightMarkdown,
   renderSourceTargetCoverageMarkdown,
+  renderSupplyChainExpansionPlanMarkdown,
   safeFileSegment
 } from "@supplystrata/research-pack";
 import { buildSourcePolicyConfigFromPlanTargets, parseManagedSourcePlanDocument } from "@supplystrata/source-management";
@@ -58,6 +60,78 @@ describe("research-pack", () => {
   it("creates safe deterministic file segments", () => {
     expect(safeFileSegment("COMP-HBM")).toBe("comp-hbm");
     expect(safeFileSegment("HBM / Advanced Packaging")).toBe("hbm-advanced-packaging");
+  });
+
+  it("builds a deterministic recursive expansion plan without creating fact edges", () => {
+    const workbench = {
+      ...emptyWorkbench(),
+      companies: [
+        { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" as const },
+        { entity_id: "ENT-SKHYNIX", name: "SK Hynix", role: "counterparty" as const },
+        { entity_id: "ENT-UNKNOWN", name: "Unknown Counterparty", role: "counterparty" as const },
+        { entity_id: "ENT-DEEP", name: "Deep Supplier", role: "counterparty" as const }
+      ],
+      chain_segments: [
+        edgeSegmentFixture("EDGE-MEMORY", 1, "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY"),
+        edgeSegmentFixture("EDGE-NOCOMP", 1, "ENT-NVIDIA", "NVIDIA", "ENT-UNKNOWN", "Unknown Counterparty", null),
+        edgeSegmentFixture("EDGE-DEEP", 7, "ENT-SKHYNIX", "SK Hynix", "ENT-DEEP", "Deep Supplier", "COMP-HBM")
+      ],
+      edges: [
+        edgeFixture("EDGE-MEMORY", "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY"),
+        edgeFixture("EDGE-NOCOMP", "ENT-NVIDIA", "NVIDIA", "ENT-UNKNOWN", "Unknown Counterparty", null),
+        edgeFixture("EDGE-DEEP", "ENT-SKHYNIX", "SK Hynix", "ENT-DEEP", "Deep Supplier", "COMP-HBM")
+      ],
+      unknown_items: [
+        {
+          unknown_id: "UNK-MEMORY-SHARE",
+          scope_kind: "edge",
+          scope_id: "EDGE-MEMORY",
+          question: "What share does this memory relationship represent?",
+          why_unknown: "No allocation disclosure is visible.",
+          blocking_data_sources: ["supplier official disclosure"],
+          proxies: [],
+          status: "open"
+        }
+      ]
+    };
+
+    const plan = buildSupplyChainExpansionPlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      component_ids: ["COMP-MEMORY"],
+      source_plan: [officialSourcePlanItem()],
+      max_depth: 7
+    });
+
+    expect(plan.summary).toEqual(
+      expect.objectContaining({
+        fact_edges_considered: 3,
+        frontier_edges: 3,
+        blocked_frontier_edges: 2,
+        explicit_unknown_refs: 1
+      })
+    );
+    expect(plan.frontier.find((item) => item.edge_id === "EDGE-MEMORY")).toEqual(
+      expect.objectContaining({
+        expansion_state: "expand_candidate",
+        next_company_id: "ENT-SKHYNIX",
+        unknown_ids: ["UNK-MEMORY-SHARE"]
+      })
+    );
+    expect(plan.frontier.find((item) => item.edge_id === "EDGE-NOCOMP")?.expansion_state).toBe("needs_component_context");
+    expect(plan.frontier.find((item) => item.edge_id === "EDGE-DEEP")?.expansion_state).toBe("stop_depth_limit");
+    expect(plan.component_dependency_leads.find((lead) => lead.dependency_id === "CDEP-MEMORY-DRAM")).toEqual(
+      expect.objectContaining({
+        state: "source_path_runnable",
+        expansion_policy: "lead_only_no_fact_mutation",
+        source_plan_refs: ["source_plan:samsung-ir"]
+      })
+    );
+    expect(plan.component_dependency_leads.find((lead) => lead.dependency_id === "CDEP-MEMORY-HBM")?.state).toBe("fact_covered");
+    expect(plan.stop_conditions.map((item) => item.reason)).toEqual(expect.arrayContaining(["depth_limit", "missing_component_context"]));
+    expect(renderSupplyChainExpansionPlanMarkdown(plan)).toContain("does not create fact edges");
+    expect(renderSupplyChainExpansionPlanMarkdown(plan)).toContain("COMP-MEMORY -> COMP-DRAM");
   });
 
   it("builds a no-database research snapshot from a workbench export", () => {
@@ -305,6 +379,17 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.official_disclosure_signal_dispositions).toBe(1);
     expect(pack.manifest.stats.official_disclosure_signal_correlation_hints).toBeGreaterThan(0);
     expect(pack.manifest.stats.open_official_disclosure_signal_correlation_hints).toBe(0);
+    expect(pack.manifest.stats.supply_chain_expansion_frontier_edges).toBe(1);
+    expect(pack.manifest.stats.supply_chain_expansion_frontier_companies).toBe(1);
+    expect(pack.manifest.stats.supply_chain_expansion_component_dependency_leads).toBeGreaterThan(0);
+    expect(pack.supply_chain_expansion_plan.frontier[0]).toEqual(
+      expect.objectContaining({
+        edge_id: "EDGE-1",
+        expansion_state: "expand_candidate",
+        next_company_id: "ENT-SKHYNIX"
+      })
+    );
+    expect(pack.investigation_backlog.items.some((item) => item.kind === "supply_chain_expansion")).toBe(true);
     expect(pack.official_disclosure_readiness.official_disclosure_signals[0]?.review_id).toBe("REV-OFFICIAL-SIGNAL-1");
     expect(pack.official_disclosure_readiness.official_disclosure_signals[0]?.dispositions[0]).toEqual(
       expect.objectContaining({ decision: "needs_more_evidence", edge_id: "EDGE-1" })
@@ -350,6 +435,7 @@ describe("research-pack", () => {
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Corroboration queue");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Official disclosure signal correlation hints");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Target profile: ai-compute-memory.v0");
+    expect(renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan)).toContain("Supply Chain Expansion Plan");
   });
 
   it("reports official disclosure readiness gaps without inferring corroboration from silence", () => {
@@ -1457,6 +1543,55 @@ function officialSourcePlanItem(): SourcePlanItem {
         reason: "Samsung IR has a registered official disclosure connector for 2025."
       }
     ]
+  };
+}
+
+function edgeSegmentFixture(
+  edgeId: string,
+  depth: number,
+  fromId: string,
+  fromName: string,
+  toId: string,
+  toName: string,
+  componentId: string | null
+): ChainViewSegmentModel {
+  return {
+    sequence_index: depth,
+    depth,
+    semantic_layer: "edge",
+    from: { kind: "company", id: fromId, name: fromName },
+    to: { kind: "company", id: toId, name: toName },
+    relation: "BUYS_FROM",
+    component: componentId,
+    component_id: componentId,
+    edge_id: edgeId,
+    evidence_ids: [`EV-${edgeId}`],
+    evidence_level: 5,
+    confidence: 0.95,
+    label: `${fromName} buys from ${toName}`
+  };
+}
+
+function edgeFixture(
+  edgeId: string,
+  fromId: string,
+  fromName: string,
+  toId: string,
+  toName: string,
+  componentId: string | null
+): WorkbenchModel["edges"][number] {
+  return {
+    edge_id: edgeId,
+    from_id: fromId,
+    from_name: fromName,
+    to_id: toId,
+    to_name: toName,
+    relation: "BUYS_FROM",
+    component: componentId,
+    component_id: componentId,
+    evidence_level: 5,
+    confidence: 0.95,
+    evidence_ids: [`EV-${edgeId}`]
   };
 }
 
