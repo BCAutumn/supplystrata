@@ -199,7 +199,7 @@ Observation 不是关系。它回答：
 
 research-pack 会用 `official-disclosure-signal-correlation` 纯函数模块，把 open `official_disclosure_signal` 和 edge-level corroboration queue 做确定性 review hint 关联。第一版只看来源是否命中 candidate source / runnable target、信号文本是否提到边两端公司或组件 token，并输出 `review_policy='review_only_no_fact_mutation'`、分数和原因。这个分数只给研究员排序下一步看什么，不计入 Gate 1 data progress，不把 signal 计为二源 corroboration，也不修改 review candidate / edge / claim / unknown。
 
-official signal disposition 是后续审阅结论，不是证据本身。`review-store.recordOfficialDisclosureSignalDisposition()` 只允许记录 `supports_existing_edge`、`needs_more_evidence`、`not_relevant`、`record_single_source_unknown` 或 `create_counterparty_source_target`，并写入 `change_records.change_type='OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'`。该事件必须带 `fact_write_policy.automatic_fact_mutation_allowed=false` 和 `allowed_edge_mutation='none'`。即使 decision 是 `supports_existing_edge`，也只表示研究员认为这个 signal 可以作为后续 evidence/claim/unknown/source-target 流程的上下文；真正写 evidence、unknown 或 source target 必须走各自受控用例。
+official signal disposition 是后续审阅结论，不是证据本身。`review-store.recordOfficialDisclosureSignalDisposition()` 只允许记录 `supports_existing_edge`、`needs_more_evidence`、`not_relevant`、`record_single_source_unknown` 或 `create_counterparty_source_target`，并写入 `change_records.change_type='OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'`。该事件必须带 `fact_write_policy.automatic_fact_mutation_allowed=false` 和 `allowed_edge_mutation='none'`。即使 decision 是 `supports_existing_edge`，也只表示研究员认为这个 signal 可以作为后续 evidence/claim/unknown/source-target 流程的上下文；真正写 evidence、unknown 或 source target 必须走各自受控用例。`record_single_source_unknown` 也不会由 review-store 直接写 unknown，而是由 `@supplystrata/evidence-maintenance` 的 `materializeOfficialSignalDispositionUnknowns()` 读取审计 change、默认确认目标 edge 仍为 `current`，再通过 unknown repository 写入 edge-scoped `unknown_items` 并记录 `UNKNOWN_ADDED/UPDATED`。这条路径只物化“独立官方二源仍缺失”的未知边界，不写 `edges`、不写 `evidence`，也不把 signal 自动升级成 corroboration。
 
 第一版变化检测：
 
@@ -414,6 +414,7 @@ Phase 6+
 [x] Workbench / research-pack 能输出 attention queue，统一 claim conflict、claim lifecycle、alert、source degraded 和 requires-attention change
 [x] research-pack 能输出 official disclosure readiness，把内置研究 target profile、逐节点覆盖、显式 target node 覆盖、逐 expected source 覆盖、edge-level corroboration queue、profile expansion candidates、Level 4/5 边数量、traceability、cross-source corroboration、single-source disposition/unknown、intelligence context gap 和官方披露 source target 状态量化
 [x] evidence-maintenance 能把 official-disclosure readiness 的 single-source disposition `proposed_unknown` 受控落库为 edge-scoped unknown，并默认跳过缺失或非 current 的 fact edge
+[x] evidence-maintenance 能把 official signal disposition 中的 `record_single_source_unknown` 审计结论受控物化为 edge-scoped unknown，且不写 fact edge / evidence
 [x] investigation backlog action 能随 source target coverage 细化为同步、启用、运行、等待、排错或 review observation
 [x] 所有风险结论都能追溯到 fact/observation/algorithm version
 [x] calibration run 能从人工 edge labels 计算 precision / reliability buckets / error summary

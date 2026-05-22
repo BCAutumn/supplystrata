@@ -4,6 +4,7 @@ import {
   evaluateComponentRiskAlertPolicy,
   inferEdgeStrengthDrafts,
   listRefreshableComponentRiskComponentIds,
+  materializeOfficialSignalDispositionUnknowns,
   materializeSingleSourceDispositionUnknowns,
   parseOfficialDisclosureReadinessProposedUnknowns,
   recordEdgeCalibrationLabel,
@@ -20,6 +21,13 @@ import type { DbClient } from "@supplystrata/db";
 interface QueryCall {
   sql: string;
   params: readonly unknown[];
+}
+
+interface TestOfficialSignalDispositionChange {
+  change_id: string;
+  review_id: string;
+  after: Record<string, unknown>;
+  detected_at: Date;
 }
 
 class IntelligenceDbClient implements DbClient {
@@ -43,12 +51,13 @@ class SingleSourceDispositionDbClient implements DbClient {
 
   constructor(
     private readonly currentEdgeIds: ReadonlySet<string>,
-    private readonly existingUnknownIds: ReadonlySet<string> = new Set()
+    private readonly existingUnknownIds: ReadonlySet<string> = new Set(),
+    private readonly officialSignalDispositions: readonly TestOfficialSignalDispositionChange[] = []
   ) {}
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
-    const rows = rowsForSingleSourceDisposition<T>(sql, params, this.currentEdgeIds, this.existingUnknownIds);
+    const rows = rowsForSingleSourceDisposition<T>(sql, params, this.currentEdgeIds, this.existingUnknownIds, this.officialSignalDispositions);
     return {
       command: "MOCK",
       rowCount: rows.length,
@@ -329,6 +338,56 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params[3] === "UNKNOWN_ADDED")).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("materializes record_single_source_unknown signal dispositions without treating signals as fact evidence", async () => {
+    const client = new SingleSourceDispositionDbClient(new Set(["EDGE-SIGNAL-A"]), new Set(), [
+      officialSignalDispositionChange({
+        change_id: "CHG-SIGNAL-DISP-1",
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        edge_id: "EDGE-SIGNAL-A",
+        decision: "record_single_source_unknown",
+        reason: "The reviewed official signal did not provide independent counterparty corroboration."
+      }),
+      officialSignalDispositionChange({
+        change_id: "CHG-SIGNAL-DISP-2",
+        review_id: "REV-OFFICIAL-SIGNAL-2",
+        edge_id: "EDGE-SIGNAL-A",
+        decision: "supports_existing_edge",
+        reason: "The signal can help a later evidence review, but cannot mutate facts."
+      }),
+      officialSignalDispositionChange({
+        change_id: "CHG-SIGNAL-DISP-3",
+        review_id: "REV-OFFICIAL-SIGNAL-3",
+        edge_id: "EDGE-SIGNAL-MISSING",
+        decision: "record_single_source_unknown",
+        reason: "The edge is no longer current, so the unknown should not be materialized by default."
+      })
+    ]);
+
+    const summary = await materializeOfficialSignalDispositionUnknowns(client, {
+      generated_by: "unit-test",
+      limit: 10
+    });
+
+    expect(summary).toEqual({
+      scanned_dispositions: 3,
+      eligible_dispositions: 2,
+      unique_unknowns: 2,
+      edges_checked: 2,
+      unknowns_inserted: 1,
+      unknowns_updated: 0,
+      skipped_non_unknown_decision: 1,
+      skipped_missing_edges: 1,
+      skipped_unknown_ids: ["UNK-OFFICIAL-SIGNAL-DISPOSITION-A501A6703ADED60D"],
+      generated_by: "unit-test"
+    });
+    expect(client.calls.some((call) => call.sql.includes("FROM change_records"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("FROM edges"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params[3] === "UNKNOWN_ADDED")).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO evidence"))).toBe(false);
   });
 
   it("lists only components with auditable fact edges for risk refresh", async () => {
@@ -834,8 +893,13 @@ function rowsForSingleSourceDisposition<T extends pg.QueryResultRow>(
   sql: string,
   params: readonly unknown[],
   currentEdgeIds: ReadonlySet<string>,
-  existingUnknownIds: ReadonlySet<string>
+  existingUnknownIds: ReadonlySet<string>,
+  officialSignalDispositions: readonly TestOfficialSignalDispositionChange[]
 ): T[] {
+  if (sql.includes("FROM change_records") && sql.includes("OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED")) {
+    return officialSignalDispositions as unknown as T[];
+  }
+
   if (sql.includes("FROM edges")) {
     const candidateEdgeIds = stringArrayParam(params[0]);
     return candidateEdgeIds.filter((edgeId) => currentEdgeIds.has(edgeId)).map((edge_id) => ({ edge_id })) as unknown as T[];
@@ -847,6 +911,39 @@ function rowsForSingleSourceDisposition<T extends pg.QueryResultRow>(
   }
 
   return [];
+}
+
+function officialSignalDispositionChange(input: {
+  change_id: string;
+  review_id: string;
+  edge_id: string;
+  decision: "supports_existing_edge" | "needs_more_evidence" | "not_relevant" | "record_single_source_unknown" | "create_counterparty_source_target";
+  reason: string;
+}): TestOfficialSignalDispositionChange {
+  return {
+    change_id: input.change_id,
+    review_id: input.review_id,
+    detected_at: new Date("2026-05-19T00:00:00.000Z"),
+    after: {
+      review_id: input.review_id,
+      edge_id: input.edge_id,
+      decision: input.decision,
+      reviewer: "unit-test",
+      reason: input.reason,
+      source_adapter_id: "company-ir/official-html-disclosure",
+      doc_id: "DOC-OFFICIAL-SIGNAL",
+      signal_title: "Official disclosure signal",
+      evidence_id: null,
+      unknown_id: null,
+      check_target_id: null,
+      fact_write_policy: {
+        automatic_fact_mutation_allowed: false,
+        allowed_edge_mutation: "none",
+        requires_human_review: true
+      },
+      recorded_at: "2026-05-19T00:00:00.000Z"
+    }
+  };
 }
 
 function rowsForEdgeCalibration<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
