@@ -1,4 +1,4 @@
-import type { ComponentSpecificity, EvidenceLevel, RelationType } from "@supplystrata/core";
+import type { EvidenceLevel } from "@supplystrata/core";
 import { getComponentTradeTaxonomy } from "@supplystrata/component-context";
 import {
   getEvidence,
@@ -7,78 +7,28 @@ import {
   listObservationsByScope,
   listUnknownItems,
   resolveEntityId,
-  type DbClient,
-  type DbRow,
-  type UnknownItemRow
+  type DbClient
 } from "@supplystrata/db";
 import { buildCompanyChainView } from "@supplystrata/chain-view-builder";
 import type { ChainViewModel } from "@supplystrata/chain-view";
 import { loadCompanyTopExposureNodes } from "./company-risk.js";
+import type { CompanyEdgeRow, CompanyHeaderRow, ComponentEdgeRow, ComponentHeaderRow } from "./db-rows.js";
+import { companyEdgeFromRow, companyEntityFromRow, componentHeaderFromRow, toComponentEvidenceEdge, unknownMapItemFromRow } from "./dto-mappers.js";
 import { loadCompanyFinancialPeerMetrics } from "./financial-peer.js";
 import { companyObservationFromRowWithAnomaly, componentObservationFromRowWithAnomaly } from "./observation-anomaly.js";
 import { loadComponentRiskView } from "./risk-view.js";
 import type {
   CompanyCardModel,
-  CompanyCardEdge,
-  CompanyCardEntity,
   CompanyObservation,
   ComponentCardModel,
   ComponentEvidenceEdge,
-  ComponentHeader,
   ComponentLinkedCompanyObservations,
   ComponentObservation,
   ComponentParticipant,
   EdgeIntelligenceSummary,
   EvidenceCardModel,
-  UnknownMapItem,
   UnknownMapModel
 } from "@supplystrata/render";
-
-interface CompanyEdgeRow extends DbRow {
-  edge_id: string;
-  relation: RelationType;
-  component: string | null;
-  component_id: string | null;
-  component_specificity: ComponentSpecificity | null;
-  counterparty_id: string;
-  counterparty_name: string;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  primary_evidence_id: string | null;
-  cite_text: string | null;
-  source_url: string | null;
-  source_date: Date | null;
-}
-
-interface CompanyHeaderRow extends DbRow {
-  entity_id: string;
-  canonical_name: string;
-  display_name: string;
-}
-
-interface ComponentHeaderRow extends DbRow {
-  component_id: string;
-  name: string;
-  taxonomy_path: string[];
-  aliases: string[];
-}
-
-interface ComponentEdgeRow extends DbRow {
-  edge_id: string;
-  relation: RelationType;
-  subject_id: string;
-  subject_name: string;
-  object_id: string;
-  object_name: string;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  primary_evidence_id: string | null;
-  cite_text: string | null;
-  source_url: string | null;
-  source_date: Date | null;
-}
 
 export async function loadChainCard(client: DbClient, query: string, input: { depth: number }): Promise<ChainViewModel> {
   return buildCompanyChainView(client, { query, depth: input.depth });
@@ -218,10 +168,6 @@ async function loadComponentEdges(client: DbClient, component: ComponentHeaderRo
   return result.rows;
 }
 
-function companyEntityFromRow(row: CompanyHeaderRow): CompanyCardEntity {
-  return { entity_id: row.entity_id, canonical_name: row.canonical_name, display_name: row.display_name };
-}
-
 async function loadEdgeIntelligence(client: DbClient, edgeIds: readonly string[]): Promise<Map<string, EdgeIntelligenceSummary>> {
   const uniqueEdgeIds = [...new Set(edgeIds)].sort();
   const output = new Map<string, EdgeIntelligenceSummary>();
@@ -271,64 +217,11 @@ function groupByEdgeId<T extends { edge_id: string }>(items: readonly T[]): Map<
   return output;
 }
 
-function companyEdgeFromRow(row: CompanyEdgeRow, intelligenceByEdgeId: ReadonlyMap<string, EdgeIntelligenceSummary>): CompanyCardEdge {
-  const base = { ...row, source_date: row.source_date === null ? null : row.source_date.toISOString() };
-  const intelligence = intelligenceByEdgeId.get(row.edge_id);
-  return intelligence === undefined ? base : { ...base, intelligence };
-}
-
-function componentHeaderFromRow(row: ComponentHeaderRow): ComponentHeader {
-  return { component_id: row.component_id, name: row.name, taxonomy_path: row.taxonomy_path, aliases: row.aliases };
-}
-
 function componentTradeTaxonomyFromCatalog(componentId: string): ComponentCardModel["trade_taxonomy"] {
   const taxonomy = getComponentTradeTaxonomy(componentId);
   return {
     hs_codes: taxonomy?.hs_codes ?? [],
     materials: taxonomy?.materials ?? []
-  };
-}
-
-function toComponentEvidenceEdge(row: ComponentEdgeRow, intelligenceByEdgeId: ReadonlyMap<string, EdgeIntelligenceSummary>): ComponentEvidenceEdge {
-  const direction = componentEdgeDirection(row);
-  const base = {
-    edge_id: row.edge_id,
-    relation: row.relation,
-    supplier_id: direction.supplier_id,
-    supplier_name: direction.supplier_name,
-    consumer_id: direction.consumer_id,
-    consumer_name: direction.consumer_name,
-    evidence_level: row.evidence_level,
-    confidence: row.confidence,
-    is_inferred: row.is_inferred,
-    primary_evidence_id: row.primary_evidence_id,
-    cite_text: row.cite_text,
-    source_url: row.source_url,
-    source_date: row.source_date === null ? null : row.source_date.toISOString()
-  };
-  const intelligence = intelligenceByEdgeId.get(row.edge_id);
-  return intelligence === undefined ? base : { ...base, intelligence };
-}
-
-function componentEdgeDirection(row: ComponentEdgeRow): {
-  supplier_id: string;
-  supplier_name: string;
-  consumer_id: string;
-  consumer_name: string;
-} {
-  if (row.relation === "SUPPLIES_TO") {
-    return {
-      supplier_id: row.subject_id,
-      supplier_name: row.subject_name,
-      consumer_id: row.object_id,
-      consumer_name: row.object_name
-    };
-  }
-  return {
-    supplier_id: row.object_id,
-    supplier_name: row.object_name,
-    consumer_id: row.subject_id,
-    consumer_name: row.subject_name
   };
 }
 
@@ -447,15 +340,4 @@ function upsertLinkedCompanyContext(
 
 function roleRank(role: ComponentLinkedCompanyObservations["role"]): number {
   return role === "supplier" ? 0 : 1;
-}
-
-function unknownMapItemFromRow(row: UnknownItemRow): UnknownMapItem {
-  return {
-    unknown_id: row.unknown_id,
-    question: row.question,
-    why_unknown: row.why_unknown,
-    blocking_data_sources: row.blocking_data_sources,
-    proxies: row.proxies,
-    status: row.status
-  };
 }
