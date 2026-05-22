@@ -14,6 +14,7 @@ import {
   type CensusTradeRow
 } from "@supplystrata/sources-census-trade";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import { CENSUS_TRADE_CREDENTIALS } from "./source-check-credentials.js";
 
@@ -54,7 +55,7 @@ interface CensusTradeCheckOptions {
 }
 
 async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTradeInput, options: CensusTradeCheckOptions): Promise<SourceCheckSummary[]> {
-  const context = createCensusTradeAdapterContext();
+  const context = createCensusTradeAdapterContext(sourceWorkflowAdapterContextInput());
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? getLogger();
   try {

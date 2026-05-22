@@ -1,19 +1,23 @@
 import neo4j, { type Driver } from "neo4j-driver";
-import { loadEnv } from "@supplystrata/config";
 import { RELATION_TYPES, type EntityRecord, type RelationType } from "@supplystrata/core";
 import type { GraphEdgeInput, GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
 
 export type { GraphEdgeInput, GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
 
-export function createNeo4jDriver(): Driver {
-  const env = loadEnv();
-  return neo4j.driver(env.NEO4J_URI, neo4j.auth.basic(env.NEO4J_USER, env.NEO4J_PASSWORD));
+export interface Neo4jDriverConfig {
+  uri: string;
+  user: string;
+  password: string;
+}
+
+export function createNeo4jDriver(config: Neo4jDriverConfig): Driver {
+  return neo4j.driver(config.uri, neo4j.auth.basic(config.user, config.password));
 }
 
 export class Neo4jGraphStore implements GraphStore {
   readonly #driver: Driver;
 
-  constructor(driver = createNeo4jDriver()) {
+  constructor(driver: Driver) {
     this.#driver = driver;
   }
 

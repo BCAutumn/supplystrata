@@ -1,11 +1,11 @@
-import { loadEnv } from "@supplystrata/config";
 import { isSecFormType, secFormTypeOrDefault, type FetchTask, type SecFormType } from "@supplystrata/core";
 import {
-  createFsSnapshotStore,
+  createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
@@ -103,9 +103,8 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
 
 export const secEdgarAdapter = createRateLimitedSourceAdapter(secEdgarAdapterBase);
 
-export function createAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+export function createAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return createRuntimeAdapterContext(input);
 }
 
 export function isSecEdgarFormType(value: string): value is SecEdgarFormType {

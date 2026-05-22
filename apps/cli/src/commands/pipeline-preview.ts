@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import { Neo4jGraphStore } from "@supplystrata/graph";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import {
   previewAppleSuppliers,
@@ -20,6 +19,7 @@ import {
   write,
   writeJson
 } from "../cli-utils.js";
+import { createCliNeo4jGraphStore } from "../graph-store.js";
 import { renderAppleSuppliersPreview, renderPreview, renderResearchReport } from "../preview-render.js";
 
 export function registerPipelinePreviewCommands(program: Command): void {
@@ -107,5 +107,5 @@ function parseFormTypes(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
 
 function graphOptions(graphSyncMode: GraphSyncMode): Parameters<typeof runDefaultNvidiaSlice>[1] {
   if (graphSyncMode === "defer") return { graphSyncMode };
-  return { graphSyncMode, graphStore: new Neo4jGraphStore() };
+  return { graphSyncMode, graphStore: createCliNeo4jGraphStore() };
 }

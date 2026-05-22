@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
-import { loadEnv } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import {
-  createFsSnapshotStore,
+  createAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
@@ -12,6 +11,7 @@ import {
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 
 export interface GleifLeiSearchInput {
   query: string;
@@ -78,8 +78,7 @@ const gleifLeiAdapterBase: SourceAdapter<GleifLeiSearchInput, Uint8Array> = {
 export const gleifLeiAdapter = createRateLimitedSourceAdapter(gleifLeiAdapterBase);
 
 export function createGleifLeiAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+  return createAdapterContext(sourceWorkflowAdapterContextInput());
 }
 
 export async function lookupGleifLeiRecords(

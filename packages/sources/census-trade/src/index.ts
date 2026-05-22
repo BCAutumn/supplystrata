@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
-import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
-  createFsSnapshotStore,
+  createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
+  requireAdapterCredential,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
@@ -51,7 +52,7 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
   },
   async fetch(task, ctx) {
     // API key 只在真实抓取 URL 上附加；task.url 作为 provenance 入库时保持无密钥。
-    const key = requireSourceCredential(loadEnv(), "CENSUS_API_KEY");
+    const key = requireAdapterCredential(ctx, "CENSUS_API_KEY", "U.S. Census International Trade");
     const bytes = await fetchBytesWithTimeout(censusFetchUrl(task.url, key), {
       userAgent: ctx.userAgent,
       timeoutMs: 15_000,
@@ -83,9 +84,8 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
 
 export const censusTradeAdapter = createRateLimitedSourceAdapter(censusTradeAdapterBase);
 
-export function createCensusTradeAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+export function createCensusTradeAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return createRuntimeAdapterContext(input);
 }
 
 export function buildCensusTradeUrl(input: CensusTradeInput): string {

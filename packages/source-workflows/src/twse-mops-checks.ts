@@ -1,8 +1,7 @@
 import { Buffer } from "node:buffer";
-import { loadEnv } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
-  createFsSnapshotStore,
+  createAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
@@ -11,6 +10,7 @@ import {
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
@@ -111,8 +111,7 @@ export const twseMopsElectronicDocumentsSourceCheckConnector: SourceCheckConnect
 };
 
 export function createTwseMopsAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+  return createAdapterContext(sourceWorkflowAdapterContextInput());
 }
 
 export function buildTwseMopsElectronicDocumentsUrl(input: TwseMopsElectronicDocumentsInput): string {

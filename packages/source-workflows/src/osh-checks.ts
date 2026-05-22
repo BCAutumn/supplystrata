@@ -18,6 +18,7 @@ import {
   type OshFacilitySearchInput
 } from "@supplystrata/sources-osh";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import { OSH_CREDENTIALS } from "./source-check-credentials.js";
 
@@ -55,7 +56,7 @@ interface OshCheckOptions {
 }
 
 async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilitySearchInput, options: OshCheckOptions): Promise<SourceCheckSummary[]> {
-  const context = createOshAdapterContext();
+  const context = createOshAdapterContext(sourceWorkflowAdapterContextInput());
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? getLogger();
   try {

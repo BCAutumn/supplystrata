@@ -1,4 +1,3 @@
-import type pg from "pg";
 import { recordSemanticChange, type DbClient } from "@supplystrata/db";
 import {
   isOfficialDisclosureSignalReviewCandidate,
@@ -7,6 +6,7 @@ import {
   type ReviewCandidateKind,
   type ReviewCandidateStatus
 } from "@supplystrata/review-candidates";
+import type { OfficialDisclosureSignalDispositionRow, ReviewCandidateRow, ReviewStatsRow } from "./db-rows.js";
 
 export interface ReviewQueueItem {
   review_id: string;
@@ -67,31 +67,6 @@ export interface OfficialDisclosureSignalDispositionRecord {
     allowed_edge_mutation: "none";
     requires_human_review: true;
   };
-}
-
-interface ReviewCandidateRow extends pg.QueryResultRow {
-  review_id: string;
-  candidate_key: string | null;
-  kind: ReviewCandidateKind;
-  status: ReviewCandidateStatus;
-  candidate: unknown;
-  reviewer: string | null;
-  reviewed_at: Date | null;
-  decision_reason: string | null;
-  created_at: Date;
-}
-
-interface OfficialDisclosureSignalDispositionRow extends pg.QueryResultRow {
-  change_id: string;
-  review_id: string;
-  after: Record<string, unknown> | null;
-  caused_by: string;
-  detected_at: Date;
-}
-
-interface ReviewStatsRow extends pg.QueryResultRow {
-  status: ReviewCandidateStatus;
-  count: string;
 }
 
 export async function enqueueReviewCandidates(client: DbClient, candidates: readonly ReviewCandidate[]): Promise<{ inserted: number; skipped: number }> {

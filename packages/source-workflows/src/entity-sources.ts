@@ -2,9 +2,10 @@ import type { DatabaseStore } from "@supplystrata/db";
 import type { EntitySourceLookupResult } from "@supplystrata/entity-source";
 import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
-import { lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
-import { lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
-import { lookupGleifLeiRecords, type GleifLeiSearchInput } from "./gleif-entity-source.js";
+import { createCompaniesHouseAdapterContext, lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
+import { createOpenCorporatesAdapterContext, lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { createGleifLeiAdapterContext, lookupGleifLeiRecords, type GleifLeiSearchInput } from "./gleif-entity-source.js";
 
 export type EntityLookupSource = "all" | "gleif" | "opencorporates" | "companies-house";
 
@@ -75,7 +76,7 @@ export async function enqueueEntitySourceReviewCandidates(store: DatabaseStore, 
 
 async function lookupGleifSource(input: GleifLeiSearchInput): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupGleifLeiRecords(input);
+    const result = await lookupGleifLeiRecords(input, createGleifLeiAdapterContext());
     return {
       source_adapter_id: "gleif",
       source_url: result.raw.url,
@@ -92,7 +93,7 @@ async function lookupGleifSource(input: GleifLeiSearchInput): Promise<EntitySour
 
 async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupOpenCorporatesCompanies(input);
+    const result = await lookupOpenCorporatesCompanies(input, createOpenCorporatesAdapterContext(sourceWorkflowAdapterContextInput()));
     return {
       source_adapter_id: "opencorporates",
       source_url: result.raw.url,
@@ -109,7 +110,7 @@ async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput): Pro
 
 async function lookupCompaniesHouseSource(input: CompaniesHouseSearchInput): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupCompaniesHouseCompanies(input);
+    const result = await lookupCompaniesHouseCompanies(input, createCompaniesHouseAdapterContext(sourceWorkflowAdapterContextInput()));
     return {
       source_adapter_id: "companies-house",
       source_url: result.raw.url,

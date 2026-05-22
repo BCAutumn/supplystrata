@@ -1,6 +1,6 @@
-import { loadEnv } from "@supplystrata/config";
-import { createFsSnapshotStore, defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-runtime";
+import { createAdapterContext, defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 
 export interface TsmcIrInput {
   year: number;
@@ -190,9 +190,8 @@ export function micronAnnualReportUrl(year: number): string {
 }
 
 export function createOfficialIrAdapterContext(): AdapterContext {
-  const env = loadEnv();
   // 官方 IR HTML 检查共用同一套 snapshot store，避免每个薄 adapter 包重复持有环境装配逻辑。
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+  return createAdapterContext(sourceWorkflowAdapterContextInput());
 }
 
 function assertDisclosureYear(year: number, label: string): void {

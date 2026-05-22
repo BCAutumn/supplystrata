@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
-import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import {
-  createFsSnapshotStore,
+  createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
+  requireAdapterCredential,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
@@ -50,7 +51,7 @@ const openCorporatesAdapterBase: SourceAdapter<OpenCorporatesSearchInput, Uint8A
     };
   },
   async fetch(task, ctx) {
-    const token = requireSourceCredential(loadEnv(), "OPEN_CORPORATES_API_TOKEN");
+    const token = requireAdapterCredential(ctx, "OPEN_CORPORATES_API_TOKEN", "OpenCorporates");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 12_000,
@@ -76,14 +77,13 @@ const openCorporatesAdapterBase: SourceAdapter<OpenCorporatesSearchInput, Uint8A
 
 export const openCorporatesAdapter = createRateLimitedSourceAdapter(openCorporatesAdapterBase);
 
-export function createOpenCorporatesAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+export function createOpenCorporatesAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return createRuntimeAdapterContext(input);
 }
 
 export async function lookupOpenCorporatesCompanies(
   input: OpenCorporatesSearchInput,
-  ctx: AdapterContext = createOpenCorporatesAdapterContext()
+  ctx: AdapterContext
 ): Promise<{ raw: RawDocument<Uint8Array>; candidates: EntitySourceCandidate[] }> {
   const task = await firstTask(openCorporatesAdapter.plan(input, ctx));
   const raw = await openCorporatesAdapter.fetch(task, ctx);

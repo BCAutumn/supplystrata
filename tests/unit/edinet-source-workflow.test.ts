@@ -1,29 +1,23 @@
 import { Buffer } from "node:buffer";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { RawDocument } from "@supplystrata/core";
 import { buildEdinetDocumentsListUrl, extractEdinetDocumentEntries } from "@supplystrata/source-workflows";
 
 describe("edinet source workflow", () => {
-  const previousApiKey = process.env["EDINET_API_KEY"];
-
-  afterEach(() => {
-    if (previousApiKey === undefined) delete process.env["EDINET_API_KEY"];
-    else process.env["EDINET_API_KEY"] = previousApiKey;
-  });
-
   it("builds EDINET documents list URLs from deterministic target config", () => {
-    process.env["EDINET_API_KEY"] = "test-edinet-key";
-
     const url = new URL(
-      buildEdinetDocumentsListUrl({
-        date: "2026-06-30",
-        listType: 2,
-        componentId: "COMP-SILICON-WAFER",
-        scopeKind: "component",
-        scopeId: "COMP-SILICON-WAFER",
-        edinetCodes: ["E01234"],
-        docTypeCodes: ["120"]
-      })
+      buildEdinetDocumentsListUrl(
+        {
+          date: "2026-06-30",
+          listType: 2,
+          componentId: "COMP-SILICON-WAFER",
+          scopeKind: "component",
+          scopeId: "COMP-SILICON-WAFER",
+          edinetCodes: ["E01234"],
+          docTypeCodes: ["120"]
+        },
+        "test-edinet-key"
+      )
     );
 
     expect(url.origin).toBe("https://api.edinet-fsa.go.jp");

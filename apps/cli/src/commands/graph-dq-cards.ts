@@ -3,11 +3,11 @@ import { loadChainCard, loadCompanyCard, loadComponentCard, loadEvidenceCard, lo
 import { runDataQualityChecks } from "@supplystrata/data-quality";
 import type { EdgeDeprecationSourceRef, EdgeDeprecationSourceKind } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
-import { Neo4jGraphStore } from "@supplystrata/graph";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import { renderChainCard, renderCompanyCard, renderComponentCard, renderEvidenceCard, renderUnknownMapCard } from "@supplystrata/render";
 import { parseFormat, parseGraphSyncMode, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderDataQuality } from "../dq-render.js";
+import { createCliNeo4jGraphStore } from "../graph-store.js";
 import { renderGraphCheck } from "../graph-render.js";
 
 export function registerGraphDqAndCardCommands(program: Command): void {
@@ -18,7 +18,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .action(async () => {
       await withDatabase(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver, new Neo4jGraphStore());
+        const builder = new GraphBuilder(pool, resolver, createCliNeo4jGraphStore());
         try {
           const stats = await builder.rebuild();
           writeJson({ ok: true, ...stats });
@@ -34,7 +34,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver, new Neo4jGraphStore());
+        const builder = new GraphBuilder(pool, resolver, createCliNeo4jGraphStore());
         try {
           const check = await builder.checkConsistency();
           write(renderGraphCheck(check, parseFormat(options.format)));
@@ -50,7 +50,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .action(async (options: { limit: string }) => {
       await withDatabase(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver, new Neo4jGraphStore());
+        const builder = new GraphBuilder(pool, resolver, createCliNeo4jGraphStore());
         try {
           const summary = await builder.retryProjectionJobs({ limit: parseLimit(options.limit) });
           writeJson({ ok: true, ...summary });
@@ -84,7 +84,11 @@ export function registerGraphDqAndCardCommands(program: Command): void {
         await withDatabase(async (pool) => {
           const graphSyncMode = parseGraphSyncMode(options.graphSync);
           const resolver = new DbEntityResolver(pool);
-          const builder = new GraphBuilder(pool, resolver, graphSyncMode === "sync" ? { graphSyncMode, graphStore: new Neo4jGraphStore() } : { graphSyncMode });
+          const builder = new GraphBuilder(
+            pool,
+            resolver,
+            graphSyncMode === "sync" ? { graphSyncMode, graphStore: createCliNeo4jGraphStore() } : { graphSyncMode }
+          );
           try {
             const result = await builder.deprecate({
               edge_id: edgeId,

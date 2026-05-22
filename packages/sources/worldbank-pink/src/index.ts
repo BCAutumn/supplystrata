@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import * as XLSX from "xlsx";
-import { loadEnv } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
-  createFsSnapshotStore,
+  createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
@@ -104,9 +104,8 @@ const worldBankPinkAdapterBase: SourceAdapter<WorldBankPinkInput, Uint8Array> = 
 
 export const worldBankPinkAdapter = createRateLimitedSourceAdapter(worldBankPinkAdapterBase);
 
-export function createWorldBankPinkAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+export function createWorldBankPinkAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return createRuntimeAdapterContext(input);
 }
 
 export async function discoverWorldBankPinkSheetLinksFromOfficialPage(ctx: AdapterContext): Promise<WorldBankPinkLinks> {

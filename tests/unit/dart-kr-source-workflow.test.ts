@@ -1,19 +1,10 @@
 import { Buffer } from "node:buffer";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { RawDocument } from "@supplystrata/core";
 import { buildDartKrDisclosureListUrl, extractDartKrDisclosureEntries } from "@supplystrata/source-workflows";
 
 describe("dart-kr source workflow", () => {
-  const previousApiKey = process.env["OPENDART_API_KEY"];
-
-  afterEach(() => {
-    if (previousApiKey === undefined) delete process.env["OPENDART_API_KEY"];
-    else process.env["OPENDART_API_KEY"] = previousApiKey;
-  });
-
   it("builds OpenDART disclosure list URLs from deterministic target config", () => {
-    process.env["OPENDART_API_KEY"] = "test-opendart-key";
-
     const url = new URL(
       buildDartKrDisclosureListUrl(
         {
@@ -25,7 +16,8 @@ describe("dart-kr source workflow", () => {
           finalReportsOnly: "Y",
           limit: 20
         },
-        "B"
+        "B",
+        "test-opendart-key"
       )
     );
 

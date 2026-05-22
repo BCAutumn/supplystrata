@@ -2,7 +2,6 @@ import { createReadStream } from "node:fs";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join, normalize, resolve } from "node:path";
 import type { Readable } from "node:stream";
-import { loadEnv } from "@supplystrata/config";
 
 export interface ObjectStore {
   put(key: string, body: Uint8Array, meta?: Record<string, string>): Promise<void>;
@@ -14,7 +13,7 @@ export interface ObjectStore {
 export class FsObjectStore implements ObjectStore {
   readonly #baseDir: string;
 
-  constructor(baseDir = loadEnv().OBJECT_STORE_FS_BASE) {
+  constructor(baseDir: string) {
     this.#baseDir = resolve(baseDir);
   }
 

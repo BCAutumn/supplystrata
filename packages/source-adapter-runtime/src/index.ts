@@ -6,6 +6,14 @@ import { validateRateLimit, type AdapterContext, type SourceAdapter, type Source
 
 export type { AdapterContext, SourceAdapter, SourceRateLimit, SourceSnapshotLookupInput, SourceSnapshotStore } from "@supplystrata/source-adapter-spec";
 
+export interface CreateAdapterContextInput {
+  userAgent: string;
+  objectStoreBase: string;
+  credentials?: AdapterContext["credentials"];
+  now?: () => Date;
+  snapshotStore?: SourceSnapshotStore;
+}
+
 export interface FetchBytesOptions {
   userAgent: string;
   timeoutMs: number;
@@ -172,9 +180,24 @@ export function createFsSnapshotStore(baseDir: string): SourceSnapshotStore {
   };
 }
 
+export function createAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return {
+    userAgent: input.userAgent,
+    now: input.now ?? (() => new Date()),
+    snapshotStore: input.snapshotStore ?? createFsSnapshotStore(input.objectStoreBase),
+    ...(input.credentials === undefined ? {} : { credentials: input.credentials })
+  };
+}
+
 export function requireSnapshotStore(ctx: AdapterContext, sourceAdapterId: string): SourceSnapshotStore {
   if (ctx.snapshotStore !== undefined) return ctx.snapshotStore;
   throw new Error(`${sourceAdapterId} requires AdapterContext.snapshotStore for raw document persistence`);
+}
+
+export function requireAdapterCredential(ctx: AdapterContext, key: string, sourceLabel: string): string {
+  const value = ctx.credentials?.[key];
+  if (value === undefined || value.trim().length === 0) throw new Error(`${sourceLabel} requires AdapterContext.credentials.${key}`);
+  return value;
 }
 
 export async function persistRawDocumentSnapshot(input: PersistRawDocumentSnapshotInput): Promise<RawDocument<Uint8Array>> {

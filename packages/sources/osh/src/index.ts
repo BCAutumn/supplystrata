@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
-import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
-  createFsSnapshotStore,
+  createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
+  requireAdapterCredential,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
@@ -48,7 +49,7 @@ const oshAdapterBase: SourceAdapter<OshFacilitySearchInput, Uint8Array> = {
     };
   },
   async fetch(task, ctx) {
-    const token = requireSourceCredential(loadEnv(), "OSH_API_TOKEN");
+    const token = requireAdapterCredential(ctx, "OSH_API_TOKEN", "Open Supply Hub");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 15_000,
@@ -74,9 +75,8 @@ const oshAdapterBase: SourceAdapter<OshFacilitySearchInput, Uint8Array> = {
 
 export const oshAdapter = createRateLimitedSourceAdapter(oshAdapterBase);
 
-export function createOshAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+export function createOshAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return createRuntimeAdapterContext(input);
 }
 
 export function buildOshFacilitySearchUrl(input: OshFacilitySearchInput): string {

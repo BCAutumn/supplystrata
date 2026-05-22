@@ -1,11 +1,11 @@
 import { Buffer } from "node:buffer";
-import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
-  createFsSnapshotStore,
+  createAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
+  requireAdapterCredential,
   type AdapterContext,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
@@ -19,6 +19,7 @@ import {
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { EDINET_CREDENTIALS } from "./source-check-credentials.js";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
 const EDINET_DOCUMENT_LIST_TYPES = [1, 2] as const;
@@ -67,11 +68,12 @@ const edinetAdapterBase: SourceAdapter<EdinetDailyFilingsInput, Uint8Array> = {
   description: "Japan EDINET official daily disclosure list monitor",
   tos_url: "https://disclosure2.edinet-fsa.go.jp/",
   rate_limit: { requests: 2, per_seconds: 1 },
-  async *plan(input: EdinetDailyFilingsInput): AsyncIterable<FetchTask> {
+  async *plan(input: EdinetDailyFilingsInput, ctx: AdapterContext): AsyncIterable<FetchTask> {
     validateEdinetDailyFilingsInput(input);
+    const apiKey = requireAdapterCredential(ctx, "EDINET_API_KEY", "EDINET");
     yield {
       task_id: `edinet-daily-filings-${input.date}`,
-      url: buildEdinetDocumentsListUrl(input),
+      url: buildEdinetDocumentsListUrl(input, apiKey),
       expected_format: "json",
       params: {
         ...(input.entityId === undefined ? {} : { entity_id: input.entityId }),
@@ -137,14 +139,11 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
 };
 
 export function createEdinetAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+  return createAdapterContext(sourceWorkflowAdapterContextInput());
 }
 
-export function buildEdinetDocumentsListUrl(input: EdinetDailyFilingsInput): string {
+export function buildEdinetDocumentsListUrl(input: EdinetDailyFilingsInput, apiKey: string): string {
   validateEdinetDailyFilingsInput(input);
-  const env = loadEnv();
-  const apiKey = requireSourceCredential(env, "EDINET_API_KEY");
   const url = new URL("https://api.edinet-fsa.go.jp/api/v2/documents.json");
   url.searchParams.set("date", input.date);
   url.searchParams.set("type", String(input.listType ?? 2));

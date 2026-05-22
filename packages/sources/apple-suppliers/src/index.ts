@@ -1,13 +1,13 @@
-import { loadEnv } from "@supplystrata/config";
 import { type NormalizedDocument } from "@supplystrata/core";
 import { parsePdf } from "@supplystrata/parsers-pdf";
 import {
-  createFsSnapshotStore,
+  createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
   requireSnapshotStore,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter,
   type SourceSnapshotStore
 } from "@supplystrata/source-adapter-runtime";
@@ -80,9 +80,8 @@ export function appleSupplierListUrl(fiscalYear: 2022): string {
   return "https://www.apple.com.cn/supplier-responsibility/pdf/Apple-Supplier-List.pdf";
 }
 
-export function createAppleSuppliersAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+export function createAppleSuppliersAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return createRuntimeAdapterContext(input);
 }
 
 export function extractAppleSupplierCandidates(normalized: NormalizedDocument, fiscalYear: number): AppleSupplierCandidate[] {

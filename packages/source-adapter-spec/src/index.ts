@@ -16,10 +16,13 @@ export interface SourceSnapshotStore {
   readLatest(input: SourceSnapshotLookupInput): Promise<Uint8Array | undefined>;
 }
 
+export type AdapterCredentials = Readonly<Record<string, string | undefined>>;
+
 export interface AdapterContext {
   userAgent: string;
   now(): Date;
   snapshotStore?: SourceSnapshotStore;
+  credentials?: AdapterCredentials;
 }
 
 export interface SourceAdapter<TFetchInput, TRawDoc> {

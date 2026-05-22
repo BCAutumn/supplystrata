@@ -1,11 +1,11 @@
 import { Buffer } from "node:buffer";
-import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
-  createFsSnapshotStore,
+  createAdapterContext,
   createRateLimitedSourceAdapter,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
+  requireAdapterCredential,
   type AdapterContext,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
@@ -19,6 +19,7 @@ import {
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { OPENDART_CREDENTIALS } from "./source-check-credentials.js";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
 const DART_DISCLOSURE_TYPES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"] as const;
@@ -68,12 +69,13 @@ const dartKrAdapterBase: SourceAdapter<DartKrCompanyFilingsInput, Uint8Array> = 
   description: "OpenDART official disclosure list monitor for Korean listed companies",
   tos_url: "https://opendart.fss.or.kr/",
   rate_limit: { requests: 2, per_seconds: 1 },
-  async *plan(input: DartKrCompanyFilingsInput): AsyncIterable<FetchTask> {
+  async *plan(input: DartKrCompanyFilingsInput, ctx: AdapterContext): AsyncIterable<FetchTask> {
     validateDartKrCompanyFilingsInput(input);
+    const apiKey = requireAdapterCredential(ctx, "OPENDART_API_KEY", "OpenDART");
     for (const disclosureType of dedupeDisclosureTypes(input.disclosureTypes)) {
       yield {
         task_id: `dart-kr-${input.corpCode}-${input.year}-${disclosureType}`,
-        url: buildDartKrDisclosureListUrl(input, disclosureType),
+        url: buildDartKrDisclosureListUrl(input, disclosureType, apiKey),
         expected_format: "json",
         hint: {
           entity_id: input.entityId,
@@ -136,14 +138,11 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
 };
 
 export function createDartKrAdapterContext(): AdapterContext {
-  const env = loadEnv();
-  return { userAgent: env.SEC_USER_AGENT, now: () => new Date(), snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE) };
+  return createAdapterContext(sourceWorkflowAdapterContextInput());
 }
 
-export function buildDartKrDisclosureListUrl(input: DartKrCompanyFilingsInput, disclosureType: DartKrDisclosureType): string {
+export function buildDartKrDisclosureListUrl(input: DartKrCompanyFilingsInput, disclosureType: DartKrDisclosureType, apiKey: string): string {
   validateDartKrCompanyFilingsInput(input);
-  const env = loadEnv();
-  const apiKey = requireSourceCredential(env, "OPENDART_API_KEY");
   const url = new URL("https://engopendart.fss.or.kr/engapi/list.json");
   url.searchParams.set("crtfc_key", apiKey);
   url.searchParams.set("corp_code", input.corpCode);
