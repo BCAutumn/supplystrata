@@ -12,6 +12,29 @@ export interface SourceCheckJobEnqueueResult {
   skipped_active_jobs: number;
 }
 
+export interface SourceCheckJobEnqueueAndClaimResult extends SourceCheckJobEnqueueResult {
+  claimed_jobs: SourceCheckJobRow[];
+}
+
+export async function enqueueAndClaimDueSourceCheckJobs(
+  client: DbTxClient,
+  input: { now?: string; limit?: number; lease_minutes?: number } & SourceCheckTargetSelection = {}
+): Promise<SourceCheckJobEnqueueAndClaimResult> {
+  const enqueue = await enqueueDueSourceCheckJobs(client, {
+    limit: input.limit ?? 50,
+    ...(input.now === undefined ? {} : { now: input.now }),
+    ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
+    ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
+  });
+  const claimedJobs = await claimDueSourceCheckJobs(client, {
+    limit: input.limit ?? 50,
+    ...(input.lease_minutes === undefined ? {} : { lease_minutes: input.lease_minutes }),
+    ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
+    ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
+  });
+  return { ...enqueue, claimed_jobs: claimedJobs };
+}
+
 export async function enqueueDueSourceCheckJobs(
   client: DbTxClient,
   input: { now?: string; limit?: number } & SourceCheckTargetSelection = {}

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type pg from "pg";
 import { envSchema } from "@supplystrata/config";
-import { listRegisteredSourceCheckConnectorCapabilities, listSourceCheckConnectorIds, runManualSourceCheck } from "@supplystrata/source-workflows";
+import {
+  listRegisteredSourceCheckConnectorCapabilities,
+  listSourceCheckConnectorIds,
+  runDueSourceChecks,
+  runManualSourceCheck
+} from "@supplystrata/source-workflows";
 import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
 
 describe("source check registry", () => {
@@ -79,16 +84,36 @@ describe("source check registry", () => {
       )
     ).rejects.toThrow("Unsupported due source target: unknown-source/(unspecified)");
   });
+
+  it("enqueues and claims due source checks in one transaction before running jobs", async () => {
+    const store = new NoopDatabaseStore();
+
+    const result = await runDueSourceChecks(store, { env: envSchema.parse({}), limit: 5, now: "2026-05-19T00:00:00.000Z" });
+
+    expect(result).toMatchObject({
+      due_targets: 0,
+      enqueued_jobs: 0,
+      skipped_active_jobs: 0,
+      claimed_jobs: 0,
+      checked_targets: 0,
+      failed_targets: 0,
+      dead_jobs: 0,
+      items: []
+    });
+    expect(store.transactionCount).toBe(1);
+  });
 });
 
 class NoopDatabaseStore implements DatabaseStore {
   readonly adapter_id = "noop";
+  transactionCount = 0;
 
   async query<T extends pg.QueryResultRow>(): Promise<pg.QueryResult<T>> {
     return { command: "NOOP", rowCount: 0, oid: 0, fields: [], rows: [] };
   }
 
   async transaction<T>(fn: (client: DbTxClient) => Promise<T>): Promise<T> {
+    this.transactionCount += 1;
     return fn(new NoopTxClient());
   }
 

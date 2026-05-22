@@ -4,6 +4,7 @@ import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/d
 import {
   calculateNextCheckAt,
   claimDueSourceCheckJobs,
+  enqueueAndClaimDueSourceCheckJobs,
   enableSourceCheckTargets,
   classifyDocumentChange,
   enqueueDueSourceCheckJobs,
@@ -256,6 +257,24 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("j.status = 'in_progress'") && call.sql.includes("j.lease_expires_at <= now()"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("lease_expires_at = now() + ($4::int * interval '1 minute')"))).toBe(true);
     expect(client.calls.some((call) => call.params.includes(15))).toBe(true);
+  });
+
+  it("enqueues and claims due source check jobs through one transactional repository call", async () => {
+    const client = new SourceCheckJobDbClient();
+
+    const batch = await enqueueAndClaimDueSourceCheckJobs(client, {
+      now: "2026-05-19T00:00:00.000Z",
+      limit: 10,
+      check_target_ids: ["sec-edgar:nvidia"],
+      source_adapter_ids: ["sec-edgar"]
+    });
+
+    expect(batch.due_targets).toBe(1);
+    expect(batch.enqueued_jobs).toBe(1);
+    expect(batch.skipped_active_jobs).toBe(0);
+    expect(batch.claimed_jobs[0]?.job_id).toBe("SCJ-TEST");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_check_jobs"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("UPDATE source_check_jobs jobs"))).toBe(true);
   });
 
   it("marks source check jobs succeeded or failed without touching source facts", async () => {

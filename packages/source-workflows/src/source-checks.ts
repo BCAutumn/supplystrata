@@ -1,8 +1,7 @@
 import type { DatabaseStore } from "@supplystrata/db";
 import type { Env } from "@supplystrata/config";
 import {
-  claimDueSourceCheckJobs,
-  enqueueDueSourceCheckJobs,
+  enqueueAndClaimDueSourceCheckJobs,
   markSourceCheckJobFailed,
   markSourceCheckJobSucceeded,
   type DueSourceCheckRow,
@@ -60,30 +59,23 @@ export type DueSourceCheckRunInput = { now?: string; limit?: number } & SourceCh
 export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput): Promise<DueSourceCheckRunResult> {
   const logger = input.logger ?? noopLogger;
   const adapterContextInput = sourceWorkflowAdapterContextInput(input.env);
-  const enqueue = await store.transaction((client) =>
-    enqueueDueSourceCheckJobs(client, {
+  const jobBatch = await store.transaction((client) =>
+    enqueueAndClaimDueSourceCheckJobs(client, {
       limit: input.limit ?? 50,
       ...(input.now === undefined ? {} : { now: input.now }),
       ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
       ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
     })
   );
-  const due = await store.transaction((client) =>
-    claimDueSourceCheckJobs(client, {
-      limit: input.limit ?? 50,
-      ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
-      ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
-    })
-  );
   const items: DueSourceCheckRunItem[] = [];
-  for (const job of due) {
+  for (const job of jobBatch.claimed_jobs) {
     items.push(await runDueSourceCheckJob(store, job, { env: input.env, logger, adapterContextInput }));
   }
   return {
-    due_targets: enqueue.due_targets,
-    enqueued_jobs: enqueue.enqueued_jobs,
-    skipped_active_jobs: enqueue.skipped_active_jobs,
-    claimed_jobs: due.length,
+    due_targets: jobBatch.due_targets,
+    enqueued_jobs: jobBatch.enqueued_jobs,
+    skipped_active_jobs: jobBatch.skipped_active_jobs,
+    claimed_jobs: jobBatch.claimed_jobs.length,
     checked_targets: items.filter((item) => item.status === "checked").length,
     failed_targets: items.filter((item) => item.status === "failed").length,
     dead_jobs: items.filter((item) => item.status === "dead").length,

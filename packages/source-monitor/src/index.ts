@@ -23,7 +23,13 @@ export { parseSourcePolicyConfig } from "./policy-config.js";
 export { calculateNextCheckAt } from "./scheduling.js";
 export { listSourceTargetCoverage } from "./coverage.js";
 export { syncSourceHealthRegistry } from "./source-health-registry.js";
-export { claimDueSourceCheckJobs, enqueueDueSourceCheckJobs, markSourceCheckJobFailed, markSourceCheckJobSucceeded } from "./source-check-jobs.js";
+export {
+  claimDueSourceCheckJobs,
+  enqueueAndClaimDueSourceCheckJobs,
+  enqueueDueSourceCheckJobs,
+  markSourceCheckJobFailed,
+  markSourceCheckJobSucceeded
+} from "./source-check-jobs.js";
 export type {
   SourceTargetCoverageInput,
   SourceTargetCoverageItem,
