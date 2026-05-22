@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
 import type pg from "pg";
-import type { ClaimType, DocumentType, EvidenceLevel, RelationType } from "@supplystrata/core";
+import type { DocumentType } from "@supplystrata/core";
 import {
   getClaim,
   linkClaimEvidence,
@@ -29,7 +28,6 @@ import {
   type SemanticChangeReviewCandidate
 } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
-import { getSourceById, sourceAuthorityFor, type PublisherType, type RelationAuthority, type SourceCategory } from "@supplystrata/source-registry";
 export {
   adjudicateClaimConflict,
   buildClaimConflictContext,
@@ -49,6 +47,27 @@ export {
   type ClaimConflictReviewStep,
   type ClaimConflictSafeWriteStatus
 } from "./claim-conflict.js";
+export {
+  buildClaimDraftFromEdge,
+  buildClaimDraftFromSemanticChangeReview,
+  claimTypeForRelation,
+  deterministicClaimIdForEdge,
+  deterministicClaimIdForSemanticReview,
+  deterministicConflictUnknownIdForClaimEvidence,
+  deterministicConflictUnknownIdForSemanticReview,
+  isConflictingSemanticChange,
+  type ClaimableFactEdge,
+  type EdgeClaimDraft,
+  type SemanticChangeClaimDraft
+} from "./claim-drafts.js";
+export {
+  fuseClaimConfidenceFromEvidence,
+  type ClaimEvidenceFusionRole,
+  type ClaimEvidenceIndependenceBasis,
+  type ClaimFusionContribution,
+  type ClaimFusionEvidence,
+  type ClaimFusionResult
+} from "./claim-fusion.js";
 import {
   buildClaimConflictReviewPacket,
   type ClaimConflictAdjudicationSeverity,
@@ -57,43 +76,18 @@ import {
   type ClaimConflictReviewPacket,
   type ClaimConflictReviewStep
 } from "./claim-conflict.js";
-
-export interface ClaimableFactEdge {
-  edge_id: string;
-  subject_id: string;
-  object_id: string;
-  relation: RelationType;
-  component: string | null;
-  component_id: string | null;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  primary_evidence_id: string;
-  last_verified_at: Date | string;
-  subject_name: string;
-  object_name: string;
-}
+import {
+  buildClaimDraftFromEdge,
+  buildClaimDraftFromSemanticChangeReview,
+  deterministicConflictUnknownIdForClaimEvidence,
+  deterministicConflictUnknownIdForSemanticReview,
+  isConflictingSemanticChange,
+  type ClaimableFactEdge,
+  type SemanticChangeClaimDraft
+} from "./claim-drafts.js";
+import { fuseClaimConfidenceFromEvidence, type ClaimFusionEvidence } from "./claim-fusion.js";
 
 interface ClaimableFactEdgeRow extends pg.QueryResultRow, ClaimableFactEdge {}
-
-export type ClaimEvidenceFusionRole = "primary" | "supporting";
-
-export type ClaimEvidenceIndependenceBasis =
-  | "primary_evidence"
-  | "same_doc_same_chunk"
-  | "same_document_different_chunk"
-  | "same_source_different_document"
-  | "different_source_adapter";
-
-export interface ClaimFusionEvidence {
-  evidence_id: string;
-  doc_id: string;
-  chunk_id: string | null;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  source_adapter_id: string;
-  document_type: DocumentType;
-}
 
 interface ClaimFusionEvidenceRow extends pg.QueryResultRow, ClaimFusionEvidence {}
 
@@ -131,56 +125,6 @@ interface ClaimConflictReviewScanRow extends pg.QueryResultRow {
 interface ClaimLifecycleStatusUpdateRow extends pg.QueryResultRow {
   claim_id: string;
   status: ClaimStatus;
-}
-
-export interface ClaimFusionContribution {
-  evidence_id: string;
-  role: ClaimEvidenceFusionRole;
-  source_adapter_id: string;
-  document_type: DocumentType;
-  source_category: SourceCategory;
-  publisher_type: PublisherType;
-  relation_authority: RelationAuthority;
-  independence_basis: ClaimEvidenceIndependenceBasis;
-  independence_weight: number;
-  adjusted_confidence: number;
-}
-
-export interface ClaimFusionResult {
-  confidence: number;
-  base_confidence: number;
-  supporting_evidence_count: number;
-  independent_source_count: number;
-  contributions: ClaimFusionContribution[];
-}
-
-export interface EdgeClaimDraft {
-  claim_id: string;
-  claim_type: ClaimType;
-  claim_text: string;
-  subject_id: string;
-  object_id: string;
-  component_id?: string;
-  edge_id: string;
-  evidence_id: string;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: false;
-  generated_by: string;
-  last_verified_at: string;
-}
-
-export interface SemanticChangeClaimDraft {
-  claim_id: string;
-  claim_type: ClaimType;
-  claim_text: string;
-  review_id: string;
-  status: "draft";
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: true;
-  generated_by: string;
-  last_verified_at: string;
 }
 
 export interface SemanticChangeClaimDraftResult {
@@ -283,102 +227,6 @@ export interface ResolveClaimLifecycleResult {
   edge_validity: ClaimRow["edge_validity"];
   source_refs: ClaimLifecycleSourceRef[];
   superseded_by_claim_id?: string;
-}
-
-export function claimTypeForRelation(relation: RelationType): ClaimType {
-  if (relation === "MANUFACTURES_AT" || relation === "OPERATES_FACILITY") return "FACILITY_RELATION_CLAIM";
-  if (relation === "USES_COMPONENT") return "COMPONENT_EXPOSURE_CLAIM";
-  if (relation === "OWNS_SUBSIDIARY" || relation === "OWNS_BUSINESS_UNIT" || relation === "IS_A") return "ENTITY_FACT_CLAIM";
-  return "SUPPLY_RELATION_CLAIM";
-}
-
-export function deterministicClaimIdForEdge(edgeId: string): string {
-  const digest = createHash("sha256").update(`edge:${edgeId}`).digest("hex").slice(0, 24).toUpperCase();
-  return `CLM-EDGE-${digest}`;
-}
-
-export function deterministicClaimIdForSemanticReview(reviewId: string): string {
-  const digest = createHash("sha256").update(`semantic-review:${reviewId}`).digest("hex").slice(0, 24).toUpperCase();
-  return `CLM-REVIEW-${digest}`;
-}
-
-export function deterministicConflictUnknownIdForSemanticReview(reviewId: string): string {
-  const digest = createHash("sha256").update(`semantic-conflict:${reviewId}`).digest("hex").slice(0, 24).toUpperCase();
-  return `UNK-CONFLICT-${digest}`;
-}
-
-export function deterministicConflictUnknownIdForClaimEvidence(claimId: string, evidenceId: string): string {
-  const digest = createHash("sha256").update(`claim-evidence-conflict:${claimId}:${evidenceId}`).digest("hex").slice(0, 24).toUpperCase();
-  return `UNK-CONFLICT-${digest}`;
-}
-
-export function isConflictingSemanticChange(changeType: string): boolean {
-  return changeType.endsWith("_REMOVED");
-}
-
-export function buildClaimDraftFromEdge(edge: ClaimableFactEdge, input: { generated_by?: string } = {}): EdgeClaimDraft {
-  if (edge.is_inferred) {
-    throw new Error(`Cannot build active fact claim from inferred edge ${edge.edge_id}`);
-  }
-  const draftWithoutComponent: Omit<EdgeClaimDraft, "component_id"> = {
-    claim_id: deterministicClaimIdForEdge(edge.edge_id),
-    claim_type: claimTypeForRelation(edge.relation),
-    claim_text: claimTextForEdge(edge),
-    subject_id: edge.subject_id,
-    object_id: edge.object_id,
-    edge_id: edge.edge_id,
-    evidence_id: edge.primary_evidence_id,
-    evidence_level: edge.evidence_level,
-    confidence: edge.confidence,
-    is_inferred: false,
-    generated_by: input.generated_by ?? "claim-builder.edge-fact.v1",
-    last_verified_at: normalizeTimestamp(edge.last_verified_at)
-  };
-  if (edge.component_id === null) return draftWithoutComponent;
-  return { ...draftWithoutComponent, component_id: edge.component_id };
-}
-
-export function fuseClaimConfidenceFromEvidence(
-  evidences: readonly ClaimFusionEvidence[],
-  input: { primary_evidence_id: string; base_confidence?: number }
-): ClaimFusionResult {
-  const primaryEvidence = evidences.find((evidence) => evidence.evidence_id === input.primary_evidence_id);
-  if (primaryEvidence === undefined) {
-    throw new Error(`Claim fusion cannot find primary evidence ${input.primary_evidence_id}`);
-  }
-
-  const baseConfidence = clampConfidence(input.base_confidence ?? primaryEvidence.confidence);
-  const contributions = evidences.map((evidence) => contributionForEvidence(evidence, primaryEvidence));
-  const remainingDoubt = contributions.reduce((product, contribution) => product * (1 - contribution.adjusted_confidence), 1);
-  // 融合只提升 claim confidence；单条 evidence_level 保持原样，避免多条弱证据伪装成高等级事实。
-  const fusedConfidence = Math.max(baseConfidence, Math.min(0.99, 1 - remainingDoubt));
-  const independentSourceCount = new Set(contributions.filter((item) => item.adjusted_confidence > 0).map((item) => item.source_adapter_id)).size;
-
-  return {
-    confidence: roundConfidence(fusedConfidence),
-    base_confidence: roundConfidence(baseConfidence),
-    supporting_evidence_count: contributions.filter((item) => item.role === "supporting").length,
-    independent_source_count: independentSourceCount,
-    contributions
-  };
-}
-
-export function buildClaimDraftFromSemanticChangeReview(
-  candidate: SemanticChangeReviewCandidate,
-  input: { generated_by?: string; reviewed_at?: string } = {}
-): SemanticChangeClaimDraft {
-  return {
-    claim_id: deterministicClaimIdForSemanticReview(candidate.review_id),
-    claim_type: claimTypeForSemanticChange(candidate),
-    claim_text: claimTextForSemanticChange(candidate),
-    review_id: candidate.review_id,
-    status: "draft",
-    evidence_level: 3,
-    confidence: candidate.confidence,
-    is_inferred: true,
-    generated_by: input.generated_by ?? "claim-builder.semantic-change-draft.v1",
-    last_verified_at: input.reviewed_at ?? new Date().toISOString()
-  };
 }
 
 export async function upsertSemanticChangeClaimDraft(
@@ -1075,79 +923,6 @@ function claimConflictReviewStepsForCandidate(steps: readonly ClaimConflictRevie
   return result;
 }
 
-function contributionForEvidence(evidence: ClaimFusionEvidence, primaryEvidence: ClaimFusionEvidence): ClaimFusionContribution {
-  const role: ClaimEvidenceFusionRole = evidence.evidence_id === primaryEvidence.evidence_id ? "primary" : "supporting";
-  const independence = role === "primary" ? { basis: "primary_evidence" as const, weight: 1 } : sourceIndependenceAgainstPrimary(evidence, primaryEvidence);
-  const source = getSourceById(evidence.source_adapter_id);
-  const authority = sourceAuthorityFor({ source_adapter_id: evidence.source_adapter_id, document_type: evidence.document_type });
-
-  return {
-    evidence_id: evidence.evidence_id,
-    role,
-    source_adapter_id: evidence.source_adapter_id,
-    document_type: evidence.document_type,
-    source_category: source?.category ?? "manual",
-    publisher_type: authority.publisher_type,
-    relation_authority: authority.relation_authority,
-    independence_basis: independence.basis,
-    independence_weight: independence.weight,
-    adjusted_confidence: roundConfidence(clampConfidence(evidence.confidence) * independence.weight)
-  };
-}
-
-function sourceIndependenceAgainstPrimary(
-  evidence: ClaimFusionEvidence,
-  primaryEvidence: ClaimFusionEvidence
-): { basis: Exclude<ClaimEvidenceIndependenceBasis, "primary_evidence">; weight: number } {
-  if (evidence.doc_id === primaryEvidence.doc_id && evidence.chunk_id === primaryEvidence.chunk_id) {
-    return { basis: "same_doc_same_chunk", weight: 0 };
-  }
-  if (evidence.doc_id === primaryEvidence.doc_id) {
-    return { basis: "same_document_different_chunk", weight: 0.25 };
-  }
-  if (evidence.source_adapter_id === primaryEvidence.source_adapter_id) {
-    return { basis: "same_source_different_document", weight: 0.5 };
-  }
-  return { basis: "different_source_adapter", weight: 1 };
-}
-
-function claimTextForEdge(edge: ClaimableFactEdge): string {
-  const componentObject = componentObjectText(edge.component);
-  const componentContext = componentContextText(edge.component);
-  if (edge.relation === "BUYS_FROM") return `${edge.subject_name} publicly discloses that it buys${componentObject} from ${edge.object_name}.`;
-  if (edge.relation === "SUPPLIES_TO") return `${edge.subject_name} publicly discloses that it supplies${componentObject} to ${edge.object_name}.`;
-  if (edge.relation === "USES_FOUNDRY") return `${edge.subject_name} publicly discloses that it uses ${edge.object_name} as a foundry${componentContext}.`;
-  if (edge.relation === "USES_COMPONENT") return `${edge.subject_name} publicly discloses exposure to${componentObject} through ${edge.object_name}.`;
-  if (edge.relation === "MANUFACTURES_AT") return `${edge.subject_name} publicly discloses manufacturing activity at ${edge.object_name}${componentContext}.`;
-  if (edge.relation === "OPERATES_FACILITY") return `${edge.subject_name} publicly discloses that it operates ${edge.object_name}${componentContext}.`;
-  if (edge.relation === "OWNS_SUBSIDIARY") return `${edge.subject_name} publicly discloses ownership of subsidiary ${edge.object_name}.`;
-  if (edge.relation === "OWNS_BUSINESS_UNIT") return `${edge.subject_name} publicly discloses ownership of business unit ${edge.object_name}.`;
-  if (edge.relation === "IS_A") return `${edge.subject_name} publicly discloses that ${edge.object_name} is part of its entity structure.`;
-  return `${edge.subject_name} publicly discloses a ${edge.relation} relationship with ${edge.object_name}${componentContext}.`;
-}
-
-function claimTypeForSemanticChange(candidate: SemanticChangeReviewCandidate): ClaimType {
-  const changeType = candidate.payload.change_type;
-  if (changeType.includes("CUSTOMER")) return "DEMAND_SIGNAL_CLAIM";
-  if (changeType.includes("PURCHASE_OBLIGATION") || changeType.includes("CAPACITY_RESERVATION") || changeType.includes("SINGLE_SOURCE_RISK"))
-    return "RISK_SIGNAL_CLAIM";
-  return "SUPPLY_RELATION_CLAIM";
-}
-
-function claimTextForSemanticChange(candidate: SemanticChangeReviewCandidate): string {
-  const payload = candidate.payload;
-  const component = payload.component ?? payload.component_id;
-  const componentText = component === undefined ? "" : ` (${component})`;
-  const direction = semanticChangeDirection(payload.change_type);
-  return [
-    "Reviewed official-disclosure monitoring",
-    direction,
-    `${payload.semantic_relation_kind}:`,
-    `${payload.subject_surface} -${payload.relation}-> ${payload.object_surface}${componentText}.`,
-    "This is a draft signal and is not an active fact edge."
-  ].join(" ");
-}
-
 function conflictUnknownQuestion(candidate: SemanticChangeReviewCandidate): string {
   const payload = candidate.payload;
   const component = payload.component ?? payload.component_id;
@@ -1178,39 +953,4 @@ function contradictingEvidenceUnknownReason(reason: string, evidence: ClaimConfl
     `Evidence ${evidence.evidence_id} from ${evidence.source_adapter_id} (${evidence.document_type}) has been linked as contradicting context.`,
     "The claim must be treated as contested until reviewed; this does not deprecate the fact edge or create a replacement edge."
   ].join(" ");
-}
-
-function semanticChangeDirection(changeType: string): string {
-  if (changeType.endsWith("_ADDED")) return "flagged a newly observed candidate";
-  if (changeType.endsWith("_REMOVED")) return "flagged a no-longer-observed candidate";
-  if (changeType.endsWith("_CHANGED")) return "flagged changed wording for a monitored candidate";
-  return "flagged a monitored candidate change";
-}
-
-function componentObjectText(component: string | null): string {
-  const value = component?.trim();
-  if (value === undefined || value.length === 0) return "";
-  return ` ${value}`;
-}
-
-function componentContextText(component: string | null): string {
-  const value = component?.trim();
-  if (value === undefined || value.length === 0) return "";
-  return ` for ${value}`;
-}
-
-function normalizeTimestamp(value: Date | string): string {
-  if (value instanceof Date) return value.toISOString();
-  return value;
-}
-
-function clampConfidence(value: number): number {
-  if (!Number.isFinite(value)) throw new Error(`Invalid confidence value: ${value}`);
-  if (value < 0) return 0;
-  if (value > 1) return 1;
-  return value;
-}
-
-function roundConfidence(value: number): number {
-  return Math.round(value * 10000) / 10000;
 }
