@@ -26,7 +26,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: companyIrExplicitUrlAdapter,
         adapterInput: companyIrExplicitUrlInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(),
+        context: createOfficialIrAdapterContext(context.adapter_context_input),
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.company-ir",
@@ -43,7 +43,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: tsmcIrAdapter,
         adapterInput: tsmcIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(),
+        context: createOfficialIrAdapterContext(context.adapter_context_input),
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.tsmc-ir",
@@ -60,7 +60,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: samsungIrAdapter,
         adapterInput: samsungIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(),
+        context: createOfficialIrAdapterContext(context.adapter_context_input),
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.samsung-ir",
@@ -77,7 +77,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: skHynixIrAdapter,
         adapterInput: skHynixIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(),
+        context: createOfficialIrAdapterContext(context.adapter_context_input),
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.skhynix-ir",
@@ -94,7 +94,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: asmlIrAdapter,
         adapterInput: asmlIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(),
+        context: createOfficialIrAdapterContext(context.adapter_context_input),
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.asml-ir",
@@ -111,7 +111,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
       return runSourceAdapterCheck(store, {
         adapter: micronIrAdapter,
         adapterInput: micronIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(),
+        context: createOfficialIrAdapterContext(context.adapter_context_input),
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.micron-ir",

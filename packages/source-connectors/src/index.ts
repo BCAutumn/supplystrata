@@ -33,7 +33,14 @@ export interface SourceCheckConnectorLogger {
   debug(bindings: Record<string, unknown>, message: string): void;
 }
 
+export interface SourceCheckAdapterContextInput {
+  userAgent: string;
+  objectStoreBase: string;
+  credentials?: Readonly<Record<string, string | undefined>> | undefined;
+}
+
 export interface SourceCheckConnectorRunContext {
+  adapter_context_input: SourceCheckAdapterContextInput;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -79,7 +86,7 @@ export async function runSourceCheckConnector<TStore, TResult, TTarget extends S
   store: TStore,
   target: TTarget,
   connectors: readonly SourceCheckConnector<TStore, TResult, TTarget>[],
-  context: SourceCheckConnectorRunContext = {}
+  context: SourceCheckConnectorRunContext
 ): Promise<TResult[]> {
   const connector = findSourceCheckConnector(target, connectors);
   if (connector === undefined) {

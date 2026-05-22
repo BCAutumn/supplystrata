@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
+import { loadEnv } from "@supplystrata/config";
 import { listChangeTimeline } from "@supplystrata/db";
 import {
   listRegisteredSourceCheckConnectorCapabilities,
@@ -129,7 +130,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .action(async (options: { limit: string; checkTargetId?: string; source?: string; sourcePlan?: string; namespace?: string; format: string }) => {
       await withDatabase(async (pool) => {
         const selection = await buildSourceCheckSelectionOptions(options);
-        const result = await runDueSourceChecks(pool, { limit: parseLimit(options.limit), ...selection });
+        const result = await runDueSourceChecks(pool, { env: loadEnv(), limit: parseLimit(options.limit), ...selection });
         if (parseFormat(options.format) === "json") {
           writeJson({ schema_version: "1.0.0", ...result });
           return;
@@ -167,11 +168,15 @@ export function registerSourcesAndChangesCommands(program: Command): void {
       }) => {
         await withDatabase(async (pool) => {
           const targetConfig = await buildManualSourceCheckConfig(options);
-          const summaries = await runManualSourceCheck(pool, {
-            source_adapter_id: options.source,
-            ...(options.targetKind === undefined ? {} : { target_kind: options.targetKind }),
-            target_config: targetConfig
-          });
+          const summaries = await runManualSourceCheck(
+            pool,
+            {
+              source_adapter_id: options.source,
+              ...(options.targetKind === undefined ? {} : { target_kind: options.targetKind }),
+              target_config: targetConfig
+            },
+            { env: loadEnv() }
+          );
           if (parseFormat(options.format) === "json") {
             writeJson({
               schema_version: "1.0.0",
@@ -313,6 +318,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
       });
       if (!preview.validation.ok) throw new Error(`source-plan targets are invalid: ${preview.validation.errors.map((issue) => issue.message).join("; ")}`);
       const report = await runSourcePlanConnectivitySmoke({
+        env: loadEnv(),
         targets: preview.config.check_targets,
         ...(options.source === undefined ? {} : { source_adapter_ids: parseCommaSeparated(options.source) }),
         ...(options.limit === undefined ? {} : { limit: parseLimit(options.limit) })

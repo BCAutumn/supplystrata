@@ -3,7 +3,12 @@ import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
-import { requireConfigString, type SourceCheckConnector, type SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
+import {
+  requireConfigString,
+  type SourceCheckAdapterContextInput,
+  type SourceCheckConnector,
+  type SourceCheckConnectorLogger
+} from "@supplystrata/source-connectors";
 import {
   createWorldBankPinkAdapterContext,
   parseWorldBankPinkRows,
@@ -37,6 +42,7 @@ export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseSto
     return runWorldBankPinkSourceCheck(store, worldBankPinkInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,
       targetConfig: target.target_config,
+      adapterContextInput: context.adapter_context_input,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -45,11 +51,12 @@ export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseSto
 interface WorldBankPinkCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
+  adapterContextInput?: SourceCheckAdapterContextInput;
   logger?: SourceCheckConnectorLogger;
 }
 
 async function runWorldBankPinkSourceCheck(store: DatabaseStore, input: WorldBankPinkInput, options: WorldBankPinkCheckOptions): Promise<SourceCheckSummary[]> {
-  const context = createWorldBankPinkAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+  const context = createWorldBankPinkAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? noopLogger;
   try {

@@ -1,7 +1,7 @@
-import type pg from "pg";
 import type { RiskMetricKind } from "@supplystrata/core";
 import type { DbClient, RiskMetricRecord, RiskViewRecord } from "@supplystrata/db";
 import { recordSemanticChange } from "@supplystrata/db";
+import type { ComponentRiskChangeRow } from "./db-rows.js";
 
 export interface RecordComponentRiskMetricChangesInput {
   componentId: string;
@@ -72,7 +72,7 @@ export async function recordComponentRiskMetricChanges(client: DbClient, input: 
 }
 
 async function hasRiskMetricChangeForView(client: DbClient, input: { metricKey: string; riskViewId: string }): Promise<boolean> {
-  const result = await client.query<{ change_id: string } & pg.QueryResultRow>(
+  const result = await client.query<ComponentRiskChangeRow>(
     `SELECT change_id
      FROM change_records
      WHERE scope_kind = 'risk_metric'

@@ -3,7 +3,12 @@ import { findComponentTradeCode, listComponentMaterialExposures } from "@supplys
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
-import { requireConfigString, type SourceCheckConnector, type SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
+import {
+  requireConfigString,
+  type SourceCheckAdapterContextInput,
+  type SourceCheckConnector,
+  type SourceCheckConnectorLogger
+} from "@supplystrata/source-connectors";
 import {
   censusTradeAdapter,
   createCensusTradeAdapterContext,
@@ -43,6 +48,7 @@ export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore
     return runCensusTradeSourceCheck(store, censusTradeInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,
       targetConfig: target.target_config,
+      adapterContextInput: context.adapter_context_input,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -51,11 +57,12 @@ export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore
 interface CensusTradeCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
+  adapterContextInput?: SourceCheckAdapterContextInput;
   logger?: SourceCheckConnectorLogger;
 }
 
 async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTradeInput, options: CensusTradeCheckOptions): Promise<SourceCheckSummary[]> {
-  const context = createCensusTradeAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+  const context = createCensusTradeAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? noopLogger;
   try {

@@ -14,11 +14,12 @@ if (shouldShowSourceCheckWorkerHelp(args)) {
 } else {
   const controller = new AbortController();
   installShutdownHandlers(controller);
-  const store = createDatabaseStore({ connectionString: loadEnv().POSTGRES_URL });
+  const env = loadEnv();
+  const store = createDatabaseStore({ connectionString: env.POSTGRES_URL });
   try {
     const options = parseSourceCheckWorkerOptions(args, process.env);
     logger.info({ stage: "source-check-worker", options }, "source check worker starting");
-    await runSourceCheckWorkerLoop({ store, options, logger, signal: controller.signal });
+    await runSourceCheckWorkerLoop({ store, env, options, logger, signal: controller.signal });
     logger.info({ stage: "source-check-worker" }, "source check worker stopped");
   } catch (error) {
     logger.error({ stage: "source-check-worker", err: messageFromUnknown(error) }, "source check worker failed");

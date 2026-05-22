@@ -1,41 +1,13 @@
-import type pg from "pg";
 import type { DbClient } from "@supplystrata/db";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
+import type { OfficialSignalDispositionDbRow, ReviewCandidateDbRow } from "./db-rows.js";
 import type {
   WorkbenchEvidence,
   WorkbenchOfficialDisclosureSignalDisposition,
   WorkbenchOfficialDisclosureSignalDispositionDecision,
   WorkbenchReviewCandidate,
-  WorkbenchReviewCandidateSignal,
-  WorkbenchReviewCandidateStatus
+  WorkbenchReviewCandidateSignal
 } from "./definitions.js";
-
-interface ReviewCandidateDbShape extends pg.QueryResultRow {
-  review_id: string;
-  kind: string;
-  status: WorkbenchReviewCandidateStatus;
-  title: string | null;
-  confidence: string | null;
-  source_adapter_id: string;
-  doc_id: string | null;
-  source_url: string | null;
-  source_locator: string | null;
-  source_row_text: string | null;
-  signal_title: string | null;
-  signal_evidence_level_hint: string | null;
-  signal_automatic_fact_mutation_allowed: string | null;
-  reviewed_at: Date | string | null;
-  decision_reason: string | null;
-  created_at: Date | string;
-}
-
-interface OfficialSignalDispositionDbShape extends pg.QueryResultRow {
-  change_id: string;
-  review_id: string;
-  after: Record<string, unknown> | null;
-  caused_by: string;
-  detected_at: Date | string;
-}
 
 export async function loadWorkbenchReviewQueue(
   client: DbClient,
@@ -43,7 +15,7 @@ export async function loadWorkbenchReviewQueue(
 ): Promise<WorkbenchReviewCandidate[]> {
   const sourceAdapterIds = uniqueStrings(input.sourceAdapterIds);
   if (sourceAdapterIds.length === 0) return [];
-  const result = await client.query<ReviewCandidateDbShape>(
+  const result = await client.query<ReviewCandidateDbRow>(
     `SELECT review_id,
             kind,
             status,
@@ -92,7 +64,7 @@ async function loadOfficialDisclosureSignalDispositions(
 ): Promise<WorkbenchOfficialDisclosureSignalDisposition[]> {
   const reviewIds = uniqueStrings(input.reviewIds);
   if (reviewIds.length === 0) return [];
-  const result = await client.query<OfficialSignalDispositionDbShape>(
+  const result = await client.query<OfficialSignalDispositionDbRow>(
     `SELECT change_id, scope_id AS review_id, after, caused_by, detected_at
      FROM change_records
      WHERE change_type = 'OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'
@@ -104,7 +76,7 @@ async function loadOfficialDisclosureSignalDispositions(
   return result.rows.map(officialSignalDispositionToDto);
 }
 
-function officialSignalDispositionToDto(row: OfficialSignalDispositionDbShape): WorkbenchOfficialDisclosureSignalDisposition {
+function officialSignalDispositionToDto(row: OfficialSignalDispositionDbRow): WorkbenchOfficialDisclosureSignalDisposition {
   const after = row.after;
   if (after === null) throw new Error(`Official signal disposition change is missing payload: ${row.change_id}`);
   const policy = recordField(after, "fact_write_policy", row.change_id);
@@ -145,7 +117,7 @@ function dispositionDecision(value: string, changeId: string): WorkbenchOfficial
   throw new Error(`Invalid official signal disposition decision for ${changeId}: ${value}`);
 }
 
-function reviewCandidateToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandidate {
+function reviewCandidateToDto(row: ReviewCandidateDbRow): WorkbenchReviewCandidate {
   return {
     review_id: row.review_id,
     kind: row.kind,
@@ -165,7 +137,7 @@ function reviewCandidateToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandi
   };
 }
 
-function reviewCandidateSignalToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandidateSignal | null {
+function reviewCandidateSignalToDto(row: ReviewCandidateDbRow): WorkbenchReviewCandidateSignal | null {
   if (row.kind !== "official_disclosure_signal") return null;
   return {
     signal_title: requiredText(row.signal_title, row.review_id, "signal_title"),

@@ -15,6 +15,7 @@ import { ensureSourceCheckTarget, recordSourceFailure, type SourceCheckTargetInp
 import {
   optionalConfigPositiveInteger,
   requireConfigString,
+  type SourceCheckAdapterContextInput,
   type SourceCheckConnector,
   type SourceCheckConnectorLogger
 } from "@supplystrata/source-connectors";
@@ -46,6 +47,7 @@ export const appleSupplierListReviewSourceCheckConnector: SourceCheckConnector<D
       return [
         await runAppleSupplierListReviewCheck(store, appleSupplierInputFromConfig(target.target_config), {
           checkTargetId: target.check_target_id,
+          adapterContextInput: context.adapter_context_input,
           ...(context.logger === undefined ? {} : { logger: context.logger })
         })
       ];
@@ -82,7 +84,7 @@ export async function enqueueAppleSupplierReviewCandidates(
 async function runAppleSupplierListReviewCheck(
   store: DatabaseStore,
   input: AppleSuppliersInput,
-  options: { checkTargetId: string; logger?: SourceCheckConnectorLogger }
+  options: { checkTargetId: string; adapterContextInput?: SourceCheckAdapterContextInput; logger?: SourceCheckConnectorLogger }
 ): Promise<SourceCheckSummary> {
   const result = await ingestAppleSupplierReviewCandidates(store, input, options);
   return {
@@ -103,7 +105,7 @@ async function runAppleSupplierListReviewCheck(
 async function ingestAppleSupplierReviewCandidates(
   store: DatabaseStore,
   input: AppleSuppliersInput,
-  options: { checkTargetId?: string; logger?: SourceCheckConnectorLogger } = {}
+  options: { checkTargetId?: string; adapterContextInput?: SourceCheckAdapterContextInput; logger?: SourceCheckConnectorLogger } = {}
 ): Promise<{
   raw: Awaited<ReturnType<typeof fetchAndNormalizeFirstTask<AppleSuppliersInput>>>["raw"];
   saved: { doc_id: string };
@@ -117,7 +119,7 @@ async function ingestAppleSupplierReviewCandidates(
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,
-    context: createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInputFromEnv()),
+    context: createAppleSuppliersAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv()),
     logLabel: "Apple Supplier List",
     ...(options.logger === undefined ? {} : { logger: options.logger })
   });

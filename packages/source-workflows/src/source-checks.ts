@@ -1,4 +1,5 @@
 import type { DatabaseStore } from "@supplystrata/db";
+import type { Env } from "@supplystrata/config";
 import {
   claimDueSourceCheckJobs,
   enqueueDueSourceCheckJobs,
@@ -11,6 +12,7 @@ import {
 } from "@supplystrata/source-monitor";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import type { SourceCheckConnectorLogger, SourceCheckTargetRow } from "@supplystrata/source-connectors";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import { inferUniqueTargetKind, runRegisteredManualSourceCheckConnector, runRegisteredSourceCheckConnector } from "./source-check-registry.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
@@ -49,13 +51,15 @@ export interface ManualSourceCheckInput {
 }
 
 export interface SourceCheckRunOptions {
+  env: Env;
   logger?: SourceCheckConnectorLogger;
 }
 
 export type DueSourceCheckRunInput = { now?: string; limit?: number } & SourceCheckTargetSelection & SourceCheckRunOptions;
 
-export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput = {}): Promise<DueSourceCheckRunResult> {
+export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput): Promise<DueSourceCheckRunResult> {
   const logger = input.logger ?? noopLogger;
+  const adapterContextInput = sourceWorkflowAdapterContextInput(input.env);
   const enqueue = await store.transaction((client) =>
     enqueueDueSourceCheckJobs(client, {
       limit: input.limit ?? 50,
@@ -73,7 +77,7 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
   );
   const items: DueSourceCheckRunItem[] = [];
   for (const job of due) {
-    items.push(await runDueSourceCheckJob(store, job, { logger }));
+    items.push(await runDueSourceCheckJob(store, job, { env: input.env, logger, adapterContextInput }));
   }
   return {
     due_targets: enqueue.due_targets,
@@ -87,8 +91,15 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
   };
 }
 
-async function runDueSourceCheckTarget(store: DatabaseStore, target: DueSourceCheckRow, options: SourceCheckRunOptions): Promise<DueSourceCheckRunItem> {
-  const summaries = await runRegisteredSourceCheckConnector(store, target, options);
+async function runDueSourceCheckTarget(
+  store: DatabaseStore,
+  target: DueSourceCheckRow,
+  options: SourceCheckRunOptions & { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput> }
+): Promise<DueSourceCheckRunItem> {
+  const summaries = await runRegisteredSourceCheckConnector(store, target, {
+    logger: options.logger ?? noopLogger,
+    adapter_context_input: options.adapterContextInput
+  });
   return {
     check_target_id: target.check_target_id,
     source_adapter_id: target.source_adapter_id,
@@ -100,7 +111,11 @@ async function runDueSourceCheckTarget(store: DatabaseStore, target: DueSourceCh
   };
 }
 
-async function runDueSourceCheckJob(store: DatabaseStore, job: SourceCheckJobRow, options: SourceCheckRunOptions): Promise<DueSourceCheckRunItem> {
+async function runDueSourceCheckJob(
+  store: DatabaseStore,
+  job: SourceCheckJobRow,
+  options: SourceCheckRunOptions & { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput> }
+): Promise<DueSourceCheckRunItem> {
   try {
     const item = await runDueSourceCheckTarget(store, job, options);
     await store.transaction((client) => markSourceCheckJobSucceeded(client, { job_id: job.job_id }));
@@ -112,13 +127,12 @@ async function runDueSourceCheckJob(store: DatabaseStore, job: SourceCheckJobRow
   }
 }
 
-export async function runManualSourceCheck(
-  store: DatabaseStore,
-  input: ManualSourceCheckInput,
-  options: SourceCheckRunOptions = {}
-): Promise<SourceCheckSummary[]> {
+export async function runManualSourceCheck(store: DatabaseStore, input: ManualSourceCheckInput, options: SourceCheckRunOptions): Promise<SourceCheckSummary[]> {
   const target = manualSourceCheckTarget(input);
-  return runRegisteredManualSourceCheckConnector(store, target, { logger: options.logger ?? noopLogger });
+  return runRegisteredManualSourceCheckConnector(store, target, {
+    logger: options.logger ?? noopLogger,
+    adapter_context_input: sourceWorkflowAdapterContextInput(options.env)
+  });
 }
 
 function manualSourceCheckTarget(input: ManualSourceCheckInput): SourceCheckTargetRow {

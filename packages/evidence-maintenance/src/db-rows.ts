@@ -170,3 +170,7 @@ export interface ComponentRiskEdgeRow extends pg.QueryResultRow {
 export interface ComponentRiskComponentRow extends pg.QueryResultRow {
   component_id: string;
 }
+
+export interface ComponentRiskChangeRow extends pg.QueryResultRow {
+  change_id: string;
+}

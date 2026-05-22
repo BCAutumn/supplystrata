@@ -7,6 +7,7 @@ import {
   persistRawDocumentSnapshot,
   requireAdapterCredential,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
@@ -127,7 +128,7 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
     return runSourceAdapterCheck(store, {
       adapter: dartKrAdapter,
       adapterInput: dartKrCompanyFilingsInputFromConfig(target.target_config),
-      context: createDartKrAdapterContext(),
+      context: createDartKrAdapterContext(context.adapter_context_input),
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.dart-kr",
@@ -137,8 +138,8 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
   }
 };
 
-export function createDartKrAdapterContext(): AdapterContext {
-  return createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+export function createDartKrAdapterContext(input: CreateAdapterContextInput = sourceWorkflowAdapterContextInputFromEnv()): AdapterContext {
+  return createAdapterContext(input);
 }
 
 export function buildDartKrDisclosureListUrl(input: DartKrCompanyFilingsInput, disclosureType: DartKrDisclosureType, apiKey: string): string {

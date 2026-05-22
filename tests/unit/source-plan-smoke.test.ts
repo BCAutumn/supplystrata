@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { envSchema } from "@supplystrata/config";
 import {
   listSourceCheckConnectorIds,
   listSourcePlanSmokeRunnerIds,
@@ -6,6 +7,13 @@ import {
   selectSourcePlanSmokeTargets,
   type SourcePlanSmokeTarget
 } from "@supplystrata/source-workflows";
+
+const TEST_ENV = envSchema.parse({
+  OPENDART_API_KEY: "test-opendart-key",
+  EDINET_API_KEY: "test-edinet-key",
+  CENSUS_API_KEY: "test-census-key",
+  OSH_API_TOKEN: "test-osh-token"
+});
 
 const TARGETS: SourcePlanSmokeTarget[] = [
   {
@@ -66,6 +74,7 @@ describe("source-plan connectivity smoke", () => {
 
   it("reports unsupported generated targets as skipped without crashing the smoke report", async () => {
     const report = await runSourcePlanConnectivitySmoke({
+      env: TEST_ENV,
       targets: TARGETS,
       source_adapter_ids: ["unknown-official-source"]
     });
@@ -101,6 +110,7 @@ describe("source-plan connectivity smoke", () => {
 
   it("keeps target config failures inside the per-target smoke report", async () => {
     const report = await runSourcePlanConnectivitySmoke({
+      env: TEST_ENV,
       targets: [
         {
           check_target_id: "plan:test:bad-sec",
@@ -124,26 +134,20 @@ describe("source-plan connectivity smoke", () => {
   });
 
   it("classifies missing connector credentials before network work", async () => {
-    const previous = process.env["EDINET_API_KEY"];
-    process.env["EDINET_API_KEY"] = "";
-    try {
-      const report = await runSourcePlanConnectivitySmoke({
-        targets: TARGETS,
-        source_adapter_ids: ["edinet"]
-      });
+    const report = await runSourcePlanConnectivitySmoke({
+      env: { ...TEST_ENV, EDINET_API_KEY: "" },
+      targets: TARGETS,
+      source_adapter_ids: ["edinet"]
+    });
 
-      expect(report.summary.failed_targets).toBe(1);
-      expect(report.summary.by_source_status["edinet"]?.issue_kinds).toEqual({ missing_credentials: 1 });
-      const [item] = report.items;
-      expect(item?.issue_kind).toBe("missing_credentials");
-      expect(item?.planned_tasks).toBe(0);
-      expect(item?.missing_credentials).toEqual([
-        { env_key: "EDINET_API_KEY", required: true, description: "Japan FSA EDINET API v2 key used for documents.json daily filing list monitoring." }
-      ]);
-      expect(item?.error_message).toContain("Missing required source credentials: EDINET_API_KEY");
-    } finally {
-      if (previous === undefined) delete process.env["EDINET_API_KEY"];
-      else process.env["EDINET_API_KEY"] = previous;
-    }
+    expect(report.summary.failed_targets).toBe(1);
+    expect(report.summary.by_source_status["edinet"]?.issue_kinds).toEqual({ missing_credentials: 1 });
+    const [item] = report.items;
+    expect(item?.issue_kind).toBe("missing_credentials");
+    expect(item?.planned_tasks).toBe(0);
+    expect(item?.missing_credentials).toEqual([
+      { env_key: "EDINET_API_KEY", required: true, description: "Japan FSA EDINET API v2 key used for documents.json daily filing list monitoring." }
+    ]);
+    expect(item?.error_message).toContain("Missing required source credentials: EDINET_API_KEY");
   });
 });

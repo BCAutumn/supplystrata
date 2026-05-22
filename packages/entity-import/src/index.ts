@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import type pg from "pg";
 import { createId, normalizeAlias } from "@supplystrata/core";
 import type { DbClient } from "@supplystrata/db";
 import {
@@ -8,6 +7,7 @@ import {
   type EntitySourceReviewCandidate,
   type SupplierListReviewCandidate
 } from "@supplystrata/review-candidates";
+import type { CountRow, EntityIdRow } from "./db-rows.js";
 
 export type EntityImportResult =
   | { status: "applied"; entity_id: string; aliases_inserted: number; aliases_skipped: number; pending_entities_resolved: number; change_id: string }
@@ -16,14 +16,6 @@ export type EntityImportResult =
 export type FacilityImportResult =
   | { status: "applied"; entity_id: string; display_name: string; aliases_inserted: number; aliases_skipped: number; change_id: string }
   | { status: "blocked"; reason: string };
-
-interface EntityIdRow extends pg.QueryResultRow {
-  entity_id: string;
-}
-
-interface CountRow extends pg.QueryResultRow {
-  count: string;
-}
 
 export async function applyEntitySourceReviewCandidate(
   client: DbClient,

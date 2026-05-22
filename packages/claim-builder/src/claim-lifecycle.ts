@@ -1,6 +1,5 @@
-import type pg from "pg";
 import { getClaim, recordSemanticChange, type ClaimRow, type ClaimStatus, type DatabaseStore, type DbClient } from "@supplystrata/db";
-import type { ClaimLifecycleStatusUpdateRow } from "./db-rows.js";
+import type { ClaimLifecycleSourceRefRow, ClaimLifecycleStatusUpdateRow } from "./db-rows.js";
 
 export type ClaimLifecycleAction = "supersede_claim" | "reject_claim" | "keep_with_context";
 export type ClaimLifecycleSourceKind = "evidence" | "review" | "claim" | "unknown" | "semantic_change";
@@ -124,8 +123,8 @@ async function requireExistingLifecycleRefs(
   ids: readonly string[]
 ): Promise<void> {
   if (ids.length === 0) return;
-  const result = await client.query<pg.QueryResultRow>(`SELECT ${idColumn} AS id FROM ${tableName} WHERE ${idColumn} = ANY($1::text[])`, [[...ids]]);
-  const found = new Set(result.rows.map((row) => String(row["id"])));
+  const result = await client.query<ClaimLifecycleSourceRefRow>(`SELECT ${idColumn} AS id FROM ${tableName} WHERE ${idColumn} = ANY($1::text[])`, [[...ids]]);
+  const found = new Set(result.rows.map((row) => row.id));
   const missing = ids.filter((id) => !found.has(id));
   if (missing.length > 0) throw new Error(`Missing ${kind} source refs for claim lifecycle action: ${missing.join(", ")}`);
 }

@@ -29,7 +29,7 @@ describe("source-connectors", () => {
       }
     };
 
-    const result = await runSourceCheckConnector({ label: "store" }, targetRow("example-source", "example-target"), [connector]);
+    const result = await runSourceCheckConnector({ label: "store" }, targetRow("example-source", "example-target"), [connector], connectorContext());
 
     expect(result).toEqual([{ task_id: "store:target-1" }]);
   });
@@ -46,7 +46,7 @@ describe("source-connectors", () => {
       }
     ];
 
-    await expect(runSourceCheckConnector({ label: "store" }, targetRow("dart-kr", "company-filings"), connectors)).rejects.toThrow(
+    await expect(runSourceCheckConnector({ label: "store" }, targetRow("dart-kr", "company-filings"), connectors, connectorContext())).rejects.toThrow(
       "Unsupported due source target: dart-kr/company-filings"
     );
     expect(unsupportedSourceCheckTargetMessage(targetRow("dart-kr", "company-filings"), connectors)).toContain("supported: sec-edgar/sec-company-filings");
@@ -76,5 +76,14 @@ function targetRow(sourceAdapterId: string, targetKind: string): SourceCheckTarg
     source_adapter_id: sourceAdapterId,
     target_kind: targetKind,
     target_config: {}
+  };
+}
+
+function connectorContext() {
+  return {
+    adapter_context_input: {
+      userAgent: "SupplyStrata test contact@example.com",
+      objectStoreBase: "./data/raw"
+    }
   };
 }

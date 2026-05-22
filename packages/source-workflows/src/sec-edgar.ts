@@ -9,6 +9,7 @@ import {
   optionalConfigPositiveInteger,
   requireConfigString,
   requireConfigStringArray,
+  type SourceCheckAdapterContextInput,
   type SourceCheckConnector,
   type SourceCheckConnectorLogger
 } from "@supplystrata/source-connectors";
@@ -31,6 +32,7 @@ import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-r
 
 export interface SourceCheckOptions {
   checkTargetId?: string;
+  adapterContextInput?: SourceCheckAdapterContextInput;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -48,6 +50,7 @@ export const secEdgarSourceCheckConnector: SourceCheckConnector<DatabaseStore, S
   run(store, target, context) {
     return checkSecEdgarSource(store, secEdgarInputFromTargetConfig(target.target_config), {
       checkTargetId: target.check_target_id,
+      adapterContextInput: context.adapter_context_input,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -73,6 +76,7 @@ export const secCompanyFactsSourceCheckConnector: SourceCheckConnector<DatabaseS
   run(store, target, context) {
     return checkSecCompanyFactsSource(store, secCompanyFactsInputFromTargetConfig(target.target_config), {
       checkTargetId: target.check_target_id,
+      adapterContextInput: context.adapter_context_input,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -112,7 +116,7 @@ export async function runDefaultNvidiaSlice(
 }
 
 export async function checkSecEdgarSource(store: DatabaseStore, input: SecEdgarInput, options: SourceCheckOptions = {}): Promise<SourceCheckSummary[]> {
-  const context = createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+  const context = createAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
   return runSourceAdapterCheck(store, {
     adapter: secEdgarAdapter,
     adapterInput: input,
@@ -126,7 +130,7 @@ export async function checkSecCompanyFactsSource(
   input: SecCompanyFactsInput,
   options: SourceCheckOptions = {}
 ): Promise<SourceCheckSummary[]> {
-  const context = createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+  const context = createAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? noopLogger;
   try {

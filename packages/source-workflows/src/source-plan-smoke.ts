@@ -1,7 +1,8 @@
-import { loadEnv, missingSourceCredentialRequirements } from "@supplystrata/config";
+import { missingSourceCredentialRequirements, type Env } from "@supplystrata/config";
 import { messageFromUnknown } from "@supplystrata/observability";
 import type { FetchTask, NormalizedDocument, RawDocument } from "@supplystrata/core";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
+import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
 import { connectorKey } from "@supplystrata/source-connectors";
 import { appleSuppliersAdapter, createAppleSuppliersAdapterContext } from "@supplystrata/sources-apple-suppliers";
 import { censusTradeAdapter, createCensusTradeAdapterContext } from "@supplystrata/sources-census-trade";
@@ -34,7 +35,7 @@ import { oshInputFromConfig } from "./osh-checks.js";
 import { secCompanyFactsInputFromTargetConfig, secEdgarInputFromTargetConfig } from "./sec-edgar.js";
 import { createTwseMopsAdapterContext, twseMopsAdapter, twseMopsElectronicDocumentsInputFromConfig } from "./twse-mops-checks.js";
 import { worldBankPinkInputFromConfig } from "./worldbank-pink-checks.js";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 
 export interface SourcePlanSmokeTarget {
   check_target_id: string;
@@ -44,6 +45,13 @@ export interface SourcePlanSmokeTarget {
 }
 
 export interface SourcePlanSmokeInput {
+  env: Env;
+  targets: readonly SourcePlanSmokeTarget[];
+  source_adapter_ids?: readonly string[];
+  limit?: number;
+}
+
+export interface SourcePlanSmokeSelectionInput {
   targets: readonly SourcePlanSmokeTarget[];
   source_adapter_ids?: readonly string[];
   limit?: number;
@@ -127,11 +135,20 @@ interface SourcePlanSmokeRunner {
   source_adapter_id: string;
   target_kind: string;
   credential_requirements?: readonly SourcePlanSmokeMissingCredential[];
-  run(target: SourcePlanSmokeTarget): Promise<SourcePlanSmokeItem>;
+  run(target: SourcePlanSmokeTarget, runtime: SourcePlanSmokeRuntime): Promise<SourcePlanSmokeItem>;
+}
+
+interface SourcePlanSmokeRuntime {
+  env: Env;
+  adapterContextInput: CreateAdapterContextInput;
 }
 
 export async function runSourcePlanConnectivitySmoke(input: SourcePlanSmokeInput): Promise<SourcePlanSmokeReport> {
   const selectedTargets = selectSourcePlanSmokeTargets(input);
+  const runtime = {
+    env: input.env,
+    adapterContextInput: sourceWorkflowAdapterContextInput(input.env)
+  };
   const items: SourcePlanSmokeItem[] = [];
   for (const target of selectedTargets) {
     const runner = findSmokeRunner(target);
@@ -140,7 +157,7 @@ export async function runSourcePlanConnectivitySmoke(input: SourcePlanSmokeInput
       continue;
     }
     try {
-      items.push(await runner.run(target));
+      items.push(await runner.run(target, runtime));
     } catch (error) {
       items.push(failedSmokeItem(target, error, { plannedTasks: 0, fetchedDocuments: 0, normalizedDocuments: 0, degradedDocuments: 0, documents: [] }));
     }
@@ -153,7 +170,7 @@ export async function runSourcePlanConnectivitySmoke(input: SourcePlanSmokeInput
 }
 
 // 这里刻意只做选择，不触碰 adapter；这样 CLI/host app 可以先审计本轮会访问哪些外部源。
-export function selectSourcePlanSmokeTargets(input: SourcePlanSmokeInput): SourcePlanSmokeTarget[] {
+export function selectSourcePlanSmokeTargets(input: SourcePlanSmokeSelectionInput): SourcePlanSmokeTarget[] {
   if (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1)) throw new Error("source-plan smoke limit must be a positive integer");
   const sourceIds = input.source_adapter_ids === undefined ? undefined : new Set(input.source_adapter_ids);
   const selected = sourceIds === undefined ? [...input.targets] : input.targets.filter((target) => sourceIds.has(target.source_adapter_id));
@@ -166,7 +183,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     target_kind: "supplier-list-review",
     adapter: appleSuppliersAdapter,
     inputFromConfig: appleSupplierInputFromConfig,
-    createContext: () => createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
+    createContext: (runtime) => createAppleSuppliersAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "dart-kr",
@@ -174,7 +191,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     credential_requirements: OPENDART_CREDENTIALS,
     adapter: dartKrAdapter,
     inputFromConfig: dartKrCompanyFilingsInputFromConfig,
-    createContext: createDartKrAdapterContext
+    createContext: (runtime) => createDartKrAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "edinet",
@@ -182,70 +199,70 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     credential_requirements: EDINET_CREDENTIALS,
     adapter: edinetAdapter,
     inputFromConfig: edinetDailyFilingsInputFromConfig,
-    createContext: createEdinetAdapterContext
+    createContext: (runtime) => createEdinetAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "twse-mops",
     target_kind: "electronic-documents",
     adapter: twseMopsAdapter,
     inputFromConfig: twseMopsElectronicDocumentsInputFromConfig,
-    createContext: createTwseMopsAdapterContext
+    createContext: (runtime) => createTwseMopsAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "sec-edgar",
     target_kind: "sec-company-filings",
     adapter: secEdgarAdapter,
     inputFromConfig: secEdgarInputFromTargetConfig,
-    createContext: () => createSecAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
+    createContext: (runtime) => createSecAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "sec-edgar",
     target_kind: "sec-company-facts",
     adapter: secCompanyFactsAdapter,
     inputFromConfig: secCompanyFactsInputFromTargetConfig,
-    createContext: () => createSecAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
+    createContext: (runtime) => createSecAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "company-ir",
     target_kind: "official-html-disclosure",
     adapter: companyIrExplicitUrlAdapter,
     inputFromConfig: companyIrExplicitUrlInputFromConfig,
-    createContext: createOfficialIrAdapterContext
+    createContext: (runtime) => createOfficialIrAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "tsmc-ir",
     target_kind: "official-html-disclosure",
     adapter: tsmcIrAdapter,
     inputFromConfig: tsmcIrInputFromConfig,
-    createContext: createOfficialIrAdapterContext
+    createContext: (runtime) => createOfficialIrAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "samsung-ir",
     target_kind: "official-html-disclosure",
     adapter: samsungIrAdapter,
     inputFromConfig: samsungIrInputFromConfig,
-    createContext: createOfficialIrAdapterContext
+    createContext: (runtime) => createOfficialIrAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "skhynix-ir",
     target_kind: "official-html-disclosure",
     adapter: skHynixIrAdapter,
     inputFromConfig: skHynixIrInputFromConfig,
-    createContext: createOfficialIrAdapterContext
+    createContext: (runtime) => createOfficialIrAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "asml-ir",
     target_kind: "official-html-disclosure",
     adapter: asmlIrAdapter,
     inputFromConfig: asmlIrInputFromConfig,
-    createContext: createOfficialIrAdapterContext
+    createContext: (runtime) => createOfficialIrAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "micron-ir",
     target_kind: "official-html-disclosure",
     adapter: micronIrAdapter,
     inputFromConfig: micronIrInputFromConfig,
-    createContext: createOfficialIrAdapterContext
+    createContext: (runtime) => createOfficialIrAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "census-trade",
@@ -253,7 +270,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     credential_requirements: CENSUS_TRADE_CREDENTIALS,
     adapter: censusTradeAdapter,
     inputFromConfig: censusTradeInputFromConfig,
-    createContext: () => createCensusTradeAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
+    createContext: (runtime) => createCensusTradeAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "osh",
@@ -261,14 +278,14 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     credential_requirements: OSH_CREDENTIALS,
     adapter: oshAdapter,
     inputFromConfig: oshInputFromConfig,
-    createContext: () => createOshAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
+    createContext: (runtime) => createOshAdapterContext(runtime.adapterContextInput)
   }),
   createSmokeRunner({
     source_adapter_id: "worldbank-pink",
     target_kind: "commodity-price-observation",
     adapter: worldBankPinkAdapter,
     inputFromConfig: worldBankPinkInputFromConfig,
-    createContext: () => createWorldBankPinkAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
+    createContext: (runtime) => createWorldBankPinkAdapterContext(runtime.adapterContextInput)
   })
 ];
 
@@ -282,20 +299,20 @@ function createSmokeRunner<TInput>(input: {
   credential_requirements?: readonly SourcePlanSmokeMissingCredential[];
   adapter: SourceAdapter<TInput, Uint8Array>;
   inputFromConfig(config: Record<string, unknown>): TInput;
-  createContext(): AdapterContext;
+  createContext(runtime: SourcePlanSmokeRuntime): AdapterContext;
 }): SourcePlanSmokeRunner {
   return {
     source_adapter_id: input.source_adapter_id,
     target_kind: input.target_kind,
     ...(input.credential_requirements === undefined ? {} : { credential_requirements: input.credential_requirements }),
-    run(target) {
-      const missingCredentials = missingCredentialRequirements(input.credential_requirements);
+    run(target, runtime) {
+      const missingCredentials = missingCredentialRequirements(runtime.env, input.credential_requirements);
       if (missingCredentials.length > 0) throw new MissingSourceCredentialsError(missingCredentials);
       return runSourceTargetSmoke({
         target,
         adapter: input.adapter,
         adapterInput: input.inputFromConfig(target.target_config),
-        context: input.createContext()
+        context: input.createContext(runtime)
       });
     }
   };
@@ -411,9 +428,11 @@ class MissingSourceCredentialsError extends Error {
   }
 }
 
-function missingCredentialRequirements(requirements: readonly SourcePlanSmokeMissingCredential[] | undefined): readonly SourcePlanSmokeMissingCredential[] {
-  // 和 adapter 使用同一个 .env 加载路径，避免 smoke 预检与真实 fetch 对凭据是否存在得出不同结论。
-  return missingSourceCredentialRequirements(loadEnv(), requirements);
+function missingCredentialRequirements(
+  env: Env,
+  requirements: readonly SourcePlanSmokeMissingCredential[] | undefined
+): readonly SourcePlanSmokeMissingCredential[] {
+  return missingSourceCredentialRequirements(env, requirements);
 }
 
 function isTargetConfigIssue(message: string): boolean {

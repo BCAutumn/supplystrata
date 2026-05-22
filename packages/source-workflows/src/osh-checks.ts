@@ -7,6 +7,7 @@ import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
   optionalConfigPositiveInteger,
   requireConfigString,
+  type SourceCheckAdapterContextInput,
   type SourceCheckConnector,
   type SourceCheckConnectorLogger
 } from "@supplystrata/source-connectors";
@@ -44,6 +45,7 @@ export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, Source
     return runOshFacilitySearchCheck(store, oshInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,
       targetConfig: target.target_config,
+      adapterContextInput: context.adapter_context_input,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -52,11 +54,12 @@ export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, Source
 interface OshCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
+  adapterContextInput?: SourceCheckAdapterContextInput;
   logger?: SourceCheckConnectorLogger;
 }
 
 async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilitySearchInput, options: OshCheckOptions): Promise<SourceCheckSummary[]> {
-  const context = createOshAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+  const context = createOshAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? noopLogger;
   try {

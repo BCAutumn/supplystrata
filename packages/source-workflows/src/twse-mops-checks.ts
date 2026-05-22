@@ -6,6 +6,7 @@ import {
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
@@ -100,7 +101,7 @@ export const twseMopsElectronicDocumentsSourceCheckConnector: SourceCheckConnect
     return runSourceAdapterCheck(store, {
       adapter: twseMopsAdapter,
       adapterInput: twseMopsElectronicDocumentsInputFromConfig(target.target_config),
-      context: createTwseMopsAdapterContext(),
+      context: createTwseMopsAdapterContext(context.adapter_context_input),
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.twse-mops",
@@ -110,8 +111,8 @@ export const twseMopsElectronicDocumentsSourceCheckConnector: SourceCheckConnect
   }
 };
 
-export function createTwseMopsAdapterContext(): AdapterContext {
-  return createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+export function createTwseMopsAdapterContext(input: CreateAdapterContextInput = sourceWorkflowAdapterContextInputFromEnv()): AdapterContext {
+  return createAdapterContext(input);
 }
 
 export function buildTwseMopsElectronicDocumentsUrl(input: TwseMopsElectronicDocumentsInput): string {

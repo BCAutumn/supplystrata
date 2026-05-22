@@ -1,6 +1,6 @@
 import type pg from "pg";
 import type { ClaimType, EdgeValidity, EvidenceLevel, ExtractionMethod, RelationType } from "@supplystrata/core";
-import type { WorkbenchClaimStatus } from "./definitions.js";
+import type { WorkbenchClaimStatus, WorkbenchReviewCandidateStatus } from "./definitions.js";
 
 export interface ClaimDbRow extends pg.QueryResultRow {
   claim_id: string;
@@ -85,4 +85,31 @@ export interface SourceHealthDbRow extends pg.QueryResultRow {
   next_check_at: Date | string | null;
   policy_config_source: string | null;
   policy_notes: string | null;
+}
+
+export interface ReviewCandidateDbRow extends pg.QueryResultRow {
+  review_id: string;
+  kind: string;
+  status: WorkbenchReviewCandidateStatus;
+  title: string | null;
+  confidence: string | null;
+  source_adapter_id: string;
+  doc_id: string | null;
+  source_url: string | null;
+  source_locator: string | null;
+  source_row_text: string | null;
+  signal_title: string | null;
+  signal_evidence_level_hint: string | null;
+  signal_automatic_fact_mutation_allowed: string | null;
+  reviewed_at: Date | string | null;
+  decision_reason: string | null;
+  created_at: Date | string;
+}
+
+export interface OfficialSignalDispositionDbRow extends pg.QueryResultRow {
+  change_id: string;
+  review_id: string;
+  after: Record<string, unknown> | null;
+  caused_by: string;
+  detected_at: Date | string;
 }

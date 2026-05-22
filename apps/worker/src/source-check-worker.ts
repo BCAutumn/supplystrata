@@ -1,18 +1,25 @@
 import type { DatabaseStore } from "@supplystrata/db";
+import type { Env } from "@supplystrata/config";
 import type { SupplyStrataLogger } from "@supplystrata/observability";
 import { runDueSourceChecks, type DueSourceCheckRunResult } from "@supplystrata/source-workflows";
 import type { SourceCheckWorkerOptions } from "./options.js";
 
 export interface SourceCheckWorkerLoopInput {
   store: DatabaseStore;
+  env: Env;
   options: SourceCheckWorkerOptions;
   logger: SupplyStrataLogger;
   signal?: AbortSignal;
 }
 
-export async function runSourceCheckWorkerCycle(input: { store: DatabaseStore; limit: number; logger: SupplyStrataLogger }): Promise<DueSourceCheckRunResult> {
+export async function runSourceCheckWorkerCycle(input: {
+  store: DatabaseStore;
+  env: Env;
+  limit: number;
+  logger: SupplyStrataLogger;
+}): Promise<DueSourceCheckRunResult> {
   const startedAt = new Date().toISOString();
-  const result = await runDueSourceChecks(input.store, { limit: input.limit });
+  const result = await runDueSourceChecks(input.store, { env: input.env, limit: input.limit });
   input.logger.info(
     {
       stage: "source-check-worker",
@@ -32,7 +39,7 @@ export async function runSourceCheckWorkerCycle(input: { store: DatabaseStore; l
 
 export async function runSourceCheckWorkerLoop(input: SourceCheckWorkerLoopInput): Promise<void> {
   while (!input.signal?.aborted) {
-    await runSourceCheckWorkerCycle({ store: input.store, limit: input.options.limit, logger: input.logger });
+    await runSourceCheckWorkerCycle({ store: input.store, env: input.env, limit: input.options.limit, logger: input.logger });
     if (input.options.once) return;
     await sleep(input.options.interval_ms, input.signal);
   }

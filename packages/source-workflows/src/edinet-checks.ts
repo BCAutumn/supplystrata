@@ -7,6 +7,7 @@ import {
   persistRawDocumentSnapshot,
   requireAdapterCredential,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
@@ -128,7 +129,7 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
     return runSourceAdapterCheck(store, {
       adapter: edinetAdapter,
       adapterInput: edinetDailyFilingsInputFromConfig(target.target_config),
-      context: createEdinetAdapterContext(),
+      context: createEdinetAdapterContext(context.adapter_context_input),
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.edinet",
@@ -138,8 +139,8 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
   }
 };
 
-export function createEdinetAdapterContext(): AdapterContext {
-  return createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+export function createEdinetAdapterContext(input: CreateAdapterContextInput = sourceWorkflowAdapterContextInputFromEnv()): AdapterContext {
+  return createAdapterContext(input);
 }
 
 export function buildEdinetDocumentsListUrl(input: EdinetDailyFilingsInput, apiKey: string): string {

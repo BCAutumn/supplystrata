@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
+import { envSchema } from "@supplystrata/config";
 import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
 import type { SupplyStrataLogger } from "@supplystrata/observability";
 import { parseSourceCheckWorkerOptions, shouldShowSourceCheckWorkerHelp } from "../../apps/worker/src/options.js";
@@ -19,7 +20,7 @@ describe("source check worker", () => {
   it("runs a source-check worker cycle through the shared run-due use-case", async () => {
     const store = new NoopDatabaseStore();
 
-    const result = await runSourceCheckWorkerCycle({ store, limit: 5, logger: noopLogger });
+    const result = await runSourceCheckWorkerCycle({ store, env: envSchema.parse({}), limit: 5, logger: noopLogger });
 
     expect(result).toMatchObject({
       due_targets: 0,

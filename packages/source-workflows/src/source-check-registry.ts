@@ -36,7 +36,7 @@ export const SOURCE_CHECK_CONNECTORS: readonly SourceCheckConnector<DatabaseStor
 export function runRegisteredSourceCheckConnector(
   store: DatabaseStore,
   target: SourceCheckTargetRow,
-  context: SourceCheckConnectorRunContext = {}
+  context: SourceCheckConnectorRunContext
 ): Promise<SourceCheckSummary[]> {
   return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS, context);
 }
@@ -44,7 +44,7 @@ export function runRegisteredSourceCheckConnector(
 export function runRegisteredManualSourceCheckConnector(
   store: DatabaseStore,
   target: SourceCheckTargetRow,
-  context: SourceCheckConnectorRunContext = {}
+  context: SourceCheckConnectorRunContext
 ): Promise<SourceCheckSummary[]> {
   return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS, context);
 }

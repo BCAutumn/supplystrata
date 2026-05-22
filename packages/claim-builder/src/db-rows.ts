@@ -43,3 +43,7 @@ export interface ClaimLifecycleStatusUpdateRow extends pg.QueryResultRow {
   claim_id: string;
   status: ClaimStatus;
 }
+
+export interface ClaimLifecycleSourceRefRow extends pg.QueryResultRow {
+  id: string;
+}

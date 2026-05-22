@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type pg from "pg";
+import { envSchema } from "@supplystrata/config";
 import { listRegisteredSourceCheckConnectorCapabilities, listSourceCheckConnectorIds, runManualSourceCheck } from "@supplystrata/source-workflows";
 import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
 
@@ -68,10 +69,14 @@ describe("source check registry", () => {
 
   it("fails manual source checks through the connector registry instead of CLI branches", async () => {
     await expect(
-      runManualSourceCheck(new NoopDatabaseStore(), {
-        source_adapter_id: "unknown-source",
-        target_config: {}
-      })
+      runManualSourceCheck(
+        new NoopDatabaseStore(),
+        {
+          source_adapter_id: "unknown-source",
+          target_config: {}
+        },
+        { env: envSchema.parse({}) }
+      )
     ).rejects.toThrow("Unsupported due source target: unknown-source/(unspecified)");
   });
 });
