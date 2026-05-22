@@ -400,6 +400,7 @@ supplystrata sources plan --component COMP-HBM --material-year 2025 --commodity-
 
 ```bash
 supplystrata sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --format markdown
+supplystrata sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/corroboration-source-plan-sync.json --namespace nvidia-memory-2025 --format markdown
 ```
 
 ### supplystrata sources policy smoke-plan-targets
@@ -420,7 +421,10 @@ supplystrata sources policy preview-plan-targets --source-plan reports/nvidia-re
 
 ```bash
 supplystrata sources policy smoke-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --source sec-edgar --limit 2 --format markdown
+supplystrata sources policy smoke-plan-targets --source-plan reports/nvidia-research-pack/corroboration-source-plan-smoke.json --namespace nvidia-memory-2025 --limit 5 --format json > reports/nvidia-research-pack/corroboration-source-plan-smoke-result.json
 ```
+
+如果通过 `pnpm cli ... > file` 生成 JSON 文件，建议使用 `pnpm --silent cli ... > file`，否则 pnpm 的脚本横幅会写进文件头，导致 `research run/from-workbench --source-target-preflight` 无法把它当作纯 JSON 读取。`corroboration-source-plan-smoke.json` / `sync.json` / `enable.json` / `run-due.json` 是 action-specific source-plan 批次：先 smoke，再把 smoke JSON 作为 `--source-target-preflight` 回灌 research-pack，之后只对新生成的 `corroboration-source-plan-sync.json` 做 preview/sync，能避免把缺凭据、配置错误或源不可达的 target 混进持续监控。
 
 ### supplystrata sources policy sync-plan-targets
 

@@ -117,6 +117,17 @@ pnpm --silent cli research run --company nvidia --depth 3 --official-year 2025 -
 
 这只生成 `official-html-disclosure` 检查建议和 backlog runnable target，不自动运行 source、不写事实边。要把研究计划接入持续监控队列，用 source-management 的转换入口把 runnable suggestions 同步成 `source_check_targets`：
 
+如果要先用无数据库路径跑 Gate 1 二源检查闭环，可以从已有 Workbench snapshot 开始。注意：当命令输出要重定向成 JSON 文件时，用 `pnpm --silent cli ...`，否则 pnpm 的脚本横幅会一起写进文件头，导致后续 `--source-target-preflight` 不能按纯 JSON 解析。
+
+```bash
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --trade-month 2025-12 --commodity-month 2025-12 --source-target-namespace nvidia-memory-2025 --out reports/gate1-action-batch-check
+pnpm --silent cli sources policy smoke-plan-targets --source-plan reports/gate1-action-batch-check/corroboration-source-plan-smoke.json --namespace nvidia-memory-2025 --limit 5 --format json > reports/gate1-action-batch-check/corroboration-source-plan-smoke-result.json
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --trade-month 2025-12 --commodity-month 2025-12 --source-target-namespace nvidia-memory-2025 --source-target-preflight reports/gate1-action-batch-check/corroboration-source-plan-smoke-result.json --out reports/gate1-action-batch-check-with-preflight
+pnpm --silent cli sources policy preview-plan-targets --source-plan reports/gate1-action-batch-check-with-preflight/corroboration-source-plan-sync.json --namespace nvidia-memory-2025 --format markdown
+```
+
+第一步会根据当前 Workbench、target profile 和官方披露年份生成 `corroboration-source-plan-smoke.json` 等 action-specific 批次。第二步只对需要 `smoke_target` 的二源 target 执行 plan/fetch/normalize 预检，不写数据库。第三步把 smoke 结果回灌进 research-pack，`corroboration-source-plan` 的 next action 会从笼统的 smoke 细化成 `sync_target`、`configure_credentials` 或 `retry_preflight`。第四步只预览已经通过 smoke、下一步确认为 `sync_target` 的目标，输出稳定 `check_target_id` 和 validation 结果；它仍然不写库。这个闭环适合没有 Postgres 的宿主 App 先体检官方源可达性，也适合本地开发时把 DART 凭据缺失、IR 超时、target config 错误这类问题提前暴露出来。只有当 sync batch 预览无 error、且研究员确认目标应该进入持续监控后，才进入后面的 `sync-plan-targets / enable-plan-targets / due / run-due`。
+
 ```bash
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --format markdown
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/corroboration-source-plan.json --namespace nvidia-memory-2025 --format markdown
