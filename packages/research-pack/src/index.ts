@@ -1,5 +1,3 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { buildEdgeClaimsFromCurrentEdgesTransactionally } from "@supplystrata/claim-builder";
 import { loadChainCard, loadCompanyCard, loadComponentCard } from "@supplystrata/card-builder";
 import { runDataQualityChecks, type DataQualitySummary } from "@supplystrata/data-quality";
@@ -11,47 +9,42 @@ import {
   type ComponentRiskRefreshSummary,
   type EdgeIntelligenceRefreshSummary
 } from "@supplystrata/evidence-maintenance";
-import {
-  renderChainCard,
-  renderCompanyCard,
-  renderComponentCard,
-  type ChainViewModel,
-  type CompanyCardModel,
-  type ComponentCardModel
-} from "@supplystrata/render";
-import { planSourcesForComponents, type SourcePlanItem, type TradeObservationDirection } from "@supplystrata/source-plan";
+import { type ChainViewModel, type CompanyCardModel, type ComponentCardModel } from "@supplystrata/render";
+import { planSourcesForComponents, type SourcePlanItem } from "@supplystrata/source-plan";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
-import {
-  CORROBORATION_SOURCE_PLAN_ACTION_BATCHES,
-  buildCorroborationSourcePlan,
-  buildCorroborationSourcePlanActionBatch,
-  renderCorroborationSourcePlanMarkdown,
-  type CorroborationSourcePlan
-} from "./corroboration-source-plan.js";
-import { buildInvestigationBacklog, renderInvestigationBacklogMarkdown, type InvestigationBacklog } from "./investigation-backlog.js";
-import { buildObservationCoverageReport, renderObservationCoverageMarkdown, type ObservationCoverageReport } from "./observation-coverage.js";
+import { buildCorroborationSourcePlan, type CorroborationSourcePlan } from "./corroboration-source-plan.js";
+import { buildInvestigationBacklog, type InvestigationBacklog } from "./investigation-backlog.js";
+import { buildObservationCoverageReport, type ObservationCoverageReport } from "./observation-coverage.js";
 import {
   buildOfficialDisclosureReadinessReport,
-  renderOfficialDisclosureReadinessMarkdown,
   type OfficialDisclosureReadinessProfile,
   type OfficialDisclosureReadinessReport,
   type OfficialDisclosureReadinessTargetNode
 } from "./official-disclosure-readiness.js";
-import { buildQuestionReadinessMatrix, renderQuestionReadinessMarkdown, type QuestionReadinessMatrix } from "./question-readiness.js";
+import { buildQuestionReadinessMatrix, type QuestionReadinessMatrix } from "./question-readiness.js";
 import {
   selectResearchTargetProfile,
   type ResearchTargetProfile,
   type ResearchTargetProfileOption,
   type ResearchTargetProfileSelection
 } from "./research-target-profile.js";
-import {
-  buildExpectedSourceTargetCoverageReport,
-  buildSourceTargetCoverageReport,
-  renderSourceTargetCoverageMarkdown,
-  type SourceTargetCoverageReport
-} from "./source-target-coverage.js";
-import { renderSourceTargetPreflightMarkdown, type SourceTargetPreflightReport } from "./source-target-preflight.js";
-import { buildSupplyChainExpansionPlan, renderSupplyChainExpansionPlanMarkdown, type SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
+import { buildExpectedSourceTargetCoverageReport, buildSourceTargetCoverageReport, type SourceTargetCoverageReport } from "./source-target-coverage.js";
+import type { SourceTargetPreflightReport } from "./source-target-preflight.js";
+import { buildSupplyChainExpansionPlan, type SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
+export type * from "./definitions.js";
+import type {
+  ResearchPackClaimBuild,
+  ResearchPackComponentRiskRefresh,
+  ResearchPackFile,
+  ResearchPackInput,
+  ResearchPackManifest,
+  ResearchPackModel,
+  ResearchPackTargetProfile,
+  ResearchPackWriteSteps,
+  WorkbenchSnapshotPackInput,
+  WorkbenchSnapshotPackModel,
+  WrittenResearchPack
+} from "./definitions.js";
 
 export * from "./investigation-backlog.js";
 export * from "./corroboration-source-plan.js";
@@ -63,260 +56,7 @@ export * from "./research-target-profile.js";
 export * from "./source-target-coverage.js";
 export * from "./source-target-preflight.js";
 export * from "./supply-chain-expansion-plan.js";
-
-export interface ResearchPackInput {
-  company: string;
-  components?: readonly string[];
-  depth?: number;
-  since?: string;
-  changeLimit?: number;
-  sourceLimit?: number;
-  buildClaims?: boolean;
-  refreshIntelligence?: boolean;
-  refreshComponentRisk?: boolean;
-  intelligenceLimit?: number;
-  minEvidenceLevel?: 4 | 5;
-  generatedBy?: string;
-  tradeObservationMonth?: string;
-  tradeObservationCountryCode?: string;
-  tradeObservationDirections?: readonly TradeObservationDirection[];
-  officialDisclosureYear?: string;
-  materialObservationYear?: string;
-  commodityObservationMonth?: string;
-  sourceTargetNamespace?: string;
-  sourceTargetPreflight?: SourceTargetPreflightReport;
-  researchTargetProfileId?: ResearchTargetProfileOption;
-  officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
-  supplyChainExpansionMaxDepth?: number;
-}
-
-export interface ResearchPackWriteSteps {
-  buildClaims: boolean;
-  refreshIntelligence: boolean;
-  refreshComponentRisk: boolean;
-}
-
-export interface ResearchPackManifest {
-  schema_version: "1.0.0";
-  mode: "truth_store" | "workbench_snapshot";
-  generated_at: string;
-  company_query: string;
-  selected_company_id: string;
-  depth: number;
-  components: string[];
-  files: ResearchPackFile[];
-  stats: ResearchPackStats;
-  claim_build: ResearchPackClaimBuild | null;
-  intelligence_refresh: EdgeIntelligenceRefreshSummary | null;
-  component_risk_refresh: ResearchPackComponentRiskRefresh | null;
-  research_target_profile: ResearchPackTargetProfile | null;
-}
-
-export interface ResearchPackFile {
-  path: string;
-  kind: "json" | "markdown";
-  description: string;
-}
-
-export interface ResearchPackStats {
-  companies: number;
-  chain_segments: number;
-  fact_edges: number;
-  claims: number;
-  draft_claims: number;
-  claim_conflicts: number;
-  contradicting_evidence_links: number;
-  claim_lifecycle_warnings: number;
-  attention_items: number;
-  review_candidates: number;
-  official_disclosure_signal_review_candidates: number;
-  open_official_disclosure_signal_review_candidates: number;
-  official_disclosure_signal_dispositions: number;
-  official_disclosure_signal_correlation_hints: number;
-  open_official_disclosure_signal_correlation_hints: number;
-  evidences: number;
-  unknown_items: number;
-  source_plan_items: number;
-  runnable_suggested_targets: number;
-  data_quality_errors: number;
-  data_quality_warnings: number;
-  intelligence_edge_strengths: number;
-  intelligence_edge_freshness: number;
-  component_risk_views_refreshed: number;
-  component_risk_metrics_written: number;
-  component_risk_changes_recorded: number;
-  question_readiness_ready: number;
-  question_readiness_partial: number;
-  question_readiness_blocked: number;
-  investigation_backlog_items: number;
-  investigation_backlog_p0: number;
-  investigation_backlog_p1: number;
-  investigation_backlog_corroboration_reviews: number;
-  investigation_backlog_corroboration_review_runnable_targets: number;
-  investigation_backlog_corroboration_review_with_source_target_coverage: number;
-  investigation_backlog_corroboration_review_explicit_disposition_only: number;
-  investigation_backlog_corroboration_review_need_sync: number;
-  investigation_backlog_corroboration_review_need_enable: number;
-  investigation_backlog_corroboration_review_due: number;
-  investigation_backlog_corroboration_review_failed_preflight: number;
-  investigation_backlog_corroboration_review_missing_credentials: number;
-  investigation_backlog_corroboration_review_invalid_config: number;
-  investigation_backlog_corroboration_review_unsupported_connector: number;
-  investigation_backlog_corroboration_review_source_unreachable: number;
-  corroboration_source_plan_items: number;
-  corroboration_source_plan_targets: number;
-  corroboration_source_plan_edges: number;
-  corroboration_source_plan_need_sync: number;
-  corroboration_source_plan_need_enable: number;
-  corroboration_source_plan_due: number;
-  corroboration_source_plan_failed_preflight: number;
-  corroboration_source_plan_missing_credentials: number;
-  corroboration_source_plan_next_actions: Record<string, number>;
-  investigation_backlog_runnable_targets: number;
-  source_target_expected_targets: number;
-  source_target_synced_targets: number;
-  source_target_not_synced: number;
-  source_target_due_targets: number;
-  source_target_active_jobs: number;
-  source_target_degraded_targets: number;
-  source_target_dead_targets: number;
-  source_target_targets_with_observations: number;
-  source_target_preflight_selected_targets: number;
-  source_target_preflight_checked_targets: number;
-  source_target_preflight_failed_targets: number;
-  source_target_preflight_degraded_documents: number;
-  source_target_preflight_issue_kinds: Record<string, number>;
-  observation_records: number;
-  observation_chain_segments: number;
-  observation_types_present: number;
-  observation_methodology_types_missing: number;
-  observation_series: number;
-  observation_time_series_ready: number;
-  observation_explicit_baseline_ready: number;
-  observation_sparse_series: number;
-  official_disclosure_visible_nodes: number;
-  official_disclosure_target_nodes: number;
-  official_disclosure_nodes_with_fact_edges: number;
-  official_disclosure_target_nodes_with_fact_edges: number;
-  official_disclosure_nodes_missing_coverage: number;
-  official_disclosure_target_nodes_missing_coverage: number;
-  official_disclosure_profile_expansion_candidates: number;
-  official_disclosure_expected_source_links: number;
-  official_disclosure_expected_source_links_with_coverage: number;
-  official_disclosure_expected_source_links_runnable: number;
-  official_disclosure_expected_source_links_connector_available: number;
-  official_disclosure_expected_source_links_unimplemented: number;
-  official_disclosure_expected_source_links_missing: number;
-  official_disclosure_l4_l5_edges: number;
-  official_disclosure_traceable_edges: number;
-  official_disclosure_cross_source_edges: number;
-  official_disclosure_corroboration_ratio: number;
-  official_disclosure_corroboration_queue_items: number;
-  official_disclosure_corroboration_queue_with_runnable_targets: number;
-  official_disclosure_corroboration_queue_needing_disposition: number;
-  official_disclosure_corroboration_queue_recorded_disposition: number;
-  official_disclosure_corroboration_queue_proposed_unknowns: number;
-  official_disclosure_gaps: number;
-  official_disclosure_p0_gaps: number;
-  official_disclosure_runnable_targets: number;
-  official_disclosure_synced_targets: number;
-  official_disclosure_due_targets: number;
-  official_disclosure_degraded_targets: number;
-  official_disclosure_targets_with_observations: number;
-  official_disclosure_gate1_overall_progress: number;
-  official_disclosure_gate1_data_progress: number;
-  official_disclosure_gate1_source_path_progress: number;
-  supply_chain_expansion_frontier_edges: number;
-  supply_chain_expansion_frontier_companies: number;
-  supply_chain_expansion_component_dependency_leads: number;
-  supply_chain_expansion_leads_with_source_path: number;
-  supply_chain_expansion_blocked_frontier_edges: number;
-  supply_chain_expansion_stop_conditions: number;
-}
-
-export interface ResearchPackClaimBuild {
-  scanned: number;
-  inserted: number;
-  updated: number;
-  generated_by: string;
-}
-
-export interface ResearchPackComponentRiskRefresh {
-  components_considered: number;
-  components_eligible: number;
-  risk_views_refreshed: number;
-  metrics_written: number;
-  edge_count: number;
-  supplier_count: number;
-  share_unknown_count: number;
-  risk_changes_recorded: number;
-  generated_by: string;
-  components: ComponentRiskRefreshSummary[];
-}
-
-export interface ResearchPackModel {
-  manifest: ResearchPackManifest;
-  workbench: WorkbenchModel;
-  company: CompanyCardModel;
-  chain: ChainViewModel;
-  components: ComponentCardModel[];
-  source_plan: SourcePlanItem[];
-  data_quality: DataQualitySummary;
-  question_readiness: QuestionReadinessMatrix;
-  investigation_backlog: InvestigationBacklog;
-  corroboration_source_plan: CorroborationSourcePlan;
-  source_target_coverage: SourceTargetCoverageReport;
-  source_target_preflight: SourceTargetPreflightReport | null;
-  observation_coverage: ObservationCoverageReport;
-  official_disclosure_readiness: OfficialDisclosureReadinessReport;
-  supply_chain_expansion_plan: SupplyChainExpansionPlan;
-}
-
-export interface WorkbenchSnapshotPackInput {
-  workbench: WorkbenchModel;
-  components?: readonly string[];
-  depth?: number;
-  tradeObservationMonth?: string;
-  tradeObservationCountryCode?: string;
-  tradeObservationDirections?: readonly TradeObservationDirection[];
-  officialDisclosureYear?: string;
-  materialObservationYear?: string;
-  commodityObservationMonth?: string;
-  researchTargetProfileId?: ResearchTargetProfileOption;
-  officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
-  sourceTargetNamespace?: string;
-  sourceTargetPreflight?: SourceTargetPreflightReport;
-  supplyChainExpansionMaxDepth?: number;
-}
-
-export interface WorkbenchSnapshotPackModel {
-  manifest: ResearchPackManifest;
-  workbench: WorkbenchModel;
-  chain: ChainViewModel;
-  source_plan: SourcePlanItem[];
-  question_readiness: QuestionReadinessMatrix;
-  investigation_backlog: InvestigationBacklog;
-  corroboration_source_plan: CorroborationSourcePlan;
-  source_target_coverage: SourceTargetCoverageReport;
-  source_target_preflight: SourceTargetPreflightReport | null;
-  observation_coverage: ObservationCoverageReport;
-  official_disclosure_readiness: OfficialDisclosureReadinessReport;
-  supply_chain_expansion_plan: SupplyChainExpansionPlan;
-}
-
-export interface ResearchPackTargetProfile {
-  profile_id: string;
-  title: string;
-  version: string;
-  description: string;
-  selection_reason: string;
-  target_nodes: number;
-}
-
-export interface WrittenResearchPack {
-  out_dir: string;
-  manifest: ResearchPackManifest;
-}
+export { safeFileSegment, writeResearchPack, writeWorkbenchSnapshotPack } from "./writer.js";
 
 export async function buildResearchPack(client: DatabaseStore, input: ResearchPackInput): Promise<ResearchPackModel> {
   const generatedAt = new Date().toISOString();
@@ -584,180 +324,6 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
   };
 }
 
-export async function writeResearchPack(outDir: string, pack: ResearchPackModel): Promise<WrittenResearchPack> {
-  await mkdir(outDir, { recursive: true });
-  await mkdir(join(outDir, "components"), { recursive: true });
-
-  const files: ResearchPackFile[] = [
-    await writeJsonFile(outDir, "manifest.json", pack.manifest, "Research pack manifest"),
-    await writeJsonFile(outDir, "workbench.json", pack.workbench, "Workbench JSON consumed by apps/research-preview"),
-    await writeJsonFile(
-      outDir,
-      "attention-queue.json",
-      { schema_version: "1.0.0", attention_queue: pack.workbench.attention_queue },
-      "Unified attention queue from claim review, alerts, source health, and semantic changes"
-    ),
-    await writeMarkdownFile(outDir, "attention-queue.md", renderAttentionQueueMarkdown(pack.workbench), "Unified attention queue markdown"),
-    await writeJsonFile(outDir, "source-plan.json", { schema_version: "1.0.0", source_plan: pack.source_plan }, "Source plan for existing component coverage"),
-    await writeJsonFile(outDir, "quality.json", pack.data_quality, "Data quality summary"),
-    await writeJsonFile(outDir, "company.json", { schema_version: "1.0.0", company: pack.company }, "Company card JSON"),
-    await writeMarkdownFile(outDir, "company.md", renderCompanyCard(pack.company, "markdown"), "Company card markdown"),
-    await writeJsonFile(outDir, "question-readiness.json", pack.question_readiness, "Question readiness matrix"),
-    await writeMarkdownFile(outDir, "question-readiness.md", renderQuestionReadinessMarkdown(pack.question_readiness), "Question readiness matrix markdown"),
-    await writeJsonFile(outDir, "observation-coverage.json", pack.observation_coverage, "Observation signal coverage"),
-    await writeMarkdownFile(
-      outDir,
-      "observation-coverage.md",
-      renderObservationCoverageMarkdown(pack.observation_coverage),
-      "Observation signal coverage markdown"
-    ),
-    await writeJsonFile(outDir, "official-disclosure-readiness.json", pack.official_disclosure_readiness, "Official disclosure coverage readiness"),
-    await writeMarkdownFile(
-      outDir,
-      "official-disclosure-readiness.md",
-      renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness),
-      "Official disclosure coverage readiness markdown"
-    ),
-    await writeJsonFile(outDir, "supply-chain-expansion-plan.json", pack.supply_chain_expansion_plan, "Recursive supply-chain expansion plan"),
-    await writeMarkdownFile(
-      outDir,
-      "supply-chain-expansion-plan.md",
-      renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
-      "Recursive supply-chain expansion plan markdown"
-    ),
-    await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
-    await writeMarkdownFile(
-      outDir,
-      "investigation-backlog.md",
-      renderInvestigationBacklogMarkdown(pack.investigation_backlog),
-      "Investigation backlog markdown"
-    ),
-    await writeJsonFile(outDir, "corroboration-source-plan.json", pack.corroboration_source_plan, "Filtered source plan for edge corroboration review targets"),
-    await writeMarkdownFile(
-      outDir,
-      "corroboration-source-plan.md",
-      renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan),
-      "Filtered source plan for edge corroboration review targets markdown"
-    ),
-    ...(await corroborationSourcePlanActionBatchFiles(outDir, pack.corroboration_source_plan)),
-    await writeJsonFile(outDir, "source-target-coverage.json", pack.source_target_coverage, "Source target coverage from source monitor"),
-    await writeMarkdownFile(
-      outDir,
-      "source-target-coverage.md",
-      renderSourceTargetCoverageMarkdown(pack.source_target_coverage),
-      "Source target coverage markdown"
-    ),
-    ...(await sourceTargetPreflightFiles(outDir, pack.source_target_preflight)),
-    await writeJsonFile(outDir, "chain.json", pack.chain, "ChainView JSON"),
-    await writeMarkdownFile(outDir, "chain.md", renderChainCard(pack.chain, "markdown"), "ChainView markdown"),
-    await writeMarkdownFile(outDir, "README.md", renderResearchPackReadme(pack), "Research pack table of contents")
-  ];
-
-  for (const component of pack.components) {
-    const name = safeFileSegment(component.component.component_id);
-    files.push(
-      await writeJsonFile(
-        outDir,
-        `components/${name}.json`,
-        { schema_version: "1.0.0", component },
-        `Component card JSON for ${component.component.component_id}`
-      )
-    );
-    files.push(
-      await writeMarkdownFile(
-        outDir,
-        `components/${name}.md`,
-        renderComponentCard(component, "markdown"),
-        `Component card markdown for ${component.component.component_id}`
-      )
-    );
-  }
-
-  const manifest = { ...pack.manifest, files: sortFiles(files) };
-  await writeJsonFile(outDir, "manifest.json", manifest, "Research pack manifest");
-  return { out_dir: outDir, manifest };
-}
-
-export async function writeWorkbenchSnapshotPack(outDir: string, pack: WorkbenchSnapshotPackModel): Promise<WrittenResearchPack> {
-  await mkdir(outDir, { recursive: true });
-  const files: ResearchPackFile[] = [
-    await writeJsonFile(outDir, "manifest.json", pack.manifest, "Research snapshot manifest"),
-    await writeJsonFile(outDir, "workbench.json", pack.workbench, "Workbench JSON consumed by apps/research-preview"),
-    await writeJsonFile(
-      outDir,
-      "attention-queue.json",
-      { schema_version: "1.0.0", attention_queue: pack.workbench.attention_queue },
-      "Unified attention queue from the Workbench export"
-    ),
-    await writeMarkdownFile(outDir, "attention-queue.md", renderAttentionQueueMarkdown(pack.workbench), "Unified attention queue markdown"),
-    await writeJsonFile(outDir, "chain.json", pack.chain, "ChainView JSON copied from the Workbench export"),
-    await writeMarkdownFile(outDir, "chain.md", renderChainCard(pack.chain, "markdown"), "ChainView markdown"),
-    await writeJsonFile(
-      outDir,
-      "source-plan.json",
-      { schema_version: "1.0.0", source_plan: pack.source_plan },
-      "Source plan derived from the Workbench components"
-    ),
-    await writeJsonFile(outDir, "question-readiness.json", pack.question_readiness, "Question readiness matrix"),
-    await writeMarkdownFile(outDir, "question-readiness.md", renderQuestionReadinessMarkdown(pack.question_readiness), "Question readiness matrix markdown"),
-    await writeJsonFile(outDir, "observation-coverage.json", pack.observation_coverage, "Observation signal coverage"),
-    await writeMarkdownFile(
-      outDir,
-      "observation-coverage.md",
-      renderObservationCoverageMarkdown(pack.observation_coverage),
-      "Observation signal coverage markdown"
-    ),
-    await writeJsonFile(outDir, "official-disclosure-readiness.json", pack.official_disclosure_readiness, "Official disclosure coverage readiness"),
-    await writeMarkdownFile(
-      outDir,
-      "official-disclosure-readiness.md",
-      renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness),
-      "Official disclosure coverage readiness markdown"
-    ),
-    await writeJsonFile(outDir, "supply-chain-expansion-plan.json", pack.supply_chain_expansion_plan, "Recursive supply-chain expansion plan"),
-    await writeMarkdownFile(
-      outDir,
-      "supply-chain-expansion-plan.md",
-      renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
-      "Recursive supply-chain expansion plan markdown"
-    ),
-    await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
-    await writeMarkdownFile(
-      outDir,
-      "investigation-backlog.md",
-      renderInvestigationBacklogMarkdown(pack.investigation_backlog),
-      "Investigation backlog markdown"
-    ),
-    await writeJsonFile(outDir, "corroboration-source-plan.json", pack.corroboration_source_plan, "Filtered source plan for edge corroboration review targets"),
-    await writeMarkdownFile(
-      outDir,
-      "corroboration-source-plan.md",
-      renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan),
-      "Filtered source plan for edge corroboration review targets markdown"
-    ),
-    ...(await corroborationSourcePlanActionBatchFiles(outDir, pack.corroboration_source_plan)),
-    await writeJsonFile(outDir, "source-target-coverage.json", pack.source_target_coverage, "Expected source target coverage"),
-    await writeMarkdownFile(
-      outDir,
-      "source-target-coverage.md",
-      renderSourceTargetCoverageMarkdown(pack.source_target_coverage),
-      "Expected source target coverage markdown"
-    ),
-    ...(await sourceTargetPreflightFiles(outDir, pack.source_target_preflight)),
-    await writeJsonFile(
-      outDir,
-      "evidence-index.json",
-      { schema_version: "1.0.0", evidences: pack.workbench.evidences },
-      "Evidence records included in the Workbench export"
-    ),
-    await writeMarkdownFile(outDir, "README.md", renderWorkbenchSnapshotReadme(pack), "Research snapshot table of contents")
-  ];
-
-  const manifest = { ...pack.manifest, files: sortFiles(files) };
-  await writeJsonFile(outDir, "manifest.json", manifest, "Research snapshot manifest");
-  return { out_dir: outDir, manifest };
-}
-
 export function collectResearchComponentIds(workbench: Pick<WorkbenchModel, "chain_segments">, explicitComponents: readonly string[]): string[] {
   const ids = new Set<string>();
   for (const component of explicitComponents) {
@@ -768,16 +334,6 @@ export function collectResearchComponentIds(workbench: Pick<WorkbenchModel, "cha
     if (segment.component_id !== null) ids.add(segment.component_id);
   }
   return [...ids].sort();
-}
-
-export function safeFileSegment(value: string): string {
-  const cleaned = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
-  if (cleaned.length === 0) throw new Error(`Cannot create a file name from empty value: ${value}`);
-  return cleaned;
 }
 
 export function resolveResearchPackWriteSteps(
@@ -1083,177 +639,6 @@ function manifestFromModel(input: {
   };
 }
 
-function renderResearchPackReadme(pack: ResearchPackModel): string {
-  const lines = [
-    `# Research Pack ${pack.company.entity.canonical_name}`,
-    "",
-    `Generated at: ${pack.manifest.generated_at}`,
-    `Company: ${pack.company.entity.canonical_name} [${pack.manifest.selected_company_id}]`,
-    `Depth: ${pack.manifest.depth}`,
-    "",
-    "## Stats",
-    "",
-    `- Fact edges: ${pack.manifest.stats.fact_edges}`,
-    `- Claims: ${pack.manifest.stats.claims}`,
-    `- Claim conflicts: ${pack.manifest.stats.claim_conflicts}`,
-    `- Contradicting evidence links: ${pack.manifest.stats.contradicting_evidence_links}`,
-    `- Claim lifecycle warnings: ${pack.manifest.stats.claim_lifecycle_warnings}`,
-    `- Attention queue items: ${pack.manifest.stats.attention_items}`,
-    `- Review candidates: ${pack.manifest.stats.review_candidates}; official disclosure signals ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open; signal dispositions ${pack.manifest.stats.official_disclosure_signal_dispositions}; correlation hints ${pack.manifest.stats.open_official_disclosure_signal_correlation_hints}/${pack.manifest.stats.official_disclosure_signal_correlation_hints} open`,
-    `- Evidence records: ${pack.manifest.stats.evidences}`,
-    `- Unknown items: ${pack.manifest.stats.unknown_items}`,
-    `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
-    `- Intelligence freshness records: ${pack.manifest.stats.intelligence_edge_freshness}`,
-    `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
-    `- Gate 1 scorecard: overall ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_overall_progress)}, data ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_data_progress)}, source paths ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_source_path_progress)}`,
-    `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
-    `- Official disclosure corroboration queue: ${pack.manifest.stats.official_disclosure_corroboration_queue_items} edges; ${pack.manifest.stats.official_disclosure_corroboration_queue_with_runnable_targets} with runnable target; ${pack.manifest.stats.official_disclosure_corroboration_queue_needing_disposition} need explicit disposition; ${pack.manifest.stats.official_disclosure_corroboration_queue_recorded_disposition} recorded; ${pack.manifest.stats.official_disclosure_corroboration_queue_proposed_unknowns} proposed unknowns`,
-    `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
-    `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
-    `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,
-    `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
-    `- Official disclosure review signals: ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
-    `- Official disclosure signal correlation hints: ${pack.manifest.stats.open_official_disclosure_signal_correlation_hints}/${pack.manifest.stats.official_disclosure_signal_correlation_hints} open; dispositions ${pack.manifest.stats.official_disclosure_signal_dispositions}`,
-    `- Supply-chain expansion plan: ${pack.manifest.stats.supply_chain_expansion_frontier_edges} frontier edges, ${pack.manifest.stats.supply_chain_expansion_frontier_companies} frontier companies, ${pack.manifest.stats.supply_chain_expansion_component_dependency_leads} component leads (${pack.manifest.stats.supply_chain_expansion_leads_with_source_path} with source path), ${pack.manifest.stats.supply_chain_expansion_stop_conditions} stop conditions`,
-    `- Observation records: ${pack.manifest.stats.observation_records}`,
-    `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
-    `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
-    `- Observation methodology types missing: ${pack.manifest.stats.observation_methodology_types_missing}`,
-    `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
-    `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
-    `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
-    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
-    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight; next actions ${formatStatsCountMap(pack.manifest.stats.corroboration_source_plan_next_actions)})`,
-    `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_due_targets} due`,
-    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents; issues ${formatStatsCountMap(pack.manifest.stats.source_target_preflight_issue_kinds)}`,
-    `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
-    `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
-    `- Data quality errors: ${pack.manifest.stats.data_quality_errors}`,
-    `- Data quality warnings: ${pack.manifest.stats.data_quality_warnings}`,
-    "",
-    "## Files",
-    "",
-    "- `workbench.json` feeds the TypeScript research preview.",
-    "- `attention-queue.json` and `attention-queue.md` unify immediate review items from claim conflicts, claim lifecycle warnings, alert candidates, degraded source monitors, and semantic changes.",
-    "- `chain.md` and `company.md` are human-readable research cards with intelligence context.",
-    "- `question-readiness.json` and `question-readiness.md` show which core supply-chain questions are ready, partial, or blocked.",
-    "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage and methodology gaps.",
-    "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
-    "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
-    "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
-    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
-    "- `source-target-coverage.json` and `source-target-coverage.md` show whether runnable source-plan targets are synced, enabled, due, running, failed, or producing observations.",
-    "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
-    "- `components/*.md` contains component-level evidence, observation, strength, freshness, and unknown context.",
-    "- `source-plan.json` lists which existing free/public sources should be checked next.",
-    "- `quality.json` records data-quality checks for audit."
-  ];
-  return lines.join("\n");
-}
-
-function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string {
-  const lines = [
-    `# Research Snapshot ${pack.workbench.chain.root.name}`,
-    "",
-    `Generated at: ${pack.manifest.generated_at}`,
-    `Company: ${pack.workbench.chain.root.name} [${pack.manifest.selected_company_id}]`,
-    `Depth: ${pack.manifest.depth}`,
-    "",
-    "This pack was built from an existing Workbench JSON export. It does not refresh the SQL truth store, rebuild claims, or run data-quality checks.",
-    "",
-    "## Stats",
-    "",
-    `- Fact edges: ${pack.manifest.stats.fact_edges}`,
-    `- Claims: ${pack.manifest.stats.claims}`,
-    `- Claim conflicts: ${pack.manifest.stats.claim_conflicts}`,
-    `- Contradicting evidence links: ${pack.manifest.stats.contradicting_evidence_links}`,
-    `- Claim lifecycle warnings: ${pack.manifest.stats.claim_lifecycle_warnings}`,
-    `- Attention queue items: ${pack.manifest.stats.attention_items}`,
-    `- Review candidates: ${pack.manifest.stats.review_candidates}; official disclosure signals ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open; signal dispositions ${pack.manifest.stats.official_disclosure_signal_dispositions}; correlation hints ${pack.manifest.stats.open_official_disclosure_signal_correlation_hints}/${pack.manifest.stats.official_disclosure_signal_correlation_hints} open`,
-    `- Evidence records: ${pack.manifest.stats.evidences}`,
-    `- Unknown items: ${pack.manifest.stats.unknown_items}`,
-    `- Intelligence strengths: ${pack.manifest.stats.intelligence_edge_strengths}`,
-    `- Intelligence freshness records: ${pack.manifest.stats.intelligence_edge_freshness}`,
-    `- Research target profile: ${pack.manifest.research_target_profile === null ? "none" : `${pack.manifest.research_target_profile.profile_id} (${pack.manifest.research_target_profile.target_nodes} target nodes)`}`,
-    `- Gate 1 scorecard: overall ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_overall_progress)}, data ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_data_progress)}, source paths ${formatReadmePercent(pack.manifest.stats.official_disclosure_gate1_source_path_progress)}`,
-    `- Official disclosure readiness: ${pack.manifest.stats.official_disclosure_visible_nodes} visible nodes, ${pack.manifest.stats.official_disclosure_target_nodes} explicit targets (${pack.manifest.stats.official_disclosure_nodes_with_fact_edges} fact-covered, ${pack.manifest.stats.official_disclosure_nodes_missing_coverage} missing), ${pack.manifest.stats.official_disclosure_l4_l5_edges} L4/L5 edges, ${pack.manifest.stats.official_disclosure_cross_source_edges} cross-source`,
-    `- Official disclosure corroboration queue: ${pack.manifest.stats.official_disclosure_corroboration_queue_items} edges; ${pack.manifest.stats.official_disclosure_corroboration_queue_with_runnable_targets} with runnable target; ${pack.manifest.stats.official_disclosure_corroboration_queue_needing_disposition} need explicit disposition; ${pack.manifest.stats.official_disclosure_corroboration_queue_recorded_disposition} recorded; ${pack.manifest.stats.official_disclosure_corroboration_queue_proposed_unknowns} proposed unknowns`,
-    `- Official disclosure profile expansion candidates: ${pack.manifest.stats.official_disclosure_profile_expansion_candidates}`,
-    `- Official disclosure expected sources: ${pack.manifest.stats.official_disclosure_expected_source_links_with_coverage}/${pack.manifest.stats.official_disclosure_expected_source_links} covered; ${pack.manifest.stats.official_disclosure_expected_source_links_runnable} runnable paths; ${pack.manifest.stats.official_disclosure_expected_source_links_connector_available} connector-only; ${pack.manifest.stats.official_disclosure_expected_source_links_unimplemented} unimplemented; ${pack.manifest.stats.official_disclosure_expected_source_links_missing} missing mappings`,
-    `- Official disclosure gaps: ${pack.manifest.stats.official_disclosure_gaps} open (${pack.manifest.stats.official_disclosure_p0_gaps} P0)`,
-    `- Official disclosure targets: ${pack.manifest.stats.official_disclosure_synced_targets}/${pack.manifest.stats.official_disclosure_runnable_targets} synced; ${pack.manifest.stats.official_disclosure_due_targets} due; ${pack.manifest.stats.official_disclosure_degraded_targets} degraded`,
-    `- Official disclosure review signals: ${pack.manifest.stats.open_official_disclosure_signal_review_candidates}/${pack.manifest.stats.official_disclosure_signal_review_candidates} open`,
-    `- Official disclosure signal correlation hints: ${pack.manifest.stats.open_official_disclosure_signal_correlation_hints}/${pack.manifest.stats.official_disclosure_signal_correlation_hints} open; dispositions ${pack.manifest.stats.official_disclosure_signal_dispositions}`,
-    `- Supply-chain expansion plan: ${pack.manifest.stats.supply_chain_expansion_frontier_edges} frontier edges, ${pack.manifest.stats.supply_chain_expansion_frontier_companies} frontier companies, ${pack.manifest.stats.supply_chain_expansion_component_dependency_leads} component leads (${pack.manifest.stats.supply_chain_expansion_leads_with_source_path} with source path), ${pack.manifest.stats.supply_chain_expansion_stop_conditions} stop conditions`,
-    `- Observation records: ${pack.manifest.stats.observation_records}`,
-    `- Observation types present: ${pack.manifest.stats.observation_types_present}`,
-    `- Observation series readiness: ${pack.manifest.stats.observation_time_series_ready} time-series ready, ${pack.manifest.stats.observation_explicit_baseline_ready} explicit-baseline ready, ${pack.manifest.stats.observation_sparse_series} sparse`,
-    `- Observation methodology types missing: ${pack.manifest.stats.observation_methodology_types_missing}`,
-    `- Component risk views refreshed: ${pack.manifest.stats.component_risk_views_refreshed}`,
-    `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
-    `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
-    `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
-    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight; next actions ${formatStatsCountMap(pack.manifest.stats.corroboration_source_plan_next_actions)})`,
-    `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
-    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents; issues ${formatStatsCountMap(pack.manifest.stats.source_target_preflight_issue_kinds)}`,
-    `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
-    `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
-    "",
-    "## Files",
-    "",
-    "- `workbench.json` feeds the TypeScript research preview.",
-    "- `attention-queue.json` and `attention-queue.md` unify immediate review items carried by the packaged workbench context.",
-    "- `chain.md` is a human-readable chain view.",
-    "- `question-readiness.json` and `question-readiness.md` summarize answer readiness from the packaged workbench context.",
-    "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage visible from the snapshot.",
-    "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
-    "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
-    "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
-    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
-    "- `source-target-coverage.json` and `source-target-coverage.md` show expected runnable targets as `not_synced` until a SQL truth store syncs them into `source_check_targets`.",
-    "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
-    "- `source-plan.json` lists existing free/public source checks suggested by the components in this workbench.",
-    "- `evidence-index.json` contains the evidence records carried by the workbench export."
-  ];
-  return lines.join("\n");
-}
-
-function formatReadmePercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function renderAttentionQueueMarkdown(workbench: WorkbenchModel): string {
-  const lines = [
-    "# Attention Queue",
-    "",
-    `Generated at: ${workbench.generated_at}`,
-    `Company: ${workbench.chain.root.name} [${workbench.selected_company_id}]`,
-    "",
-    "This queue is derived from existing backend context. It does not create fact edges and does not resolve conflicts automatically.",
-    "",
-    "## Items",
-    ""
-  ];
-  if (workbench.attention_queue.length === 0) {
-    lines.push("No open attention items.");
-    return lines.join("\n");
-  }
-  for (const item of workbench.attention_queue) {
-    lines.push(`### ${item.priority} ${item.title}`);
-    lines.push("");
-    lines.push(`- ID: ${item.attention_id}`);
-    lines.push(`- Kind: ${item.kind}`);
-    lines.push(`- Status: ${item.status}`);
-    lines.push(`- Scope: ${item.scope_kind}:${item.scope_id}`);
-    lines.push(`- Detected at: ${item.detected_at ?? "unknown"}`);
-    lines.push(`- Summary: ${item.summary}`);
-    lines.push(`- Action: ${item.action}`);
-    lines.push(`- Refs: ${item.refs.length === 0 ? "none" : item.refs.join(", ")}`);
-    lines.push("");
-  }
-  return lines.join("\n");
-}
-
 function emptyStaticDataQualitySummary(): DataQualitySummary {
   return {
     checked_at: new Date().toISOString(),
@@ -1278,12 +663,6 @@ function countClaimLifecycleWarnings(workbench: WorkbenchModel): number {
   return [...workbench.claims, ...workbench.draft_claims].reduce((count, claim) => count + claim.lifecycle_warnings.length, 0);
 }
 
-function formatStatsCountMap(counts: Record<string, number>): string {
-  const entries = Object.entries(counts).sort(([left], [right]) => left.localeCompare(right));
-  if (entries.length === 0) return "none";
-  return entries.map(([key, count]) => `${key}=${count}`).join(", ");
-}
-
 function countSourceTargetPreflightIssueKinds(report: SourceTargetPreflightReport | null): Record<string, number> {
   if (report === null) return {};
   const counts: Record<string, number> = {};
@@ -1297,43 +676,6 @@ function countSourceTargetPreflightIssueKinds(report: SourceTargetPreflightRepor
     sorted[issueKind] = count;
   }
   return sorted;
-}
-
-async function corroborationSourcePlanActionBatchFiles(outDir: string, plan: CorroborationSourcePlan): Promise<ResearchPackFile[]> {
-  const files: ResearchPackFile[] = [];
-  for (const definition of CORROBORATION_SOURCE_PLAN_ACTION_BATCHES) {
-    const batch = buildCorroborationSourcePlanActionBatch(plan, definition);
-    if (batch.summary.runnable_targets === 0) continue;
-    files.push(await writeJsonFile(outDir, definition.file_name, batch, definition.description));
-  }
-  return files;
-}
-
-async function sourceTargetPreflightFiles(outDir: string, report: SourceTargetPreflightReport | null): Promise<ResearchPackFile[]> {
-  if (report === null) return [];
-  return [
-    await writeJsonFile(outDir, "source-target-preflight.json", report, "No-database source-plan smoke preflight report"),
-    await writeMarkdownFile(
-      outDir,
-      "source-target-preflight.md",
-      renderSourceTargetPreflightMarkdown(report),
-      "No-database source-plan smoke preflight markdown"
-    )
-  ];
-}
-
-async function writeJsonFile(outDir: string, relativePath: string, value: unknown, description: string): Promise<ResearchPackFile> {
-  await writeFile(join(outDir, relativePath), `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  return { path: relativePath, kind: "json", description };
-}
-
-async function writeMarkdownFile(outDir: string, relativePath: string, value: string, description: string): Promise<ResearchPackFile> {
-  await writeFile(join(outDir, relativePath), `${value.trimEnd()}\n`, "utf8");
-  return { path: relativePath, kind: "markdown", description };
-}
-
-function sortFiles(files: readonly ResearchPackFile[]): ResearchPackFile[] {
-  return [...files].sort((left, right) => left.path.localeCompare(right.path));
 }
 
 function normalizeId(value: string): string {

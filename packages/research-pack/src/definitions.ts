@@ -1,0 +1,268 @@
+import type { DataQualitySummary } from "@supplystrata/data-quality";
+import type { ComponentRiskRefreshSummary, EdgeIntelligenceRefreshSummary } from "@supplystrata/evidence-maintenance";
+import type { ChainViewModel, CompanyCardModel, ComponentCardModel } from "@supplystrata/render";
+import type { SourcePlanItem, TradeObservationDirection } from "@supplystrata/source-plan";
+import type { WorkbenchModel } from "@supplystrata/workbench-export";
+import type { CorroborationSourcePlan } from "./corroboration-source-plan.js";
+import type { InvestigationBacklog } from "./investigation-backlog.js";
+import type { ObservationCoverageReport } from "./observation-coverage.js";
+import type { OfficialDisclosureReadinessReport, OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
+import type { QuestionReadinessMatrix } from "./question-readiness.js";
+import type { ResearchTargetProfileOption } from "./research-target-profile.js";
+import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
+import type { SourceTargetPreflightReport } from "./source-target-preflight.js";
+import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
+
+export interface ResearchPackInput {
+  company: string;
+  components?: readonly string[];
+  depth?: number;
+  since?: string;
+  changeLimit?: number;
+  sourceLimit?: number;
+  buildClaims?: boolean;
+  refreshIntelligence?: boolean;
+  refreshComponentRisk?: boolean;
+  intelligenceLimit?: number;
+  minEvidenceLevel?: 4 | 5;
+  generatedBy?: string;
+  tradeObservationMonth?: string;
+  tradeObservationCountryCode?: string;
+  tradeObservationDirections?: readonly TradeObservationDirection[];
+  officialDisclosureYear?: string;
+  materialObservationYear?: string;
+  commodityObservationMonth?: string;
+  sourceTargetNamespace?: string;
+  sourceTargetPreflight?: SourceTargetPreflightReport;
+  researchTargetProfileId?: ResearchTargetProfileOption;
+  officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
+  supplyChainExpansionMaxDepth?: number;
+}
+
+export interface ResearchPackWriteSteps {
+  buildClaims: boolean;
+  refreshIntelligence: boolean;
+  refreshComponentRisk: boolean;
+}
+
+export interface ResearchPackManifest {
+  schema_version: "1.0.0";
+  mode: "truth_store" | "workbench_snapshot";
+  generated_at: string;
+  company_query: string;
+  selected_company_id: string;
+  depth: number;
+  components: string[];
+  files: ResearchPackFile[];
+  stats: ResearchPackStats;
+  claim_build: ResearchPackClaimBuild | null;
+  intelligence_refresh: EdgeIntelligenceRefreshSummary | null;
+  component_risk_refresh: ResearchPackComponentRiskRefresh | null;
+  research_target_profile: ResearchPackTargetProfile | null;
+}
+
+export interface ResearchPackFile {
+  path: string;
+  kind: "json" | "markdown";
+  description: string;
+}
+
+export interface ResearchPackStats {
+  companies: number;
+  chain_segments: number;
+  fact_edges: number;
+  claims: number;
+  draft_claims: number;
+  claim_conflicts: number;
+  contradicting_evidence_links: number;
+  claim_lifecycle_warnings: number;
+  attention_items: number;
+  review_candidates: number;
+  official_disclosure_signal_review_candidates: number;
+  open_official_disclosure_signal_review_candidates: number;
+  official_disclosure_signal_dispositions: number;
+  official_disclosure_signal_correlation_hints: number;
+  open_official_disclosure_signal_correlation_hints: number;
+  evidences: number;
+  unknown_items: number;
+  source_plan_items: number;
+  runnable_suggested_targets: number;
+  data_quality_errors: number;
+  data_quality_warnings: number;
+  intelligence_edge_strengths: number;
+  intelligence_edge_freshness: number;
+  component_risk_views_refreshed: number;
+  component_risk_metrics_written: number;
+  component_risk_changes_recorded: number;
+  question_readiness_ready: number;
+  question_readiness_partial: number;
+  question_readiness_blocked: number;
+  investigation_backlog_items: number;
+  investigation_backlog_p0: number;
+  investigation_backlog_p1: number;
+  investigation_backlog_corroboration_reviews: number;
+  investigation_backlog_corroboration_review_runnable_targets: number;
+  investigation_backlog_corroboration_review_with_source_target_coverage: number;
+  investigation_backlog_corroboration_review_explicit_disposition_only: number;
+  investigation_backlog_corroboration_review_need_sync: number;
+  investigation_backlog_corroboration_review_need_enable: number;
+  investigation_backlog_corroboration_review_due: number;
+  investigation_backlog_corroboration_review_failed_preflight: number;
+  investigation_backlog_corroboration_review_missing_credentials: number;
+  investigation_backlog_corroboration_review_invalid_config: number;
+  investigation_backlog_corroboration_review_unsupported_connector: number;
+  investigation_backlog_corroboration_review_source_unreachable: number;
+  corroboration_source_plan_items: number;
+  corroboration_source_plan_targets: number;
+  corroboration_source_plan_edges: number;
+  corroboration_source_plan_need_sync: number;
+  corroboration_source_plan_need_enable: number;
+  corroboration_source_plan_due: number;
+  corroboration_source_plan_failed_preflight: number;
+  corroboration_source_plan_missing_credentials: number;
+  corroboration_source_plan_next_actions: Record<string, number>;
+  investigation_backlog_runnable_targets: number;
+  source_target_expected_targets: number;
+  source_target_synced_targets: number;
+  source_target_not_synced: number;
+  source_target_due_targets: number;
+  source_target_active_jobs: number;
+  source_target_degraded_targets: number;
+  source_target_dead_targets: number;
+  source_target_targets_with_observations: number;
+  source_target_preflight_selected_targets: number;
+  source_target_preflight_checked_targets: number;
+  source_target_preflight_failed_targets: number;
+  source_target_preflight_degraded_documents: number;
+  source_target_preflight_issue_kinds: Record<string, number>;
+  observation_records: number;
+  observation_chain_segments: number;
+  observation_types_present: number;
+  observation_methodology_types_missing: number;
+  observation_series: number;
+  observation_time_series_ready: number;
+  observation_explicit_baseline_ready: number;
+  observation_sparse_series: number;
+  official_disclosure_visible_nodes: number;
+  official_disclosure_target_nodes: number;
+  official_disclosure_nodes_with_fact_edges: number;
+  official_disclosure_target_nodes_with_fact_edges: number;
+  official_disclosure_nodes_missing_coverage: number;
+  official_disclosure_target_nodes_missing_coverage: number;
+  official_disclosure_profile_expansion_candidates: number;
+  official_disclosure_expected_source_links: number;
+  official_disclosure_expected_source_links_with_coverage: number;
+  official_disclosure_expected_source_links_runnable: number;
+  official_disclosure_expected_source_links_connector_available: number;
+  official_disclosure_expected_source_links_unimplemented: number;
+  official_disclosure_expected_source_links_missing: number;
+  official_disclosure_l4_l5_edges: number;
+  official_disclosure_traceable_edges: number;
+  official_disclosure_cross_source_edges: number;
+  official_disclosure_corroboration_ratio: number;
+  official_disclosure_corroboration_queue_items: number;
+  official_disclosure_corroboration_queue_with_runnable_targets: number;
+  official_disclosure_corroboration_queue_needing_disposition: number;
+  official_disclosure_corroboration_queue_recorded_disposition: number;
+  official_disclosure_corroboration_queue_proposed_unknowns: number;
+  official_disclosure_gaps: number;
+  official_disclosure_p0_gaps: number;
+  official_disclosure_runnable_targets: number;
+  official_disclosure_synced_targets: number;
+  official_disclosure_due_targets: number;
+  official_disclosure_degraded_targets: number;
+  official_disclosure_targets_with_observations: number;
+  official_disclosure_gate1_overall_progress: number;
+  official_disclosure_gate1_data_progress: number;
+  official_disclosure_gate1_source_path_progress: number;
+  supply_chain_expansion_frontier_edges: number;
+  supply_chain_expansion_frontier_companies: number;
+  supply_chain_expansion_component_dependency_leads: number;
+  supply_chain_expansion_leads_with_source_path: number;
+  supply_chain_expansion_blocked_frontier_edges: number;
+  supply_chain_expansion_stop_conditions: number;
+}
+
+export interface ResearchPackClaimBuild {
+  scanned: number;
+  inserted: number;
+  updated: number;
+  generated_by: string;
+}
+
+export interface ResearchPackComponentRiskRefresh {
+  components_considered: number;
+  components_eligible: number;
+  risk_views_refreshed: number;
+  metrics_written: number;
+  edge_count: number;
+  supplier_count: number;
+  share_unknown_count: number;
+  risk_changes_recorded: number;
+  generated_by: string;
+  components: ComponentRiskRefreshSummary[];
+}
+
+export interface ResearchPackModel {
+  manifest: ResearchPackManifest;
+  workbench: WorkbenchModel;
+  company: CompanyCardModel;
+  chain: ChainViewModel;
+  components: ComponentCardModel[];
+  source_plan: SourcePlanItem[];
+  data_quality: DataQualitySummary;
+  question_readiness: QuestionReadinessMatrix;
+  investigation_backlog: InvestigationBacklog;
+  corroboration_source_plan: CorroborationSourcePlan;
+  source_target_coverage: SourceTargetCoverageReport;
+  source_target_preflight: SourceTargetPreflightReport | null;
+  observation_coverage: ObservationCoverageReport;
+  official_disclosure_readiness: OfficialDisclosureReadinessReport;
+  supply_chain_expansion_plan: SupplyChainExpansionPlan;
+}
+
+export interface WorkbenchSnapshotPackInput {
+  workbench: WorkbenchModel;
+  components?: readonly string[];
+  depth?: number;
+  tradeObservationMonth?: string;
+  tradeObservationCountryCode?: string;
+  tradeObservationDirections?: readonly TradeObservationDirection[];
+  officialDisclosureYear?: string;
+  materialObservationYear?: string;
+  commodityObservationMonth?: string;
+  researchTargetProfileId?: ResearchTargetProfileOption;
+  officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
+  sourceTargetNamespace?: string;
+  sourceTargetPreflight?: SourceTargetPreflightReport;
+  supplyChainExpansionMaxDepth?: number;
+}
+
+export interface WorkbenchSnapshotPackModel {
+  manifest: ResearchPackManifest;
+  workbench: WorkbenchModel;
+  chain: ChainViewModel;
+  source_plan: SourcePlanItem[];
+  question_readiness: QuestionReadinessMatrix;
+  investigation_backlog: InvestigationBacklog;
+  corroboration_source_plan: CorroborationSourcePlan;
+  source_target_coverage: SourceTargetCoverageReport;
+  source_target_preflight: SourceTargetPreflightReport | null;
+  observation_coverage: ObservationCoverageReport;
+  official_disclosure_readiness: OfficialDisclosureReadinessReport;
+  supply_chain_expansion_plan: SupplyChainExpansionPlan;
+}
+
+export interface ResearchPackTargetProfile {
+  profile_id: string;
+  title: string;
+  version: string;
+  description: string;
+  selection_reason: string;
+  target_nodes: number;
+}
+
+export interface WrittenResearchPack {
+  out_dir: string;
+  manifest: ResearchPackManifest;
+}
