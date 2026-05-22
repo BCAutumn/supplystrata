@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
   createFsSnapshotStore,
@@ -51,7 +51,7 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
   },
   async fetch(task, ctx) {
     // API key 只在真实抓取 URL 上附加；task.url 作为 provenance 入库时保持无密钥。
-    const key = requireEnvValue(loadEnv().CENSUS_API_KEY, "CENSUS_API_KEY");
+    const key = requireSourceCredential(loadEnv(), "CENSUS_API_KEY");
     const bytes = await fetchBytesWithTimeout(censusFetchUrl(task.url, key), {
       userAgent: ctx.userAgent,
       timeoutMs: 15_000,

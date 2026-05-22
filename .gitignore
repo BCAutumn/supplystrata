@@ -2,6 +2,7 @@ node_modules/
 /data/
 /reports/
 .env
+config/source-credentials.local.json
 dist/
 packages/*/dist/
 packages/*/*/dist/

@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
   createFsSnapshotStore,
@@ -140,7 +140,7 @@ export function createEdinetAdapterContext(): AdapterContext {
 export function buildEdinetDocumentsListUrl(input: EdinetDailyFilingsInput): string {
   validateEdinetDailyFilingsInput(input);
   const env = loadEnv();
-  const apiKey = requireEnvValue(env.EDINET_API_KEY, "EDINET_API_KEY");
+  const apiKey = requireSourceCredential(env, "EDINET_API_KEY");
   const url = new URL("https://api.edinet-fsa.go.jp/api/v2/documents.json");
   url.searchParams.set("date", input.date);
   url.searchParams.set("type", String(input.listType ?? 2));

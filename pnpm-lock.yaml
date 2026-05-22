@@ -575,6 +575,9 @@ importers:
 
   packages/source-management:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../config
       '@supplystrata/source-connectors':
         specifier: workspace:*
         version: link:../source-connectors

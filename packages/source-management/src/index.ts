@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { SOURCE_CREDENTIAL_DEFINITIONS } from "@supplystrata/config";
 import {
   connectorKey,
   validateSourceCheckTargetConfig,
@@ -40,6 +41,7 @@ export interface ManagedSource {
   source: SourceRegistryEntry;
   connector_keys: string[];
   executable_target_kinds: string[];
+  source_credential_requirements: readonly SourceCheckCredentialRequirement[];
   target_config_schemas: Record<string, NonNullable<SourceCheckConnectorCapability["config_schema"]>>;
   target_credential_requirements: Record<string, readonly SourceCheckCredentialRequirement[]>;
   can_run_checks: boolean;
@@ -346,11 +348,18 @@ function toManagedSource(source: SourceRegistryEntry, connectors: readonly Sourc
     source,
     connector_keys: matchingConnectors.map((connector) => connector.key),
     executable_target_kinds: matchingConnectors.map((connector) => connector.target_kind),
+    source_credential_requirements: sourceCredentialRequirementsForSource(source.id),
     target_config_schemas: targetConfigSchemasForConnectors(matchingConnectors),
     target_credential_requirements: targetCredentialRequirementsForConnectors(matchingConnectors),
     can_run_checks: canRunChecks,
     config_mode: configModeForSource(source, canRunChecks)
   };
+}
+
+function sourceCredentialRequirementsForSource(sourceAdapterId: string): readonly SourceCheckCredentialRequirement[] {
+  return SOURCE_CREDENTIAL_DEFINITIONS.filter((definition) => definition.source_adapter_ids.includes(sourceAdapterId))
+    .map((definition) => ({ env_key: definition.env_key, description: definition.description, required: definition.required }))
+    .sort((left, right) => left.env_key.localeCompare(right.env_key));
 }
 
 function targetConfigSchemasForConnectors(

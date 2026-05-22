@@ -27,7 +27,8 @@ export function renderSourceManagementCatalog(catalog: SourceManagementCatalog, 
     lines.push(`  Name: ${item.source.name}`);
     lines.push(`  Category: ${item.source.category}; automation: ${item.source.automation}; status: ${item.source.status}`);
     lines.push(`  Output authority: ${item.source.relation_authority}; evidence cap: ${item.source.evidence_level_cap}`);
-    lines.push(`  Credentials: ${item.source.requires_key ? "required" : "not required"}`);
+    const sourceCredentialKeys = item.source_credential_requirements.filter((requirement) => requirement.required).map((requirement) => requirement.env_key);
+    lines.push(`  Credentials: ${sourceCredentialKeys.length === 0 ? "not required" : `required (${sourceCredentialKeys.join(", ")})`}`);
     lines.push(`  Connectors: ${item.connector_keys.length === 0 ? "none" : item.connector_keys.join(", ")}`);
     for (const [targetKind, schema] of Object.entries(item.target_config_schemas)) {
       const required = schema.fields.filter((field) => field.required).map((field) => field.key);

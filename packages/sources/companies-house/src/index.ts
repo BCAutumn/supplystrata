@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
-import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import {
@@ -43,7 +43,7 @@ const companiesHouseAdapterBase: SourceAdapter<CompaniesHouseSearchInput, Uint8A
     };
   },
   async fetch(task, ctx) {
-    const apiKey = requireEnvValue(loadEnv().COMPANIES_HOUSE_API_KEY, "COMPANIES_HOUSE_API_KEY");
+    const apiKey = requireSourceCredential(loadEnv(), "COMPANIES_HOUSE_API_KEY");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 12_000,

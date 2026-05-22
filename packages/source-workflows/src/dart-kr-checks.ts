@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
   createFsSnapshotStore,
@@ -139,7 +139,7 @@ export function createDartKrAdapterContext(): AdapterContext {
 export function buildDartKrDisclosureListUrl(input: DartKrCompanyFilingsInput, disclosureType: DartKrDisclosureType): string {
   validateDartKrCompanyFilingsInput(input);
   const env = loadEnv();
-  const apiKey = requireEnvValue(env.OPENDART_API_KEY, "OPENDART_API_KEY");
+  const apiKey = requireSourceCredential(env, "OPENDART_API_KEY");
   const url = new URL("https://engopendart.fss.or.kr/engapi/list.json");
   url.searchParams.set("crtfc_key", apiKey);
   url.searchParams.set("corp_code", input.corpCode);

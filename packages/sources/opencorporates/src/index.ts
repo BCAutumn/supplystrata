@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import {
@@ -50,7 +50,7 @@ const openCorporatesAdapterBase: SourceAdapter<OpenCorporatesSearchInput, Uint8A
     };
   },
   async fetch(task, ctx) {
-    const token = requireEnvValue(loadEnv().OPEN_CORPORATES_API_TOKEN, "OPEN_CORPORATES_API_TOKEN");
+    const token = requireSourceCredential(loadEnv(), "OPEN_CORPORATES_API_TOKEN");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 12_000,

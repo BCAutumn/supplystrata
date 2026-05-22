@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { loadEnv, requireSourceCredential } from "@supplystrata/config";
 import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
 import {
   createFsSnapshotStore,
@@ -48,7 +48,7 @@ const oshAdapterBase: SourceAdapter<OshFacilitySearchInput, Uint8Array> = {
     };
   },
   async fetch(task, ctx) {
-    const token = requireEnvValue(loadEnv().OSH_API_TOKEN, "OSH_API_TOKEN");
+    const token = requireSourceCredential(loadEnv(), "OSH_API_TOKEN");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 15_000,
