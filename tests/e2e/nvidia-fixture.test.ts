@@ -12,6 +12,7 @@ import { runSupplyChainPipelineFromNormalized } from "@supplystrata/pipeline";
 import { loadCompanyCard, loadUnknownMap } from "@supplystrata/card-builder";
 import { renderCompanyCard, renderUnknownMapCard } from "@supplystrata/render";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
+import { buildResearchPack } from "@supplystrata/research-pack";
 import { canConnectToIntegrationDatabase } from "../integration/helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();
@@ -31,7 +32,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
     await pool.close();
   });
 
-  it("runs parser, rule extraction, scoring, graph apply, render, and unknown map without network", async () => {
+  it("runs parser, rule extraction, scoring, graph apply, render, research pack, and unknown map without network", async () => {
     const raw = await loadFixtureRawDocument();
     const normalized = parseHtml({
       raw,
@@ -68,8 +69,59 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
     expect(company).toContain("## Unknown map");
     expect(company).not.toContain("products.Competition");
     expect(unknownMap.split("\n- ")).toHaveLength(6);
+
+    const pack = await buildResearchPack(pool, {
+      company: "nvidia",
+      depth: 3,
+      components: ["COMP-HBM", "COMP-MEMORY"],
+      officialDisclosureYear: "2025",
+      sourceTargetNamespace: "e2e-nvidia-fixture",
+      buildClaims: false,
+      refreshIntelligence: false,
+      refreshComponentRisk: false
+    });
+
+    expect(pack.manifest).toMatchObject({
+      mode: "truth_store",
+      selected_company_id: "ENT-NVIDIA",
+      research_target_profile: {
+        profile_id: "ai-compute-memory.v0",
+        target_nodes: 25
+      }
+    });
+    expect(pack.manifest.stats.fact_edges).toBeGreaterThanOrEqual(8);
+    expect(pack.manifest.stats.source_plan_items).toBeGreaterThanOrEqual(20);
+    expect(pack.manifest.stats.runnable_suggested_targets).toBeGreaterThanOrEqual(20);
+    expect(pack.manifest.stats.official_disclosure_l4_l5_edges).toBeGreaterThanOrEqual(8);
+    expect(pack.manifest.stats.official_disclosure_traceable_edges).toBeGreaterThanOrEqual(8);
+    expect(pack.manifest.stats.official_disclosure_corroboration_queue_items).toBeGreaterThanOrEqual(1);
+    expect(pack.manifest.stats.supply_chain_expansion_frontier_edges).toBeGreaterThanOrEqual(8);
+    expect(pack.manifest.stats.supply_chain_expansion_component_dependency_leads).toBeGreaterThanOrEqual(8);
+    expect(pack.manifest.stats.investigation_backlog_corroboration_reviews).toBeGreaterThanOrEqual(1);
+
+    expect(pack.official_disclosure_readiness.scorecard.scorecard_id).toBe("gate_1_official_disclosure");
+    expect(pack.official_disclosure_readiness.scorecard.status).toBe("partial");
+    expect(pack.official_disclosure_readiness.scorecard.data_progress).toBeGreaterThan(0);
+    expect(pack.official_disclosure_readiness.scorecard.source_path_progress).toBeGreaterThan(0);
+    expect(pack.official_disclosure_readiness.summary.target_research_nodes).toBe(25);
+    expect(pack.official_disclosure_readiness.summary.level_4_5_fact_edges).toBeGreaterThanOrEqual(8);
+    expect(pack.official_disclosure_readiness.summary.traceable_edges).toBeGreaterThanOrEqual(8);
+    expect(pack.official_disclosure_readiness.summary.corroboration_queue_items).toBeGreaterThanOrEqual(1);
+
+    expect(sourcePlanIds(pack.source_plan)).toEqual(expect.arrayContaining(["apple-suppliers", "dart-kr", "edinet", "sec-edgar", "twse-mops"]));
+    expect(pack.corroboration_source_plan.source_plan.length).toBeGreaterThanOrEqual(1);
+    expect(pack.investigation_backlog.items.some((item) => item.kind === "corroboration_review")).toBe(true);
+    expect(pack.investigation_backlog.items.some((item) => item.kind === "supply_chain_expansion")).toBe(true);
+    expect(pack.supply_chain_expansion_plan.frontier.length).toBeGreaterThanOrEqual(8);
+    expect(pack.supply_chain_expansion_plan.component_dependency_leads.length).toBeGreaterThanOrEqual(8);
+    expect(pack.supply_chain_expansion_plan.frontier.every((item) => item.expansion_state === "expand_candidate")).toBe(true);
+    expect(pack.supply_chain_expansion_plan.component_dependency_leads.every((lead) => lead.expansion_policy === "lead_only_no_fact_mutation")).toBe(true);
   });
 });
+
+function sourcePlanIds(sourcePlan: readonly { source_id: string }[]): string[] {
+  return [...new Set(sourcePlan.map((item) => item.source_id))].sort();
+}
 
 async function loadFixtureRawDocument(): Promise<RawDocument<Uint8Array>> {
   const fixturePath = resolve(process.cwd(), "tests/fixtures/sec-edgar/nvidia-10k-supply-chain-mini.html");
