@@ -2,6 +2,7 @@ import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import {
   adjudicateClaimConflict,
+  buildClaimConflictContext,
   buildClaimConflictReviewPacket,
   buildClaimDraftFromEdge,
   buildClaimDraftFromSemanticChangeReview,
@@ -333,6 +334,24 @@ describe("claim-builder", () => {
         reason_codes: ["open_conflict_unknown", "contradicting_evidence_linked", "active_fact_claim"]
       }
     });
+  });
+
+  it("builds claim conflict context through one claim-builder contract", () => {
+    const context = buildClaimConflictContext({
+      claim_id: "CLM-ACTIVE-TSMC",
+      claim_text: "NVIDIA publicly discloses that it buys wafer from TSMC.",
+      claim_status: "active",
+      edge_id: "EDGE-TSMC",
+      evidence_refs: [
+        { evidence_id: "EV-PRIMARY", role: "primary" },
+        { evidence_id: "EV-CONTRA", role: "contradicting" }
+      ],
+      unknown_refs: [{ unknown_id: "UNK-CONFLICT", role: "blocking", status: "open" }]
+    });
+
+    expect(context.conflict_state).toBe(context.adjudication.state);
+    expect(context.review_packet.conflict_state).toBe(context.adjudication.state);
+    expect(context.review_packet.fact_write_policy.reason_codes).toEqual(context.adjudication.reason_codes);
   });
 
   it("builds no-op safe-write packets when claims have no disagreement", () => {

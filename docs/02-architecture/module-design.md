@@ -115,7 +115,7 @@ source-connectors ← source-workflows 消费；集中注册 source check target
 source-management ← CLI / 后续 host app 消费；读取 source-registry + source-connectors 能力，只做 catalog 与配置校验
 evidence-maintenance ← CLI / research-pack 消费；只做 truth-store 维护编排，可写 evidence 派生字段、edge_strength、edge_freshness、unknown、risk_views/risk_metrics、risk metric semantic changes、edge calibration runs、alert_candidates，不写 fact edge；alert 状态维护留在 db repository，因为它是 alert 自身生命周期，不属于信号生成规则
 card-builder ← apps/cli / 后续 API 消费；负责从 DbClient 组装 CompanyCard / ComponentCard / ChainCard / EvidenceCard / UnknownMap DTO
-workbench-export ← CLI / research-pack / 后续 host app 消费；组装稳定 Workbench JSON 契约，包含事实边、claim、evidence、unknown、source health、changes、attention queue、review queue 摘要和派生 intelligence context；`review_queue` 只读，会带出 official signal disposition 审计结果，但不修改 review 状态、不写事实边
+workbench-export ← CLI / research-pack / 后续 host app 消费；组装稳定 Workbench JSON 契约，包含事实边、claim、evidence、unknown、source health、changes、attention queue、review queue 摘要和派生 intelligence context；`review_queue` 只读，会带出 official signal disposition 审计结果，但不修改 review 状态、不写事实边；attention queue 组装保持在独立 feature 文件，claim conflict context 通过 `claim-builder` public contract 获取，避免导出层复制 claim 裁决规则
 research-pack ← CLI / 后续 host app 消费；编排已有 truth-store 数据，导出 workbench、cards、source plan、quality report、question/observation/official-disclosure readiness、investigation backlog 和 filtered corroboration source plan，不抓新源、不写事实边；official-disclosure readiness 可接收显式 target node set，也会自动选择内置 `ai-compute-memory.v0` 研究 target profile，让 Gate 1 核心节点覆盖按目标清单衡量，而不是按当前 pack 可见节点猜测；逐 expected source 覆盖会把 profile 期待来源拆成已覆盖、已同步/可同步、仅计划、connector 可用但未接线、registry 已登记但未实现、未映射等状态；`official-disclosure-signal-correlation` 是 research-pack 内部纯算法模块，只把 review-only 官方 signal 和 edge-level corroboration queue 做确定性关联提示，不读库、不写 review、不把 signal 升级成 corroboration；official signal disposition 由 `review-store` 记录成 review-scoped change，research-pack 只读取并区分 open / recorded hints；corroboration-source-plan 只把逐 edge 二源检查 target 过滤成 source-management 可消费的标准 source-plan 子集，不运行 adapter、不生成事实；profile expansion candidates 只进 backlog/review，不写事实边
 runtime-profile ← CLI / 后续 host app 消费；只评估 preview / snapshot / truth store / graph projection 运行形态，不读文件、不连数据库
 entity-resolver  ← pipeline / sources / extractor / graph-builder 消费
@@ -148,6 +148,8 @@ CI 里加 dependency-cruiser 校验。
 `relation-extractor/rule` 的 counterparty / component 识别模式放在 `patterns.ts`。新增公司、组件、制造服务供应商时优先扩展模式数据；只有新增一种抽取语义时才修改主抽取流程。
 
 `data-quality` 通过 `DATA_QUALITY_RULES` 注册规则。全局规则和实体专用规则分组注册，避免在 `runDataQualityChecks()` 中继续堆业务特例。
+
+`claim-builder` 是 claim domain 的写入和裁决边界。纯 claim conflict 规则集中在内部 `claim-conflict` feature：`adjudicateClaimConflict()`、`buildClaimConflictReviewPacket()` 和 `buildClaimConflictContext()` 只根据 claim/evidence/unknown 引用计算安全审阅上下文，不读库、不写库、不修改事实边。`index.ts` 只作为 public contract 与 orchestration 汇总入口，后续继续把 fusion、lifecycle、draft 文案和 review queue 编排拆到同一 package 的 feature 文件，避免新增薄包或让单文件重新膨胀。
 
 `card-builder` 负责把 `DbClient`、chain-view-builder、query helpers 聚合成稳定 card DTO，例如 `loadCompanyCard()`、`loadComponentCard()`、`loadChainCard()`、`loadEvidenceCard()`、`loadUnknownMap()`。它是 CLI、后续只读 API 与工作台之间的 use-case 层，允许依赖 `db`，但不得依赖具体图后端。
 
