@@ -516,6 +516,7 @@ POST /review/:id/reject
 [x] `corroboration-source-plan` 能为每个 filtered target 输出确定性 `next_action`，把 preflight/coverage 状态收口成配置凭据、修配置、smoke、sync、enable、run due、等待、排错或 review observation
 [x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
 [x] research-pack 能按 audited next-action 输出非空的 action-specific corroboration source-plan 批次，避免把仍需 smoke / 修凭据 / 修配置的 target 直接混入 sync / enable / run-due 执行
+[x] research-pack manifest / README 汇总 source target preflight issue kind 分布，让 Gate 1 smoke 卡点能直接显示为缺凭据、配置错误、connector 未实现、源不可达或 adapter 异常
 [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 

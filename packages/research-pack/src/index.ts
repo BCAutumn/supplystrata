@@ -169,6 +169,7 @@ export interface ResearchPackStats {
   source_target_preflight_checked_targets: number;
   source_target_preflight_failed_targets: number;
   source_target_preflight_degraded_documents: number;
+  source_target_preflight_issue_kinds: Record<string, number>;
   observation_records: number;
   observation_chain_segments: number;
   observation_types_present: number;
@@ -939,6 +940,7 @@ function manifestFromModel(input: {
       source_target_preflight_checked_targets: input.sourceTargetPreflight?.summary.checked_targets ?? 0,
       source_target_preflight_failed_targets: input.sourceTargetPreflight?.summary.failed_targets ?? 0,
       source_target_preflight_degraded_documents: input.sourceTargetPreflight?.summary.degraded_documents ?? 0,
+      source_target_preflight_issue_kinds: countSourceTargetPreflightIssueKinds(input.sourceTargetPreflight ?? null),
       observation_records: input.observationCoverage.summary.typed_observations,
       observation_chain_segments: input.observationCoverage.summary.chain_observation_segments,
       observation_types_present: input.observationCoverage.summary.observation_types_present,
@@ -1026,7 +1028,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
     `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight; next actions ${formatStatsCountMap(pack.manifest.stats.corroboration_source_plan_next_actions)})`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_due_targets} due`,
-    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
+    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents; issues ${formatStatsCountMap(pack.manifest.stats.source_target_preflight_issue_kinds)}`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
     `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
     `- Data quality errors: ${pack.manifest.stats.data_quality_errors}`,
@@ -1091,7 +1093,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
     `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight; next actions ${formatStatsCountMap(pack.manifest.stats.corroboration_source_plan_next_actions)})`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
-    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
+    `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents; issues ${formatStatsCountMap(pack.manifest.stats.source_target_preflight_issue_kinds)}`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
     `- Runnable suggested source targets: ${pack.manifest.stats.runnable_suggested_targets}`,
     "",
@@ -1177,6 +1179,21 @@ function formatStatsCountMap(counts: Record<string, number>): string {
   const entries = Object.entries(counts).sort(([left], [right]) => left.localeCompare(right));
   if (entries.length === 0) return "none";
   return entries.map(([key, count]) => `${key}=${count}`).join(", ");
+}
+
+function countSourceTargetPreflightIssueKinds(report: SourceTargetPreflightReport | null): Record<string, number> {
+  if (report === null) return {};
+  const counts: Record<string, number> = {};
+  for (const summary of Object.values(report.summary.by_source_status)) {
+    for (const [issueKind, count] of Object.entries(summary.issue_kinds)) {
+      counts[issueKind] = (counts[issueKind] ?? 0) + count;
+    }
+  }
+  const sorted: Record<string, number> = {};
+  for (const [issueKind, count] of Object.entries(counts).sort(([left], [right]) => left.localeCompare(right))) {
+    sorted[issueKind] = count;
+  }
+  return sorted;
 }
 
 async function corroborationSourcePlanActionBatchFiles(outDir: string, plan: CorroborationSourcePlan): Promise<ResearchPackFile[]> {

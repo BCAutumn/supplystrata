@@ -163,15 +163,15 @@ describe("research-pack", () => {
         schema_version: "1.0.0",
         summary: {
           requested_targets: 3,
-          selected_targets: 1,
+          selected_targets: 2,
           checked_targets: 1,
-          failed_targets: 0,
+          failed_targets: 1,
           skipped_targets: 0,
           planned_tasks: 1,
           fetched_documents: 1,
           normalized_documents: 1,
           degraded_documents: 0,
-          by_source: { "sec-edgar": 1 }
+          by_source: { "fixture-ir": 1, "sec-edgar": 1 }
         },
         items: [
           {
@@ -194,6 +194,19 @@ describe("research-pack", () => {
                 chunks: 2
               }
             ]
+          },
+          {
+            check_target_id: "plan:nvidia-memory-2025:fixture-ir:official-html-disclosure:failed",
+            source_adapter_id: "fixture-ir",
+            target_kind: "official-html-disclosure",
+            status: "failed",
+            planned_tasks: 0,
+            fetched_documents: 0,
+            normalized_documents: 0,
+            degraded_documents: 0,
+            documents: [],
+            issue_kind: "source_unreachable",
+            error_message: "fixture source timeout"
           }
         ]
       })
@@ -233,8 +246,10 @@ describe("research-pack", () => {
         target_kinds: { "sec-company-filings": 1 }
       })
     );
-    expect(pack.manifest.stats.source_target_preflight_selected_targets).toBe(1);
+    expect(pack.manifest.stats.source_target_preflight_selected_targets).toBe(2);
     expect(pack.manifest.stats.source_target_preflight_checked_targets).toBe(1);
+    expect(pack.manifest.stats.source_target_preflight_failed_targets).toBe(1);
+    expect(pack.manifest.stats.source_target_preflight_issue_kinds).toEqual({ source_unreachable: 1 });
     expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Source Target Preflight");
     expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Source Readiness Matrix");
     expect(pack.manifest.stats.source_target_expected_targets).toBe(pack.source_target_coverage.summary.expected_targets);
