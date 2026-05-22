@@ -52,7 +52,7 @@ function registerEntityCommands(program: Command): void {
     .action(async (options: { status: string; limit: string; format: string }) => {
       await withDatabase(async (pool) => {
         const status = parsePendingEntityStatus(options.status);
-        const items = await listPendingEntities(pool, {
+        const items = await listPendingEntities(pool.read, {
           status,
           limit: parseLimit(options.limit)
         });
@@ -71,7 +71,7 @@ function registerEntityCommands(program: Command): void {
     .description("show one pending entity with context")
     .action(async (pendingId: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        const pending = await getPendingEntity(pool, pendingId);
+        const pending = await getPendingEntity(pool.read, pendingId);
         if (pending === undefined) throw new Error(`Pending entity not found: ${pendingId}`);
         write(renderPendingEntity(pendingEntityToModel(pending), parseFormat(options.format)));
       });
@@ -86,7 +86,7 @@ function registerEntityCommands(program: Command): void {
     .description("lookup external registry candidates for one pending entity")
     .action(async (pendingId: string, options: { source: string; jurisdiction?: string; limit: string; format: string }) => {
       await withDatabase(async (pool) => {
-        const pending = await getPendingEntity(pool, pendingId);
+        const pending = await getPendingEntity(pool.read, pendingId);
         if (pending === undefined) throw new Error(`Pending entity not found: ${pendingId}`);
         const result = await lookupEntitySourceCandidates(
           {
@@ -132,7 +132,7 @@ function registerReviewCommands(program: Command): void {
     .description("summarize review queue status")
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
-        const stats = await reviewStats(pool);
+        const stats = await reviewStats(pool.read);
         if (parseFormat(options.format) === "json") writeJson({ schema_version: "1.0.0", stats });
         else
           write(
@@ -167,7 +167,7 @@ function registerReviewCommands(program: Command): void {
     .description("show one review candidate")
     .action(async (reviewId: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        const item = await getReviewCandidate(pool, reviewId);
+        const item = await getReviewCandidate(pool.read, reviewId);
         write(renderReviewItemOrEmpty(item, parseFormat(options.format)));
       });
     });

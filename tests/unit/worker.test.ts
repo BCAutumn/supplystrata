@@ -44,6 +44,9 @@ const noopLogger: SupplyStrataLogger = {
 class NoopDatabaseStore implements DatabaseStore {
   readonly adapter_id = "noop";
   readonly txClient = new NoopTxClient();
+  readonly read = {
+    query: <T extends pg.QueryResultRow>() => this.query<T>()
+  };
 
   async query<T extends pg.QueryResultRow>(): Promise<pg.QueryResult<T>> {
     return { command: "NOOP", rowCount: 0, oid: 0, fields: [], rows: [] };

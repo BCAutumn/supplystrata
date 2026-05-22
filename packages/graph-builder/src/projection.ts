@@ -19,7 +19,7 @@ export interface GraphProjectionRetrySummary {
 export async function rebuildGraphProjection(store: DatabaseStore, graph: GraphStore): Promise<{ nodes: number; edges: number }> {
   await graph.ensureSchema();
   await graph.clear();
-  const entities = await store.query<EntityRow>(
+  const entities = await store.read.query<EntityRow>(
     `SELECT entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs
      FROM entity_master
      WHERE status = 'active'
@@ -28,7 +28,7 @@ export async function rebuildGraphProjection(store: DatabaseStore, graph: GraphS
   for (const row of entities.rows) {
     await graph.upsertEntity(entityRecordFromRow(row));
   }
-  const edges = await listCurrentEdges(store);
+  const edges = await listCurrentEdges(store.read);
   for (const edge of edges) {
     await graph.upsertEdge({
       edge_id: edge.edge_id,
@@ -83,7 +83,7 @@ export async function retryGraphProjectionJobs(store: DatabaseStore, graph: Grap
 }
 
 export async function syncGraphEdge(store: DatabaseStore, graph: GraphStore, edgeId: string): Promise<void> {
-  const result = await store.query<GraphEdgeRow>(
+  const result = await store.read.query<GraphEdgeRow>(
     `SELECT edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity, last_verified_at
      FROM edges
      WHERE edge_id = $1`,
@@ -92,7 +92,7 @@ export async function syncGraphEdge(store: DatabaseStore, graph: GraphStore, edg
   const edge = result.rows[0];
   if (edge === undefined) throw new Error(`Edge not found after apply: ${edgeId}`);
   await graph.ensureSchema();
-  const endpoints = await store.query<EntityRow>(
+  const endpoints = await store.read.query<EntityRow>(
     `SELECT entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs
      FROM entity_master
      WHERE entity_id = ANY($1)`,
@@ -118,7 +118,7 @@ export async function syncGraphEdge(store: DatabaseStore, graph: GraphStore, edg
 }
 
 async function postgresProjectionStats(store: DatabaseStore): Promise<GraphProjectionStats> {
-  const result = await store.query<ProjectionStatsRow>(
+  const result = await store.read.query<ProjectionStatsRow>(
     `SELECT
        (SELECT count(*)::int FROM entity_master WHERE status = 'active') AS nodes,
        (SELECT count(*)::int FROM edges WHERE validity = 'current') AS edges`

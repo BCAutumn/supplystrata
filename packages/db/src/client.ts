@@ -15,12 +15,9 @@ export interface DbTxClient extends DbClient {
 
 export interface DbRow extends pg.QueryResultRow {}
 
-interface DbConnection extends DbClient {
-  release(): void;
-}
-
-export interface DatabaseStore extends DbClient {
+export interface DatabaseStore {
   readonly adapter_id: string;
+  readonly read: DbClient;
   transaction<T>(fn: (client: DbTxClient) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
@@ -31,14 +28,14 @@ export class PostgresDatabaseStore implements DatabaseStore {
   readonly adapter_id = "postgres";
   readonly #pool: pg.Pool;
   readonly #ownsPool: boolean;
+  readonly read: DbClient;
 
   constructor(options: PostgresDatabaseStoreOptions) {
     this.#pool = options.pool ?? new Pool({ connectionString: options.connectionString });
     this.#ownsPool = options.pool === undefined;
-  }
-
-  async query<T extends pg.QueryResultRow>(sql: string, params?: readonly unknown[]): Promise<pg.QueryResult<T>> {
-    return this.#pool.query<T>(sql, params === undefined ? undefined : [...params]);
+    this.read = {
+      query: (sql, params) => this.#pool.query(sql, params === undefined ? undefined : [...params])
+    };
   }
 
   async transaction<T>(fn: (client: DbTxClient) => Promise<T>): Promise<T> {

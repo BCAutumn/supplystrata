@@ -90,7 +90,7 @@ export async function applyApprovedReviewCandidate(
   options: ReviewApplyOptions = {}
 ): Promise<ReviewApplyResult> {
   const logger = options.logger ?? noopLogger;
-  const item = await getReviewCandidate(store, reviewId);
+  const item = await getReviewCandidate(store.read, reviewId);
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
   if (!canApplyReviewItem(item))
     return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };

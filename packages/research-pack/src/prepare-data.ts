@@ -62,7 +62,7 @@ export async function maybeRefreshComponentRiskViews(
 ): Promise<ResearchPackComponentRiskRefresh | null> {
   if (!writeSteps.refreshComponentRisk) return null;
   const generatedBy = input.generatedBy ?? "research-pack.component-risk-refresh.v1";
-  const refreshableComponentIds = await listRefreshableComponentRiskComponentIds(client, componentIds);
+  const refreshableComponentIds = await listRefreshableComponentRiskComponentIds(client.read, componentIds);
   const components = await client.transaction(async (tx) => {
     const summaries: ComponentRiskRefreshSummary[] = [];
     for (const componentId of refreshableComponentIds) {

@@ -12,6 +12,9 @@ interface QueryCall {
 class ReviewApplyDbStore implements DatabaseStore {
   readonly adapter_id = "unit-test";
   readonly calls: QueryCall[] = [];
+  readonly read = {
+    query: <T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []) => this.query<T>(sql, params)
+  };
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });

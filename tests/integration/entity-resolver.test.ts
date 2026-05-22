@@ -18,7 +18,7 @@ describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
   });
 
   it("resolves exact official aliases and identifiers from the seeded database", async () => {
-    const resolver = new DbEntityResolver(pool);
+    const resolver = new DbEntityResolver(pool.read);
     const threeM = await resolver.resolve({ surface: "3M" });
     const nvidiaTicker = await resolver.resolve({ surface: "NVIDIA", identifiers: { ticker: "NVDA" } });
     const nvidiaCik = await resolver.resolve({ surface: "NVIDIA Corporation", identifiers: { cik: "0001045810" } });
@@ -29,7 +29,7 @@ describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
   });
 
   it("keeps fuzzy database matches out of auto-resolved graph writes", async () => {
-    const resolver = new DbEntityResolver(pool);
+    const resolver = new DbEntityResolver(pool.read);
     const micron = await resolver.resolve({ surface: "Micron Technolog" });
     const short = await resolver.resolve({ surface: "Mic" });
 
@@ -39,7 +39,7 @@ describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
   });
 
   it("applies hard-coded family rules before generic alias matching", async () => {
-    const resolver = new DbEntityResolver(pool);
+    const resolver = new DbEntityResolver(pool.read);
     const samsung = await resolver.resolve({ surface: "Samsung", context: { nearby_text: "purchase memory and HBM" } });
     const foxconn = await resolver.resolve({ surface: "Foxconn", context: { nearby_text: "Foxconn Industrial Internet server production" } });
     const tsmcArizona = await resolver.resolve({ surface: "TSMC", context: { nearby_text: "Arizona fab expansion" } });

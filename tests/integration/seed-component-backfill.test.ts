@@ -12,23 +12,23 @@ describe.skipIf(!hasDatabase)("component seed backfill", () => {
   beforeAll(async () => {
     await migrate(pool);
     await seedFromCsv(pool);
-    await cleanupRows(pool);
+    await pool.transaction(cleanupRows);
   });
 
   beforeEach(async () => {
-    await cleanupRows(pool);
+    await pool.transaction(cleanupRows);
   });
 
   afterAll(async () => {
-    await cleanupRows(pool);
+    await pool.transaction(cleanupRows);
     await pool.close();
   });
 
   it("demotes legacy HBM edges when the primary evidence only says memory", async () => {
-    await insertLegacyHbmEdge(pool);
+    await pool.transaction(insertLegacyHbmEdge);
     await seedFromCsv(pool);
 
-    const result = await pool.query<{ component: string | null; component_id: string | null; component_specificity: string | null } & pg.QueryResultRow>(
+    const result = await pool.read.query<{ component: string | null; component_id: string | null; component_specificity: string | null } & pg.QueryResultRow>(
       "SELECT component, component_id, component_specificity FROM edges WHERE edge_id = 'EDGE-ITEST-LEGACY-HBM'"
     );
 
@@ -40,14 +40,16 @@ describe.skipIf(!hasDatabase)("component seed backfill", () => {
   });
 
   it("deprecates legacy HBM edges when a memory edge already exists", async () => {
-    await insertLegacyHbmEdge(pool);
-    await pool.query(
-      `INSERT INTO edges (edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity)
+    await pool.transaction(insertLegacyHbmEdge);
+    await pool.transaction((client) =>
+      client.query(
+        `INSERT INTO edges (edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity)
        VALUES ('EDGE-ITEST-MEMORY-TARGET','ENT-ITEST-COMPONENT-BUYER','ENT-ITEST-COMPONENT-SUPPLIER','BUYS_FROM','memory','COMP-MEMORY','unspecified',5,0.93,false,'current')`
+      )
     );
     await seedFromCsv(pool);
 
-    const result = await pool.query<{ validity: string; superseded_by_edge_id: string | null } & pg.QueryResultRow>(
+    const result = await pool.read.query<{ validity: string; superseded_by_edge_id: string | null } & pg.QueryResultRow>(
       "SELECT validity, superseded_by_edge_id FROM edges WHERE edge_id = 'EDGE-ITEST-LEGACY-HBM'"
     );
 

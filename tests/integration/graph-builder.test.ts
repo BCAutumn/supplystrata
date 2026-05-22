@@ -97,13 +97,15 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
 
   beforeAll(async () => {
     await migrate(pool);
-    await cleanupIntegrationRows(pool);
-    await seedIntegrationEntities(pool);
-    await seedIntegrationComponents(pool);
+    await pool.transaction(async (client) => {
+      await cleanupIntegrationRows(client);
+      await seedIntegrationEntities(client);
+      await seedIntegrationComponents(client);
+    });
   });
 
   afterAll(async () => {
-    await cleanupIntegrationRows(pool);
+    await pool.transaction(cleanupIntegrationRows);
     await pool.close();
   });
 
@@ -115,8 +117,8 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
     expect(result.edge_id).toMatch(/^EDGE-/);
     expect(result.evidence_id).toMatch(/^EV-/);
 
-    const edgeCount = await pool.query<CountRow>("SELECT count(*)::text AS count FROM edges WHERE edge_id = $1", [result.edge_id]);
-    const evidenceCount = await pool.query<CountRow>("SELECT count(*)::text AS count FROM evidence WHERE evidence_id = $1", [result.evidence_id]);
+    const edgeCount = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM edges WHERE edge_id = $1", [result.edge_id]);
+    const evidenceCount = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM evidence WHERE evidence_id = $1", [result.evidence_id]);
     expect(edgeCount.rows[0]?.count).toBe("1");
     expect(evidenceCount.rows[0]?.count).toBe("1");
 
@@ -124,7 +126,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   });
 
   it("reports graph projection sync status from Postgres and graph counts", async () => {
-    const postgres = await currentPostgresProjection(pool);
+    const postgres = await currentPostgresProjection(pool.read);
     const syncedBuilder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new StatsGraphStore(postgres) });
     await expect(syncedBuilder.checkConsistency()).resolves.toMatchObject({ status: "synced", postgres, graph: postgres });
 
@@ -142,12 +144,13 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
     const stale = await builder.apply(approvedCandidate({ component: "primary-evidence-test", confidence: 0.7, citeText: "Older integration evidence." }));
     const fresh = await builder.apply(approvedCandidate({ component: "primary-evidence-test", confidence: 0.9, citeText: "Newer integration evidence." }));
 
-    const result = await pool.query<{ primary_evidence_id: string } & pg.QueryResultRow>("SELECT primary_evidence_id FROM edges WHERE edge_id = $1", [
+    const result = await pool.read.query<{ primary_evidence_id: string } & pg.QueryResultRow>("SELECT primary_evidence_id FROM edges WHERE edge_id = $1", [
       fresh.edge_id
     ]);
-    const staleEvidence = await pool.query<{ superseded_by: string | null } & pg.QueryResultRow>("SELECT superseded_by FROM evidence WHERE evidence_id = $1", [
-      stale.evidence_id
-    ]);
+    const staleEvidence = await pool.read.query<{ superseded_by: string | null } & pg.QueryResultRow>(
+      "SELECT superseded_by FROM evidence WHERE evidence_id = $1",
+      [stale.evidence_id]
+    );
 
     expect(fresh.edge_id).toBe(stale.edge_id);
     expect(result.rows[0]?.primary_evidence_id).toBe(fresh.evidence_id);
@@ -162,7 +165,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
       approvedCandidate({ component: "memory", confidence: 0.86, citeText: "Integration Test Buyer purchases memory from Integration Test Supplier." })
     );
 
-    const edge = await pool.query<{ component: string | null; component_id: string | null; component_specificity: string | null } & pg.QueryResultRow>(
+    const edge = await pool.read.query<{ component: string | null; component_id: string | null; component_specificity: string | null } & pg.QueryResultRow>(
       "SELECT component, component_id, component_specificity FROM edges WHERE edge_id = $1",
       [result.edge_id]
     );
@@ -180,7 +183,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
     const builder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new StatsGraphStore({ nodes: 0, edges: 0 }) });
     const result = await builder.apply(approvedCandidate({ component: "traceability-test" }));
 
-    const evidence = await pool.query<EvidenceTraceTestRow>(
+    const evidence = await pool.read.query<EvidenceTraceTestRow>(
       `SELECT cite_start_char, cite_end_char, cite_text_sha256, normalized_cite_text_sha256,
               source_snapshot_sha256, parser_version, extractor_version, relation_candidate_hash
        FROM evidence
@@ -208,10 +211,10 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
       /Unknown extractor_id prefix/
     );
 
-    const evidence = await pool.query<CountRow>(
+    const evidence = await pool.read.query<CountRow>(
       "SELECT count(*)::text AS count FROM evidence WHERE doc_id = 'DOC-ITEST-GRAPH-SYNC' AND extractor_id = 'rules.10k.typo'"
     );
-    const edge = await pool.query<CountRow>(
+    const edge = await pool.read.query<CountRow>(
       "SELECT count(*)::text AS count FROM edges WHERE subject_id = 'ENT-ITEST-BUYER' AND object_id = 'ENT-ITEST-SUPPLIER' AND component = 'unknown-extractor-test'"
     );
     expect(evidence.rows[0]?.count).toBe("0");

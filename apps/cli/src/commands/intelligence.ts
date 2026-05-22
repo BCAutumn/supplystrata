@@ -120,7 +120,7 @@ export function registerIntelligenceCommands(program: Command): void {
     .action(async (options: { component: string; computedAt?: string }) => {
       await withDatabase(async (store) => {
         const componentId = options.component.trim();
-        const eligibleComponents = await listRefreshableComponentRiskComponentIds(store, [componentId]);
+        const eligibleComponents = await listRefreshableComponentRiskComponentIds(store.read, [componentId]);
         if (!eligibleComponents.includes(componentId)) {
           writeJson({
             ok: true,
@@ -217,7 +217,7 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("list alert candidates for operational review")
     .action(async (options: { status: string; limit: string }) => {
       await withDatabase(async (store) => {
-        const alerts = await listAlertCandidates(store, { status: parseAlertStatus(options.status), limit: parseLimit(options.limit) });
+        const alerts = await listAlertCandidates(store.read, { status: parseAlertStatus(options.status), limit: parseLimit(options.limit) });
         writeJson({ ok: true, alerts });
       });
     });

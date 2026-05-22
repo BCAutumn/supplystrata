@@ -17,7 +17,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("rebuild the configured graph projection from Postgres")
     .action(async () => {
       await withDatabase(async (pool) => {
-        const resolver = new DbEntityResolver(pool);
+        const resolver = new DbEntityResolver(pool.read);
         const builder = new GraphBuilder(pool, resolver, { graphStore: createCliNeo4jGraphStore() });
         try {
           const stats = await builder.rebuild();
@@ -33,7 +33,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("compare graph projection counts with Postgres truth")
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
-        const resolver = new DbEntityResolver(pool);
+        const resolver = new DbEntityResolver(pool.read);
         const builder = new GraphBuilder(pool, resolver, { graphStore: createCliNeo4jGraphStore() });
         try {
           const check = await builder.checkConsistency();
@@ -49,7 +49,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("retry failed GraphStore projection jobs from the durable queue")
     .action(async (options: { limit: string }) => {
       await withDatabase(async (pool) => {
-        const resolver = new DbEntityResolver(pool);
+        const resolver = new DbEntityResolver(pool.read);
         const builder = new GraphBuilder(pool, resolver, { graphStore: createCliNeo4jGraphStore() });
         try {
           const summary = await builder.retryProjectionJobs({ limit: parseLimit(options.limit) });
@@ -83,7 +83,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
       ) => {
         await withDatabase(async (pool) => {
           const graphSyncMode = parseGraphSyncMode(options.graphSync);
-          const resolver = new DbEntityResolver(pool);
+          const resolver = new DbEntityResolver(pool.read);
           const builder = new GraphBuilder(
             pool,
             resolver,
@@ -124,7 +124,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("run MVP data quality checks against Postgres truth")
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
-        const summary = await runDataQualityChecks(pool);
+        const summary = await runDataQualityChecks(pool.read);
         write(renderDataQuality(summary, parseFormat(options.format)));
       });
     });
@@ -136,7 +136,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a company card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderCompanyCard(await loadCompanyCard(pool, query), parseFormat(options.format)));
+        write(renderCompanyCard(await loadCompanyCard(pool.read, query), parseFormat(options.format)));
       });
     });
 
@@ -148,7 +148,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a chain-first upstream view for a company")
     .action(async (query: string, options: { depth: string; format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderChainCard(await loadChainCard(pool, query, { depth: parseLimit(options.depth) }), parseFormat(options.format)));
+        write(renderChainCard(await loadChainCard(pool.read, query, { depth: parseLimit(options.depth) }), parseFormat(options.format)));
       });
     });
 
@@ -159,7 +159,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a component supply-chain card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderComponentCard(await loadComponentCard(pool, query), parseFormat(options.format)));
+        write(renderComponentCard(await loadComponentCard(pool.read, query), parseFormat(options.format)));
       });
     });
 
@@ -170,7 +170,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render an evidence card")
     .action(async (evidenceId: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderEvidenceCard(await loadEvidenceCard(pool, evidenceId), parseFormat(options.format)));
+        write(renderEvidenceCard(await loadEvidenceCard(pool.read, evidenceId), parseFormat(options.format)));
       });
     });
 
@@ -181,7 +181,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render unknown map")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderUnknownMapCard(await loadUnknownMap(pool, query), parseFormat(options.format)));
+        write(renderUnknownMapCard(await loadUnknownMap(pool.read, query), parseFormat(options.format)));
       });
     });
 }

@@ -29,13 +29,15 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
 
   beforeAll(async () => {
     await migrate(pool);
-    await cleanupRows(pool);
-    await seedReviewApplyEntities(pool);
+    await pool.transaction(async (client) => {
+      await cleanupRows(client);
+      await seedReviewApplyEntities(client);
+    });
     await saveNormalizedDocument(pool, supplierListDocument());
   });
 
   afterAll(async () => {
-    await cleanupRows(pool);
+    await pool.transaction(cleanupRows);
     await pool.close();
   });
 
@@ -56,7 +58,7 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
     });
 
     const result = await applyApprovedReviewCandidate(pool, candidate.review_id, "integration");
-    const applied = await getReviewCandidate(pool, candidate.review_id);
+    const applied = await getReviewCandidate(pool.read, candidate.review_id);
     const facilityEntityId = supplierListFacilityEntityId(candidate);
     const facilityDisplayName = supplierListFacilityDisplayName(candidate);
 
@@ -73,7 +75,7 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
     expect(result.apply_results).toHaveLength(2);
     expect(applied).toMatchObject({ status: "applied" });
 
-    const edges = await pool.query<EdgeRow>(
+    const edges = await pool.read.query<EdgeRow>(
       `SELECT edge_id, relation, subject_id, object_id, evidence_level
        FROM edges
        WHERE subject_id IN ('ENT-ITEST-APPLE','ENT-ITEST-SUPPLIER')
@@ -88,15 +90,15 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
       ])
     );
 
-    const facility = await pool.query<CountRow>("SELECT count(*)::text AS count FROM entity_master WHERE entity_id = $1 AND kind = 'facility'", [
+    const facility = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM entity_master WHERE entity_id = $1 AND kind = 'facility'", [
       facilityEntityId
     ]);
-    const facilityAlias = await pool.query<CountRow>("SELECT count(*)::text AS count FROM entity_alias WHERE entity_id = $1 AND alias = $2", [
+    const facilityAlias = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM entity_alias WHERE entity_id = $1 AND alias = $2", [
       facilityEntityId,
       facilityDisplayName
     ]);
-    const evidence = await pool.query<CountRow>("SELECT count(*)::text AS count FROM evidence WHERE doc_id = 'DOC-ITEST-APPLE-SUPPLIER'");
-    const changes = await pool.query<CountRow>("SELECT count(*)::text AS count FROM change_records WHERE scope_id = $1 OR evidence_ids && $2::text[]", [
+    const evidence = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM evidence WHERE doc_id = 'DOC-ITEST-APPLE-SUPPLIER'");
+    const changes = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM change_records WHERE scope_id = $1 OR evidence_ids && $2::text[]", [
       facilityEntityId,
       result.apply_results.map((item) => item.evidence_id)
     ]);

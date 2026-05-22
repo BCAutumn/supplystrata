@@ -88,7 +88,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .description("sync source registry metadata into Postgres")
     .action(async () => {
       await withDatabase(async (pool) => {
-        const result = await syncSourceHealthRegistry(pool);
+        const result = await pool.transaction((client) => syncSourceHealthRegistry(client));
         writeJson({ ok: true, ...result });
       });
     });
@@ -98,7 +98,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .description("show source monitoring health from Postgres")
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
-        const health = await listSourceHealthRows(pool);
+        const health = await listSourceHealthRows(pool.read);
         write(renderSourceHealth(health, parseFormat(options.format)));
       });
     });
@@ -114,7 +114,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .action(async (options: { limit: string; checkTargetId?: string; source?: string; sourcePlan?: string; namespace?: string; format: string }) => {
       await withDatabase(async (pool) => {
         const selection = await buildSourceCheckSelectionOptions(options);
-        const due = await listDueSourceChecks(pool, { limit: parseLimit(options.limit), ...selection });
+        const due = await listDueSourceChecks(pool.read, { limit: parseLimit(options.limit), ...selection });
         write(renderDueSources(due, parseFormat(options.format)));
       });
     });
@@ -249,7 +249,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         const validation = assertValidSourceManagementConfig(config, {
           connector_capabilities: listRegisteredSourceCheckConnectorCapabilities()
         });
-        const result = await syncSourcePolicyConfig(pool, { config, configSource: options.file });
+        const result = await pool.transaction((client) => syncSourcePolicyConfig(client, { config, configSource: options.file }));
         writeJson({ ok: true, validation_warnings: validation.warnings, ...result });
       });
     });
@@ -376,7 +376,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
             policies: [],
             check_targets: [...config.check_targets]
           };
-          const result = await syncSourcePolicyConfig(pool, { config: sourcePolicyConfig, configSource: options.sourcePlan });
+          const result = await pool.transaction((client) => syncSourcePolicyConfig(client, { config: sourcePolicyConfig, configSource: options.sourcePlan }));
           writeJson({
             ok: true,
             schema_version: "1.0.0",
@@ -418,23 +418,25 @@ export function registerSourcesAndChangesCommands(program: Command): void {
           namespace: options.namespace
         });
         await withDatabase(async (pool) => {
-          const result = await enableSourceCheckTargets(pool, {
-            check_target_ids: checkTargetIds,
-            config_source: options.sourcePlan,
-            ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
-            ...(options.checkCadenceMinutes === undefined
-              ? {}
-              : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
-            ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
-            ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
-            ...(options.backoffBaseMinutes === undefined
-              ? {}
-              : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
-            ...(options.backoffMaxMinutes === undefined
-              ? {}
-              : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") }),
-            ...(options.notes === undefined ? {} : { notes: options.notes })
-          });
+          const result = await pool.transaction((client) =>
+            enableSourceCheckTargets(client, {
+              check_target_ids: checkTargetIds,
+              config_source: options.sourcePlan,
+              ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
+              ...(options.checkCadenceMinutes === undefined
+                ? {}
+                : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
+              ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
+              ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
+              ...(options.backoffBaseMinutes === undefined
+                ? {}
+                : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
+              ...(options.backoffMaxMinutes === undefined
+                ? {}
+                : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") }),
+              ...(options.notes === undefined ? {} : { notes: options.notes })
+            })
+          );
           writeJson({ ok: true, schema_version: "1.0.0", ...result });
         });
       }
@@ -461,7 +463,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
           ...(options.source === undefined ? {} : { sourceAdapterId: options.source }),
           attentionOnly: options.attentionOnly
         };
-        const changes = await listChangeTimeline(pool, input);
+        const changes = await listChangeTimeline(pool.read, input);
         write(renderChangeTimelineItems(changes, { format: parseFormat(options.format), since: input.since }));
       });
     });

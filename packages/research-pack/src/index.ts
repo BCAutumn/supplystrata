@@ -41,7 +41,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   const writeSteps = resolveResearchPackWriteSteps(input);
   const claimBuild = await maybeBuildClaims(client, writeSteps, input);
   const intelligenceRefresh = await maybeRefreshIntelligence(client, writeSteps, input);
-  const workbench = await buildWorkbenchModel(client, {
+  const workbench = await buildWorkbenchModel(client.read, {
     company: input.company,
     depth,
     ...(input.since === undefined ? {} : { since: input.since }),
@@ -60,7 +60,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
       ? []
       : planSourcesForComponents(sourcePlanInput(input, components, depth, officialDisclosureTargetNodes));
   const sourceTargetCoverage = await buildSourceTargetCoverageReport({
-    client,
+    client: client.read,
     generated_at: generatedAt,
     company_id: workbench.selected_company_id,
     source_plan: sourcePlan,
@@ -68,10 +68,10 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   });
   const componentRiskRefresh = await maybeRefreshComponentRiskViews(client, writeSteps, input, components, generatedAt);
   const [company, chain, componentCards, dataQuality] = await Promise.all([
-    loadCompanyCard(client, workbench.selected_company_id),
-    loadChainCard(client, workbench.selected_company_id, { depth }),
-    loadComponentCards(client, components),
-    runDataQualityChecks(client)
+    loadCompanyCard(client.read, workbench.selected_company_id),
+    loadChainCard(client.read, workbench.selected_company_id, { depth }),
+    loadComponentCards(client.read, components),
+    runDataQualityChecks(client.read)
   ]);
   const questionReadiness = buildQuestionReadinessMatrix({
     generated_at: generatedAt,

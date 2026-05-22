@@ -16,7 +16,7 @@ export function registerWorkbenchCommands(program: Command): void {
     .description("export a JSON model consumed by apps/research-preview")
     .action(async (options: { company: string; depth: string; since?: string; changeLimit: string; sourceLimit: string; out?: string }) => {
       await withDatabase(async (pool) => {
-        const model = await buildWorkbenchModel(pool, {
+        const model = await buildWorkbenchModel(pool.read, {
           company: options.company,
           depth: parseLimit(options.depth),
           changeLimit: parseLimit(options.changeLimit),

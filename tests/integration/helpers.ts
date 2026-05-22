@@ -8,7 +8,7 @@ export function createIntegrationDatabaseStore(): ReturnType<typeof createDataba
 export async function canConnectToIntegrationDatabase(): Promise<boolean> {
   const pool = createIntegrationDatabaseStore();
   try {
-    await pool.query("SELECT 1");
+    await pool.read.query("SELECT 1");
     return true;
   } catch {
     return false;

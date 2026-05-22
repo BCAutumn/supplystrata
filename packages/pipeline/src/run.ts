@@ -19,7 +19,7 @@ export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore,
     return { savedDocument: documentRef, observationResult: observations };
   });
 
-  const resolver = new DbEntityResolver(store);
+  const resolver = new DbEntityResolver(store.read);
   const scorer = new DeterministicEvidenceScorer();
   const graphBuilder = new GraphBuilder(store, resolver, {
     graphSyncMode: input.graphSyncMode ?? "defer",

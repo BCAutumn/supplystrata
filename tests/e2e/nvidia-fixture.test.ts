@@ -24,11 +24,11 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
   beforeAll(async () => {
     await migrate(pool);
     await seedFromCsv(pool);
-    await cleanupFixtureRows(pool);
+    await pool.transaction(cleanupFixtureRows);
   });
 
   afterAll(async () => {
-    await cleanupFixtureRows(pool);
+    await pool.transaction(cleanupFixtureRows);
     await rebuildGraphQuietly(pool);
     await pool.close();
   });
@@ -46,7 +46,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
       normalized
     });
     const graphStore = new CountingGraphStore();
-    const builder = new GraphBuilder(pool, new DbEntityResolver(pool), { graphStore });
+    const builder = new GraphBuilder(pool, new DbEntityResolver(pool.read), { graphStore });
     try {
       const rebuildStats = await builder.rebuild();
       expect(rebuildStats.nodes).toBeGreaterThanOrEqual(59);
@@ -58,8 +58,8 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
       await builder.close();
     }
 
-    const company = renderCompanyCard(await loadCompanyCard(pool, "nvidia"), "markdown");
-    const unknownMap = renderUnknownMapCard(await loadUnknownMap(pool, "nvidia"), "markdown");
+    const company = renderCompanyCard(await loadCompanyCard(pool.read, "nvidia"), "markdown");
+    const unknownMap = renderUnknownMapCard(await loadUnknownMap(pool.read, "nvidia"), "markdown");
 
     expect(summary).toMatchObject({ candidates: 8, applied_edges: 8 });
     expect(summary.evidence_ids).toHaveLength(8);
@@ -219,7 +219,7 @@ async function promoteBestPrimaryEvidenceExcludingFixture(client: DbClient, edge
 }
 
 async function rebuildGraphQuietly(pool: DatabaseStore): Promise<void> {
-  const builder = new GraphBuilder(pool, new DbEntityResolver(pool), { graphStore: new CountingGraphStore() });
+  const builder = new GraphBuilder(pool, new DbEntityResolver(pool.read), { graphStore: new CountingGraphStore() });
   try {
     await builder.rebuild();
   } finally {

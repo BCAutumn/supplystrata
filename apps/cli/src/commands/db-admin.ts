@@ -18,7 +18,7 @@ export function registerDbAndAdminCommands(program: Command): void {
     .description("backfill evidence citation offsets and fingerprints")
     .action(async (options: { limit: string }) => {
       await withDatabase(async (pool) => {
-        const summary = await backfillEvidenceTrace(pool, { limit: parseLimit(options.limit) });
+        const summary = await pool.transaction((client) => backfillEvidenceTrace(client, { limit: parseLimit(options.limit) }));
         writeJson({ ok: true, ...summary });
       });
     });
