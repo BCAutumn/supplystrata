@@ -77,10 +77,10 @@ export async function retryGraphProjectionJobs(store: DatabaseStore, graph: Grap
       } else {
         await graph.removeEdge(job.edge_id);
       }
-      await markGraphProjectionJobSucceeded(store, job.job_id);
+      await store.transaction((client) => markGraphProjectionJobSucceeded(client, job.job_id));
       synced += 1;
     } catch (error) {
-      await markGraphProjectionJobFailed(store, { job_id: job.job_id, error_message: messageFromUnknown(error) });
+      await store.transaction((client) => markGraphProjectionJobFailed(client, { job_id: job.job_id, error_message: messageFromUnknown(error) }));
       failed += 1;
     }
   }

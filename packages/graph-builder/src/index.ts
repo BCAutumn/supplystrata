@@ -109,7 +109,7 @@ export class GraphBuilder {
     if (this.#graphSyncMode === "defer") return { status: "deferred" };
     try {
       await syncGraphEdge(this.#store, this.#requireGraph(), edgeId);
-      await markGraphProjectionJobsSucceeded(this.#store, { operation: "upsert_edge", edge_id: edgeId });
+      await this.#store.transaction((client) => markGraphProjectionJobsSucceeded(client, { operation: "upsert_edge", edge_id: edgeId }));
       return { status: "synced" };
     } catch (error) {
       const errorMessage = messageFromUnknown(error);
@@ -123,7 +123,7 @@ export class GraphBuilder {
     if (this.#graphSyncMode === "defer") return { status: "deferred" };
     try {
       await this.#requireGraph().removeEdge(edgeId);
-      await markGraphProjectionJobsSucceeded(this.#store, { operation: "remove_edge", edge_id: edgeId });
+      await this.#store.transaction((client) => markGraphProjectionJobsSucceeded(client, { operation: "remove_edge", edge_id: edgeId }));
       return { status: "synced" };
     } catch (error) {
       const errorMessage = messageFromUnknown(error);
@@ -138,7 +138,7 @@ export class GraphBuilder {
 
   async #recordProjectionFailure(operation: GraphProjectionOperation, edgeId: string, errorMessage: string): Promise<void> {
     try {
-      await recordGraphProjectionFailure(this.#store, { operation, edge_id: edgeId, error_message: errorMessage });
+      await this.#store.transaction((client) => recordGraphProjectionFailure(client, { operation, edge_id: edgeId, error_message: errorMessage }));
     } catch (error) {
       this.#logger.error(
         { stage: "graph-projection-outbox", operation, edge_id: edgeId, err: messageFromUnknown(error) },

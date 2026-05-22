@@ -16,6 +16,7 @@ export {
 export { saveNormalizedDocument, saveNormalizedDocumentTx, type SavedDocumentRef } from "./documents.js";
 export { deprecateEdge, type DeprecateEdgeInput, type EdgeDeprecationSourceRef } from "./edges.js";
 export {
+  claimDueGraphProjectionJobs,
   recordGraphProjectionFailure,
   markGraphProjectionJobFailed,
   markGraphProjectionJobSucceeded,

@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { createId } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 export type GraphProjectionOperation = "upsert_edge" | "remove_edge";
 export type GraphProjectionJobStatus = "pending" | "failed" | "in_progress" | "succeeded";
@@ -19,7 +19,7 @@ export interface GraphProjectionJobRow extends pg.QueryResultRow {
 }
 
 export async function recordGraphProjectionFailure(
-  client: DbClient,
+  client: DbTxClient,
   input: { operation: GraphProjectionOperation; edge_id: string; error_message: string }
 ): Promise<GraphProjectionJobRow> {
   const result = await client.query<GraphProjectionJobRow>(
@@ -41,7 +41,7 @@ export async function recordGraphProjectionFailure(
   return row;
 }
 
-export async function markGraphProjectionJobsSucceeded(client: DbClient, input: { operation: GraphProjectionOperation; edge_id: string }): Promise<number> {
+export async function markGraphProjectionJobsSucceeded(client: DbTxClient, input: { operation: GraphProjectionOperation; edge_id: string }): Promise<number> {
   const result = await client.query(
     `UPDATE graph_projection_jobs
      SET status = 'succeeded', updated_at = now(), completed_at = now()
@@ -66,7 +66,7 @@ export async function listDueGraphProjectionJobs(client: DbClient, input: { limi
   return result.rows;
 }
 
-export async function claimDueGraphProjectionJobs(client: DbClient, input: { limit: number }): Promise<GraphProjectionJobRow[]> {
+export async function claimDueGraphProjectionJobs(client: DbTxClient, input: { limit: number }): Promise<GraphProjectionJobRow[]> {
   const result = await client.query<GraphProjectionJobRow>(
     `WITH due AS (
        SELECT job_id
@@ -88,7 +88,7 @@ export async function claimDueGraphProjectionJobs(client: DbClient, input: { lim
   return result.rows;
 }
 
-export async function markGraphProjectionJobFailed(client: DbClient, input: { job_id: string; error_message: string }): Promise<void> {
+export async function markGraphProjectionJobFailed(client: DbTxClient, input: { job_id: string; error_message: string }): Promise<void> {
   await client.query(
     `UPDATE graph_projection_jobs
      SET status = 'failed',
@@ -101,7 +101,7 @@ export async function markGraphProjectionJobFailed(client: DbClient, input: { jo
   );
 }
 
-export async function markGraphProjectionJobSucceeded(client: DbClient, jobId: string): Promise<void> {
+export async function markGraphProjectionJobSucceeded(client: DbTxClient, jobId: string): Promise<void> {
   await client.query(
     `UPDATE graph_projection_jobs
      SET status = 'succeeded', updated_at = now(), completed_at = now()

@@ -21,7 +21,7 @@ export {
 } from "./claims.js";
 export { loadDocument, type DocumentWithChunks, type SavedDocumentRef } from "./documents.js";
 export { type EdgeDeprecationSourceKind, type EdgeDeprecationSourceRef } from "./edges.js";
-export { claimDueGraphProjectionJobs, listDueGraphProjectionJobs, type GraphProjectionJobRow, type GraphProjectionOperation } from "./graph-projection-jobs.js";
+export { listDueGraphProjectionJobs, type GraphProjectionJobRow, type GraphProjectionOperation } from "./graph-projection-jobs.js";
 export { listEdgeFreshness, listEdgeStrengthEstimates } from "./intelligence.js";
 export {
   getLeadObservation,

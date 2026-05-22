@@ -22,6 +22,10 @@ import { sql as migration0022FinancialPeerMetricKindSql } from "../../packages/d
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
+  markGraphProjectionJobFailed,
+  markGraphProjectionJobSucceeded,
+  markGraphProjectionJobsSucceeded,
+  recordGraphProjectionFailure,
   insertChainSegment,
   insertChainSegments,
   insertChainView,
@@ -628,6 +632,27 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[0]?.params).toEqual([25]);
   });
 
+  it("records and closes graph projection outbox state without touching fact edges", async () => {
+    const client = new RecordingDbClient();
+
+    const recorded = await recordGraphProjectionFailure(client, {
+      operation: "upsert_edge",
+      edge_id: "EDGE-TEST",
+      error_message: "graph unavailable"
+    });
+    const closed = await markGraphProjectionJobsSucceeded(client, { operation: "upsert_edge", edge_id: "EDGE-TEST" });
+    await markGraphProjectionJobFailed(client, { job_id: recorded.job_id, error_message: "retry failed" });
+    await markGraphProjectionJobSucceeded(client, recorded.job_id);
+
+    expect(recorded.job_id).toMatch(/^GPJ-/);
+    expect(closed).toBe(1);
+    expect(client.calls[0]?.sql).toContain("INSERT INTO graph_projection_jobs");
+    expect(client.calls[1]?.sql).toContain("SET status = 'succeeded'");
+    expect(client.calls[2]?.sql).toContain("SET status = 'failed'");
+    expect(client.calls[3]?.sql).toContain("SET status = 'succeeded'");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges") || call.sql.includes("UPDATE edges"))).toBe(false);
+  });
+
   it("replaces risk view metrics without touching fact edges", async () => {
     const client = new RecordingDbClient();
 
@@ -813,6 +838,25 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
   }
   if (sql.includes("RETURNING alert_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ alert_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING job_id, operation, edge_id, status") && typeof params[0] === "string") {
+    return [
+      {
+        job_id: params[0],
+        operation: params[1],
+        edge_id: params[2],
+        status: "pending",
+        attempts: 1,
+        last_error: params[3],
+        next_attempt_at: new Date("2026-05-23T00:00:00.000Z"),
+        created_at: new Date("2026-05-23T00:00:00.000Z"),
+        updated_at: new Date("2026-05-23T00:00:00.000Z"),
+        completed_at: null
+      }
+    ] as unknown as T[];
+  }
+  if (sql.includes("UPDATE graph_projection_jobs") && !sql.includes("RETURNING jobs.job_id")) {
+    return [{}] as unknown as T[];
   }
   if (sql.includes("RETURNING label_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ label_id: params[0], inserted: true }] as unknown as T[];
