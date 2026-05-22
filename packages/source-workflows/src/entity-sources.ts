@@ -2,9 +2,9 @@ import type { DatabaseStore } from "@supplystrata/db";
 import type { EntitySourceLookupResult } from "@supplystrata/entity-source";
 import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
+import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
 import { createCompaniesHouseAdapterContext, lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
 import { createOpenCorporatesAdapterContext, lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { createGleifLeiAdapterContext, lookupGleifLeiRecords, type GleifLeiSearchInput } from "./gleif-entity-source.js";
 
 export type EntityLookupSource = "all" | "gleif" | "opencorporates" | "companies-house";
@@ -29,7 +29,11 @@ export interface EntityReviewEnqueueSummary {
   errors: { source_adapter_id: string; message: string }[];
 }
 
-export async function lookupEntitySourceCandidates(input: EntityLookupInput): Promise<EntityLookupSummary> {
+export interface EntityLookupRuntime {
+  adapterContextInput: CreateAdapterContextInput;
+}
+
+export async function lookupEntitySourceCandidates(input: EntityLookupInput, runtime: EntityLookupRuntime): Promise<EntityLookupSummary> {
   const query = input.query.trim();
   if (query.length === 0) throw new Error("Entity lookup query must not be empty");
   const sources: Exclude<EntityLookupSource, "all">[] = input.source === "all" ? ["gleif", "opencorporates", "companies-house"] : [input.source];
@@ -37,27 +41,34 @@ export async function lookupEntitySourceCandidates(input: EntityLookupInput): Pr
 
   for (const source of sources) {
     if (source === "gleif") {
-      results.push(await lookupGleifSource({ query, limit: input.limit }));
+      results.push(await lookupGleifSource({ query, limit: input.limit }, runtime));
     }
     if (source === "opencorporates") {
       results.push(
-        await lookupOpenCorporatesSource({
-          query,
-          limit: input.limit,
-          ...(input.jurisdictionCode === undefined ? {} : { jurisdictionCode: input.jurisdictionCode })
-        })
+        await lookupOpenCorporatesSource(
+          {
+            query,
+            limit: input.limit,
+            ...(input.jurisdictionCode === undefined ? {} : { jurisdictionCode: input.jurisdictionCode })
+          },
+          runtime
+        )
       );
     }
     if (source === "companies-house") {
-      results.push(await lookupCompaniesHouseSource({ query, limit: input.limit }));
+      results.push(await lookupCompaniesHouseSource({ query, limit: input.limit }, runtime));
     }
   }
 
   return { query, results };
 }
 
-export async function enqueueEntitySourceReviewCandidates(store: DatabaseStore, input: EntityLookupInput): Promise<EntityReviewEnqueueSummary> {
-  const lookup = await lookupEntitySourceCandidates(input);
+export async function enqueueEntitySourceReviewCandidates(
+  store: DatabaseStore,
+  input: EntityLookupInput,
+  runtime: EntityLookupRuntime
+): Promise<EntityReviewEnqueueSummary> {
+  const lookup = await lookupEntitySourceCandidates(input, runtime);
   const errors = lookup.results
     .filter((result): result is EntitySourceLookupResult & { error_message: string } => result.error_message !== undefined)
     .map((result) => ({ source_adapter_id: result.source_adapter_id, message: result.error_message }));
@@ -74,9 +85,9 @@ export async function enqueueEntitySourceReviewCandidates(store: DatabaseStore, 
   };
 }
 
-async function lookupGleifSource(input: GleifLeiSearchInput): Promise<EntitySourceLookupResult> {
+async function lookupGleifSource(input: GleifLeiSearchInput, runtime: EntityLookupRuntime): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupGleifLeiRecords(input, createGleifLeiAdapterContext());
+    const result = await lookupGleifLeiRecords(input, createGleifLeiAdapterContext(runtime.adapterContextInput));
     return {
       source_adapter_id: "gleif",
       source_url: result.raw.url,
@@ -91,9 +102,9 @@ async function lookupGleifSource(input: GleifLeiSearchInput): Promise<EntitySour
   }
 }
 
-async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput): Promise<EntitySourceLookupResult> {
+async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput, runtime: EntityLookupRuntime): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupOpenCorporatesCompanies(input, createOpenCorporatesAdapterContext(sourceWorkflowAdapterContextInputFromEnv()));
+    const result = await lookupOpenCorporatesCompanies(input, createOpenCorporatesAdapterContext(runtime.adapterContextInput));
     return {
       source_adapter_id: "opencorporates",
       source_url: result.raw.url,
@@ -108,9 +119,9 @@ async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput): Pro
   }
 }
 
-async function lookupCompaniesHouseSource(input: CompaniesHouseSearchInput): Promise<EntitySourceLookupResult> {
+async function lookupCompaniesHouseSource(input: CompaniesHouseSearchInput, runtime: EntityLookupRuntime): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupCompaniesHouseCompanies(input, createCompaniesHouseAdapterContext(sourceWorkflowAdapterContextInputFromEnv()));
+    const result = await lookupCompaniesHouseCompanies(input, createCompaniesHouseAdapterContext(runtime.adapterContextInput));
     return {
       source_adapter_id: "companies-house",
       source_url: result.raw.url,

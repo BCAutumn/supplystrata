@@ -26,13 +26,12 @@ import {
   type SecEdgarFormType,
   type SecEdgarInput
 } from "@supplystrata/sources-sec-edgar";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { fetchAndParseSecEdgar } from "./source-documents.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 
 export interface SourceCheckOptions {
   checkTargetId?: string;
-  adapterContextInput?: SourceCheckAdapterContextInput;
+  adapterContextInput: SourceCheckAdapterContextInput;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -85,11 +84,11 @@ export const secCompanyFactsSourceCheckConnector: SourceCheckConnector<DatabaseS
 export async function runSecEdgarPipeline(
   store: DatabaseStore,
   input: SecEdgarInput,
-  options: { graphSyncMode?: GraphSyncMode; graphStore?: GraphStore } = {}
+  options: { adapterContextInput: SourceCheckAdapterContextInput; graphSyncMode?: GraphSyncMode; graphStore?: GraphStore }
 ): Promise<PipelineSummary> {
   let fetched: Awaited<ReturnType<typeof fetchAndParseSecEdgar>>;
   try {
-    fetched = await fetchAndParseSecEdgar(input);
+    fetched = await fetchAndParseSecEdgar(input, { adapterContextInput: options.adapterContextInput });
   } catch (error) {
     await store.transaction(async (client) => {
       await recordSourceFailure(client, {
@@ -110,13 +109,13 @@ export async function runSecEdgarPipeline(
 
 export async function runDefaultNvidiaSlice(
   store: DatabaseStore,
-  options: { graphSyncMode?: GraphSyncMode; graphStore?: GraphStore } = {}
+  options: { adapterContextInput: SourceCheckAdapterContextInput; graphSyncMode?: GraphSyncMode; graphStore?: GraphStore }
 ): Promise<PipelineSummary> {
   return runSecEdgarPipeline(store, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, options);
 }
 
-export async function checkSecEdgarSource(store: DatabaseStore, input: SecEdgarInput, options: SourceCheckOptions = {}): Promise<SourceCheckSummary[]> {
-  const context = createAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
+export async function checkSecEdgarSource(store: DatabaseStore, input: SecEdgarInput, options: SourceCheckOptions): Promise<SourceCheckSummary[]> {
+  const context = createAdapterContext(options.adapterContextInput);
   return runSourceAdapterCheck(store, {
     adapter: secEdgarAdapter,
     adapterInput: input,
@@ -128,9 +127,9 @@ export async function checkSecEdgarSource(store: DatabaseStore, input: SecEdgarI
 export async function checkSecCompanyFactsSource(
   store: DatabaseStore,
   input: SecCompanyFactsInput,
-  options: SourceCheckOptions = {}
+  options: SourceCheckOptions
 ): Promise<SourceCheckSummary[]> {
-  const context = createAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
+  const context = createAdapterContext(options.adapterContextInput);
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? noopLogger;
   try {

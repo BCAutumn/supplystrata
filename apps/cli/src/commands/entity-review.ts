@@ -1,7 +1,13 @@
 import type { Command } from "commander";
+import { loadEnv } from "@supplystrata/config";
 import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@supplystrata/db";
 import { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "@supplystrata/pipeline";
-import { enqueueAppleSupplierReviewCandidates, enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "@supplystrata/source-workflows";
+import {
+  enqueueAppleSupplierReviewCandidates,
+  enqueueEntitySourceReviewCandidates,
+  lookupEntitySourceCandidates,
+  sourceWorkflowAdapterContextInput
+} from "@supplystrata/source-workflows";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
 import { decideReviewCandidate, getReviewCandidate, nextReviewCandidate, reviewStats } from "@supplystrata/review-store";
 import { parseEntityLookupSource, parseFormat, parseLimit, parsePendingEntityStatus, withDatabase, write, writeJson } from "../cli-utils.js";
@@ -24,12 +30,15 @@ function registerEntityCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("lookup external registry candidates without merging them into entity_master")
     .action(async (query: string, options: { source: string; jurisdiction?: string; limit: string; format: string }) => {
-      const result = await lookupEntitySourceCandidates({
-        query,
-        source: parseEntityLookupSource(options.source),
-        limit: parseLimit(options.limit),
-        ...(options.jurisdiction === undefined ? {} : { jurisdictionCode: options.jurisdiction })
-      });
+      const result = await lookupEntitySourceCandidates(
+        {
+          query,
+          source: parseEntityLookupSource(options.source),
+          limit: parseLimit(options.limit),
+          ...(options.jurisdiction === undefined ? {} : { jurisdictionCode: options.jurisdiction })
+        },
+        sourceWorkflowRuntime()
+      );
       write(renderEntityLookup(result, parseFormat(options.format)));
     });
 
@@ -79,12 +88,15 @@ function registerEntityCommands(program: Command): void {
       await withDatabase(async (pool) => {
         const pending = await getPendingEntity(pool, pendingId);
         if (pending === undefined) throw new Error(`Pending entity not found: ${pendingId}`);
-        const result = await lookupEntitySourceCandidates({
-          query: pending.surface,
-          source: parseEntityLookupSource(options.source),
-          limit: parseLimit(options.limit),
-          ...(options.jurisdiction === undefined ? {} : { jurisdictionCode: options.jurisdiction })
-        });
+        const result = await lookupEntitySourceCandidates(
+          {
+            query: pending.surface,
+            source: parseEntityLookupSource(options.source),
+            limit: parseLimit(options.limit),
+            ...(options.jurisdiction === undefined ? {} : { jurisdictionCode: options.jurisdiction })
+          },
+          sourceWorkflowRuntime()
+        );
         write(renderEntityLookup(result, parseFormat(options.format)));
       });
     });
@@ -218,7 +230,7 @@ function registerReviewCommands(program: Command): void {
     .description("enqueue Apple Supplier List candidates for human review")
     .action(async () => {
       await withDatabase(async (pool) => {
-        const summary = await enqueueAppleSupplierReviewCandidates(pool);
+        const summary = await enqueueAppleSupplierReviewCandidates(pool, { fiscalYear: 2022, entityId: "ENT-APPLE" }, sourceWorkflowRuntime());
         writeJson({ ok: true, ...summary });
       });
     });
@@ -231,13 +243,21 @@ function registerReviewCommands(program: Command): void {
     .description("enqueue external entity source candidates for review/import")
     .action(async (query: string, options: { source: string; jurisdiction?: string; limit: string }) => {
       await withDatabase(async (pool) => {
-        const summary = await enqueueEntitySourceReviewCandidates(pool, {
-          query,
-          source: parseEntityLookupSource(options.source),
-          limit: parseLimit(options.limit),
-          ...(options.jurisdiction === undefined ? {} : { jurisdictionCode: options.jurisdiction })
-        });
+        const summary = await enqueueEntitySourceReviewCandidates(
+          pool,
+          {
+            query,
+            source: parseEntityLookupSource(options.source),
+            limit: parseLimit(options.limit),
+            ...(options.jurisdiction === undefined ? {} : { jurisdictionCode: options.jurisdiction })
+          },
+          sourceWorkflowRuntime()
+        );
         writeJson({ ok: summary.errors.length === 0, ...summary });
       });
     });
+}
+
+function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput> } {
+  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()) };
 }

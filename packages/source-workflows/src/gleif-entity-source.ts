@@ -8,10 +8,10 @@ import {
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
   type AdapterContext,
+  type CreateAdapterContextInput,
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 
 export interface GleifLeiSearchInput {
   query: string;
@@ -77,13 +77,13 @@ const gleifLeiAdapterBase: SourceAdapter<GleifLeiSearchInput, Uint8Array> = {
 
 export const gleifLeiAdapter = createRateLimitedSourceAdapter(gleifLeiAdapterBase);
 
-export function createGleifLeiAdapterContext(): AdapterContext {
-  return createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
+export function createGleifLeiAdapterContext(input: CreateAdapterContextInput): AdapterContext {
+  return createAdapterContext(input);
 }
 
 export async function lookupGleifLeiRecords(
   input: GleifLeiSearchInput,
-  ctx: AdapterContext = createGleifLeiAdapterContext()
+  ctx: AdapterContext
 ): Promise<{ raw: RawDocument<Uint8Array>; candidates: EntitySourceCandidate[] }> {
   const task = await firstTask(gleifLeiAdapter.plan(input, ctx));
   const raw = await gleifLeiAdapter.fetch(task, ctx);

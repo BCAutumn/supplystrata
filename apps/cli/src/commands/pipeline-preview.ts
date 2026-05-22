@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { loadEnv } from "@supplystrata/config";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import {
   previewAppleSuppliers,
@@ -6,7 +7,8 @@ import {
   previewNvidiaResearchReport,
   previewSecEdgarSupplyChain,
   runDefaultNvidiaSlice,
-  runSecEdgarPipeline
+  runSecEdgarPipeline,
+  sourceWorkflowAdapterContextInput
 } from "@supplystrata/source-workflows";
 import {
   isSupportedFormType,
@@ -59,7 +61,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("preview NVIDIA SEC 10-K parsing without database")
     .action(async (options: { format: string }) => {
-      const result = await previewDefaultNvidiaSlice();
+      const result = await previewDefaultNvidiaSlice(sourceWorkflowRuntime());
       write(renderPreview(result, parseFormat(options.format)));
     });
 
@@ -69,7 +71,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .option("--limit <count>", "max rows for markdown preview", "25")
     .description("preview Apple Supplier List semi-auto candidates")
     .action(async (options: { format: string; limit: string }) => {
-      const result = await previewAppleSuppliers();
+      const result = await previewAppleSuppliers(sourceWorkflowRuntime());
       write(renderAppleSuppliersPreview(result, parsePreviewFormat(options.format), parseLimit(options.limit)));
     });
 
@@ -80,7 +82,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .option("--lang <lang>", "en or zh", "en")
     .description("preview an NVIDIA supply-chain research memo")
     .action(async (options: { format: string; lang: string }) => {
-      const result = await previewNvidiaResearchReport();
+      const result = await previewNvidiaResearchReport(sourceWorkflowRuntime());
       write(renderResearchReport(result, parseFormat(options.format), parseLanguage(options.lang)));
     });
 
@@ -93,7 +95,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .description("preview SEC EDGAR supply-chain parsing without database")
     .action(async (options: { cik: string; entity: string; types: string; format: string }) => {
       const formTypes = parseFormTypes(options.types);
-      const result = await previewSecEdgarSupplyChain({ cik: options.cik, entityId: options.entity, formTypes });
+      const result = await previewSecEdgarSupplyChain({ cik: options.cik, entityId: options.entity, formTypes }, sourceWorkflowRuntime());
       write(renderPreview(result, parseFormat(options.format)));
     });
 }
@@ -106,6 +108,11 @@ function parseFormTypes(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
 }
 
 function graphOptions(graphSyncMode: GraphSyncMode): Parameters<typeof runDefaultNvidiaSlice>[1] {
-  if (graphSyncMode === "defer") return { graphSyncMode };
-  return { graphSyncMode, graphStore: createCliNeo4jGraphStore() };
+  const runtime = sourceWorkflowRuntime();
+  if (graphSyncMode === "defer") return { graphSyncMode, ...runtime };
+  return { graphSyncMode, graphStore: createCliNeo4jGraphStore(), ...runtime };
+}
+
+function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput> } {
+  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()) };
 }

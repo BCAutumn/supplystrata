@@ -16,7 +16,6 @@ import {
   type WorldBankPinkInput,
   type WorldBankPinkRow
 } from "@supplystrata/sources-worldbank-pink";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
 export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
@@ -51,12 +50,12 @@ export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseSto
 interface WorldBankPinkCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
-  adapterContextInput?: SourceCheckAdapterContextInput;
+  adapterContextInput: SourceCheckAdapterContextInput;
   logger?: SourceCheckConnectorLogger;
 }
 
 async function runWorldBankPinkSourceCheck(store: DatabaseStore, input: WorldBankPinkInput, options: WorldBankPinkCheckOptions): Promise<SourceCheckSummary[]> {
-  const context = createWorldBankPinkAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv());
+  const context = createWorldBankPinkAdapterContext(options.adapterContextInput);
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? noopLogger;
   try {

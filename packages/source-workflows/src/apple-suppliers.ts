@@ -19,7 +19,6 @@ import {
   type SourceCheckConnector,
   type SourceCheckConnectorLogger
 } from "@supplystrata/source-connectors";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { fetchAndNormalizeFirstTask } from "./source-documents.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import type { ReviewEnqueueSummary } from "./types.js";
@@ -67,9 +66,10 @@ export const appleSupplierListReviewSourceCheckConnector: SourceCheckConnector<D
 
 export async function enqueueAppleSupplierReviewCandidates(
   store: DatabaseStore,
-  input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }
+  input: AppleSuppliersInput,
+  runtime: { adapterContextInput: SourceCheckAdapterContextInput }
 ): Promise<ReviewEnqueueSummary> {
-  const result = await ingestAppleSupplierReviewCandidates(store, input);
+  const result = await ingestAppleSupplierReviewCandidates(store, input, { adapterContextInput: runtime.adapterContextInput });
   return {
     doc_id: result.saved.doc_id,
     source_url: result.raw.url,
@@ -84,7 +84,7 @@ export async function enqueueAppleSupplierReviewCandidates(
 async function runAppleSupplierListReviewCheck(
   store: DatabaseStore,
   input: AppleSuppliersInput,
-  options: { checkTargetId: string; adapterContextInput?: SourceCheckAdapterContextInput; logger?: SourceCheckConnectorLogger }
+  options: { checkTargetId: string; adapterContextInput: SourceCheckAdapterContextInput; logger?: SourceCheckConnectorLogger }
 ): Promise<SourceCheckSummary> {
   const result = await ingestAppleSupplierReviewCandidates(store, input, options);
   return {
@@ -105,7 +105,7 @@ async function runAppleSupplierListReviewCheck(
 async function ingestAppleSupplierReviewCandidates(
   store: DatabaseStore,
   input: AppleSuppliersInput,
-  options: { checkTargetId?: string; adapterContextInput?: SourceCheckAdapterContextInput; logger?: SourceCheckConnectorLogger } = {}
+  options: { checkTargetId?: string; adapterContextInput: SourceCheckAdapterContextInput; logger?: SourceCheckConnectorLogger }
 ): Promise<{
   raw: Awaited<ReturnType<typeof fetchAndNormalizeFirstTask<AppleSuppliersInput>>>["raw"];
   saved: { doc_id: string };
@@ -119,7 +119,7 @@ async function ingestAppleSupplierReviewCandidates(
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,
-    context: createAppleSuppliersAdapterContext(options.adapterContextInput ?? sourceWorkflowAdapterContextInputFromEnv()),
+    context: createAppleSuppliersAdapterContext(options.adapterContextInput),
     logLabel: "Apple Supplier List",
     ...(options.logger === undefined ? {} : { logger: options.logger })
   });

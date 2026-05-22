@@ -1,4 +1,5 @@
 export { buildAppleOshCrossCheckLead, buildAppleOshSourceCheckTarget, enqueueAppleSupplierReviewCandidates } from "./apple-suppliers.js";
+export { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 export { buildDartKrDisclosureListUrl, createDartKrAdapterContext, dartKrAdapter, extractDartKrDisclosureEntries } from "./dart-kr-checks.js";
 export type { DartKrCompanyFilingsInput, DartKrCorpClass, DartKrDisclosureEntry, DartKrDisclosureType, DartKrFinalReportsOnly } from "./dart-kr-checks.js";
 export { buildEdinetDocumentsListUrl, createEdinetAdapterContext, edinetAdapter, extractEdinetDocumentEntries } from "./edinet-checks.js";

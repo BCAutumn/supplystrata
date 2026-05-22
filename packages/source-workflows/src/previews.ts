@@ -17,6 +17,7 @@ import {
   type AppleSuppliersInput
 } from "@supplystrata/sources-apple-suppliers";
 import type { SecEdgarInput } from "@supplystrata/sources-sec-edgar";
+import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { isValidCandidate as validateCandidate } from "@supplystrata/pipeline";
 import {
@@ -30,7 +31,6 @@ import {
   type SkHynixIrInput,
   type TsmcIrInput
 } from "./official-ir-adapters.js";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { fetchAndNormalizeFirstTask, fetchAndParseSecEdgar } from "./source-documents.js";
 import type {
   AppleSuppliersPreview,
@@ -41,8 +41,12 @@ import type {
   TsmcIrPreview
 } from "./types.js";
 
-export async function previewSecEdgarSupplyChain(input: SecEdgarInput): Promise<SupplyChainPreview> {
-  const { raw, normalized, documentType, sourceDate } = await fetchAndParseSecEdgar(input);
+export interface SourceWorkflowRuntime {
+  adapterContextInput: CreateAdapterContextInput;
+}
+
+export async function previewSecEdgarSupplyChain(input: SecEdgarInput, runtime: SourceWorkflowRuntime): Promise<SupplyChainPreview> {
+  const { raw, normalized, documentType, sourceDate } = await fetchAndParseSecEdgar(input, { adapterContextInput: runtime.adapterContextInput });
   const scorer = new DeterministicEvidenceScorer();
   const resolver = await SeedEntityResolver.fromCsv();
   const candidates: SupplyChainPreviewCandidate[] = [];
@@ -83,15 +87,15 @@ export async function previewSecEdgarSupplyChain(input: SecEdgarInput): Promise<
   };
 }
 
-export async function previewDefaultNvidiaSlice(): Promise<SupplyChainPreview> {
-  return previewSecEdgarSupplyChain({ cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] });
+export async function previewDefaultNvidiaSlice(runtime: SourceWorkflowRuntime): Promise<SupplyChainPreview> {
+  return previewSecEdgarSupplyChain({ cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, runtime);
 }
 
-export async function previewTsmcIr(input: TsmcIrInput = { year: 2025, entityId: "ENT-TSMC" }): Promise<TsmcIrPreview> {
+export async function previewTsmcIr(runtime: SourceWorkflowRuntime, input: TsmcIrInput = { year: 2025, entityId: "ENT-TSMC" }): Promise<TsmcIrPreview> {
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: tsmcIrAdapter,
     input,
-    context: createOfficialIrAdapterContext(),
+    context: createOfficialIrAdapterContext(runtime.adapterContextInput),
     logLabel: "TSMC IR annual report"
   });
   return {
@@ -104,52 +108,64 @@ export async function previewTsmcIr(input: TsmcIrInput = { year: 2025, entityId:
   };
 }
 
-export async function previewNvidiaResearchReport(): Promise<NvidiaResearchReportPreview> {
+export async function previewNvidiaResearchReport(runtime: SourceWorkflowRuntime): Promise<NvidiaResearchReportPreview> {
   const [nvidia, tsmc, samsung, skhynix, asml] = await Promise.all([
-    previewDefaultNvidiaSlice(),
-    previewTsmcIr(),
-    previewOptionalDisclosure("samsung-ir", previewSamsungIr),
-    previewOptionalDisclosure("skhynix-ir", previewSkHynixIr),
-    previewOptionalDisclosure("asml-ir", previewAsmlIr)
+    previewDefaultNvidiaSlice(runtime),
+    previewTsmcIr(runtime),
+    previewOptionalDisclosure("samsung-ir", () => previewSamsungIr(runtime)),
+    previewOptionalDisclosure("skhynix-ir", () => previewSkHynixIr(runtime)),
+    previewOptionalDisclosure("asml-ir", () => previewAsmlIr(runtime))
   ]);
   return { nvidia, tsmc, samsung, skhynix, asml };
 }
 
-export async function previewSamsungIr(input: SamsungIrInput = { year: 2025, entityId: "ENT-SAMSUNG-ELECTRONICS" }): Promise<OfficialDisclosurePreview> {
+export async function previewSamsungIr(
+  runtime: SourceWorkflowRuntime,
+  input: SamsungIrInput = { year: 2025, entityId: "ENT-SAMSUNG-ELECTRONICS" }
+): Promise<OfficialDisclosurePreview> {
   return previewOfficialDisclosure({
     adapter: samsungIrAdapter,
     input,
-    context: createOfficialIrAdapterContext(),
+    context: createOfficialIrAdapterContext(runtime.adapterContextInput),
     logLabel: "Samsung official disclosure",
     extractSignals: extractSamsungSignalsFromText
   });
 }
 
-export async function previewSkHynixIr(input: SkHynixIrInput = { year: 2025, entityId: "ENT-SKHYNIX" }): Promise<OfficialDisclosurePreview> {
+export async function previewSkHynixIr(
+  runtime: SourceWorkflowRuntime,
+  input: SkHynixIrInput = { year: 2025, entityId: "ENT-SKHYNIX" }
+): Promise<OfficialDisclosurePreview> {
   return previewOfficialDisclosure({
     adapter: skHynixIrAdapter,
     input,
-    context: createOfficialIrAdapterContext(),
+    context: createOfficialIrAdapterContext(runtime.adapterContextInput),
     logLabel: "SK hynix official disclosure",
     extractSignals: extractSkHynixSignalsFromText
   });
 }
 
-export async function previewAsmlIr(input: AsmlIrInput = { year: 2025, entityId: "ENT-ASML" }): Promise<OfficialDisclosurePreview> {
+export async function previewAsmlIr(
+  runtime: SourceWorkflowRuntime,
+  input: AsmlIrInput = { year: 2025, entityId: "ENT-ASML" }
+): Promise<OfficialDisclosurePreview> {
   return previewOfficialDisclosure({
     adapter: asmlIrAdapter,
     input,
-    context: createOfficialIrAdapterContext(),
+    context: createOfficialIrAdapterContext(runtime.adapterContextInput),
     logLabel: "ASML annual report",
     extractSignals: extractAsmlSignalsFromText
   });
 }
 
-export async function previewAppleSuppliers(input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }): Promise<AppleSuppliersPreview> {
+export async function previewAppleSuppliers(
+  runtime: SourceWorkflowRuntime,
+  input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }
+): Promise<AppleSuppliersPreview> {
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,
-    context: createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInputFromEnv()),
+    context: createAppleSuppliersAdapterContext(runtime.adapterContextInput),
     logLabel: "Apple Supplier List"
   });
   return {

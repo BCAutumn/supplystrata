@@ -20,7 +20,6 @@ import {
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { OPENDART_CREDENTIALS } from "./source-check-credentials.js";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
 const DART_DISCLOSURE_TYPES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"] as const;
@@ -138,7 +137,7 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
   }
 };
 
-export function createDartKrAdapterContext(input: CreateAdapterContextInput = sourceWorkflowAdapterContextInputFromEnv()): AdapterContext {
+export function createDartKrAdapterContext(input: CreateAdapterContextInput): AdapterContext {
   return createAdapterContext(input);
 }
 

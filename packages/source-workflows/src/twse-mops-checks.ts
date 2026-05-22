@@ -11,7 +11,6 @@ import {
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
-import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
@@ -111,7 +110,7 @@ export const twseMopsElectronicDocumentsSourceCheckConnector: SourceCheckConnect
   }
 };
 
-export function createTwseMopsAdapterContext(input: CreateAdapterContextInput = sourceWorkflowAdapterContextInputFromEnv()): AdapterContext {
+export function createTwseMopsAdapterContext(input: CreateAdapterContextInput): AdapterContext {
   return createAdapterContext(input);
 }
 
