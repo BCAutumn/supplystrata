@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { createId, type ChainEndpointKind, type ChainViewRecord, type SemanticLayer } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 export type ChainViewType = ChainViewRecord["view_type"];
 
@@ -25,7 +25,7 @@ export interface NewChainViewInput {
   attrs?: Record<string, unknown>;
 }
 
-export async function insertChainView(client: DbClient, input: NewChainViewInput): Promise<{ chain_id: string }> {
+export async function insertChainView(client: DbTxClient, input: NewChainViewInput): Promise<{ chain_id: string }> {
   const chainId = input.chain_id ?? createId("CHAIN");
   await client.query(
     `INSERT INTO chain_views (chain_id, root_kind, root_id, view_type, title, generated_by, attrs)
@@ -90,7 +90,7 @@ export interface NewChainSegmentInput extends SemanticReference {
   attrs?: Record<string, unknown>;
 }
 
-export async function insertChainSegment(client: DbClient, input: NewChainSegmentInput): Promise<{ segment_id: string }> {
+export async function insertChainSegment(client: DbTxClient, input: NewChainSegmentInput): Promise<{ segment_id: string }> {
   const segmentId = input.segment_id ?? createId("SEG");
   const references = semanticReferenceFor(input);
   await client.query(
@@ -124,7 +124,7 @@ export async function insertChainSegment(client: DbClient, input: NewChainSegmen
   return { segment_id: segmentId };
 }
 
-export async function insertChainSegments(client: DbClient, inputs: readonly NewChainSegmentInput[]): Promise<{ inserted: number }> {
+export async function insertChainSegments(client: DbTxClient, inputs: readonly NewChainSegmentInput[]): Promise<{ inserted: number }> {
   for (const input of inputs) {
     await insertChainSegment(client, input);
   }
