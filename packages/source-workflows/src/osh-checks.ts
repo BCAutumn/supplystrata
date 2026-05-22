@@ -1,5 +1,5 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation } from "@supplystrata/observation-store";
 import { buildOshFacilityReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
@@ -58,7 +58,7 @@ interface OshCheckOptions {
 async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilitySearchInput, options: OshCheckOptions): Promise<SourceCheckSummary[]> {
   const context = createOshAdapterContext(sourceWorkflowAdapterContextInput());
   const summaries: SourceCheckSummary[] = [];
-  const logger = options.logger ?? getLogger();
+  const logger = options.logger ?? noopLogger;
   try {
     for await (const task of oshAdapter.plan(input, context)) {
       logger.info({ stage: "source-check", adapter: oshAdapter.id, task_id: task.task_id }, "checking OSH facility source task");

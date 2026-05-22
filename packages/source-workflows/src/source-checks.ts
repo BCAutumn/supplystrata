@@ -9,7 +9,7 @@ import {
   type SourceCheckJobStatus,
   type SourceCheckTargetSelection
 } from "@supplystrata/source-monitor";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import type { SourceCheckConnectorLogger, SourceCheckTargetRow } from "@supplystrata/source-connectors";
 import { inferUniqueTargetKind, runRegisteredManualSourceCheckConnector, runRegisteredSourceCheckConnector } from "./source-check-registry.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
@@ -55,7 +55,7 @@ export interface SourceCheckRunOptions {
 export type DueSourceCheckRunInput = { now?: string; limit?: number } & SourceCheckTargetSelection & SourceCheckRunOptions;
 
 export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput = {}): Promise<DueSourceCheckRunResult> {
-  const logger = input.logger ?? getLogger();
+  const logger = input.logger ?? noopLogger;
   const enqueue = await store.transaction((client) =>
     enqueueDueSourceCheckJobs(client, {
       limit: input.limit ?? 50,
@@ -118,7 +118,7 @@ export async function runManualSourceCheck(
   options: SourceCheckRunOptions = {}
 ): Promise<SourceCheckSummary[]> {
   const target = manualSourceCheckTarget(input);
-  return runRegisteredManualSourceCheckConnector(store, target, { logger: options.logger ?? getLogger() });
+  return runRegisteredManualSourceCheckConnector(store, target, { logger: options.logger ?? noopLogger });
 }
 
 function manualSourceCheckTarget(input: ManualSourceCheckInput): SourceCheckTargetRow {

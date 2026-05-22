@@ -1,6 +1,6 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { findComponentTradeCode, listComponentMaterialExposures } from "@supplystrata/component-context";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import { requireConfigString, type SourceCheckConnector, type SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
@@ -57,7 +57,7 @@ interface CensusTradeCheckOptions {
 async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTradeInput, options: CensusTradeCheckOptions): Promise<SourceCheckSummary[]> {
   const context = createCensusTradeAdapterContext(sourceWorkflowAdapterContextInput());
   const summaries: SourceCheckSummary[] = [];
-  const logger = options.logger ?? getLogger();
+  const logger = options.logger ?? noopLogger;
   try {
     for await (const task of censusTradeAdapter.plan(input, context)) {
       logger.info({ stage: "source-check", adapter: censusTradeAdapter.id, task_id: task.task_id }, "checking Census trade source task");

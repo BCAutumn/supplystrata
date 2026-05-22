@@ -1,5 +1,5 @@
 import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { recordSourceDegraded, recordSourceFailure, type SourceDocumentChangeType } from "@supplystrata/source-monitor";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import type { FetchTask, RawDocument } from "@supplystrata/core";
@@ -36,7 +36,7 @@ export async function runSourceAdapterCheck<TInput>(
   }
 ): Promise<SourceCheckSummary[]> {
   const summaries: SourceCheckSummary[] = [];
-  const logger = input.options.logger ?? getLogger();
+  const logger = input.options.logger ?? noopLogger;
   try {
     for await (const task of input.adapter.plan(input.adapterInput, input.context)) {
       const raw = await fetchSourceTask(input.adapter, task, input.context, logger);

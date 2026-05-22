@@ -3,14 +3,25 @@ import { loadEnv, type Env } from "@supplystrata/config";
 
 export type SupplyStrataLogger = Pick<pino.Logger, "debug" | "info" | "warn" | "error">;
 
-export function createLogger(env: Env = loadEnv()): SupplyStrataLogger {
+export const noopLogger: SupplyStrataLogger = {
+  debug() {},
+  info() {},
+  warn() {},
+  error() {}
+};
+
+export function createLogger(env: Env): SupplyStrataLogger {
   return pino({ level: env.LOG_LEVEL }, pino.destination(2));
+}
+
+export function createLoggerFromEnv(): SupplyStrataLogger {
+  return createLogger(loadEnv());
 }
 
 let defaultLogger: SupplyStrataLogger | undefined;
 
 export function getLogger(): SupplyStrataLogger {
-  defaultLogger ??= createLogger();
+  defaultLogger ??= createLoggerFromEnv();
   return defaultLogger;
 }
 

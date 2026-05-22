@@ -3,7 +3,7 @@ import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";
-import { getLogger } from "@supplystrata/observability";
+import { noopLogger } from "@supplystrata/observability";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { isValidCandidate } from "./candidate-validation.js";
 import { locateCandidateCitation } from "./citation-location.js";
@@ -12,7 +12,7 @@ import type { NormalizedPipelineInput, PipelineSummary } from "./types.js";
 
 export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore, input: NormalizedPipelineInput): Promise<PipelineSummary> {
   const normalized = input.normalized;
-  const logger = input.logger ?? getLogger();
+  const logger = input.logger ?? noopLogger;
   const { savedDocument, observationResult } = await store.transaction(async (client) => {
     const documentRef = await saveNormalizedDocumentTx(client, normalized);
     const observations = await persistDocumentObservations(client, normalized, documentRef.doc_id);

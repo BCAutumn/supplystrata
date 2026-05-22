@@ -1,5 +1,5 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
@@ -51,7 +51,7 @@ interface WorldBankPinkCheckOptions {
 async function runWorldBankPinkSourceCheck(store: DatabaseStore, input: WorldBankPinkInput, options: WorldBankPinkCheckOptions): Promise<SourceCheckSummary[]> {
   const context = createWorldBankPinkAdapterContext(sourceWorkflowAdapterContextInput());
   const summaries: SourceCheckSummary[] = [];
-  const logger = options.logger ?? getLogger();
+  const logger = options.logger ?? noopLogger;
   try {
     for await (const task of worldBankPinkAdapter.plan(input, context)) {
       logger.info({ stage: "source-check", adapter: worldBankPinkAdapter.id, task_id: task.task_id }, "checking World Bank Pink Sheet source task");

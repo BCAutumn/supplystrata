@@ -1,8 +1,7 @@
-import { loadEnv } from "@supplystrata/config";
 import type { ResolveResult } from "@supplystrata/core";
 import { SeedEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
-import { getLogger } from "@supplystrata/observability";
+import { noopLogger } from "@supplystrata/observability";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import {
   extractAsmlSignalsFromText,
@@ -85,8 +84,6 @@ export async function previewSecEdgarSupplyChain(input: SecEdgarInput): Promise<
 }
 
 export async function previewDefaultNvidiaSlice(): Promise<SupplyChainPreview> {
-  const env = loadEnv();
-  getLogger().info({ stage: "preview", llm_provider: env.LLM_PROVIDER }, "previewing default NVIDIA SEC slice without database");
   return previewSecEdgarSupplyChain({ cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] });
 }
 
@@ -184,7 +181,7 @@ async function previewOptionalDisclosure(sourceAdapterId: string, fn: () => Prom
     return await fn();
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
-    getLogger().warn({ stage: "preview", adapter: sourceAdapterId, error: message }, "optional disclosure source unavailable");
+    noopLogger.warn({ stage: "preview", adapter: sourceAdapterId, error: message }, "optional disclosure source unavailable");
     return {
       doc_id: "",
       source_adapter_id: sourceAdapterId,

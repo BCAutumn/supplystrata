@@ -38,7 +38,7 @@ import {
   markReviewCandidateBlocked,
   type ReviewQueueItem
 } from "@supplystrata/review-store";
-import { getLogger, messageFromUnknown, type SupplyStrataLogger } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger, type SupplyStrataLogger } from "@supplystrata/observability";
 import { locateCandidateCitation } from "./citation-location.js";
 
 export interface AppliedReviewEdgeResult extends ApplyResult {
@@ -87,7 +87,7 @@ export async function applyApprovedReviewCandidate(
   reviewer: string,
   options: ReviewApplyOptions = {}
 ): Promise<ReviewApplyResult> {
-  const logger = options.logger ?? getLogger();
+  const logger = options.logger ?? noopLogger;
   const item = await getReviewCandidate(store, reviewId);
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
   if (!canApplyReviewItem(item))
@@ -427,7 +427,7 @@ export async function applyApprovedReviewCandidates(
   store: DatabaseStore,
   input: { reviewer: string; limit: number } & ReviewApplyOptions
 ): Promise<ReviewApplyBatchSummary> {
-  const logger = input.logger ?? getLogger();
+  const logger = input.logger ?? noopLogger;
   const items = await store.transaction((client) => claimApprovedReviewCandidates(client, { limit: input.limit }));
   const results: ReviewApplyBatchItem[] = [];
   for (const item of items) {

@@ -10,7 +10,7 @@ import {
 } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import type { GraphStore } from "@supplystrata/graph-store";
-import { getLogger, messageFromUnknown, type SupplyStrataLogger } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger, type SupplyStrataLogger } from "@supplystrata/observability";
 import {
   checkGraphConsistency,
   rebuildGraphProjection,
@@ -59,12 +59,12 @@ export class GraphBuilder {
     if (isGraphStore(graphOrOptions)) {
       this.#graph = graphOrOptions;
       this.#graphSyncMode = options.graphSyncMode ?? "sync";
-      this.#logger = options.logger ?? getLogger();
+      this.#logger = options.logger ?? noopLogger;
     } else {
       this.#graph = graphOrOptions.graphStore ?? null;
       // 没有 GraphStore adapter 时，GraphBuilder 只维护 Postgres 真相存储；图投影由后续 rebuild/check 命令补齐。
       this.#graphSyncMode = graphOrOptions.graphSyncMode ?? (this.#graph === null ? "defer" : "sync");
-      this.#logger = graphOrOptions.logger ?? getLogger();
+      this.#logger = graphOrOptions.logger ?? noopLogger;
     }
   }
 

@@ -1,9 +1,8 @@
-import { loadEnv } from "@supplystrata/config";
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import type { GraphStore } from "@supplystrata/graph-store";
 import { storeObservation } from "@supplystrata/observation-store";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { recordSavedDocumentObservation, runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
@@ -109,8 +108,6 @@ export async function runDefaultNvidiaSlice(
   store: DatabaseStore,
   options: { graphSyncMode?: GraphSyncMode; graphStore?: GraphStore } = {}
 ): Promise<PipelineSummary> {
-  const env = loadEnv();
-  getLogger().info({ stage: "pipeline", llm_provider: env.LLM_PROVIDER }, "running default NVIDIA SEC slice");
   return runSecEdgarPipeline(store, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, options);
 }
 
@@ -131,7 +128,7 @@ export async function checkSecCompanyFactsSource(
 ): Promise<SourceCheckSummary[]> {
   const context = createAdapterContext(sourceWorkflowAdapterContextInput());
   const summaries: SourceCheckSummary[] = [];
-  const logger = options.logger ?? getLogger();
+  const logger = options.logger ?? noopLogger;
   try {
     for await (const task of secCompanyFactsAdapter.plan(input, context)) {
       logger.info({ stage: "source-check", adapter: secCompanyFactsAdapter.id, task_id: task.task_id }, "checking SEC company facts source task");
