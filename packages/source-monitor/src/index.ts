@@ -77,6 +77,8 @@ interface SourceCheckTargetEnableRow extends pg.QueryResultRow {
   requires_key: boolean | null;
 }
 
+const DEFAULT_SOURCE_CHECK_JOB_LEASE_MINUTES = 15;
+
 export async function syncSourceHealthRegistry(client: DbClient): Promise<{ upserted: number }> {
   const sources = listSources();
   for (const source of sources) {
@@ -266,16 +268,22 @@ export async function enqueueDueSourceCheckJobs(
   };
 }
 
-export async function claimDueSourceCheckJobs(client: DbTxClient, input: { limit?: number } & SourceCheckTargetSelection = {}): Promise<SourceCheckJobRow[]> {
+export async function claimDueSourceCheckJobs(
+  client: DbTxClient,
+  input: { limit?: number; lease_minutes?: number } & SourceCheckTargetSelection = {}
+): Promise<SourceCheckJobRow[]> {
   const filter = normalizeSourceCheckTargetSelection(input);
+  const leaseMinutes = normalizeLeaseMinutes(input.lease_minutes);
   const result = await client.query<SourceCheckJobRow>(
     `WITH due AS (
        SELECT j.job_id
        FROM source_check_jobs j
        JOIN source_check_targets t ON t.check_target_id = j.check_target_id
        JOIN source_policies p ON p.source_adapter_id = t.source_adapter_id
-       WHERE j.status IN ('pending','failed')
-         AND j.next_attempt_at <= now()
+       WHERE (
+           (j.status IN ('pending','failed') AND j.next_attempt_at <= now())
+           OR (j.status = 'in_progress' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at <= now())
+         )
          AND t.enabled = true
          AND p.enabled = true
          AND ($2::text[] IS NULL OR t.check_target_id = ANY($2::text[]))
@@ -288,17 +296,18 @@ export async function claimDueSourceCheckJobs(client: DbTxClient, input: { limit
        UPDATE source_check_jobs jobs
        SET status = 'in_progress',
            claimed_at = now(),
+           lease_expires_at = now() + ($4::int * interval '1 minute'),
            updated_at = now()
        FROM due
        WHERE jobs.job_id = due.job_id
        RETURNING jobs.job_id, jobs.status AS job_status, jobs.attempts, jobs.max_attempts, jobs.last_error,
                  jobs.backoff_base_minutes, jobs.backoff_max_minutes,
-                 jobs.next_attempt_at, jobs.claimed_at, jobs.completed_at, jobs.created_at, jobs.updated_at,
+                 jobs.next_attempt_at, jobs.claimed_at, jobs.lease_expires_at, jobs.completed_at, jobs.created_at, jobs.updated_at,
                  jobs.check_target_id, jobs.source_adapter_id, jobs.target_kind
      )
      SELECT claimed.job_id, claimed.job_status, claimed.attempts, claimed.max_attempts, claimed.last_error,
             claimed.backoff_base_minutes, claimed.backoff_max_minutes,
-            claimed.next_attempt_at, claimed.claimed_at, claimed.completed_at, claimed.created_at, claimed.updated_at,
+            claimed.next_attempt_at, claimed.claimed_at, claimed.lease_expires_at, claimed.completed_at, claimed.created_at, claimed.updated_at,
             t.check_target_id, t.source_adapter_id, t.target_kind, t.subject_entity_id, t.target_config,
             t.enabled AS target_enabled, t.priority AS target_priority, t.config_source AS target_config_source, t.notes AS target_notes,
             p.enabled AS policy_enabled, p.check_cadence_minutes, p.jitter_minutes, p.priority AS policy_priority,
@@ -313,7 +322,7 @@ export async function claimDueSourceCheckJobs(client: DbTxClient, input: { limit
      JOIN source_check_targets t ON t.check_target_id = claimed.check_target_id
      JOIN source_policies p ON p.source_adapter_id = t.source_adapter_id
      ORDER BY p.priority, t.priority, claimed.next_attempt_at, claimed.created_at, claimed.job_id`,
-    [input.limit ?? 50, filter.check_target_ids, filter.source_adapter_ids]
+    [input.limit ?? 50, filter.check_target_ids, filter.source_adapter_ids, leaseMinutes]
   );
   return result.rows;
 }
@@ -323,6 +332,7 @@ export async function markSourceCheckJobSucceeded(client: DbClient, input: { job
     `UPDATE source_check_jobs
      SET status = 'succeeded',
          completed_at = now(),
+         lease_expires_at = NULL,
          updated_at = now()
      WHERE job_id = $1`,
     [input.job_id]
@@ -340,6 +350,7 @@ export async function markSourceCheckJobFailed(client: DbClient, input: { job_id
            ELSE now() + (LEAST(backoff_base_minutes * (attempts + 1) * (attempts + 1), backoff_max_minutes) * interval '1 minute')
          END,
          claimed_at = NULL,
+         lease_expires_at = NULL,
          completed_at = CASE WHEN attempts + 1 >= max_attempts THEN now() ELSE completed_at END,
          updated_at = now()
      WHERE job_id = $1
@@ -672,6 +683,7 @@ async function upsertDefaultSourcePolicy(client: DbClient, source: SourceRegistr
 }
 
 async function upsertSourcePolicy(client: DbClient, policy: SourcePolicyInput, configSource: string): Promise<void> {
+  const hasNextCheckAt = hasOwn(policy, "next_check_at");
   await client.query(
     `INSERT INTO source_policies (
        source_adapter_id, enabled, check_cadence_minutes, jitter_minutes, priority,
@@ -687,7 +699,7 @@ async function upsertSourcePolicy(client: DbClient, policy: SourcePolicyInput, c
        backoff_base_minutes = EXCLUDED.backoff_base_minutes,
        backoff_max_minutes = EXCLUDED.backoff_max_minutes,
        config_source = EXCLUDED.config_source,
-       next_check_at = EXCLUDED.next_check_at,
+       next_check_at = CASE WHEN $12::boolean THEN EXCLUDED.next_check_at ELSE source_policies.next_check_at END,
        notes = EXCLUDED.notes,
        updated_at = now()`,
     [
@@ -701,12 +713,14 @@ async function upsertSourcePolicy(client: DbClient, policy: SourcePolicyInput, c
       policy.backoff_max_minutes ?? 60,
       configSource,
       policy.next_check_at ?? null,
-      policy.notes ?? null
+      policy.notes ?? null,
+      hasNextCheckAt
     ]
   );
 }
 
 async function upsertSourceCheckTarget(client: DbClient, target: SourceCheckTargetInput, configSource: string): Promise<void> {
+  const hasNextCheckAt = hasOwn(target, "next_check_at");
   await client.query(
     `INSERT INTO source_check_targets (
        check_target_id, source_adapter_id, target_kind, subject_entity_id, enabled, priority,
@@ -720,12 +734,12 @@ async function upsertSourceCheckTarget(client: DbClient, target: SourceCheckTarg
        subject_entity_id = EXCLUDED.subject_entity_id,
        enabled = EXCLUDED.enabled,
        priority = EXCLUDED.priority,
-       next_check_at = EXCLUDED.next_check_at,
        check_cadence_minutes = EXCLUDED.check_cadence_minutes,
        jitter_minutes = EXCLUDED.jitter_minutes,
        max_attempts = EXCLUDED.max_attempts,
        backoff_base_minutes = EXCLUDED.backoff_base_minutes,
        backoff_max_minutes = EXCLUDED.backoff_max_minutes,
+       next_check_at = CASE WHEN $16::boolean THEN EXCLUDED.next_check_at ELSE source_check_targets.next_check_at END,
        target_config = EXCLUDED.target_config,
        config_source = EXCLUDED.config_source,
        notes = EXCLUDED.notes,
@@ -745,7 +759,8 @@ async function upsertSourceCheckTarget(client: DbClient, target: SourceCheckTarg
       target.backoff_max_minutes ?? null,
       JSON.stringify(target.target_config),
       configSource,
-      target.notes ?? null
+      target.notes ?? null,
+      hasNextCheckAt
     ]
   );
 }
@@ -845,6 +860,16 @@ function normalizeConfigSource(value: string): string {
   const normalized = value.trim();
   if (normalized.length === 0) throw new Error("source check target enable config_source must be a non-empty string");
   return normalized;
+}
+
+function normalizeLeaseMinutes(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_SOURCE_CHECK_JOB_LEASE_MINUTES;
+  if (!Number.isInteger(value) || value < 1) throw new Error("source check job lease_minutes must be a positive integer");
+  return value;
+}
+
+function hasOwn<TObject extends object, TKey extends PropertyKey>(value: TObject, key: TKey): value is TObject & Record<TKey, unknown> {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function summarizeSourceCheckTargetEnableRows(rows: readonly SourceCheckTargetEnableRow[]): SourceCheckTargetEnableResult {

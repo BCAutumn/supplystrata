@@ -20,6 +20,7 @@ import {
   renderSourceTargetPreflightMarkdown,
   renderSourceTargetCoverageMarkdown,
   renderSupplyChainExpansionPlanMarkdown,
+  resolveResearchPackWriteSteps,
   safeFileSegment
 } from "@supplystrata/research-pack";
 import { buildSourcePolicyConfigFromPlanTargets, parseManagedSourcePlanDocument } from "@supplystrata/source-management";
@@ -35,6 +36,25 @@ import type {
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 describe("research-pack", () => {
+  it("keeps research-pack write steps opt-in", () => {
+    expect(resolveResearchPackWriteSteps({})).toEqual({
+      buildClaims: false,
+      refreshIntelligence: false,
+      refreshComponentRisk: false
+    });
+    expect(
+      resolveResearchPackWriteSteps({
+        buildClaims: true,
+        refreshIntelligence: true,
+        refreshComponentRisk: true
+      })
+    ).toEqual({
+      buildClaims: true,
+      refreshIntelligence: true,
+      refreshComponentRisk: true
+    });
+  });
+
   it("collects explicit components and chain components into a stable research set", () => {
     const segments: ChainViewSegmentModel[] = [
       {

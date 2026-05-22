@@ -33,9 +33,13 @@ export function registerResearchCommands(program: Command): void {
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
     .option("--source-target-namespace <name>", "optional namespace used when matching research source-plan targets to source_check_targets")
     .option("--source-target-preflight <file>", "optional source-plan smoke JSON to package without rerunning external fetches")
-    .option("--skip-claims", "do not build active claims before exporting")
-    .option("--skip-intelligence-refresh", "do not refresh edge strength/freshness context before exporting")
-    .option("--skip-component-risk-refresh", "do not refresh component risk baselines before exporting")
+    .option("--prepare-data", "explicitly refresh claims, edge intelligence, and eligible component risk before exporting")
+    .option("--build-claims", "explicitly build active claims before exporting")
+    .option("--refresh-intelligence", "explicitly refresh edge strength/freshness context before exporting")
+    .option("--refresh-component-risk", "explicitly refresh eligible component risk baselines before exporting")
+    .option("--skip-claims", "with --prepare-data, do not build active claims before exporting")
+    .option("--skip-intelligence-refresh", "with --prepare-data, do not refresh edge strength/freshness context before exporting")
+    .option("--skip-component-risk-refresh", "with --prepare-data, do not refresh component risk baselines before exporting")
     .option("--out <dir>", "output directory", "reports/research-pack")
     .description("build a full local research pack from existing truth-store data")
     .action(
@@ -56,6 +60,10 @@ export function registerResearchCommands(program: Command): void {
         commodityMonth?: string;
         sourceTargetNamespace?: string;
         sourceTargetPreflight?: string;
+        prepareData?: boolean;
+        buildClaims?: boolean;
+        refreshIntelligence?: boolean;
+        refreshComponentRisk?: boolean;
         skipClaims?: boolean;
         skipIntelligenceRefresh?: boolean;
         skipComponentRiskRefresh?: boolean;
@@ -155,6 +163,10 @@ async function researchPackInputFromOptions(options: {
   skipClaims?: boolean;
   skipIntelligenceRefresh?: boolean;
   skipComponentRiskRefresh?: boolean;
+  prepareData?: boolean;
+  buildClaims?: boolean;
+  refreshIntelligence?: boolean;
+  refreshComponentRisk?: boolean;
   sourceTargetPreflight?: string;
 }): Promise<ResearchPackInput> {
   return {
@@ -165,9 +177,21 @@ async function researchPackInputFromOptions(options: {
     changeLimit: parseLimit(options.changeLimit),
     sourceLimit: parseLimit(options.sourceLimit),
     intelligenceLimit: parseLimit(options.intelligenceLimit),
-    buildClaims: options.skipClaims === true ? false : true,
-    refreshIntelligence: options.skipIntelligenceRefresh === true ? false : true,
-    refreshComponentRisk: options.skipComponentRiskRefresh === true ? false : true,
+    buildClaims: shouldRunWriteStep({
+      prepareData: options.prepareData,
+      explicit: options.buildClaims,
+      skip: options.skipClaims
+    }),
+    refreshIntelligence: shouldRunWriteStep({
+      prepareData: options.prepareData,
+      explicit: options.refreshIntelligence,
+      skip: options.skipIntelligenceRefresh
+    }),
+    refreshComponentRisk: shouldRunWriteStep({
+      prepareData: options.prepareData,
+      explicit: options.refreshComponentRisk,
+      skip: options.skipComponentRiskRefresh
+    }),
     ...(options.tradeMonth === undefined
       ? {}
       : {
@@ -184,6 +208,11 @@ async function researchPackInputFromOptions(options: {
       ? {}
       : { sourceTargetPreflight: parseSourceTargetPreflightReport(await readFile(options.sourceTargetPreflight, "utf8")) })
   };
+}
+
+function shouldRunWriteStep(input: { prepareData: boolean | undefined; explicit: boolean | undefined; skip: boolean | undefined }): boolean {
+  if (input.skip === true) return false;
+  return input.explicit === true || input.prepareData === true;
 }
 
 function parseResearchTargetProfileOption(value: string): ResearchTargetProfileOption {

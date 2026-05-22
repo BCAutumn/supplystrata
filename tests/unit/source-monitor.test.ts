@@ -16,7 +16,8 @@ import {
   parseSourcePolicyConfig,
   recordDocumentObservation,
   recordSourceDegraded,
-  recordSourceFailure
+  recordSourceFailure,
+  syncSourcePolicyConfig
 } from "@supplystrata/source-monitor";
 
 describe("source monitor", () => {
@@ -252,7 +253,9 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("t.check_target_id = ANY") && call.params.some(isSecEdgarNvidiaFilter))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_check_jobs"))).toBe(true);
     expect(client.calls.some((call) => call.params.includes(5) && call.params.includes(3) && call.params.includes(120))).toBe(true);
-    expect(client.calls.some((call) => call.sql.includes("SET status = 'in_progress'"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("j.status = 'in_progress'") && call.sql.includes("j.lease_expires_at <= now()"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("lease_expires_at = now() + ($4::int * interval '1 minute')"))).toBe(true);
+    expect(client.calls.some((call) => call.params.includes(15))).toBe(true);
   });
 
   it("marks source check jobs succeeded or failed without touching source facts", async () => {
@@ -264,9 +267,65 @@ describe("source monitor", () => {
     expect(failed.status).toBe("failed");
     expect(failed.attempts).toBe(1);
     expect(client.calls.some((call) => call.sql.includes("SET status = 'succeeded'"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("lease_expires_at = NULL"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("status = CASE WHEN attempts + 1 >= max_attempts"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("backoff_base_minutes * (attempts + 1) * (attempts + 1)"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("preserves runtime next_check_at unless source policy config explicitly sets it", async () => {
+    const client = new SourceMonitorDbClient({ failureCount: 0 });
+    const config = parseSourcePolicyConfig(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        policies: [
+          {
+            source_adapter_id: "sec-edgar",
+            enabled: true,
+            check_cadence_minutes: 720
+          },
+          {
+            source_adapter_id: "tsmc-ir",
+            enabled: true,
+            check_cadence_minutes: 1440,
+            next_check_at: null
+          }
+        ],
+        check_targets: [
+          {
+            check_target_id: "target-omitted-next-check",
+            source_adapter_id: "sec-edgar",
+            target_kind: "sec-company-filings",
+            enabled: true,
+            target_config: { cik: "0001045810" }
+          },
+          {
+            check_target_id: "target-cleared-next-check",
+            source_adapter_id: "tsmc-ir",
+            target_kind: "official-html-disclosure",
+            enabled: true,
+            next_check_at: null,
+            target_config: { entity_id: "ENT-TSMC", year: 2025 }
+          }
+        ]
+      })
+    );
+
+    await syncSourcePolicyConfig(client, { config, configSource: "unit-test-policy" });
+
+    const omittedPolicy = findCallByParams(client.calls, ["sec-edgar", "unit-test-policy"], "INSERT INTO source_policies");
+    const clearedPolicy = findCallByParams(client.calls, ["tsmc-ir", "unit-test-policy"], "INSERT INTO source_policies");
+    const omittedTarget = findCallByParam(client.calls, "target-omitted-next-check", "INSERT INTO source_check_targets");
+    const clearedTarget = findCallByParam(client.calls, "target-cleared-next-check", "INSERT INTO source_check_targets");
+
+    expect(omittedPolicy.sql).toContain("next_check_at = CASE WHEN $12::boolean THEN EXCLUDED.next_check_at ELSE source_policies.next_check_at END");
+    expect(clearedPolicy.sql).toContain("next_check_at = CASE WHEN $12::boolean THEN EXCLUDED.next_check_at ELSE source_policies.next_check_at END");
+    expect(omittedPolicy.params[11]).toBe(false);
+    expect(clearedPolicy.params[11]).toBe(true);
+    expect(omittedTarget.sql).toContain("next_check_at = CASE WHEN $16::boolean THEN EXCLUDED.next_check_at ELSE source_check_targets.next_check_at END");
+    expect(clearedTarget.sql).toContain("next_check_at = CASE WHEN $16::boolean THEN EXCLUDED.next_check_at ELSE source_check_targets.next_check_at END");
+    expect(omittedTarget.params[15]).toBe(false);
+    expect(clearedTarget.params[15]).toBe(true);
   });
 
   it("enables already synced source-plan targets with explicit target-level cadence", async () => {
@@ -365,6 +424,16 @@ interface QueryCall {
 
 function isSecEdgarNvidiaFilter(value: unknown): boolean {
   return Array.isArray(value) && value.length === 1 && value[0] === "sec-edgar:nvidia";
+}
+
+function findCallByParam(calls: readonly QueryCall[], param: string, sqlSnippet: string): QueryCall {
+  return findCallByParams(calls, [param], sqlSnippet);
+}
+
+function findCallByParams(calls: readonly QueryCall[], params: readonly string[], sqlSnippet: string): QueryCall {
+  const call = calls.find((item) => item.sql.includes(sqlSnippet) && params.every((param) => item.params.includes(param)));
+  if (call === undefined) throw new Error(`Expected SQL call containing ${sqlSnippet} with params ${params.join(", ")}`);
+  return call;
 }
 
 class SourceMonitorDbClient implements DbTxClient {

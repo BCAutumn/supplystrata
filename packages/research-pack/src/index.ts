@@ -90,6 +90,12 @@ export interface ResearchPackInput {
   supplyChainExpansionMaxDepth?: number;
 }
 
+export interface ResearchPackWriteSteps {
+  buildClaims: boolean;
+  refreshIntelligence: boolean;
+  refreshComponentRisk: boolean;
+}
+
 export interface ResearchPackManifest {
   schema_version: "1.0.0";
   mode: "truth_store" | "workbench_snapshot";
@@ -315,8 +321,9 @@ export interface WrittenResearchPack {
 export async function buildResearchPack(client: DatabaseStore, input: ResearchPackInput): Promise<ResearchPackModel> {
   const generatedAt = new Date().toISOString();
   const depth = input.depth ?? 3;
-  const claimBuild = await maybeBuildClaims(client, input);
-  const intelligenceRefresh = await maybeRefreshIntelligence(client, input);
+  const writeSteps = resolveResearchPackWriteSteps(input);
+  const claimBuild = await maybeBuildClaims(client, writeSteps, input);
+  const intelligenceRefresh = await maybeRefreshIntelligence(client, writeSteps, input);
   const workbench = await buildWorkbenchModel(client, {
     company: input.company,
     depth,
@@ -342,7 +349,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_plan: sourcePlan,
     ...(input.sourceTargetNamespace === undefined ? {} : { namespace: input.sourceTargetNamespace })
   });
-  const componentRiskRefresh = await maybeRefreshComponentRiskViews(client, input, components, generatedAt);
+  const componentRiskRefresh = await maybeRefreshComponentRiskViews(client, writeSteps, input, components, generatedAt);
   const [company, chain, componentCards, dataQuality] = await Promise.all([
     loadCompanyCard(client, workbench.selected_company_id),
     loadChainCard(client, workbench.selected_company_id, { depth }),
@@ -773,8 +780,18 @@ export function safeFileSegment(value: string): string {
   return cleaned;
 }
 
-async function maybeBuildClaims(client: DatabaseStore, input: ResearchPackInput): Promise<ResearchPackClaimBuild | null> {
-  if (input.buildClaims === false) return null;
+export function resolveResearchPackWriteSteps(
+  input: Pick<ResearchPackInput, "buildClaims" | "refreshIntelligence" | "refreshComponentRisk">
+): ResearchPackWriteSteps {
+  return {
+    buildClaims: input.buildClaims === true,
+    refreshIntelligence: input.refreshIntelligence === true,
+    refreshComponentRisk: input.refreshComponentRisk === true
+  };
+}
+
+async function maybeBuildClaims(client: DatabaseStore, writeSteps: ResearchPackWriteSteps, input: ResearchPackInput): Promise<ResearchPackClaimBuild | null> {
+  if (!writeSteps.buildClaims) return null;
   const summary = await buildEdgeClaimsFromCurrentEdgesTransactionally(client, {
     min_evidence_level: input.minEvidenceLevel ?? 4,
     limit: 1_000,
@@ -788,8 +805,12 @@ async function maybeBuildClaims(client: DatabaseStore, input: ResearchPackInput)
   };
 }
 
-async function maybeRefreshIntelligence(client: DatabaseStore, input: ResearchPackInput): Promise<EdgeIntelligenceRefreshSummary | null> {
-  if (input.refreshIntelligence === false) return null;
+async function maybeRefreshIntelligence(
+  client: DatabaseStore,
+  writeSteps: ResearchPackWriteSteps,
+  input: ResearchPackInput
+): Promise<EdgeIntelligenceRefreshSummary | null> {
+  if (!writeSteps.refreshIntelligence) return null;
   return client.transaction((tx) =>
     refreshEdgeIntelligenceContext(tx, {
       min_evidence_level: input.minEvidenceLevel ?? 4,
@@ -801,11 +822,12 @@ async function maybeRefreshIntelligence(client: DatabaseStore, input: ResearchPa
 
 async function maybeRefreshComponentRiskViews(
   client: DatabaseStore,
+  writeSteps: ResearchPackWriteSteps,
   input: ResearchPackInput,
   componentIds: readonly string[],
   computedAt: string
 ): Promise<ResearchPackComponentRiskRefresh | null> {
-  if (input.refreshComponentRisk === false) return null;
+  if (!writeSteps.refreshComponentRisk) return null;
   const generatedBy = input.generatedBy ?? "research-pack.component-risk-refresh.v1";
   const refreshableComponentIds = await listRefreshableComponentRiskComponentIds(client, componentIds);
   const components = await client.transaction(async (tx) => {

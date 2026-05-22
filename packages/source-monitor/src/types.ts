@@ -73,6 +73,7 @@ export interface SourceCheckJobRow extends DueSourceCheckRow {
   last_error: string | null;
   next_attempt_at: Date;
   claimed_at: Date | null;
+  lease_expires_at: Date | null;
   completed_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -96,7 +97,7 @@ export interface SourcePolicyInput {
   check_cadence_minutes: number;
   jitter_minutes?: number;
   priority?: number;
-  next_check_at?: string;
+  next_check_at?: string | null;
   max_attempts?: number;
   backoff_base_minutes?: number;
   backoff_max_minutes?: number;
@@ -109,7 +110,7 @@ export interface SourceCheckTargetInput {
   target_kind: string;
   enabled: boolean;
   priority?: number;
-  next_check_at?: string;
+  next_check_at?: string | null;
   check_cadence_minutes?: number;
   jitter_minutes?: number;
   max_attempts?: number;

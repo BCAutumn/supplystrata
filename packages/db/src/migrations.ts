@@ -23,6 +23,7 @@ import { sql as migration0021FinancialMetricObservationTypeSql } from "./migrati
 import { sql as migration0022FinancialPeerMetricKindSql } from "./migration-sql/0022_financial_peer_metric_kind.js";
 import { sql as migration0023SourceEventCheckTargetSql } from "./migration-sql/0023_source_event_check_target.js";
 import { sql as migration0024SourceEventCheckTargetLooseRefSql } from "./migration-sql/0024_source_event_check_target_loose_ref.js";
+import { sql as migration0025SourceCheckJobLeaseSql } from "./migration-sql/0025_source_check_job_lease.js";
 
 interface Migration {
   readonly id: string;
@@ -150,6 +151,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0024_source_event_check_target_loose_ref",
     description: "Keep source change event target refs compatible with manual source checks.",
     sql: migration0024SourceEventCheckTargetLooseRefSql
+  },
+  {
+    id: "0025_source_check_job_lease",
+    description: "Add source check job leases so crashed workers cannot block targets forever.",
+    sql: migration0025SourceCheckJobLeaseSql
   }
 ];
 

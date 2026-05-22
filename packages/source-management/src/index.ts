@@ -20,7 +20,7 @@ export interface SourceManagementTargetInput {
   target_kind: string;
   enabled: boolean;
   priority?: number;
-  next_check_at?: string;
+  next_check_at?: string | null;
   check_cadence_minutes?: number;
   jitter_minutes?: number;
   max_attempts?: number;

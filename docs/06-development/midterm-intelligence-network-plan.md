@@ -26,8 +26,8 @@
 - `packages/chain-view`：运行时输出 edge / claim / observation / lead / unknown 分层 ChainViewModel。
 - 语义级 changes 第一版：claim / observation / lead 写入路径会产生确定性的 `change_records`；官方披露文档变化会产生固定 section fingerprint diff；官方披露关系候选会产生 relation fingerprint diff，并进入 review queue。
 - Component-HS-Material taxonomy 第一版：`component-context` 已能输出 HS 代理码、material exposure 和 material observation target；`source-plan` 可据此生成 Census Trade runnable target、World Bank Pink Sheet runnable target、官方 IR runnable target，以及 USGS planned target；`source-management` 可把 research-pack 的 runnable `source-plan.json` suggestions 无数据库预览为稳定 target id / 去重统计 / validation 结果，也可同步成 `source_check_targets`，默认 disabled，审计后可用同一 plan + namespace 受控启用并写入 target 级调度参数；`source-target-coverage` 会把 target 的 sync/enable/due/job/event/degraded/observation 状态回流到 research-pack，并让 investigation backlog action 随状态细化；ComponentCard 会展示贸易代理码、材料暴露和已落库观测。
-- Edge intelligence refresh 第一版：`@supplystrata/evidence-maintenance` 会刷新 Level 4/5 事实边的新鲜度，从明确 primary evidence 文本写入关系强度，并为缺少 strength 的事实边生成 edge-scoped explicit unknown；`research-pack` 默认刷新并把结果带入 Workbench、CompanyCard、ComponentCard 和 ChainView 输出。
-- Component risk baseline 第一版：`refreshComponentRiskView()` 会从已有 component fact edge、edge strength 和 freshness 生成 `risk_views / risk_metrics`，覆盖 freshness-adjusted HHI、single-source exposure、terminal consumer path redundancy / alternate upstream paths、weighted alternate-path context、directed node knockout reachability、strength/freshness weighted node knockout impact、directed betweenness centrality、weighted path centrality context 和 freshness-adjusted exposure；research-pack 默认只对当前包里已有 Level 4/5 component fact edge 的 eligible 组件批量刷新 risk baseline，不给只有 taxonomy/source-plan 的组件写空风险结论。ComponentCard / research-pack 会展示 JSON/Markdown 派生风险上下文，CompanyCard 会展示 company-scoped observations，并把相关 component risk metrics 聚合成 top exposure nodes。
+- Edge intelligence refresh 第一版：`@supplystrata/evidence-maintenance` 会刷新 Level 4/5 事实边的新鲜度，从明确 primary evidence 文本写入关系强度，并为缺少 strength 的事实边生成 edge-scoped explicit unknown；`research-pack` 默认只读输出已有 intelligence context，只有显式 `--prepare-data` 或 `--refresh-intelligence` 才会在导出前刷新并写库。
+- Component risk baseline 第一版：`refreshComponentRiskView()` 会从已有 component fact edge、edge strength 和 freshness 生成 `risk_views / risk_metrics`，覆盖 freshness-adjusted HHI、single-source exposure、terminal consumer path redundancy / alternate upstream paths、weighted alternate-path context、directed node knockout reachability、strength/freshness weighted node knockout impact、directed betweenness centrality、weighted path centrality context 和 freshness-adjusted exposure；research-pack 默认只读输出已有 risk view，只有显式 `--prepare-data` 或 `--refresh-component-risk` 才会对当前包里已有 Level 4/5 component fact edge 的 eligible 组件批量刷新 risk baseline，不给只有 taxonomy/source-plan 的组件写空风险结论。ComponentCard / research-pack 会展示 JSON/Markdown 派生风险上下文，CompanyCard 会展示 company-scoped observations，并把相关 component risk metrics 聚合成 top exposure nodes。
 - Risk metric semantic change 第一版：component risk refresh 会把新版 risk view 与上一版同 scope 派生指标做稳定 key 对比，超过阈值时写入 `RISK_METRIC_CHANGED`；changes timeline 已能把 raw source change、semantic change 和 risk change 分开展示。
 - Timeline enrichment 第一版：`EVIDENCE_SUPERSEDED` 和官方披露 relation semantic diff 已能在 changes timeline 中显示结构化字段和 Markdown 摘要。relation diff 仍然是披露变化提醒，不是自动 fact edge mutation。
 - Edge calibration baseline 第一版：`edge_calibration_labels` 保存人工 gold label，`refreshEdgeCalibrationRun()` 输出 Level 4/5 fact edge precision、confidence reliability buckets 和错误分类汇总；校准结果只用于方法学治理，不自动修改事实边。
@@ -582,9 +582,9 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 
 - [x] 输出 `manifest.json / workbench.json / company.md / chain.md / source-plan.json / quality.json / question-readiness.json`。
 - [x] 支持显式加入组件，并为组件输出 `components/*.md` 与 `components/*.json`。
-- [x] 默认先刷新 active claims，但不抓新源、不写事实边。
+- [x] 默认只读打包；active claims 刷新必须显式开启，不抓新源、不写事实边。
 - [x] ComponentCard / research-pack 能在已有 risk view 时带出 component risk baseline。
-- [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written。
+- [x] research-pack 显式开启后刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written。
 - [x] Host app 可以直接调用 package API，不需要 shell 到 CLI。
 - [x] `research from-workbench` 支持无数据库静态打包。
 - [x] `WorkbenchModel` 运行时校验上移到 `@supplystrata/workbench-export/schema`，前端和静态 research snapshot 共用同一契约。

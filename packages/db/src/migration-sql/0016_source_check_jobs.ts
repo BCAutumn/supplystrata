@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS source_check_jobs (
   last_error TEXT,
   next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   claimed_at TIMESTAMPTZ,
+  lease_expires_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

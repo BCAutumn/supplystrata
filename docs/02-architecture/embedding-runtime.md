@@ -92,7 +92,7 @@ const store = createDatabaseStore({ connectionString: process.env.POSTGRES_URL }
 2. `GraphStore` 是可重建物化视图，不保存不可恢复事实。
 3. `WorkbenchModel` 是前端/宿主的稳定 JSON 契约，运行时校验位于 `@supplystrata/workbench-export/schema`。
 4. `research from-workbench` 是静态再打包，不刷新数据、不写库、不补证据。
-5. `research run` 是 DB-backed 深跑，不抓新源、不写新事实边；它只整理现有 truth store 数据并默认刷新 claim 层。
+5. `research run` 是 DB-backed 打包入口，不抓新源、不写新事实边；默认只读整理现有 truth store 数据，只有显式传入 `--prepare-data` 或单项刷新 flag 时才写 claims、edge intelligence 或 risk views。
 6. 任何自动抽取、LLM 候选、弱观测或线索都不能绕过 review/evidence policy 进入事实图。
 
 ## 当前限制

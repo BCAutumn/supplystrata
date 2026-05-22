@@ -117,9 +117,10 @@ function optionalPositiveInteger(value: Record<string, unknown>, key: string): n
   return item;
 }
 
-function optionalIsoDateTime(value: Record<string, unknown>, key: string): string | undefined {
+function optionalIsoDateTime(value: Record<string, unknown>, key: string): string | null | undefined {
   const item = value[key];
   if (item === undefined) return undefined;
+  if (item === null) return null;
   if (typeof item !== "string" || Number.isNaN(Date.parse(item))) throw new Error(`source policy ${key} must be an ISO date/time string`);
   return new Date(item).toISOString();
 }

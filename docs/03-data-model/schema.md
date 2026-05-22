@@ -300,6 +300,7 @@ CREATE TABLE source_check_jobs (
   last_error        TEXT,
   next_attempt_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   claimed_at        TIMESTAMPTZ,
+  lease_expires_at  TIMESTAMPTZ,
   completed_at      TIMESTAMPTZ,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -359,13 +360,13 @@ CREATE TABLE fetch_runs (
 );
 ```
 
-这组表是 source monitoring / change detection 的底座。`source_health` 同步静态 registry；`source_policies` 保存外部可配置的 source 级默认 cadence、jitter、priority、retry/backoff 和初始 `next_check_at`；`source_check_targets` 保存具体要检查的公司/源目标，例如 `sec-edgar:nvidia`，并可覆盖 cadence、jitter、retry/backoff 和初始检查时间；`source_check_jobs` 是到期目标的 durable worker job/outbox，使用 `pending / in_progress / failed / succeeded / dead` 状态、`FOR UPDATE SKIP LOCKED` 领取和配置化退避重试；`source_items` 表示一个可重复观察的 URL/API item；`document_versions` 保存每次内容版本；`source_change_events` 记录新文档、未变化和内容变化事件，并通过 `check_target_id` 回链到触发它的具体 monitor target；`fetch_runs` 记录抓取尝试本身。当前已接通的官方披露 target 包括 `sec-edgar/sec-company-filings`、官方 IR 的 `official-html-disclosure`（显式 company-ir URL、TSMC / Samsung / SK hynix / Micron / ASML）、Apple Supplier List 的 `supplier-list-review`、OpenDART 的 `dart-kr/company-filings`、日本 EDINET 的 `edinet/daily-filings`，以及台湾 MOPS 的 `twse-mops/electronic-documents`。其中 DART / EDINET / TWSE 现阶段只持久化披露目录元数据和 source monitor 事件，用来建立官方覆盖账本，不自动把目录项升级成事实边；`company-ir` 只接受显式 URL，不负责发现任意公司 IR 页面。
+这组表是 source monitoring / change detection 的底座。`source_health` 同步静态 registry；`source_policies` 保存外部可配置的 source 级默认 cadence、jitter、priority、retry/backoff 和初始 `next_check_at`；`source_check_targets` 保存具体要检查的公司/源目标，例如 `sec-edgar:nvidia`，并可覆盖 cadence、jitter、retry/backoff 和初始检查时间；`source_check_jobs` 是到期目标的 durable worker job/outbox，使用 `pending / in_progress / failed / succeeded / dead` 状态、`FOR UPDATE SKIP LOCKED` 领取、`lease_expires_at` 超时回收和配置化退避重试，避免 worker 崩溃后 `in_progress` job 永久堵住同一 target；`source_items` 表示一个可重复观察的 URL/API item；`document_versions` 保存每次内容版本；`source_change_events` 记录新文档、未变化和内容变化事件，并通过 `check_target_id` 回链到触发它的具体 monitor target；`fetch_runs` 记录抓取尝试本身。当前已接通的官方披露 target 包括 `sec-edgar/sec-company-filings`、官方 IR 的 `official-html-disclosure`（显式 company-ir URL、TSMC / Samsung / SK hynix / Micron / ASML）、Apple Supplier List 的 `supplier-list-review`、OpenDART 的 `dart-kr/company-filings`、日本 EDINET 的 `edinet/daily-filings`，以及台湾 MOPS 的 `twse-mops/electronic-documents`。其中 DART / EDINET / TWSE 现阶段只持久化披露目录元数据和 source monitor 事件，用来建立官方覆盖账本，不自动把目录项升级成事实边；`company-ir` 只接受显式 URL，不负责发现任意公司 IR 页面。
 
 外部配置统一走 `source policy config` JSON：
 
 - `policies[]`：按 `source_adapter_id` 配置 source 级默认 `check_cadence_minutes / jitter_minutes / priority / next_check_at / max_attempts / backoff_base_minutes / backoff_max_minutes`。
 - `check_targets[]`：配置具体 target 的 connector、subject、`target_config`，并可覆盖同一组 monitoring 参数。
-- 运行时调度优先使用 target 覆盖值，缺失时回落到 source policy；调用方不能在 enqueue 阶段绕过配置传入重试参数。
+- 运行时调度优先使用 target 覆盖值，缺失时回落到 source policy；调用方不能在 enqueue 阶段绕过配置传入重试参数。配置同步时，`next_check_at` 未提供表示“不改变现有运行态调度”，显式 `null` 才表示清空并允许下次 due 查询立即拾取。
 
 ### 10. unknown_items
 
@@ -457,6 +458,7 @@ CREATE TABLE pending_entities (
 ```text
 packages/db/src/migration-sql/0016_source_check_jobs.ts
 packages/db/src/migration-sql/0017_source_monitoring_controls.ts
+packages/db/src/migration-sql/0025_source_check_job_lease.ts
 ```
 
 核心表：
@@ -465,7 +467,7 @@ packages/db/src/migration-sql/0017_source_monitoring_controls.ts
 source_check_jobs
 ```
 
-它支持 pending / in_progress / succeeded / failed / dead 状态、attempts、next_attempt_at、last_error 和 target-level retry/backoff。`apps/worker` 只负责循环和 signal 退出，具体 enqueue / claim / retry / connector dispatch 仍在 `source-workflows` / `source-monitor` 内。
+它支持 pending / in_progress / succeeded / failed / dead 状态、attempts、next_attempt_at、last_error、lease_expires_at 和 target-level retry/backoff。`apps/worker` 只负责循环和 signal 退出，具体 enqueue / claim / retry / connector dispatch 仍在 `source-workflows` / `source-monitor` 内。
 
 ## 15. Claim / Observation / ChainView
 
