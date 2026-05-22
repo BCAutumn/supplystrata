@@ -1,0 +1,40 @@
+export type { DatabaseStore, DbClient, DbTxClient, DbRow } from "./client.js";
+export { createDatabaseStore } from "./client.js";
+export { updateAlertCandidateStatus, upsertAlertCandidate, type UpsertAlertCandidateInput } from "./alerts.js";
+export { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel, type UpsertEdgeCalibrationLabelInput } from "./calibration.js";
+export { insertChainSegment, insertChainSegments, insertChainView, type NewChainSegmentInput, type NewChainViewInput } from "./chain-views.js";
+export {
+  insertClaim,
+  linkClaimEvidence,
+  linkClaimUnknown,
+  upsertClaim,
+  type ClaimEvidenceRole,
+  type ClaimStatus,
+  type ClaimUnknownRole,
+  type NewClaimInput
+} from "./claims.js";
+export { saveNormalizedDocument, saveNormalizedDocumentTx, type SavedDocumentRef } from "./documents.js";
+export { deprecateEdge, type DeprecateEdgeInput, type EdgeDeprecationSourceRef } from "./edges.js";
+export {
+  recordGraphProjectionFailure,
+  markGraphProjectionJobFailed,
+  markGraphProjectionJobSucceeded,
+  markGraphProjectionJobsSucceeded
+} from "./graph-projection-jobs.js";
+export { refreshEdgeFreshness, upsertEdgeStrengthEstimate, type UpsertEdgeStrengthEstimateInput } from "./intelligence.js";
+export {
+  insertLeadObservation,
+  insertObservation,
+  markLeadObservationInReview,
+  markLeadObservationPromoted,
+  patchObservationMetadata,
+  upsertLeadObservation,
+  upsertObservation,
+  type NewLeadObservationInput,
+  type NewObservationInput,
+  type PatchObservationMetadataInput
+} from "./observations.js";
+export { recordPendingEntity } from "./pending.js";
+export { recordSemanticChange, type SemanticChangeInput } from "./changes.js";
+export { replaceRiskView, type ReplaceRiskViewInput } from "./risk.js";
+export { upsertUnknownItem, type NewUnknownItemInput } from "./unknowns.js";

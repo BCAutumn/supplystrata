@@ -7,6 +7,21 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./read": {
+      "development": "./src/read.ts",
+      "types": "./dist/read.d.ts",
+      "import": "./dist/read.js"
+    },
+    "./write": {
+      "development": "./src/write.ts",
+      "types": "./dist/write.d.ts",
+      "import": "./dist/write.js"
+    },
+    "./admin": {
+      "development": "./src/admin.ts",
+      "types": "./dist/admin.d.ts",
+      "import": "./dist/admin.js"
     }
   },
   "dependencies": {

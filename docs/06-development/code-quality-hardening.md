@@ -114,6 +114,7 @@
 [x] Claim status、claim evidence role、claim unknown role 收敛到 core 公共契约；db / claim-builder / review-candidates / workbench schema 不再各自维护一份字符串联合。
 [x] source-check 新增 `enqueueAndClaimDueSourceCheckJobs()` 单事务 repository；`runDueSourceChecks()` 不再用两个事务分别 enqueue / claim，统计和领取使用同一事务快照。
 [x] Source plan layer / relation policy 收敛到 `@supplystrata/source-plan` 公共常量，Workbench attention kind / priority / status 收敛到 workbench definitions；schema 校验不再维护这些重复数组。
+[x] `@supplystrata/db` 新增 `./read`、`./write`、`./admin` 子路径出口；root barrel 暂保留兼容，但新代码可以按只读 repository、写入 repository、迁移/seed admin 明确依赖面。
 ```
 
 ## 下一批质量修复
@@ -126,7 +127,7 @@
 [ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
 [ ] `source-workflows` 包级别仍包含 legacy SEC full-pipeline demo 与 source-check runner 默认 document-observation bridge，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与监控 workflow 的默认持久化 bridge 继续拆边界。
 [ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已开始把 unknown/change 写入型 use-case 收紧到 `DbTxClient`，后续继续覆盖 claim/review/risk 等写路径。
-[ ] `db/src/index.ts` 仍是宽 barrel export；短期为了兼容 CLI/包调用保留。后续若做 API/SDK 边界，应按 read repository / write repository / migration admin 分出口，而不是一次性大规模改 import。
+[ ] `db/src/index.ts` 仍是宽 barrel export；已补 read/write/admin 子路径出口，后续应逐包迁移旧 import 并在迁移完成后收窄 root，而不是一次性大规模改 import。
 ```
 
 ## 验收门槛

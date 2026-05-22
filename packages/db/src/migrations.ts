@@ -25,7 +25,7 @@ import { sql as migration0023SourceEventCheckTargetSql } from "./migration-sql/0
 import { sql as migration0024SourceEventCheckTargetLooseRefSql } from "./migration-sql/0024_source_event_check_target_loose_ref.js";
 import { sql as migration0025SourceCheckJobLeaseSql } from "./migration-sql/0025_source_check_job_lease.js";
 
-interface Migration {
+export interface Migration {
   readonly id: string;
   readonly description: string;
   readonly sql: string;
