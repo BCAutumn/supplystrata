@@ -157,6 +157,8 @@ CI 里加 dependency-cruiser 校验。
 
 `data-quality` 通过 `DATA_QUALITY_RULES` 注册规则。全局规则和实体专用规则分组注册，避免在 `runDataQualityChecks()` 中继续堆业务特例。
 
+`review-candidates` 是 review domain 的候选契约与纯转换边界。`definitions` 只放候选 DTO、payload、status 和 safe-write policy 契约；`guards` 只做 runtime payload 校验和 type guard；`index` 保留候选构造、稳定 id/key、以及 Apple Supplier List review 到 `CandidateRelation` 的纯转换。它不得读写数据库、不得调用 graph-builder，也不得把 review-only signal 或 OSH facility lead 自动升级成 fact edge。需要入队时由 `review-store` 负责持久化，需要应用时由 `pipeline/review-apply` 或对应 domain use-case 显式处理。
+
 `claim-builder` 是 claim domain 的写入和裁决边界。纯 claim conflict 规则集中在内部 `claim-conflict` feature：`adjudicateClaimConflict()`、`buildClaimConflictReviewPacket()` 和 `buildClaimConflictContext()` 只根据 claim/evidence/unknown 引用计算安全审阅上下文，不读库、不写库、不修改事实边。claim conflict review 入队集中在 `claim-conflict-review-queue` feature：它扫描 unresolved conflict、转换 safe-write review payload，并调用 review-store 入队，不负责 claim resolution。claim confidence 融合集中在内部 `claim-fusion` feature：它只计算 source-independence、Noisy-OR 置信度和贡献明细，不负责查询或写入。claim id、claim 文案和 semantic review draft 集中在内部 `claim-drafts` feature，保证文案/ID 规则与写库编排分离。claim lifecycle action 集中在 `claim-lifecycle` feature：它只更新 claim status 或记录上下文，并要求 source refs，不修改 fact edge。`index.ts` 只作为 public contract 与 orchestration 汇总入口，后续继续把 conflict resolution action 拆到同一 package 的 feature 文件，避免新增薄包或让单文件重新膨胀。
 
 `card-builder` 负责把 `DbClient`、chain-view-builder、query helpers 聚合成稳定 card DTO，例如 `loadCompanyCard()`、`loadComponentCard()`、`loadChainCard()`、`loadEvidenceCard()`、`loadUnknownMap()`。它是 CLI、后续只读 API 与工作台之间的 use-case 层，允许依赖 `db`，但不得依赖具体图后端。
