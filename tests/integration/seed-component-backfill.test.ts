@@ -1,6 +1,7 @@
 import type pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { migrate, seedFromCsv, type DbClient } from "@supplystrata/db";
+import { migrate, seedFromCsv } from "@supplystrata/db/admin";
+import type { DbClient } from "@supplystrata/db/write";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();

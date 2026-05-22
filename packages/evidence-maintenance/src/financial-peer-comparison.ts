@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
-import type { DbClient, DbTxClient, RiskMetricRecord } from "@supplystrata/db";
-import { replaceRiskView } from "@supplystrata/db";
+import type { DbClient, RiskMetricRecord } from "@supplystrata/db/read";
+import { replaceRiskView, type DbTxClient } from "@supplystrata/db/write";
 import type { FinancialMetricObservationRow } from "./db-rows.js";
 
 interface PeerComparisonGroup {

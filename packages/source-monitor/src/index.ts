@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { DbClient, DbTxClient } from "@supplystrata/db";
+import type { DbClient, DbTxClient } from "@supplystrata/db/write";
 import { parseSourcePolicyConfig } from "./policy-config.js";
 import { calculateNextCheckAt } from "./scheduling.js";
 import { ensureRegisteredSourceHealth, syncSourceHealthRegistry } from "./source-health-registry.js";

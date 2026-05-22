@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { loadEnv } from "@supplystrata/config";
-import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@supplystrata/db";
+import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@supplystrata/db/read";
 import { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "@supplystrata/pipeline";
 import {
   enqueueAppleSupplierReviewCandidates,

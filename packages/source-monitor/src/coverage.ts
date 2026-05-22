@@ -1,4 +1,4 @@
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
 import type { SourceTargetCoverageRow } from "./db-rows.js";
 import type { SourceCheckJobStatus, SourceCheckTargetInput } from "./types.js";
 

@@ -1,4 +1,4 @@
-import type { DatabaseStore } from "@supplystrata/db";
+import type { DatabaseStore } from "@supplystrata/db/write";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import {
   asmlIrAdapter,

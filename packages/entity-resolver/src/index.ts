@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse } from "csv-parse/sync";
 import { normalizeAlias, type AliasRecord, type ResolveInput, type ResolveResult } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
 import { resolveSpecialEntity } from "./special-entities.js";
 
 export interface ResolveContext {

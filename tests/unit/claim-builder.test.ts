@@ -23,7 +23,7 @@ import {
   type ClaimableFactEdge,
   type ClaimFusionEvidence
 } from "@supplystrata/claim-builder";
-import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db/write";
 import { buildSemanticChangeReviewCandidate } from "@supplystrata/review-candidates";
 
 interface QueryCall {

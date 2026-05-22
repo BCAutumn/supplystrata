@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { migrate, seedFromCsv } from "@supplystrata/db";
+import { migrate, seedFromCsv } from "@supplystrata/db/admin";
 import { backfillEvidenceTrace } from "@supplystrata/evidence-maintenance";
 import { parseLimit, withDatabase, writeJson } from "../cli-utils.js";
 

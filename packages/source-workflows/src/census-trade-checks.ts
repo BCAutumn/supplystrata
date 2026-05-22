@@ -1,4 +1,4 @@
-import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db/write";
 import { findComponentTradeCode, listComponentMaterialExposures } from "@supplystrata/component-context";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";

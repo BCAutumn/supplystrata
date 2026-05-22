@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrate, seedFromCsv, type DatabaseStore } from "@supplystrata/db";
+import { migrate, seedFromCsv, type DatabaseStore } from "@supplystrata/db/admin";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 

@@ -1,4 +1,4 @@
-import type { DatabaseStore } from "@supplystrata/db";
+import type { DatabaseStore } from "@supplystrata/db/write";
 import type { Env } from "@supplystrata/config";
 import type { SupplyStrataLogger } from "@supplystrata/observability";
 import { runDueSourceChecks, type DueSourceCheckRunResult } from "@supplystrata/source-workflows";

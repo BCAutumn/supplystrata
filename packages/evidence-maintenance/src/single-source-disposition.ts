@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { upsertUnknownItem, type DbClient, type DbTxClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
+import { upsertUnknownItem, type DbTxClient } from "@supplystrata/db/write";
 import type { ExistingEdgeRow, OfficialSignalDispositionChangeRow } from "./db-rows.js";
 
 export interface ProposedSingleSourceDispositionUnknown {

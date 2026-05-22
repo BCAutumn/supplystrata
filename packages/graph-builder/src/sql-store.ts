@@ -7,7 +7,7 @@ import {
   type ComponentSpecificity,
   type EvidenceLevel
 } from "@supplystrata/core";
-import { recordSemanticChange, type DbClient, type DbRow } from "@supplystrata/db";
+import { recordSemanticChange, type DbClient, type DbRow } from "@supplystrata/db/write";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { ComponentLookupRow, EdgeIdentityRow, EvidenceChunkRow, EvidenceDocumentRow } from "./db-rows.js";
 

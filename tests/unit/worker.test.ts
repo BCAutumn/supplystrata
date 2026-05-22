@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import { envSchema } from "@supplystrata/config";
-import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import type { SupplyStrataLogger } from "@supplystrata/observability";
 import { parseSourceCheckWorkerOptions, shouldShowSourceCheckWorkerHelp } from "../../apps/worker/src/options.js";
 import { runSourceCheckWorkerCycle } from "../../apps/worker/src/source-check-worker.js";

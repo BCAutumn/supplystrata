@@ -79,7 +79,7 @@ evidence scorer
 完整研究链路需要 `DatabaseStore`。当前内置实现是 Postgres：
 
 ```ts
-import { createDatabaseStore } from "@supplystrata/db";
+import { createDatabaseStore } from "@supplystrata/db/write";
 
 const store = createDatabaseStore({ connectionString: process.env.POSTGRES_URL });
 ```

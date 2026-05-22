@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ObservationType, RiskMetricKind } from "@supplystrata/core";
-import type { DbClient, DbTxClient, RiskMetricRecord } from "@supplystrata/db";
-import { recordSemanticChange, replaceRiskView } from "@supplystrata/db";
+import type { DbClient, RiskMetricRecord } from "@supplystrata/db/read";
+import { recordSemanticChange, replaceRiskView, type DbTxClient } from "@supplystrata/db/write";
 import type { ExistingSemanticChangeRow, ObservationAnomalyHistoryRow, ObservationAnomalyRow } from "./db-rows.js";
 
 export interface RefreshObservationAnomalyViewsInput {

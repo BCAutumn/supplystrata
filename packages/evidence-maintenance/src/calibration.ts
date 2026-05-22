@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
-import type { DbClient, DbTxClient } from "@supplystrata/db";
-import { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
+import { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel, type DbTxClient } from "@supplystrata/db/write";
 import type { EdgeCalibrationSampleRow } from "./db-rows.js";
 
 export interface RecordEdgeCalibrationLabelInput {

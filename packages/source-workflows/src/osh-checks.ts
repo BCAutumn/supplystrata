@@ -1,4 +1,4 @@
-import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db/write";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation } from "@supplystrata/observation-store";
 import { buildOshFacilityReviewCandidate } from "@supplystrata/review-candidates";

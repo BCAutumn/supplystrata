@@ -1,4 +1,4 @@
-import type { UnknownItemRow } from "@supplystrata/db";
+import type { UnknownItemRow } from "@supplystrata/db/read";
 import type { CompanyCardEdge, CompanyCardEntity, ComponentEvidenceEdge, ComponentHeader, EdgeIntelligenceSummary, UnknownMapItem } from "@supplystrata/render";
 import type { CompanyEdgeRow, CompanyHeaderRow, ComponentEdgeRow, ComponentHeaderRow } from "./db-rows.js";
 

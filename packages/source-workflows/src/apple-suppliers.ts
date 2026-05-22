@@ -1,4 +1,4 @@
-import { markLeadObservationInReview, saveNormalizedDocumentTx, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
+import { markLeadObservationInReview, saveNormalizedDocumentTx, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { messageFromUnknown } from "@supplystrata/observability";
 import { storeLeadObservation, type LeadStoreInput } from "@supplystrata/observation-store";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";

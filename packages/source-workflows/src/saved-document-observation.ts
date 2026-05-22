@@ -1,5 +1,5 @@
 import type { NormalizedDocument } from "@supplystrata/core";
-import { type DbTxClient } from "@supplystrata/db";
+import { type DbTxClient } from "@supplystrata/db/write";
 import { recordDocumentObservation, type DocumentObservationResult } from "@supplystrata/source-monitor";
 import type { SourceDocumentObservationStore } from "./document-observation-port.js";
 

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
 import { loadEnv } from "@supplystrata/config";
-import { listChangeTimeline } from "@supplystrata/db";
+import { listChangeTimeline } from "@supplystrata/db/read";
 import {
   listRegisteredSourceCheckConnectorCapabilities,
   listSourceCheckConnectorIds,

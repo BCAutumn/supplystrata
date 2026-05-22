@@ -1,6 +1,5 @@
 import type pg from "pg";
-import type { DocumentType } from "@supplystrata/core";
-import type { ClaimStatus } from "@supplystrata/db";
+import type { ClaimStatus, DocumentType } from "@supplystrata/core";
 import type { ClaimableFactEdge } from "./claim-drafts.js";
 import type { ClaimFusionEvidence } from "./claim-fusion.js";
 

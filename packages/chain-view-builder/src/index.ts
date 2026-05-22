@@ -14,7 +14,7 @@ import {
   type DbClient,
   type ObservationRow,
   type UnknownItemRow
-} from "@supplystrata/db";
+} from "@supplystrata/db/read";
 import { planSourcesForComponentLead } from "@supplystrata/source-plan";
 import type { ChainFactRow, EntityHeaderRow } from "./db-rows.js";
 import {

@@ -1,4 +1,4 @@
-import type { DatabaseStore } from "@supplystrata/db";
+import type { DatabaseStore } from "@supplystrata/db/write";
 import type { EntitySourceLookupResult } from "@supplystrata/entity-source";
 import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidatesTransactionally } from "@supplystrata/review-store";

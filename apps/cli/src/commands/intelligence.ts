@@ -13,7 +13,8 @@ import {
   listRefreshableComponentRiskComponentIds,
   refreshObservationAnomalyViews
 } from "@supplystrata/evidence-maintenance";
-import { listAlertCandidates, updateAlertCandidateStatus, type AlertStatus } from "@supplystrata/db";
+import { listAlertCandidates, type AlertStatus } from "@supplystrata/db/read";
+import { updateAlertCandidateStatus } from "@supplystrata/db/write";
 import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerIntelligenceCommands(program: Command): void {

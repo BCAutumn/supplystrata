@@ -16,7 +16,8 @@ import {
   refreshObservationAnomalyViews,
   summarizeComponentRiskAlertPolicy
 } from "@supplystrata/evidence-maintenance";
-import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db/write";
+import type { DbClient } from "@supplystrata/db/read";
 
 interface QueryCall {
   sql: string;

@@ -1,4 +1,4 @@
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
 import type { CompanyExposureMetric, CompanyTopExposureNode, ComponentRiskMetric, ComponentRiskView } from "@supplystrata/render";
 import { loadComponentRiskView } from "./risk-view.js";
 

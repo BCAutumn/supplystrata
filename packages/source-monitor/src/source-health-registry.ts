@@ -1,4 +1,4 @@
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/write";
 import { listSources, type SourceRegistryEntry } from "@supplystrata/source-registry";
 import type { SourceHealthStateRow } from "./db-rows.js";
 import type { SourcePolicyInput } from "./types.js";

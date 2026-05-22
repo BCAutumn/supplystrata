@@ -1,5 +1,5 @@
 import { buildClaimConflictContext } from "@supplystrata/claim-builder";
-import { listClaimEvidenceLinks, listClaimUnknownLinks, type ClaimEvidenceRole, type ClaimUnknownRole, type DbClient } from "@supplystrata/db";
+import { listClaimEvidenceLinks, listClaimUnknownLinks, type ClaimEvidenceRole, type ClaimUnknownRole, type DbClient } from "@supplystrata/db/read";
 import type { ClaimDbRow } from "./db-rows.js";
 import type { WorkbenchClaim, WorkbenchClaimEvidenceRef, WorkbenchClaimLifecycleWarning, WorkbenchClaimUnknownRef } from "./definitions.js";
 import { toIsoString } from "./dto-mappers.js";

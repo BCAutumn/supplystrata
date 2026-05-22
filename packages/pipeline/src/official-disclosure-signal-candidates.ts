@@ -1,5 +1,5 @@
 import type { NormalizedDocument } from "@supplystrata/core";
-import type { DbTxClient } from "@supplystrata/db";
+import type { DbTxClient } from "@supplystrata/db/write";
 import { buildOfficialDisclosureSignalReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import { extractOfficialDisclosureSignalsForSource, type OfficialDisclosureSignal } from "@supplystrata/signal-extractor";

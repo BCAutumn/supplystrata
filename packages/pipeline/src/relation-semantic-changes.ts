@@ -1,5 +1,5 @@
 import type { CandidateRelation, NormalizedDocument, RelationType } from "@supplystrata/core";
-import { recordSemanticChange, type DbTxClient } from "@supplystrata/db";
+import { recordSemanticChange, type DbTxClient } from "@supplystrata/db/write";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { buildSemanticChangeReviewCandidate, type SemanticChangeReviewPayloadSnapshot } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";

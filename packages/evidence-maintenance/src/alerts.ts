@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
-import type { AlertSeverity, DbClient, DbTxClient, UpsertAlertCandidateInput } from "@supplystrata/db";
-import { upsertAlertCandidate } from "@supplystrata/db";
+import type { AlertSeverity, DbClient } from "@supplystrata/db/read";
+import { upsertAlertCandidate, type DbTxClient, type UpsertAlertCandidateInput } from "@supplystrata/db/write";
 import type { ComponentRiskMetricAlertRow, ObservationAnomalyChangeRow, SourceFailureEventRow } from "./db-rows.js";
 
 export interface ComponentRiskAlertPolicyInput {

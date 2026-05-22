@@ -1,5 +1,5 @@
-import type { DbClient, ObservationRow, RiskMetricRecord } from "@supplystrata/db";
-import { getLatestRiskViewByScope, listRiskMetricsForView } from "@supplystrata/db";
+import type { DbClient, ObservationRow, RiskMetricRecord } from "@supplystrata/db/read";
+import { getLatestRiskViewByScope, listRiskMetricsForView } from "@supplystrata/db/read";
 import type { CompanyObservation, ComponentObservation, ObservationAnomalySummary } from "@supplystrata/render";
 
 export async function companyObservationFromRowWithAnomaly(client: DbClient, row: ObservationRow): Promise<CompanyObservation> {

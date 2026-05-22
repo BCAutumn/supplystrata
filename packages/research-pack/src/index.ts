@@ -1,6 +1,7 @@
 import { loadChainCard, loadCompanyCard, loadComponentCard } from "@supplystrata/card-builder";
 import { runDataQualityChecks } from "@supplystrata/data-quality";
-import type { DatabaseStore, DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
+import type { DatabaseStore } from "@supplystrata/db/write";
 import type { ComponentCardModel } from "@supplystrata/render";
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";

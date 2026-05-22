@@ -1,5 +1,5 @@
 import type { ComponentSpecificity, EvidenceLevel, RelationType } from "@supplystrata/core";
-import type { DbRow } from "@supplystrata/db";
+import type { DbRow } from "@supplystrata/db/read";
 
 export interface CompanyEdgeRow extends DbRow {
   edge_id: string;

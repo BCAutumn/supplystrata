@@ -64,7 +64,7 @@ export interface EvidenceRepo {
 }
 ```
 
-业务模块依赖 `@supplystrata/db` 的稳定函数，不直接访问内部 migration 文件。中期如果引入更正式的 repo interface，也必须保持这个边界。
+业务模块依赖 `@supplystrata/db/read`、`@supplystrata/db/write`、`@supplystrata/db/admin` 的稳定函数，不直接访问内部 migration 文件。中期如果引入更正式的 repo interface，也必须保持这个边界。
 
 ### 迁移规则
 

@@ -21,7 +21,7 @@ import {
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { OPENDART_CREDENTIALS } from "./source-check-credentials.js";
-import type { DatabaseStore } from "@supplystrata/db";
+import type { DatabaseStore } from "@supplystrata/db/write";
 
 const DART_DISCLOSURE_TYPES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"] as const;
 const DART_CORP_CLASSES = ["Y", "K", "N", "E"] as const;

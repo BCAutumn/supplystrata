@@ -1,5 +1,5 @@
 import { isSecFormType, type SecFormType } from "@supplystrata/core";
-import type { ChangeTimelineScope, PendingEntityStatusFilter } from "@supplystrata/db";
+import type { ChangeTimelineScope, PendingEntityStatusFilter } from "@supplystrata/db/read";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import type { OutputFormat } from "@supplystrata/render";
 import type { EntityLookupSource } from "@supplystrata/source-workflows";

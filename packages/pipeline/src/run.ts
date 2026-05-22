@@ -1,5 +1,5 @@
 import { type ApprovedCandidate, type CandidateRelation } from "@supplystrata/core";
-import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db/write";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphBuilder } from "@supplystrata/graph-builder";

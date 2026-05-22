@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createId, normalizeAlias } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/write";
 import {
   supplierListFacilityDisplayName,
   supplierListFacilityEntityId,

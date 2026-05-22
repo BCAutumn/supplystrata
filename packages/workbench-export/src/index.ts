@@ -11,7 +11,7 @@ import {
   listUnknownItems,
   resolveEntityId,
   type DbClient
-} from "@supplystrata/db";
+} from "@supplystrata/db/read";
 import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-view";
 import { buildCompanyChainView } from "@supplystrata/chain-view-builder";
 import { listSourceHealthRows } from "@supplystrata/source-monitor";

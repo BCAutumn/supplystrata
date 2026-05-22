@@ -2,7 +2,7 @@ export type { DbClient, DbRow } from "./client.js";
 export type { EdgeFreshnessRecord, EdgeStrengthEstimateRecord } from "@supplystrata/core";
 export { listAlertCandidates, type AlertCandidateRecord, type AlertSeverity, type AlertStatus } from "./alerts.js";
 export { listEdgeCalibrationLabels, type EdgeCalibrationLabelRecord } from "./calibration.js";
-export { listChangeTimeline, type ChangeTimelineInput, type ChangeTimelineItem } from "./changes.js";
+export { listChangeTimeline, type ChangeTimelineInput, type ChangeTimelineItem, type ChangeTimelineScope } from "./changes.js";
 export { getChainView, listChainSegments, type ChainSegmentRow, type ChainViewRow } from "./chain-views.js";
 export {
   getClaim,

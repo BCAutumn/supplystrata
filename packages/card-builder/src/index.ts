@@ -8,7 +8,7 @@ import {
   listUnknownItems,
   resolveEntityId,
   type DbClient
-} from "@supplystrata/db";
+} from "@supplystrata/db/read";
 import { buildCompanyChainView } from "@supplystrata/chain-view-builder";
 import type { ChainViewModel } from "@supplystrata/chain-view";
 import { loadCompanyTopExposureNodes } from "./company-risk.js";

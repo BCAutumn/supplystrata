@@ -1,4 +1,4 @@
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { OfficialSignalDispositionDbRow, ReviewCandidateDbRow } from "./db-rows.js";
 import type {

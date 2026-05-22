@@ -17,7 +17,7 @@ import type {
   ExtractionMethod,
   RelationType
 } from "@supplystrata/core";
-import type { ChangeTimelineItem } from "@supplystrata/db";
+import type { ChangeTimelineItem } from "@supplystrata/db/read";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 export interface WorkbenchExportInput {

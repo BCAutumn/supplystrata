@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import type { Command } from "commander";
 import { loadEnv } from "@supplystrata/config";
-import { createDatabaseStore } from "@supplystrata/db";
+import { createDatabaseStore } from "@supplystrata/db/write";
 import { buildRuntimeDoctorReport, type RuntimeDoctorReport } from "@supplystrata/runtime-profile";
 import { parseFormat, write, writeJson } from "../cli-utils.js";
 

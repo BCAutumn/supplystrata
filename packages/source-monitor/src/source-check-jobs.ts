@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { DbClient, DbTxClient } from "@supplystrata/db";
+import type { DbClient, DbTxClient } from "@supplystrata/db/write";
 import { normalizeSourceCheckTargetSelection } from "./source-check-target-selection.js";
 import type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow } from "./db-rows.js";
 import type { SourceCheckTargetSelection } from "./types.js";

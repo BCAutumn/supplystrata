@@ -1,4 +1,4 @@
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
 import type { ComponentRiskComponentRow, ComponentRiskEdgeRow } from "./db-rows.js";
 
 export async function listRefreshableComponentRiskComponentIds(client: DbClient, componentIds: readonly string[]): Promise<string[]> {

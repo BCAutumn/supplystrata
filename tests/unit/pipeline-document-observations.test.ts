@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import type { NormalizedDocument } from "@supplystrata/core";
-import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db/write";
 import { persistDocumentObservations } from "@supplystrata/pipeline";
 
 interface QueryCall {

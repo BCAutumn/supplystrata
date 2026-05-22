@@ -8,7 +8,7 @@ import {
   type LeadStatus,
   type NewLeadObservationInput,
   type NewObservationInput
-} from "@supplystrata/db";
+} from "@supplystrata/db/write";
 
 export type ObservationScopeKind = "company" | "component" | "facility" | "country" | "port" | "route" | "topic";
 

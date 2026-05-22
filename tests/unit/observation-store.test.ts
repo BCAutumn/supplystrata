@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import { deterministicLeadId, deterministicObservationId, storeLeadObservation, storeObservation } from "@supplystrata/observation-store";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/write";
 
 interface QueryCall {
   sql: string;

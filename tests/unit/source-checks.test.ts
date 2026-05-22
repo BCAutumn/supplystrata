@@ -7,7 +7,7 @@ import {
   runDueSourceChecks,
   runManualSourceCheck
 } from "@supplystrata/source-workflows";
-import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 
 describe("source check registry", () => {
   it("publishes registered source check connector ids", () => {

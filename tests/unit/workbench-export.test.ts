@@ -3,7 +3,7 @@ import { buildWorkbenchModel, workbenchEdgeFromSegment } from "@supplystrata/wor
 import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type pg from "pg";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
 
 interface QueryCall {
   sql: string;

@@ -1,5 +1,5 @@
 import type { ApplyResult, ApprovedCandidate } from "@supplystrata/core";
-import type { DbTxClient } from "@supplystrata/db";
+import type { DbTxClient } from "@supplystrata/db/write";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import { applyApprovedCandidateToSql } from "./sql-store.js";
 

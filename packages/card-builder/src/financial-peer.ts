@@ -1,4 +1,4 @@
-import type { DbClient, DbRow } from "@supplystrata/db";
+import type { DbClient, DbRow } from "@supplystrata/db/read";
 import type { CompanyFinancialPeerMetric } from "@supplystrata/render";
 
 interface FinancialPeerMetricRow extends DbRow {

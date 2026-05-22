@@ -1,5 +1,5 @@
 import { buildEdgeClaimsFromCurrentEdgesTransactionally } from "@supplystrata/claim-builder";
-import type { DatabaseStore } from "@supplystrata/db";
+import type { DatabaseStore } from "@supplystrata/db/write";
 import {
   listRefreshableComponentRiskComponentIds,
   refreshComponentRiskView,

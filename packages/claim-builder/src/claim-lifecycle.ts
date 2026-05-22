@@ -1,4 +1,5 @@
-import { getClaim, recordSemanticChange, type ClaimRow, type ClaimStatus, type DatabaseStore, type DbClient, type DbTxClient } from "@supplystrata/db";
+import { getClaim, type ClaimRow, type ClaimStatus, type DbClient } from "@supplystrata/db/read";
+import { recordSemanticChange, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import type { ClaimLifecycleSourceRefRow, ClaimLifecycleStatusUpdateRow } from "./db-rows.js";
 
 export type ClaimLifecycleAction = "supersede_claim" | "reject_claim" | "keep_with_context";

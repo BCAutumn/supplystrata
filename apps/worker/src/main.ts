@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createDatabaseStore } from "@supplystrata/db";
+import { createDatabaseStore } from "@supplystrata/db/write";
 import { loadEnv } from "@supplystrata/config";
 import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { parseSourceCheckWorkerOptions, shouldShowSourceCheckWorkerHelp, sourceCheckWorkerHelp } from "./options.js";

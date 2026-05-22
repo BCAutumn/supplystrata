@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
-import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { applyApprovedReviewCandidate } from "@supplystrata/pipeline";
 import { buildClaimConflictReviewCandidate } from "@supplystrata/review-candidates";
 

@@ -1,4 +1,4 @@
-import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db";
+import { saveNormalizedDocumentTx, type DatabaseStore } from "@supplystrata/db/write";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { recordSourceDegraded, recordSourceFailure, type SourceDocumentChangeType } from "@supplystrata/source-monitor";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";

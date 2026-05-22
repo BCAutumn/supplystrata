@@ -1,7 +1,8 @@
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ApprovedCandidate, EntityRecord } from "@supplystrata/core";
-import { migrate, type DbClient } from "@supplystrata/db";
+import { migrate } from "@supplystrata/db/admin";
+import type { DbClient } from "@supplystrata/db/write";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";

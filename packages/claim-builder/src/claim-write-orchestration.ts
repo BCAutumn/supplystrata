@@ -3,14 +3,13 @@ import {
   linkClaimUnknown,
   recordSemanticChange,
   resolveUnknownItem,
-  tryResolveEntityId,
   upsertClaim,
   upsertUnknownItem,
   type DatabaseStore,
-  type DbClient,
   type DbTxClient,
   type NewClaimInput
-} from "@supplystrata/db";
+} from "@supplystrata/db/write";
+import { tryResolveEntityId, type DbClient } from "@supplystrata/db/read";
 import type { SemanticChangeReviewCandidate } from "@supplystrata/review-candidates";
 import type {
   ClaimableFactEdgeRow,

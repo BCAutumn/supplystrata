@@ -2,7 +2,7 @@ import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import { ensureSupplierListFacilityEntity } from "@supplystrata/entity-import";
 import { buildSupplierListReviewCandidate } from "@supplystrata/review-candidates";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/write";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
 
 interface QueryCall {

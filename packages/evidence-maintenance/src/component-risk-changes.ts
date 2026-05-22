@@ -1,6 +1,6 @@
 import type { RiskMetricKind } from "@supplystrata/core";
-import type { DbClient, DbTxClient, RiskMetricRecord, RiskViewRecord } from "@supplystrata/db";
-import { recordSemanticChange } from "@supplystrata/db";
+import type { DbClient, RiskMetricRecord, RiskViewRecord } from "@supplystrata/db/read";
+import { recordSemanticChange, type DbTxClient } from "@supplystrata/db/write";
 import type { ComponentRiskChangeRow } from "./db-rows.js";
 
 export interface RecordComponentRiskMetricChangesInput {

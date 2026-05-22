@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { loadChainCard, loadCompanyCard, loadComponentCard, loadEvidenceCard, loadUnknownMap } from "@supplystrata/card-builder";
 import { runDataQualityChecks } from "@supplystrata/data-quality";
-import type { EdgeDeprecationSourceRef, EdgeDeprecationSourceKind } from "@supplystrata/db";
+import type { EdgeDeprecationSourceRef, EdgeDeprecationSourceKind } from "@supplystrata/db/read";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import { renderChainCard, renderCompanyCard, renderComponentCard, renderEvidenceCard, renderUnknownMapCard } from "@supplystrata/render";

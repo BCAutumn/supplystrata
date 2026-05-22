@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderChangeTimelineItems } from "@supplystrata/render";
-import type { ChangeTimelineItem } from "@supplystrata/db";
+import type { ChangeTimelineItem } from "@supplystrata/db/read";
 
 describe("changes renderer", () => {
   it("renders attention items and normal timeline items separately", () => {

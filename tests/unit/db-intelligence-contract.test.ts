@@ -9,7 +9,8 @@ import {
   OBSERVATION_TYPES,
   RISK_METRIC_KINDS
 } from "@supplystrata/core";
-import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db/write";
+import type { DbClient } from "@supplystrata/db/read";
 import { sql as migration0012ObservationTypeContractSql } from "../../packages/db/src/migration-sql/0012_observation_type_contract.js";
 import { sql as migration0013EdgeIntelligenceContextSql } from "../../packages/db/src/migration-sql/0013_edge_intelligence_context.js";
 import { sql as migration0014RiskViewsSql } from "../../packages/db/src/migration-sql/0014_risk_views.js";
@@ -29,10 +30,6 @@ import {
   insertChainSegment,
   insertChainSegments,
   insertChainView,
-  getChainView,
-  getClaim,
-  getLeadObservation,
-  getObservation,
   insertClaim,
   insertLeadObservation,
   insertObservation,
@@ -46,18 +43,24 @@ import {
   upsertUnknownItem,
   linkClaimEvidence,
   linkClaimUnknown,
-  listChainSegments,
-  listAlertCandidates,
-  listClaimsByScope,
-  listLeadObservationsByScope,
-  listObservationsByScope,
   patchObservationMetadata,
   replaceRiskView,
   updateAlertCandidateStatus,
   upsertAlertCandidate,
   upsertEdgeCalibrationLabel,
   replaceEdgeCalibrationRun
-} from "@supplystrata/db";
+} from "@supplystrata/db/write";
+import {
+  getChainView,
+  getClaim,
+  getLeadObservation,
+  getObservation,
+  listChainSegments,
+  listAlertCandidates,
+  listClaimsByScope,
+  listLeadObservationsByScope,
+  listObservationsByScope
+} from "@supplystrata/db/read";
 
 interface QueryCall {
   sql: string;

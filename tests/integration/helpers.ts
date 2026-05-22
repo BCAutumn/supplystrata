@@ -1,4 +1,4 @@
-import { createDatabaseStore } from "@supplystrata/db";
+import { createDatabaseStore } from "@supplystrata/db/write";
 import { loadEnv } from "@supplystrata/config";
 
 export function createIntegrationDatabaseStore(): ReturnType<typeof createDatabaseStore> {

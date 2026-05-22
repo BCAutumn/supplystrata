@@ -1,5 +1,5 @@
 import { type ComponentUpstreamLead } from "@supplystrata/component-context";
-import type { LeadObservationRow, ObservationRow, UnknownItemRow } from "@supplystrata/db";
+import type { LeadObservationRow, ObservationRow, UnknownItemRow } from "@supplystrata/db/read";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import { type ChainViewEndpoint, type ChainViewRoot, type ChainViewSegmentModel, type ChainViewSourceHint } from "@supplystrata/chain-view";
 import type { ChainFactRow } from "./db-rows.js";

@@ -1,11 +1,6 @@
 import type { EntityRecord } from "@supplystrata/core";
-import {
-  claimDueGraphProjectionJobs,
-  listCurrentEdges,
-  markGraphProjectionJobFailed,
-  markGraphProjectionJobSucceeded,
-  type DatabaseStore
-} from "@supplystrata/db";
+import { listCurrentEdges } from "@supplystrata/db/read";
+import { claimDueGraphProjectionJobs, markGraphProjectionJobFailed, markGraphProjectionJobSucceeded, type DatabaseStore } from "@supplystrata/db/write";
 import type { GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
 import { messageFromUnknown } from "@supplystrata/observability";
 import type { EntityRow, GraphEdgeRow, ProjectionStatsRow } from "./db-rows.js";

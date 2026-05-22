@@ -1,14 +1,7 @@
 import { upsertSemanticChangeClaimDraft } from "@supplystrata/claim-builder";
 import { type ApplyResult, type ApprovedCandidate, type RelationType } from "@supplystrata/core";
-import {
-  loadDocument,
-  markLeadObservationPromoted,
-  recordSemanticChange,
-  recordPendingEntity,
-  type DatabaseStore,
-  type DbTxClient,
-  type DocumentWithChunks
-} from "@supplystrata/db";
+import { loadDocument, type DocumentWithChunks } from "@supplystrata/db/read";
+import { markLeadObservationPromoted, recordSemanticChange, recordPendingEntity, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import {
   applyEntitySourceReviewCandidate,
   ensureSupplierListFacilityEntity,

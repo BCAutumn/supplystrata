@@ -1,6 +1,6 @@
 import type { EdgeStrengthEstimateRecord } from "@supplystrata/core";
-import type { DbClient, DbTxClient } from "@supplystrata/db";
-import { getLatestRiskViewByScope, listEdgeFreshness, listEdgeStrengthEstimates, listRiskMetricsForView, replaceRiskView } from "@supplystrata/db";
+import { getLatestRiskViewByScope, listEdgeFreshness, listEdgeStrengthEstimates, listRiskMetricsForView, type DbClient } from "@supplystrata/db/read";
+import { replaceRiskView, type DbTxClient } from "@supplystrata/db/write";
 import { COMPONENT_RISK_MODEL_VERSION, type ComponentRiskRefreshSummary, type RefreshComponentRiskViewInput } from "./component-risk-definitions.js";
 import { recordComponentRiskMetricChanges } from "./component-risk-changes.js";
 import { buildComponentRiskMetrics, deterministicRiskViewId, riskInputsFingerprint } from "./component-risk-metrics.js";

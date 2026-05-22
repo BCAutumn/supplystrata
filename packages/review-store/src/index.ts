@@ -1,4 +1,4 @@
-import { recordSemanticChange, type DatabaseStore, type DbClient, type DbTxClient } from "@supplystrata/db";
+import { recordSemanticChange, type DatabaseStore, type DbClient, type DbTxClient } from "@supplystrata/db/write";
 import {
   isOfficialDisclosureSignalReviewCandidate,
   isReviewCandidate,

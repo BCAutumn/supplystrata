@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { CandidateRelation, EdgeStrengthKind, EvidenceLevel, RelationType } from "@supplystrata/core";
-import type { DbClient, DbRow, DbTxClient } from "@supplystrata/db";
-import { listEdgeStrengthEstimates, recordSemanticChange, refreshEdgeFreshness, upsertEdgeStrengthEstimate, upsertUnknownItem } from "@supplystrata/db";
+import { listEdgeStrengthEstimates, type DbClient, type DbRow } from "@supplystrata/db/read";
+import { recordSemanticChange, refreshEdgeFreshness, upsertEdgeStrengthEstimate, upsertUnknownItem, type DbTxClient } from "@supplystrata/db/write";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { EvidenceTraceBackfillRow, IntelligenceRefreshEdgeRow } from "./db-rows.js";
 

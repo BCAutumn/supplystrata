@@ -6,7 +6,7 @@ import {
   type DatabaseStore,
   type EdgeDeprecationSourceRef,
   type GraphProjectionOperation
-} from "@supplystrata/db";
+} from "@supplystrata/db/write";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import type { GraphStore } from "@supplystrata/graph-store";
 import { messageFromUnknown, noopLogger, type SupplyStrataLogger } from "@supplystrata/observability";

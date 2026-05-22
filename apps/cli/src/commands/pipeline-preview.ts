@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { loadEnv } from "@supplystrata/config";
-import type { DatabaseStore } from "@supplystrata/db";
+import type { DatabaseStore } from "@supplystrata/db/write";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import { runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";

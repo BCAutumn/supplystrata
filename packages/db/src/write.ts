@@ -1,5 +1,5 @@
 export type { DatabaseStore, DbClient, DbTxClient, DbRow } from "./client.js";
-export { createDatabaseStore } from "./client.js";
+export { createDatabaseStore, dbTxClientBrand } from "./client.js";
 export { updateAlertCandidateStatus, upsertAlertCandidate, type UpsertAlertCandidateInput } from "./alerts.js";
 export { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel, type UpsertEdgeCalibrationLabelInput } from "./calibration.js";
 export { insertChainSegment, insertChainSegments, insertChainView, type NewChainSegmentInput, type NewChainViewInput } from "./chain-views.js";
@@ -20,7 +20,8 @@ export {
   recordGraphProjectionFailure,
   markGraphProjectionJobFailed,
   markGraphProjectionJobSucceeded,
-  markGraphProjectionJobsSucceeded
+  markGraphProjectionJobsSucceeded,
+  type GraphProjectionOperation
 } from "./graph-projection-jobs.js";
 export { refreshEdgeFreshness, upsertEdgeStrengthEstimate, type UpsertEdgeStrengthEstimateInput } from "./intelligence.js";
 export {
@@ -32,6 +33,7 @@ export {
   patchObservationMetadata,
   upsertLeadObservation,
   upsertObservation,
+  type LeadStatus,
   type NewLeadObservationInput,
   type NewObservationInput,
   type CorrectObservationMeasurementInput,
@@ -40,4 +42,4 @@ export {
 export { recordPendingEntity } from "./pending.js";
 export { recordSemanticChange, type SemanticChangeInput } from "./changes.js";
 export { replaceRiskView, type ReplaceRiskViewInput } from "./risk.js";
-export { upsertUnknownItem, type NewUnknownItemInput } from "./unknowns.js";
+export { resolveUnknownItem, upsertUnknownItem, type NewUnknownItemInput } from "./unknowns.js";

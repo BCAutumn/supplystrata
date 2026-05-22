@@ -1,6 +1,6 @@
 import { buildSourceCheckTargetsFromPlan } from "@supplystrata/source-management";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient } from "@supplystrata/db/read";
 import { listSourceTargetCoverage, type SourceTargetCoverageItem, type SourceTargetCoverageState } from "@supplystrata/source-monitor";
 
 export interface SourceTargetCoverageReport {

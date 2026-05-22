@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { EdgeFreshnessRecord, EdgeStrengthEstimateRecord, EdgeStrengthKind, RiskMetricKind } from "@supplystrata/core";
-import type { RiskMetricRecord } from "@supplystrata/db";
+import type { RiskMetricRecord } from "@supplystrata/db/read";
 import { COMPONENT_RISK_MODEL_VERSION } from "./component-risk-definitions.js";
 import type { ComponentRiskEdgeRow } from "./db-rows.js";
 import {

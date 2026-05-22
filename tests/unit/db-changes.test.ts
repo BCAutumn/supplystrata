@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listChangeTimeline, type DbClient } from "@supplystrata/db";
+import { listChangeTimeline, type DbClient } from "@supplystrata/db/read";
 import type pg from "pg";
 
 interface QueryCall {

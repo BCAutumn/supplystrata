@@ -1,5 +1,5 @@
 import type { NormalizedDocument } from "@supplystrata/core";
-import type { DbTxClient } from "@supplystrata/db";
+import type { DbTxClient } from "@supplystrata/db/write";
 import type { SourceDocumentChangeType } from "@supplystrata/source-monitor";
 
 export interface SourceDocumentObservationPersistOptions {

@@ -21,7 +21,7 @@ import {
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { EDINET_CREDENTIALS } from "./source-check-credentials.js";
-import type { DatabaseStore } from "@supplystrata/db";
+import type { DatabaseStore } from "@supplystrata/db/write";
 
 const EDINET_DOCUMENT_LIST_TYPES = [1, 2] as const;
 

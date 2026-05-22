@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
-import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db/write";
 import {
   claimApprovedReviewCandidates,
   decideReviewCandidate,

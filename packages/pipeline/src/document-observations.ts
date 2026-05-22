@@ -1,5 +1,6 @@
 import type { NormalizedDocument } from "@supplystrata/core";
-import { loadDocument, recordSemanticChange, type DbClient, type DbTxClient, type SemanticChangeInput } from "@supplystrata/db";
+import { loadDocument, type DbClient } from "@supplystrata/db/read";
+import { recordSemanticChange, type DbTxClient, type SemanticChangeInput } from "@supplystrata/db/write";
 import {
   extractDisclosureObservations,
   extractSemanticSections,

@@ -1,4 +1,4 @@
-import { getLatestRiskViewByScope, listRiskMetricsForView, type DbClient, type RiskMetricRecord, type RiskViewRecord } from "@supplystrata/db";
+import { getLatestRiskViewByScope, listRiskMetricsForView, type DbClient, type RiskMetricRecord, type RiskViewRecord } from "@supplystrata/db/read";
 import type { ComponentRiskMetric, ComponentRiskView } from "@supplystrata/render";
 
 export async function loadComponentRiskView(client: DbClient, componentId: string): Promise<ComponentRiskView | null> {
