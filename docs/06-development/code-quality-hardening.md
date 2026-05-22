@@ -113,6 +113,7 @@
 [x] risk / alert 派生写路径收紧到 `DbTxClient`：`replaceRiskView()`、component risk / observation anomaly / financial peer refresh、`upsertAlertCandidate()` 与 alert refresh 必须在事务客户端内运行，避免 risk view metric replacement 或批量 alert upsert 半写。
 [x] review apply 分发由顺序 type-guard 分支收敛成 `ReviewCandidateKind` 策略注册表；行 kind 与 payload kind 不一致时显式 block，避免错误策略误写事实边或状态。
 [x] graph projection outbox 的 claim / record failure / mark succeeded / mark failed 写入口收紧到 `DbTxClient`，GraphBuilder 与 retry worker 通过显式事务更新投影 job 状态；`db/read` 不再导出 claim 写入口。
+[x] edge calibration label / run replacement 写入口收紧到 `DbTxClient`，校准运行的 run upsert、旧 items 删除和新 items 插入必须处在同一事务边界内。
 [x] candidate relation citation 校验下沉到 core 纯函数；pipeline 与 source preview 复用同一规则，避免 preview 为了轻量入口继续反向依赖 pipeline。
 [x] source-workflows 的 Census / OSH / Apple / World Bank Pink / SEC facts 监控写入改为使用本包 `saved-document-observation` 窄适配层，直接调用 source-monitor 的事务内 observation 入口，不再为了记录文档变化依赖 pipeline helper。
 [x] CLI 公共入口按 runtime / parse / output 拆分；`cli-utils.ts` 只保留兼容 re-export，数据库生命周期、参数解析和输出错误格式化不再混在同一文件里。
@@ -131,7 +132,7 @@
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
 [ ] `source-workflows` 包级别仍包含 legacy SEC full-pipeline demo 与 source-check runner 默认 document-observation bridge，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与监控 workflow 的默认持久化 bridge 继续拆边界。
-[ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已覆盖 intelligence / single-source disposition / claim-builder / review-store / risk / alert / graph projection job status 关键多写入链路，后续继续覆盖 calibration、chain view build 等剩余写路径，并逐步迁移旧 import 到 read/write/admin 子路径。
+[ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已覆盖 intelligence / single-source disposition / claim-builder / review-store / risk / alert / graph projection job status / calibration 关键多写入链路，后续继续覆盖 chain view build 等剩余写路径，并逐步迁移旧 import 到 read/write/admin 子路径。
 [ ] `db/src/index.ts` 仍是宽 barrel export；已补 read/write/admin 子路径出口，后续应逐包迁移旧 import 并在迁移完成后收窄 root，而不是一次性大规模改 import。
 ```
 

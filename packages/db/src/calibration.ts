@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type pg from "pg";
 import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
-import type { DbClient } from "./client.js";
+import type { DbClient, DbTxClient } from "./client.js";
 
 interface EdgeCalibrationLabelRow extends pg.QueryResultRow {
   label_id: string;
@@ -68,7 +68,7 @@ export interface ReplaceEdgeCalibrationRunInput {
   items: readonly EdgeCalibrationRunItemInput[];
 }
 
-export async function upsertEdgeCalibrationLabel(client: DbClient, input: UpsertEdgeCalibrationLabelInput): Promise<{ label_id: string; inserted: boolean }> {
+export async function upsertEdgeCalibrationLabel(client: DbTxClient, input: UpsertEdgeCalibrationLabelInput): Promise<{ label_id: string; inserted: boolean }> {
   const labelId = input.label_id ?? deterministicEdgeCalibrationLabelId(input);
   const result = await client.query<{ label_id: string; inserted: boolean } & pg.QueryResultRow>(
     `INSERT INTO edge_calibration_labels (
@@ -122,7 +122,7 @@ export async function listEdgeCalibrationLabels(client: DbClient, input: { edge_
   return result.rows.map(edgeCalibrationLabelRowToRecord);
 }
 
-export async function replaceEdgeCalibrationRun(client: DbClient, input: ReplaceEdgeCalibrationRunInput): Promise<{ run_id: string; items: number }> {
+export async function replaceEdgeCalibrationRun(client: DbTxClient, input: ReplaceEdgeCalibrationRunInput): Promise<{ run_id: string; items: number }> {
   const result = await client.query<{ run_id: string } & pg.QueryResultRow>(
     `INSERT INTO edge_calibration_runs (
        run_id, generated_at, model_version, inputs_fingerprint, min_evidence_level,

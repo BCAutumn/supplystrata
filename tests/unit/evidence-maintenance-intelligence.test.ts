@@ -206,7 +206,8 @@ class AlertRulesDbClient implements DbTxClient {
   }
 }
 
-class EdgeCalibrationDbClient implements DbClient {
+class EdgeCalibrationDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {

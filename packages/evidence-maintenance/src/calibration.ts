@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import type { DbClient, DbTxClient } from "@supplystrata/db";
 import { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel } from "@supplystrata/db";
 import type { EdgeCalibrationSampleRow } from "./db-rows.js";
 
@@ -53,7 +53,7 @@ type StableJsonArray = readonly StableJsonValue[];
 type StableJsonObject = { readonly [key: string]: StableJsonValue };
 type StableJsonValue = null | string | number | boolean | StableJsonArray | StableJsonObject;
 
-export async function recordEdgeCalibrationLabel(client: DbClient, input: RecordEdgeCalibrationLabelInput): Promise<{ label_id: string; inserted: boolean }> {
+export async function recordEdgeCalibrationLabel(client: DbTxClient, input: RecordEdgeCalibrationLabelInput): Promise<{ label_id: string; inserted: boolean }> {
   if (input.label === "incorrect" && input.error_category === undefined) throw new Error("Incorrect calibration labels require an error_category");
   if (input.label !== "incorrect" && input.error_category !== undefined) throw new Error("Only incorrect calibration labels may include an error_category");
   return upsertEdgeCalibrationLabel(client, {
@@ -69,7 +69,7 @@ export async function recordEdgeCalibrationLabel(client: DbClient, input: Record
   });
 }
 
-export async function refreshEdgeCalibrationRun(client: DbClient, input: RefreshEdgeCalibrationRunInput = {}): Promise<EdgeCalibrationRunSummary> {
+export async function refreshEdgeCalibrationRun(client: DbTxClient, input: RefreshEdgeCalibrationRunInput = {}): Promise<EdgeCalibrationRunSummary> {
   const minEvidenceLevel = input.min_evidence_level ?? 4;
   const limit = input.limit ?? 1000;
   validateRefreshInput({ minEvidenceLevel, limit });
