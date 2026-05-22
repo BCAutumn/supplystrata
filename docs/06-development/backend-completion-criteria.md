@@ -513,6 +513,7 @@ POST /review/:id/reject
 [x] investigation-backlog 能消费 corroboration queue，生成逐 edge `corroboration_review` 任务并继承 source target coverage / preflight 状态
 [x] investigation-backlog / research-pack manifest 能汇总 corroboration review 的 runnable / sync / enable / due / preflight / credential / disposition-only 状态
 [x] research-pack 能输出 `corroboration-source-plan.json/md`，把 edge-level corroboration runnable target 过滤成可直接交给 source-management 的标准 source-plan 子集
+[x] `corroboration-source-plan` 能为每个 filtered target 输出确定性 `next_action`，把 preflight/coverage 状态收口成配置凭据、修配置、smoke、sync、enable、run due、等待、排错或 review observation
 [x] research-pack 默认刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
 ```
 

@@ -1186,7 +1186,8 @@ describe("research-pack", () => {
         runnable_targets: 1,
         targets_need_enable: 1,
         targets_failed_preflight: 1,
-        targets_missing_credentials: 1
+        targets_missing_credentials: 1,
+        by_next_action: { configure_credentials: 1 }
       })
     );
     expect(corroborationSourcePlan.target_refs).toEqual([
@@ -1196,6 +1197,7 @@ describe("research-pack", () => {
         source_adapter_id: "samsung-ir",
         target_kind: "official-html-disclosure",
         coverage_state: "disabled",
+        next_action: "configure_credentials",
         preflight_issue_kind: "missing_credentials",
         preflight_missing_credential_env_keys: ["SAMSUNG_IR_TOKEN"]
       })
@@ -1217,6 +1219,7 @@ describe("research-pack", () => {
     });
     expect(monitorConfig.check_targets[0]?.notes).toContain("EDGE-SAMSUNG-1");
     expect(renderCorroborationSourcePlanMarkdown(corroborationSourcePlan)).toContain("Missing credentials: SAMSUNG_IR_TOKEN");
+    expect(renderCorroborationSourcePlanMarkdown(corroborationSourcePlan)).toContain("Next action: configure_credentials");
   });
 });
 

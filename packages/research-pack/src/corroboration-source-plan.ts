@@ -1,6 +1,18 @@
 import type { SourcePlanCheckTargetSuggestion, SourcePlanItem } from "@supplystrata/source-plan";
 import type { InvestigationBacklog, InvestigationBacklogItem, InvestigationBacklogSourceTargetCoverage } from "./investigation-backlog.js";
 
+export type CorroborationSourcePlanNextAction =
+  | "configure_credentials"
+  | "fix_target_config"
+  | "retry_preflight"
+  | "smoke_target"
+  | "sync_target"
+  | "enable_target"
+  | "run_due_target"
+  | "wait_for_job"
+  | "investigate_source_failure"
+  | "review_observations";
+
 export interface CorroborationSourcePlanTargetRef {
   backlog_id: string;
   edge_ids: string[];
@@ -13,6 +25,8 @@ export interface CorroborationSourcePlanTargetRef {
   preflight_status: InvestigationBacklogSourceTargetCoverage["preflight_status"];
   preflight_issue_kind: InvestigationBacklogSourceTargetCoverage["preflight_issue_kind"];
   preflight_missing_credential_env_keys: readonly string[];
+  next_action: CorroborationSourcePlanNextAction;
+  next_action_reason: string;
 }
 
 export interface CorroborationSourcePlan {
@@ -29,6 +43,7 @@ export interface CorroborationSourcePlan {
     targets_due: number;
     targets_failed_preflight: number;
     targets_missing_credentials: number;
+    by_next_action: Record<string, number>;
     by_source: Record<string, number>;
   };
   target_refs: CorroborationSourcePlanTargetRef[];
@@ -61,6 +76,7 @@ export function buildCorroborationSourcePlan(input: CorroborationSourcePlanInput
       targets_due: targetRefs.filter((target) => target.coverage_state === "due").length,
       targets_failed_preflight: targetRefs.filter((target) => target.preflight_status === "failed").length,
       targets_missing_credentials: targetRefs.filter((target) => target.preflight_issue_kind === "missing_credentials").length,
+      by_next_action: countBy(targetRefs, (target) => target.next_action),
       by_source: countBy(targetRefs, (target) => target.source_adapter_id)
     },
     target_refs: targetRefs,
@@ -87,6 +103,7 @@ export function renderCorroborationSourcePlanMarkdown(plan: CorroborationSourceP
     `- Due: ${plan.summary.targets_due}`,
     `- Failed preflight: ${plan.summary.targets_failed_preflight}`,
     `- Missing credentials: ${plan.summary.targets_missing_credentials}`,
+    `- By next action: ${formatCountMap(plan.summary.by_next_action)}`,
     `- By source: ${formatCountMap(plan.summary.by_source)}`,
     "",
     "## Targets",
@@ -103,6 +120,7 @@ export function renderCorroborationSourcePlanMarkdown(plan: CorroborationSourceP
         ? "no preflight"
         : `${target.preflight_status}${target.preflight_issue_kind === null ? "" : `/${target.preflight_issue_kind}`}`;
     lines.push(`- ${target.source_adapter_id}/${target.target_kind}: ${coverage}; ${preflight}`);
+    lines.push(`  Next action: ${target.next_action} — ${target.next_action_reason}`);
     lines.push(
       `  Backlog: ${target.backlog_id}; edges=${target.edge_ids.join(",")}; unknowns=${target.unknown_ids.length === 0 ? "none" : target.unknown_ids.join(",")}`
     );
@@ -119,6 +137,7 @@ function buildTargetRefs(reviews: readonly InvestigationBacklogItem[]): Corrobor
   for (const review of reviews) {
     for (const target of review.runnable_check_targets) {
       const coverage = coverageForTarget(review.source_target_coverage, target);
+      const nextAction = nextActionForTarget(coverage);
       const ref: CorroborationSourcePlanTargetRef = {
         backlog_id: review.backlog_id,
         edge_ids: review.target.edge_ids,
@@ -130,7 +149,9 @@ function buildTargetRefs(reviews: readonly InvestigationBacklogItem[]): Corrobor
         check_target_id: coverage?.check_target_id ?? null,
         preflight_status: coverage?.preflight_status ?? null,
         preflight_issue_kind: coverage?.preflight_issue_kind ?? null,
-        preflight_missing_credential_env_keys: coverage?.preflight_missing_credential_env_keys ?? []
+        preflight_missing_credential_env_keys: coverage?.preflight_missing_credential_env_keys ?? [],
+        next_action: nextAction.next_action,
+        next_action_reason: nextAction.next_action_reason
       };
       byKey.set(sourceTargetKey(ref), mergeTargetRef(byKey.get(sourceTargetKey(ref)), ref));
     }
@@ -144,8 +165,97 @@ function mergeTargetRef(left: CorroborationSourcePlanTargetRef | undefined, righ
     ...left,
     edge_ids: uniqueSorted([...left.edge_ids, ...right.edge_ids]),
     unknown_ids: uniqueSorted([...left.unknown_ids, ...right.unknown_ids]),
-    preflight_missing_credential_env_keys: uniqueSorted([...left.preflight_missing_credential_env_keys, ...right.preflight_missing_credential_env_keys])
+    preflight_missing_credential_env_keys: uniqueSorted([...left.preflight_missing_credential_env_keys, ...right.preflight_missing_credential_env_keys]),
+    ...higherPriorityNextAction(left, right)
   };
+}
+
+function nextActionForTarget(coverage: InvestigationBacklogSourceTargetCoverage | undefined): {
+  next_action: CorroborationSourcePlanNextAction;
+  next_action_reason: string;
+} {
+  if (coverage?.preflight_issue_kind === "missing_credentials") {
+    return {
+      next_action: "configure_credentials",
+      next_action_reason: `Configure required credential env keys: ${coverage.preflight_missing_credential_env_keys.join(", ")}.`
+    };
+  }
+  if (coverage?.preflight_issue_kind === "target_config_invalid" || coverage?.preflight_issue_kind === "connector_unsupported") {
+    return {
+      next_action: "fix_target_config",
+      next_action_reason: `Fix preflight issue ${coverage.preflight_issue_kind} before syncing this target.`
+    };
+  }
+  if (coverage?.preflight_status === "failed") {
+    return {
+      next_action: "retry_preflight",
+      next_action_reason: `Preflight failed with ${coverage.preflight_issue_kind ?? "unknown_issue"}; rerun smoke after the source or target issue is fixed.`
+    };
+  }
+  if (coverage === undefined || coverage.preflight_status === null) {
+    return {
+      next_action: "smoke_target",
+      next_action_reason: "Run source-plan smoke for this filtered target before syncing it into continuous monitoring."
+    };
+  }
+  if (coverage.state === "not_synced") {
+    return {
+      next_action: "sync_target",
+      next_action_reason: "Preflight context exists; sync this target into source_check_targets with the selected namespace."
+    };
+  }
+  if (coverage.state === "disabled" || coverage.state === "policy_disabled") {
+    return {
+      next_action: "enable_target",
+      next_action_reason: "The target is synced but disabled; enable it through source-management before due processing."
+    };
+  }
+  if (coverage.state === "due") {
+    return {
+      next_action: "run_due_target",
+      next_action_reason: "The target is enabled and due; run the due source-check worker path."
+    };
+  }
+  if (coverage.state === "scheduled" || coverage.state === "active_job" || coverage.state === "retry_wait") {
+    return {
+      next_action: "wait_for_job",
+      next_action_reason: `The target is ${coverage.state}; wait for the scheduled, active, or retrying job to finish before review.`
+    };
+  }
+  if (coverage.state === "degraded" || coverage.state === "dead") {
+    return {
+      next_action: "investigate_source_failure",
+      next_action_reason: `The target is ${coverage.state}; inspect latest source event/job failure before drawing corroboration conclusions.`
+    };
+  }
+  return {
+    next_action: "review_observations",
+    next_action_reason: "The target has completed source-check coverage; review observations or normalized output before changing fact evidence."
+  };
+}
+
+function higherPriorityNextAction(
+  left: CorroborationSourcePlanTargetRef,
+  right: CorroborationSourcePlanTargetRef
+): Pick<CorroborationSourcePlanTargetRef, "next_action" | "next_action_reason"> {
+  return nextActionRank(right.next_action) < nextActionRank(left.next_action)
+    ? { next_action: right.next_action, next_action_reason: right.next_action_reason }
+    : { next_action: left.next_action, next_action_reason: left.next_action_reason };
+}
+
+function nextActionRank(action: CorroborationSourcePlanNextAction): number {
+  return [
+    "configure_credentials",
+    "fix_target_config",
+    "retry_preflight",
+    "smoke_target",
+    "sync_target",
+    "enable_target",
+    "run_due_target",
+    "wait_for_job",
+    "investigate_source_failure",
+    "review_observations"
+  ].indexOf(action);
 }
 
 function filterSourcePlan(sourcePlan: readonly SourcePlanItem[], targetRefsByKey: ReadonlyMap<string, CorroborationSourcePlanTargetRef>): SourcePlanItem[] {
