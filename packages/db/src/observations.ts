@@ -227,18 +227,25 @@ export async function upsertLeadObservation(client: DbClient, input: NewLeadObse
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
      ON CONFLICT (lead_id) DO UPDATE SET
-       lead_type = EXCLUDED.lead_type,
-       source_adapter_id = EXCLUDED.source_adapter_id,
-       doc_id = EXCLUDED.doc_id,
-       scope_kind = EXCLUDED.scope_kind,
-       scope_id = EXCLUDED.scope_id,
-       title = EXCLUDED.title,
-       summary = EXCLUDED.summary,
-       cite_text = EXCLUDED.cite_text,
-       source_url = EXCLUDED.source_url,
-       status = EXCLUDED.status,
-       review_id = EXCLUDED.review_id,
-       attrs = EXCLUDED.attrs,
+       lead_type = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.lead_type ELSE EXCLUDED.lead_type END,
+       source_adapter_id = CASE
+         WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.source_adapter_id
+         ELSE EXCLUDED.source_adapter_id
+       END,
+       doc_id = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.doc_id ELSE EXCLUDED.doc_id END,
+       scope_kind = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.scope_kind ELSE EXCLUDED.scope_kind END,
+       scope_id = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.scope_id ELSE EXCLUDED.scope_id END,
+       title = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.title ELSE EXCLUDED.title END,
+       summary = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.summary ELSE EXCLUDED.summary END,
+       cite_text = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.cite_text ELSE EXCLUDED.cite_text END,
+       source_url = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.source_url ELSE EXCLUDED.source_url END,
+       status = CASE
+         WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.status
+         WHEN lead_observations.status = 'in_review' AND EXCLUDED.status = 'open' THEN lead_observations.status
+         ELSE EXCLUDED.status
+       END,
+       review_id = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.review_id ELSE EXCLUDED.review_id END,
+       attrs = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.attrs ELSE EXCLUDED.attrs END,
        updated_at = now()
      RETURNING lead_id, (xmax = 0) AS inserted`,
     leadParams(leadId, input)

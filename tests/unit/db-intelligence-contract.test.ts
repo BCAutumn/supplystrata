@@ -36,6 +36,7 @@ import {
   recordSemanticChange,
   resolveUnknownItem,
   upsertClaim,
+  upsertLeadObservation,
   upsertObservation,
   upsertUnknownItem,
   linkClaimEvidence,
@@ -279,6 +280,32 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[0]?.sql).toContain("WHEN claims.status IN ('superseded','rejected') THEN claims.status");
   });
 
+  it("does not overwrite rejected or superseded claim content through generated upserts", async () => {
+    const client = new RecordingDbClient();
+
+    await upsertClaim(client, {
+      claim_id: "CLM-EDGE-TEST",
+      claim_type: "SUPPLY_RELATION_CLAIM",
+      claim_text: "Generated claim text should not rewrite terminal claims.",
+      subject_id: "ENT-NVIDIA",
+      object_id: "ENT-SK-HYNIX",
+      edge_id: "EDGE-TEST",
+      status: "active",
+      evidence_level: 5,
+      confidence: 0.93,
+      is_inferred: false,
+      generated_by: "unit-test"
+    });
+
+    expect(client.calls[0]?.sql).toContain(
+      "claim_text = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.claim_text ELSE EXCLUDED.claim_text END"
+    );
+    expect(client.calls[0]?.sql).toContain("edge_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.edge_id ELSE EXCLUDED.edge_id END");
+    expect(client.calls[0]?.sql).toContain(
+      "last_verified_at = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.last_verified_at ELSE EXCLUDED.last_verified_at END"
+    );
+  });
+
   it("inserts observations and leads as non-edge records", async () => {
     const client = new RecordingDbClient();
 
@@ -329,6 +356,30 @@ describe("db intelligence-network repositories", () => {
 
     expect(client.calls[0]?.sql).toContain("provenance = observations.provenance || EXCLUDED.provenance");
     expect(client.calls[0]?.sql).toContain("attrs = observations.attrs || EXCLUDED.attrs");
+  });
+
+  it("does not reopen or rewrite terminal lead observations through ordinary upserts", async () => {
+    const client = new RecordingDbClient();
+
+    await upsertLeadObservation(client, {
+      lead_id: "LEAD-TEST",
+      lead_type: "PROCUREMENT_SIGNAL",
+      source_adapter_id: "manual",
+      scope_kind: "company",
+      scope_id: "ENT-NVIDIA",
+      title: "Potential procurement lead",
+      summary: "A lead that may already have been promoted.",
+      status: "open"
+    });
+
+    expect(client.calls[0]?.sql).toContain(
+      "title = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.title ELSE EXCLUDED.title END"
+    );
+    expect(client.calls[0]?.sql).toContain("WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.status");
+    expect(client.calls[0]?.sql).toContain("WHEN lead_observations.status = 'in_review' AND EXCLUDED.status = 'open' THEN lead_observations.status");
+    expect(client.calls[0]?.sql).toContain(
+      "attrs = CASE WHEN lead_observations.status IN ('promoted','rejected','closed') THEN lead_observations.attrs ELSE EXCLUDED.attrs END"
+    );
   });
 
   it("upserts edge strength through an explicit business identity key", async () => {

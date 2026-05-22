@@ -104,6 +104,8 @@
 [x] graph-builder 拆出 `GraphSqlWriter` 作为事务内写入入口；`GraphBuilder` 只负责自开事务和图投影同步，不再暴露容易在外层事务中误调的 `applySqlInTransaction()`。
 [x] `corroboration-source-plan` 的 next action 推导从长 if 链改为表驱动规则；新增状态/失败类型时只需扩展规则表，优先级由规则顺序审计。
 [x] `claim-conflict` 裁决逻辑拆成 `ClaimConflictFacts` 与规则表，保留原输出口径，同时把嵌套布尔组合收敛到可命名事实和可审计规则。
+[x] `upsertClaim()` 对 rejected / superseded claim 改为终态内容保护；重复生成 claim 不能覆写原 claim 文案、范围、edge 关联、置信度或验证时间。
+[x] `upsertLeadObservation()` 对 promoted / rejected / closed lead 改为终态内容保护，并阻止 `in_review` lead 被普通 upsert 降回 open。
 ```
 
 ## 下一批质量修复
@@ -114,7 +116,7 @@
 [ ] `apps/cli/src/cli-utils.ts` 仍承担较多 DB 生命周期、参数解析和输出工具职责；后续可以继续拆成 runtime / parse / io 三个小模块。
 [ ] source adapter 的鉴权 header / API key 读取仍在各 adapter 内；后续可按 connector 类型继续抽出官方 API runtime helper，但不要把 source-specific ToS 逻辑藏起来。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
-[ ] `claim` / `observation` upsert 仍偏“全量覆盖”；后续应把 create、patch、state transition 分开，避免状态字段被普通 upsert 意外覆盖。
+[ ] `observation` upsert 仍会更新度量字段并合并 provenance/attrs；后续应按 observation 类型区分 append-only measurement、metadata patch 和 explicit correction，避免普通 upsert 承担过多语义。
 [ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；后续如果对外暴露 API，应把 claim status / role、source plan layer、attention status 等剩余 schema 常量继续收敛到 core/db public contract，避免 schema 校验和领域枚举双源漂移。
 [ ] `source-workflows` 包级别仍包含 legacy SEC pipeline / preview 入口，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与 source check 监控 workflow 继续拆边界。
 [ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；后续应逐步把写函数签名收紧到 `DbTxClient`，读函数只接 `DbClient`。

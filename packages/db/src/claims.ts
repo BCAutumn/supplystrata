@@ -105,22 +105,22 @@ export async function upsertClaim(client: DbClient, input: NewClaimInput): Promi
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE($14::timestamptz, now()))
      ON CONFLICT (claim_id) DO UPDATE SET
-       claim_type = EXCLUDED.claim_type,
-       claim_text = EXCLUDED.claim_text,
-       subject_id = EXCLUDED.subject_id,
-       object_id = EXCLUDED.object_id,
-       component_id = EXCLUDED.component_id,
-       edge_id = EXCLUDED.edge_id,
-       review_id = EXCLUDED.review_id,
+       claim_type = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.claim_type ELSE EXCLUDED.claim_type END,
+       claim_text = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.claim_text ELSE EXCLUDED.claim_text END,
+       subject_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.subject_id ELSE EXCLUDED.subject_id END,
+       object_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.object_id ELSE EXCLUDED.object_id END,
+       component_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.component_id ELSE EXCLUDED.component_id END,
+       edge_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.edge_id ELSE EXCLUDED.edge_id END,
+       review_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.review_id ELSE EXCLUDED.review_id END,
        status = CASE
          WHEN claims.status IN ('superseded','rejected') THEN claims.status
          ELSE EXCLUDED.status
        END,
-       evidence_level = EXCLUDED.evidence_level,
-       confidence = EXCLUDED.confidence,
-       is_inferred = EXCLUDED.is_inferred,
-       generated_by = EXCLUDED.generated_by,
-       last_verified_at = EXCLUDED.last_verified_at,
+       evidence_level = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.evidence_level ELSE EXCLUDED.evidence_level END,
+       confidence = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.confidence ELSE EXCLUDED.confidence END,
+       is_inferred = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.is_inferred ELSE EXCLUDED.is_inferred END,
+       generated_by = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.generated_by ELSE EXCLUDED.generated_by END,
+       last_verified_at = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.last_verified_at ELSE EXCLUDED.last_verified_at END,
        updated_at = now()
      RETURNING claim_id, (xmax = 0) AS inserted`,
     [
