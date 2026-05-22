@@ -1,20 +1,22 @@
+import type { ClaimEvidenceRole, ClaimStatus, ClaimUnknownRole } from "@supplystrata/core";
+
 export type ClaimConflictAdjudicationState = "none" | "open_conflict" | "contradicting_evidence" | "resolved_conflict";
 export type ClaimConflictAdjudicationSeverity = "none" | "low" | "medium" | "high";
 export type ClaimConflictRecommendedAction = "none" | "review_claim" | "review_edge_for_deprecation" | "collect_resolution_evidence" | "keep_resolved_context";
 
 export interface ClaimConflictAdjudicationEvidenceRef {
   evidence_id: string;
-  role: "primary" | "supporting" | "contradicting" | "context";
+  role: ClaimEvidenceRole;
 }
 
 export interface ClaimConflictAdjudicationUnknownRef {
   unknown_id: string;
-  role: "boundary" | "blocking" | "context";
+  role: ClaimUnknownRole;
   status: string;
 }
 
 export interface ClaimConflictAdjudicationInput {
-  claim_status: "draft" | "active" | "superseded" | "rejected";
+  claim_status: ClaimStatus;
   edge_id: string | null;
   evidence_refs: readonly ClaimConflictAdjudicationEvidenceRef[];
   unknown_refs: readonly ClaimConflictAdjudicationUnknownRef[];

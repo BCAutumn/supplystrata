@@ -111,6 +111,7 @@
 [x] candidate relation citation 校验下沉到 core 纯函数；pipeline 与 source preview 复用同一规则，避免 preview 为了轻量入口继续反向依赖 pipeline。
 [x] source-workflows 的 Census / OSH / Apple / World Bank Pink / SEC facts 监控写入改为使用本包 `saved-document-observation` 窄适配层，直接调用 source-monitor 的事务内 observation 入口，不再为了记录文档变化依赖 pipeline helper。
 [x] CLI 公共入口按 runtime / parse / output 拆分；`cli-utils.ts` 只保留兼容 re-export，数据库生命周期、参数解析和输出错误格式化不再混在同一文件里。
+[x] Claim status、claim evidence role、claim unknown role 收敛到 core 公共契约；db / claim-builder / review-candidates / workbench schema 不再各自维护一份字符串联合。
 ```
 
 ## 下一批质量修复
@@ -121,7 +122,7 @@
 [ ] source adapter 的鉴权 header / API key 读取仍在各 adapter 内；后续可按 connector 类型继续抽出官方 API runtime helper，但不要把 source-specific ToS 逻辑藏起来。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
-[ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；后续如果对外暴露 API，应把 claim status / role、source plan layer、attention status 等剩余 schema 常量继续收敛到 core/db public contract，避免 schema 校验和领域枚举双源漂移。
+[ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；claim status / role 已收敛到 core，后续如果对外暴露 API，应把 source plan layer、attention status 等剩余 schema 常量继续收敛到对应 public contract，避免 schema 校验和领域枚举双源漂移。
 [ ] `source-workflows` 包级别仍包含 legacy SEC full-pipeline demo 与 source-check runner 默认 document-observation bridge，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与监控 workflow 的默认持久化 bridge 继续拆边界。
 [ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；已开始把 unknown/change 写入型 use-case 收紧到 `DbTxClient`，后续继续覆盖 claim/review/risk 等写路径。
 [ ] `source-check` 的 enqueue 与 claim 是两个短事务，已通过 job lease / unique active job 控制安全性；如要追求统计强一致，应新增单事务 enqueue-and-claim repository，而不是在 workflow 层补 if/else。

@@ -1,5 +1,14 @@
 import type { WorkbenchModel } from "./definitions.js";
-import { CLAIM_TYPES, EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS, EDGE_VALIDITIES, SEMANTIC_LAYERS } from "@supplystrata/core";
+import {
+  CLAIM_EVIDENCE_ROLES,
+  CLAIM_STATUSES,
+  CLAIM_TYPES,
+  CLAIM_UNKNOWN_ROLES,
+  EDGE_FRESHNESS_DECAY_MODELS,
+  EDGE_STRENGTH_KINDS,
+  EDGE_VALIDITIES,
+  SEMANTIC_LAYERS
+} from "@supplystrata/core";
 
 export function parseWorkbenchModel(text: string): WorkbenchModel {
   const parsed: unknown = JSON.parse(text);
@@ -8,9 +17,6 @@ export function parseWorkbenchModel(text: string): WorkbenchModel {
   return normalized;
 }
 
-const CLAIM_STATUSES = ["draft", "active", "superseded", "rejected"] as const;
-const CLAIM_EVIDENCE_ROLES = ["primary", "supporting", "contradicting", "context"] as const;
-const CLAIM_UNKNOWN_ROLES = ["boundary", "blocking", "context"] as const;
 const CLAIM_CONFLICT_STATES = ["none", "open_conflict", "contradicting_evidence", "resolved_conflict"] as const;
 const CLAIM_CONFLICT_SEVERITIES = ["none", "low", "medium", "high"] as const;
 const CLAIM_CONFLICT_RECOMMENDED_ACTIONS = [

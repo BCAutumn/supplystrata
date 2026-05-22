@@ -1,4 +1,4 @@
-import type { CandidateRelation, RelationType } from "@supplystrata/core";
+import type { CandidateRelation, ClaimEvidenceRole, ClaimUnknownRole, RelationType } from "@supplystrata/core";
 import type { EntitySourceCandidate } from "@supplystrata/entity-source";
 
 export type ReviewCandidateKind = ReviewCandidate["kind"];
@@ -152,12 +152,12 @@ export type ClaimConflictReviewStep =
 
 export interface ClaimConflictReviewEvidenceRef {
   evidence_id: string;
-  role: "primary" | "supporting" | "contradicting" | "context";
+  role: ClaimEvidenceRole;
 }
 
 export interface ClaimConflictReviewUnknownRef {
   unknown_id: string;
-  role: "boundary" | "blocking" | "context";
+  role: ClaimUnknownRole;
   status: string;
 }
 

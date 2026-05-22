@@ -5,8 +5,19 @@ import type {
   ClaimConflictRecommendedAction
 } from "@supplystrata/claim-builder";
 import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-view";
-import type { ChangeTimelineItem, ClaimEvidenceRole, ClaimUnknownRole } from "@supplystrata/db";
-import type { ClaimType, EdgeValidity, EdgeFreshnessDecayModel, EdgeStrengthKind, EvidenceLevel, ExtractionMethod, RelationType } from "@supplystrata/core";
+import type {
+  ClaimEvidenceRole,
+  ClaimStatus,
+  ClaimType,
+  ClaimUnknownRole,
+  EdgeValidity,
+  EdgeFreshnessDecayModel,
+  EdgeStrengthKind,
+  EvidenceLevel,
+  ExtractionMethod,
+  RelationType
+} from "@supplystrata/core";
+import type { ChangeTimelineItem } from "@supplystrata/db";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 export interface WorkbenchExportInput {
@@ -42,7 +53,7 @@ export interface WorkbenchEdge {
   evidence_ids: string[];
 }
 
-export type WorkbenchClaimStatus = "draft" | "active" | "superseded" | "rejected";
+export type WorkbenchClaimStatus = ClaimStatus;
 export type WorkbenchClaimConflictState = ClaimConflictAdjudicationState;
 export type WorkbenchClaimConflictRecommendedAction = ClaimConflictRecommendedAction;
 

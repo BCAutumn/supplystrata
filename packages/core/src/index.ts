@@ -84,6 +84,18 @@ export const CLAIM_TYPES = [
 
 export type ClaimType = (typeof CLAIM_TYPES)[number];
 
+export const CLAIM_STATUSES = ["draft", "active", "superseded", "rejected"] as const;
+
+export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
+
+export const CLAIM_EVIDENCE_ROLES = ["primary", "supporting", "contradicting", "context"] as const;
+
+export type ClaimEvidenceRole = (typeof CLAIM_EVIDENCE_ROLES)[number];
+
+export const CLAIM_UNKNOWN_ROLES = ["boundary", "blocking", "context"] as const;
+
+export type ClaimUnknownRole = (typeof CLAIM_UNKNOWN_ROLES)[number];
+
 export const EDGE_STRENGTH_KINDS = ["share", "spend_band", "dependency", "capacity", "qualitative"] as const;
 
 export type EdgeStrengthKind = (typeof EDGE_STRENGTH_KINDS)[number];

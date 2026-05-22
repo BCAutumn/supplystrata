@@ -1,10 +1,16 @@
 import type pg from "pg";
-import { createId, type ClaimType, type EdgeValidity, type EvidenceLevel } from "@supplystrata/core";
+import {
+  createId,
+  type ClaimEvidenceRole,
+  type ClaimStatus,
+  type ClaimType,
+  type ClaimUnknownRole,
+  type EdgeValidity,
+  type EvidenceLevel
+} from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
-export type ClaimStatus = "draft" | "active" | "superseded" | "rejected";
-export type ClaimEvidenceRole = "primary" | "supporting" | "contradicting" | "context";
-export type ClaimUnknownRole = "boundary" | "blocking" | "context";
+export type { ClaimEvidenceRole, ClaimStatus, ClaimUnknownRole } from "@supplystrata/core";
 
 export interface ClaimRow extends pg.QueryResultRow {
   claim_id: string;
