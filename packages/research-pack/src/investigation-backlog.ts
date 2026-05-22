@@ -1,126 +1,42 @@
 import { createHash } from "node:crypto";
-import type { ComponentCardModel } from "@supplystrata/render";
-import type { SourcePlanCheckTargetSuggestion, SourcePlanItem } from "@supplystrata/source-plan";
+import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { SourceTargetCoverageState } from "@supplystrata/source-monitor";
-import type { WorkbenchModel, WorkbenchUnknownItem } from "@supplystrata/workbench-export";
-import type { ObservationCoverageReport, ObservationSeriesReadiness } from "./observation-coverage.js";
-import type { OfficialDisclosureCorroborationQueueItem, OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
-import type { QuestionReadinessMatrix, QuestionReadinessStatus } from "./question-readiness.js";
-import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
-import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
+import type { WorkbenchUnknownItem } from "@supplystrata/workbench-export";
+import type { ObservationSeriesReadiness } from "./observation-coverage.js";
+import type { QuestionReadinessStatus } from "./question-readiness.js";
 import type {
-  SourceTargetPreflightIssueKind,
-  SourceTargetPreflightItem,
-  SourceTargetPreflightReport,
-  SourceTargetPreflightStatus
-} from "./source-target-preflight.js";
+  BacklogDraft,
+  InvestigationBacklog,
+  InvestigationBacklogInput,
+  InvestigationBacklogItem,
+  InvestigationBacklogPriority,
+  InvestigationBacklogSourceTargetCoverage
+} from "./investigation-backlog-definitions.js";
+import {
+  coverageAwareAction,
+  coverageByRunnableTarget,
+  coverageForTargets,
+  coverageSupportingRefs,
+  dedupeCoverageRefs,
+  dedupeRunnableTargets,
+  runnableTargetsByKey,
+  runnableTargetsForCorroborationQueueItem,
+  runnableTargetsForRefs,
+  runnableTargetsForSources,
+  sourceIdsForUnknown
+} from "./investigation-backlog-source-targets.js";
+import type { SourceTargetPreflightIssueKind } from "./source-target-preflight.js";
 
-export type InvestigationBacklogKind =
-  | "readiness_gap"
-  | "unknown_resolution"
-  | "component_coverage"
-  | "source_check"
-  | "observation_series"
-  | "official_disclosure_coverage"
-  | "corroboration_review"
-  | "profile_expansion"
-  | "supply_chain_expansion";
-export type InvestigationBacklogPriority = "P0" | "P1" | "P2" | "P3";
-
-export interface InvestigationBacklogTarget {
-  component_ids: string[];
-  edge_ids: string[];
-  unknown_ids: string[];
-  source_ids: string[];
-  question_ids: string[];
-}
-
-export interface InvestigationBacklogItem {
-  backlog_id: string;
-  kind: InvestigationBacklogKind;
-  priority: InvestigationBacklogPriority;
-  title: string;
-  rationale: string;
-  action: string;
-  target: InvestigationBacklogTarget;
-  supporting_refs: string[];
-  runnable_check_targets: SourcePlanCheckTargetSuggestion[];
-  source_target_coverage: InvestigationBacklogSourceTargetCoverage[];
-}
-
-export interface InvestigationBacklogSourceTargetCoverage {
-  source_adapter_id: string;
-  target_kind: string;
-  target_config: Record<string, unknown>;
-  check_target_id: string;
-  state: SourceTargetCoverageState;
-  synced: boolean;
-  observations: number;
-  latest_job_id: string | null;
-  latest_job_status: string | null;
-  latest_event_id: string | null;
-  latest_event_type: string | null;
-  preflight_status: SourceTargetPreflightStatus | null;
-  preflight_issue_kind: SourceTargetPreflightIssueKind | null;
-  preflight_error_message: string | null;
-  preflight_missing_credential_env_keys: readonly string[];
-  preflight_normalized_documents: number;
-  preflight_degraded_documents: number;
-}
-
-export interface InvestigationBacklog {
-  schema_version: "1.0.0";
-  generated_at: string;
-  company_id: string;
-  summary: {
-    open_items: number;
-    p0: number;
-    p1: number;
-    p2: number;
-    p3: number;
-    runnable_check_targets: number;
-    source_target_coverage_items: number;
-    corroboration_reviews: number;
-    corroboration_review_runnable_targets: number;
-    corroboration_review_with_source_target_coverage: number;
-    corroboration_review_explicit_disposition_only: number;
-    corroboration_review_need_sync: number;
-    corroboration_review_need_enable: number;
-    corroboration_review_due: number;
-    corroboration_review_failed_preflight: number;
-    corroboration_review_missing_credentials: number;
-    corroboration_review_invalid_config: number;
-    corroboration_review_unsupported_connector: number;
-    corroboration_review_source_unreachable: number;
-  };
-  items: InvestigationBacklogItem[];
-}
-
-export interface InvestigationBacklogInput {
-  generated_at: string;
-  company_id: string;
-  workbench: WorkbenchModel;
-  components: readonly ComponentCardModel[];
-  source_plan: readonly SourcePlanItem[];
-  question_readiness: QuestionReadinessMatrix;
-  observation_coverage?: ObservationCoverageReport;
-  official_disclosure_readiness?: OfficialDisclosureReadinessReport;
-  supply_chain_expansion_plan?: SupplyChainExpansionPlan;
-  source_target_coverage?: SourceTargetCoverageReport;
-  source_target_preflight?: SourceTargetPreflightReport;
-}
-
-interface BacklogDraft {
-  kind: InvestigationBacklogKind;
-  priority: InvestigationBacklogPriority;
-  title: string;
-  rationale: string;
-  action: string;
-  target: InvestigationBacklogTarget;
-  supporting_refs: string[];
-  runnable_check_targets: SourcePlanCheckTargetSuggestion[];
-  source_target_coverage: InvestigationBacklogSourceTargetCoverage[];
-}
+export type {
+  InvestigationBacklog,
+  InvestigationBacklogInput,
+  InvestigationBacklogItem,
+  InvestigationBacklogKind,
+  InvestigationBacklogPriority,
+  InvestigationBacklogSourceTargetCoverage,
+  InvestigationBacklogTarget
+} from "./investigation-backlog-definitions.js";
+export { renderInvestigationBacklogMarkdown } from "./investigation-backlog-render.js";
 
 export function buildInvestigationBacklog(input: InvestigationBacklogInput): InvestigationBacklog {
   const items = [
@@ -154,48 +70,6 @@ export function buildInvestigationBacklog(input: InvestigationBacklogInput): Inv
     },
     items
   };
-}
-
-export function renderInvestigationBacklogMarkdown(backlog: InvestigationBacklog): string {
-  const lines = [
-    `# Investigation Backlog ${backlog.company_id}`,
-    "",
-    `Generated at: ${backlog.generated_at}`,
-    `Open: ${backlog.summary.open_items}; P0: ${backlog.summary.p0}; P1: ${backlog.summary.p1}; P2: ${backlog.summary.p2}; P3: ${backlog.summary.p3}`,
-    `Runnable check targets: ${backlog.summary.runnable_check_targets}`,
-    `Corroboration reviews: ${backlog.summary.corroboration_reviews}; runnable targets ${backlog.summary.corroboration_review_runnable_targets}; coverage ${backlog.summary.corroboration_review_with_source_target_coverage}; disposition-only ${backlog.summary.corroboration_review_explicit_disposition_only}; need sync ${backlog.summary.corroboration_review_need_sync}; need enable ${backlog.summary.corroboration_review_need_enable}; due ${backlog.summary.corroboration_review_due}; failed preflight ${backlog.summary.corroboration_review_failed_preflight}; missing credentials ${backlog.summary.corroboration_review_missing_credentials}; invalid config ${backlog.summary.corroboration_review_invalid_config}; unsupported connector ${backlog.summary.corroboration_review_unsupported_connector}; source unreachable ${backlog.summary.corroboration_review_source_unreachable}`,
-    "",
-    "## Items",
-    ""
-  ];
-  for (const item of backlog.items) {
-    lines.push(`- ${item.priority} ${item.kind}: ${item.title}`);
-    lines.push(`  Action: ${item.action}`);
-    lines.push(`  Why: ${item.rationale}`);
-    lines.push(`  Targets: ${targetSummary(item.target)}`);
-    if (item.supporting_refs.length > 0) lines.push(`  Refs: ${item.supporting_refs.join(", ")}`);
-    if (item.runnable_check_targets.length > 0) {
-      lines.push(`  Runnable checks: ${item.runnable_check_targets.map((target) => `${target.source_adapter_id}/${target.target_kind}`).join(", ")}`);
-    }
-    if (item.source_target_coverage.length > 0) {
-      lines.push(
-        `  Coverage: ${item.source_target_coverage
-          .map((coverage) => `${coverage.source_adapter_id}/${coverage.target_kind}=${coverageLine(coverage)}`)
-          .join("; ")}`
-      );
-    }
-  }
-  return lines.join("\n");
-}
-
-function coverageLine(coverage: InvestigationBacklogSourceTargetCoverage): string {
-  const missingCredentials =
-    coverage.preflight_missing_credential_env_keys.length === 0 ? "" : `, missing_credentials=${coverage.preflight_missing_credential_env_keys.join("+")}`;
-  const preflight =
-    coverage.preflight_status === null
-      ? ""
-      : `, preflight=${coverage.preflight_status}${coverage.preflight_issue_kind === null ? "" : `/${coverage.preflight_issue_kind}`}${missingCredentials}, normalized=${coverage.preflight_normalized_documents}, degraded=${coverage.preflight_degraded_documents}`;
-  return `${coverage.state}, observations=${coverage.observations}${preflight}`;
 }
 
 function readinessGapDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
@@ -605,230 +479,6 @@ function actionForObservationSeries(series: ObservationSeriesReadiness): string 
     return `Collect ${Math.max(windowGap, numericGap)} more comparable numeric/windowed observations or find an official disclosure with explicit baseline/change fields for ${series.metric_name}. Keep the result in observations until reviewed.`;
   }
   return `Review existing explicit baseline observations for ${series.metric_name}, then rerun observation anomaly refresh before deriving alert candidates.`;
-}
-
-function runnableTargetsForRefs(sourcePlan: readonly SourcePlanItem[], refs: readonly string[]): SourcePlanCheckTargetSuggestion[] {
-  return runnableTargetsForSources(sourcePlan, sourceIdsFromRefs(refs));
-}
-
-function runnableTargetsForSources(sourcePlan: readonly SourcePlanItem[], sourceIds: readonly string[]): SourcePlanCheckTargetSuggestion[] {
-  const sourceIdSet = new Set(sourceIds);
-  return sourcePlan.flatMap((item) => (sourceIdSet.has(item.source_id) ? item.suggested_check_targets.filter((target) => target.runnable) : []));
-}
-
-function runnableTargetsByKey(sourcePlan: readonly SourcePlanItem[]): ReadonlyMap<string, SourcePlanCheckTargetSuggestion> {
-  const byKey = new Map<string, SourcePlanCheckTargetSuggestion>();
-  for (const item of sourcePlan) {
-    for (const target of item.suggested_check_targets) {
-      if (target.runnable) byKey.set(runnableTargetKey(target), target);
-    }
-  }
-  return byKey;
-}
-
-function runnableTargetsForCorroborationQueueItem(
-  queueItem: OfficialDisclosureCorroborationQueueItem,
-  sourcePlanTargetsByKey: ReadonlyMap<string, SourcePlanCheckTargetSuggestion>
-): SourcePlanCheckTargetSuggestion[] {
-  const targets = queueItem.source_targets.flatMap((target) => {
-    const runnableTarget = sourcePlanTargetsByKey.get(target.target_key);
-    return runnableTarget === undefined ? [] : [runnableTarget];
-  });
-  return dedupeRunnableTargets(targets);
-}
-
-function sourceIdsForUnknown(sourcePlan: readonly SourcePlanItem[], unknown: WorkbenchUnknownItem): string[] {
-  const sourceIds = new Set<string>();
-  const haystack = [...unknown.blocking_data_sources, ...unknown.proxies, unknown.question, unknown.why_unknown].join(" ").toLowerCase();
-  for (const item of sourcePlan) {
-    if (haystack.includes(item.source_id.toLowerCase()) || haystack.includes(item.source_name.toLowerCase())) sourceIds.add(item.source_id);
-  }
-  return [...sourceIds].sort();
-}
-
-function dedupeRunnableTargets(targets: readonly SourcePlanCheckTargetSuggestion[]): SourcePlanCheckTargetSuggestion[] {
-  const byKey = new Map<string, SourcePlanCheckTargetSuggestion>();
-  for (const target of targets) byKey.set(`${target.source_adapter_id}:${target.target_kind}:${JSON.stringify(target.target_config)}`, target);
-  return [...byKey.values()].sort(
-    (left, right) => left.source_adapter_id.localeCompare(right.source_adapter_id) || left.target_kind.localeCompare(right.target_kind)
-  );
-}
-
-function coverageByRunnableTarget(input: InvestigationBacklogInput): Map<string, InvestigationBacklogSourceTargetCoverage> {
-  const coverageByTarget = new Map<string, InvestigationBacklogSourceTargetCoverage>();
-  const preflightByCheckTargetId = sourceTargetPreflightByCheckTargetId(input.source_target_preflight);
-  for (const item of input.source_target_coverage?.items ?? []) {
-    const checkTargetId = item.matched_check_target_id ?? item.expected_target.check_target_id;
-    const preflight = preflightByCheckTargetId.get(checkTargetId) ?? preflightByCheckTargetId.get(item.expected_target.check_target_id);
-    coverageByTarget.set(runnableTargetKey(item.expected_target), {
-      source_adapter_id: item.expected_target.source_adapter_id,
-      target_kind: item.expected_target.target_kind,
-      target_config: copyTargetConfig(item.expected_target.target_config),
-      check_target_id: checkTargetId,
-      state: item.state,
-      synced: item.synced,
-      observations: item.observations,
-      latest_job_id: item.latest_job?.job_id ?? null,
-      latest_job_status: item.latest_job?.status ?? null,
-      latest_event_id: item.latest_event?.event_id ?? null,
-      latest_event_type: item.latest_event?.event_type ?? null,
-      ...preflightFields(preflight)
-    });
-  }
-  return coverageByTarget;
-}
-
-function sourceTargetPreflightByCheckTargetId(report: SourceTargetPreflightReport | undefined): Map<string, SourceTargetPreflightItem> {
-  const byCheckTargetId = new Map<string, SourceTargetPreflightItem>();
-  for (const item of report?.items ?? []) byCheckTargetId.set(item.check_target_id, item);
-  return byCheckTargetId;
-}
-
-function preflightFields(
-  item: SourceTargetPreflightItem | undefined
-): Pick<
-  InvestigationBacklogSourceTargetCoverage,
-  | "preflight_status"
-  | "preflight_issue_kind"
-  | "preflight_error_message"
-  | "preflight_missing_credential_env_keys"
-  | "preflight_normalized_documents"
-  | "preflight_degraded_documents"
-> {
-  if (item === undefined) {
-    return {
-      preflight_status: null,
-      preflight_issue_kind: null,
-      preflight_error_message: null,
-      preflight_missing_credential_env_keys: [],
-      preflight_normalized_documents: 0,
-      preflight_degraded_documents: 0
-    };
-  }
-  return {
-    preflight_status: item.status,
-    preflight_issue_kind: item.issue_kind ?? null,
-    preflight_error_message: item.error_message ?? null,
-    preflight_missing_credential_env_keys: (item.missing_credentials ?? []).map((credential) => credential.env_key).sort(),
-    preflight_normalized_documents: item.normalized_documents,
-    preflight_degraded_documents: item.degraded_documents
-  };
-}
-
-function coverageForTargets(
-  coverageByTarget: ReadonlyMap<string, InvestigationBacklogSourceTargetCoverage>,
-  targets: readonly SourcePlanCheckTargetSuggestion[]
-): InvestigationBacklogSourceTargetCoverage[] {
-  const coverage: InvestigationBacklogSourceTargetCoverage[] = [];
-  for (const target of targets) {
-    const item = coverageByTarget.get(runnableTargetKey(target));
-    if (item !== undefined) coverage.push(item);
-  }
-  return dedupeCoverageRefs(coverage);
-}
-
-function coverageAwareAction(action: string, coverage: readonly InvestigationBacklogSourceTargetCoverage[]): string {
-  if (coverage.length === 0) return action;
-  const prefix = coverageActionPrefix(coverage);
-  return `${prefix} ${action}`;
-}
-
-function coverageActionPrefix(coverage: readonly InvestigationBacklogSourceTargetCoverage[]): string {
-  if (coverage.some((item) => item.state === "dead")) return "Investigate dead source-check jobs before expecting new evidence.";
-  if (coverage.some((item) => item.state === "retry_wait"))
-    return "Inspect failed source-check attempts and wait for configured retry or rerun after fixing the source issue.";
-  if (coverage.some((item) => item.state === "degraded")) return "Inspect degraded source fetches before treating the latest check as usable evidence.";
-  if (coverage.some((item) => item.preflight_issue_kind === "missing_credentials")) {
-    const keys = uniqueSorted(coverage.flatMap((item) => item.preflight_missing_credential_env_keys));
-    const suffix = keys.length === 0 ? "" : ` (${keys.join(", ")})`;
-    return `Configure required source credentials${suffix} before syncing or enabling this source-plan target.`;
-  }
-  if (coverage.some((item) => item.preflight_issue_kind === "target_config_invalid"))
-    return "Fix the source-plan target configuration before syncing or enabling this target.";
-  if (coverage.some((item) => item.preflight_issue_kind === "connector_unsupported"))
-    return "Register or implement the required source-check connector before syncing this target.";
-  if (coverage.some((item) => item.preflight_issue_kind === "source_unreachable" || item.preflight_issue_kind === "source_response_error"))
-    return "Verify source reachability and response format before treating this target as monitor-ready.";
-  if (coverage.some((item) => item.preflight_status === "failed"))
-    return "Fix source-plan preflight failures (credentials, target config, or source reachability) before syncing or enabling this target.";
-  if (coverage.some((item) => item.preflight_status === "skipped"))
-    return "Resolve unsupported source-plan preflight target or connector registration before syncing.";
-  if (coverage.some((item) => item.preflight_degraded_documents > 0))
-    return "Inspect degraded preflight fetches before treating the latest source path as healthy.";
-  if (coverage.some((item) => item.state === "disabled")) return "Enable the synced source-check targets when the monitoring cadence is approved.";
-  if (coverage.some((item) => item.state === "not_synced")) return "Sync runnable source-plan targets into source_check_targets first.";
-  if (coverage.some((item) => item.state === "due")) return "Run due source-check targets through sources run-due or the worker.";
-  if (coverage.some((item) => item.state === "active_job")) return "Wait for active source-check jobs to complete before changing conclusions.";
-  if (coverage.some((item) => item.observations > 0)) return "Review produced observations and keep any fact-edge promotion behind review.";
-  return "Inspect the latest source-check result; if it produced no useful observation, refine the target configuration.";
-}
-
-function coverageSupportingRefs(coverage: readonly InvestigationBacklogSourceTargetCoverage[]): string[] {
-  return coverage.flatMap((item) => [
-    `source_target:${item.check_target_id}`,
-    ...(item.preflight_status === null ? [] : [`source_preflight:${item.check_target_id}`]),
-    ...(item.latest_job_id === null ? [] : [`source_job:${item.latest_job_id}`]),
-    ...(item.latest_event_id === null ? [] : [`source_event:${item.latest_event_id}`])
-  ]);
-}
-
-function dedupeCoverageRefs(coverage: readonly InvestigationBacklogSourceTargetCoverage[]): InvestigationBacklogSourceTargetCoverage[] {
-  const byTarget = new Map<string, InvestigationBacklogSourceTargetCoverage>();
-  for (const item of coverage) byTarget.set(`${item.check_target_id}:${stableConfigKey(item.target_config)}`, item);
-  return [...byTarget.values()].sort(
-    (left, right) => left.source_adapter_id.localeCompare(right.source_adapter_id) || left.target_kind.localeCompare(right.target_kind)
-  );
-}
-
-function runnableTargetKey(target: { source_adapter_id: string; target_kind: string; target_config: Record<string, unknown> }): string {
-  return `${target.source_adapter_id}:${target.target_kind}:${stableConfigKey(target.target_config)}`;
-}
-
-function stableConfigKey(config: Record<string, unknown>): string {
-  return Object.entries(config)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${stableConfigValue(value)}`)
-    .join(";");
-}
-
-function copyTargetConfig(config: Record<string, unknown>): Record<string, unknown> {
-  const output: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(config).sort(([left], [right]) => left.localeCompare(right))) {
-    output[key] = copyConfigValue(value);
-  }
-  return output;
-}
-
-function copyConfigValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map((item: unknown) => copyConfigValue(item));
-  if (isRecord(value)) return copyTargetConfig(value);
-  return value;
-}
-
-function stableConfigValue(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableConfigValue).join(",")}]`;
-  if (isRecord(value)) return `{${stableConfigKey(value)}}`;
-  return String(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function targetSummary(target: InvestigationBacklogTarget): string {
-  const parts = [
-    summaryPart("components", target.component_ids),
-    summaryPart("edges", target.edge_ids),
-    summaryPart("unknowns", target.unknown_ids),
-    summaryPart("sources", target.source_ids),
-    summaryPart("questions", target.question_ids)
-  ].filter((part) => part.length > 0);
-  return parts.length === 0 ? "(none)" : parts.join("; ");
-}
-
-function summaryPart(label: string, values: readonly string[]): string {
-  if (values.length === 0) return "";
-  return `${label}=${values.join(",")}`;
 }
 
 function componentIdsFromRefs(refs: readonly string[]): string[] {
