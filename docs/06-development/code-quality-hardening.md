@@ -102,6 +102,7 @@
 [x] `claim-builder/src/index.ts` 收敛为稳定 public surface；claim draft 写入、edge claim refresh、冲突 evidence/unknown resolution 等写库流程迁入 `claim-write-orchestration.ts`。
 [x] source check runner 改为依赖 `SourceDocumentObservationStore` 窄 port；默认实现仍复用 pipeline normalized-document 内核，但监控 runner 不再直接 import pipeline 写入函数。
 [x] graph-builder 拆出 `GraphSqlWriter` 作为事务内写入入口；`GraphBuilder` 只负责自开事务和图投影同步，不再暴露容易在外层事务中误调的 `applySqlInTransaction()`。
+[x] `corroboration-source-plan` 的 next action 推导从长 if 链改为表驱动规则；新增状态/失败类型时只需扩展规则表，优先级由规则顺序审计。
 ```
 
 ## 下一批质量修复

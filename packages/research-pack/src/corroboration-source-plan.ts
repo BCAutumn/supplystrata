@@ -255,68 +255,128 @@ function mergeTargetRef(left: CorroborationSourcePlanTargetRef | undefined, righ
   };
 }
 
+interface CorroborationNextActionRule {
+  matches(coverage: InvestigationBacklogSourceTargetCoverage | undefined): boolean;
+  resolve(coverage: InvestigationBacklogSourceTargetCoverage | undefined): {
+    next_action: CorroborationSourcePlanNextAction;
+    next_action_reason: string;
+  };
+}
+
+const FIX_TARGET_CONFIG_ISSUES = ["target_config_invalid", "connector_unsupported"] as const;
+const WAIT_FOR_JOB_STATES = ["scheduled", "active_job", "retry_wait"] as const;
+const INVESTIGATE_FAILURE_STATES = ["degraded", "dead"] as const;
+
+const CORROBORATION_NEXT_ACTION_RULES: readonly CorroborationNextActionRule[] = [
+  {
+    matches: (coverage) => coverage?.preflight_issue_kind === "missing_credentials",
+    resolve: (coverage) => {
+      const checked = requireCoverageForNextAction(coverage, "configure_credentials");
+      return {
+        next_action: "configure_credentials",
+        next_action_reason: `Configure required credential env keys: ${checked.preflight_missing_credential_env_keys.join(", ")}.`
+      };
+    }
+  },
+  {
+    matches: (coverage) =>
+      coverage?.preflight_issue_kind !== null &&
+      coverage?.preflight_issue_kind !== undefined &&
+      stringSetIncludes(FIX_TARGET_CONFIG_ISSUES, coverage.preflight_issue_kind),
+    resolve: (coverage) => {
+      const checked = requireCoverageForNextAction(coverage, "fix_target_config");
+      return {
+        next_action: "fix_target_config",
+        next_action_reason: `Fix preflight issue ${checked.preflight_issue_kind ?? "unknown_issue"} before syncing this target.`
+      };
+    }
+  },
+  {
+    matches: (coverage) => coverage?.preflight_status === "failed",
+    resolve: (coverage) => {
+      const checked = requireCoverageForNextAction(coverage, "retry_preflight");
+      return {
+        next_action: "retry_preflight",
+        next_action_reason: `Preflight failed with ${checked.preflight_issue_kind ?? "unknown_issue"}; rerun smoke after the source or target issue is fixed.`
+      };
+    }
+  },
+  {
+    matches: (coverage) => coverage === undefined || coverage.preflight_status === null,
+    resolve: () => ({
+      next_action: "smoke_target",
+      next_action_reason: "Run source-plan smoke for this filtered target before syncing it into continuous monitoring."
+    })
+  },
+  {
+    matches: (coverage) => coverage?.state === "not_synced",
+    resolve: () => ({
+      next_action: "sync_target",
+      next_action_reason: "Preflight context exists; sync this target into source_check_targets with the selected namespace."
+    })
+  },
+  {
+    matches: (coverage) => coverage?.state === "disabled" || coverage?.state === "policy_disabled",
+    resolve: () => ({
+      next_action: "enable_target",
+      next_action_reason: "The target is synced but disabled; enable it through source-management before due processing."
+    })
+  },
+  {
+    matches: (coverage) => coverage?.state === "due",
+    resolve: () => ({
+      next_action: "run_due_target",
+      next_action_reason: "The target is enabled and due; run the due source-check worker path."
+    })
+  },
+  {
+    matches: (coverage) => coverage !== undefined && stringSetIncludes(WAIT_FOR_JOB_STATES, coverage.state),
+    resolve: (coverage) => {
+      const checked = requireCoverageForNextAction(coverage, "wait_for_job");
+      return {
+        next_action: "wait_for_job",
+        next_action_reason: `The target is ${checked.state}; wait for the scheduled, active, or retrying job to finish before review.`
+      };
+    }
+  },
+  {
+    matches: (coverage) => coverage !== undefined && stringSetIncludes(INVESTIGATE_FAILURE_STATES, coverage.state),
+    resolve: (coverage) => {
+      const checked = requireCoverageForNextAction(coverage, "investigate_source_failure");
+      return {
+        next_action: "investigate_source_failure",
+        next_action_reason: `The target is ${checked.state}; inspect latest source event/job failure before drawing corroboration conclusions.`
+      };
+    }
+  },
+  {
+    matches: () => true,
+    resolve: () => ({
+      next_action: "review_observations",
+      next_action_reason: "The target has completed source-check coverage; review observations or normalized output before changing fact evidence."
+    })
+  }
+];
+
 function nextActionForTarget(coverage: InvestigationBacklogSourceTargetCoverage | undefined): {
   next_action: CorroborationSourcePlanNextAction;
   next_action_reason: string;
 } {
-  if (coverage?.preflight_issue_kind === "missing_credentials") {
-    return {
-      next_action: "configure_credentials",
-      next_action_reason: `Configure required credential env keys: ${coverage.preflight_missing_credential_env_keys.join(", ")}.`
-    };
-  }
-  if (coverage?.preflight_issue_kind === "target_config_invalid" || coverage?.preflight_issue_kind === "connector_unsupported") {
-    return {
-      next_action: "fix_target_config",
-      next_action_reason: `Fix preflight issue ${coverage.preflight_issue_kind} before syncing this target.`
-    };
-  }
-  if (coverage?.preflight_status === "failed") {
-    return {
-      next_action: "retry_preflight",
-      next_action_reason: `Preflight failed with ${coverage.preflight_issue_kind ?? "unknown_issue"}; rerun smoke after the source or target issue is fixed.`
-    };
-  }
-  if (coverage === undefined || coverage.preflight_status === null) {
-    return {
-      next_action: "smoke_target",
-      next_action_reason: "Run source-plan smoke for this filtered target before syncing it into continuous monitoring."
-    };
-  }
-  if (coverage.state === "not_synced") {
-    return {
-      next_action: "sync_target",
-      next_action_reason: "Preflight context exists; sync this target into source_check_targets with the selected namespace."
-    };
-  }
-  if (coverage.state === "disabled" || coverage.state === "policy_disabled") {
-    return {
-      next_action: "enable_target",
-      next_action_reason: "The target is synced but disabled; enable it through source-management before due processing."
-    };
-  }
-  if (coverage.state === "due") {
-    return {
-      next_action: "run_due_target",
-      next_action_reason: "The target is enabled and due; run the due source-check worker path."
-    };
-  }
-  if (coverage.state === "scheduled" || coverage.state === "active_job" || coverage.state === "retry_wait") {
-    return {
-      next_action: "wait_for_job",
-      next_action_reason: `The target is ${coverage.state}; wait for the scheduled, active, or retrying job to finish before review.`
-    };
-  }
-  if (coverage.state === "degraded" || coverage.state === "dead") {
-    return {
-      next_action: "investigate_source_failure",
-      next_action_reason: `The target is ${coverage.state}; inspect latest source event/job failure before drawing corroboration conclusions.`
-    };
-  }
-  return {
-    next_action: "review_observations",
-    next_action_reason: "The target has completed source-check coverage; review observations or normalized output before changing fact evidence."
-  };
+  const rule = CORROBORATION_NEXT_ACTION_RULES.find((candidate) => candidate.matches(coverage));
+  if (rule === undefined) throw new Error("Corroboration next action rules must include a fallback rule");
+  return rule.resolve(coverage);
+}
+
+function requireCoverageForNextAction(
+  coverage: InvestigationBacklogSourceTargetCoverage | undefined,
+  action: CorroborationSourcePlanNextAction
+): InvestigationBacklogSourceTargetCoverage {
+  if (coverage !== undefined) return coverage;
+  throw new Error(`Corroboration next action ${action} requires source target coverage`);
+}
+
+function stringSetIncludes(values: readonly string[], value: string): boolean {
+  return values.includes(value);
 }
 
 function higherPriorityNextAction(
