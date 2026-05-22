@@ -1,4 +1,3 @@
-import type pg from "pg";
 import {
   createId,
   inferExtractionMethod,
@@ -8,8 +7,9 @@ import {
   type ComponentSpecificity,
   type EvidenceLevel
 } from "@supplystrata/core";
-import { recordSemanticChange, type DbClient } from "@supplystrata/db";
+import { recordSemanticChange, type DbClient, type DbRow } from "@supplystrata/db";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
+import type { ComponentLookupRow, EdgeIdentityRow, EvidenceChunkRow, EvidenceDocumentRow } from "./db-rows.js";
 
 export interface ApplyApprovedCandidateSqlInput {
   approved: ApprovedCandidate;
@@ -231,7 +231,7 @@ async function insertEvidence(
 }
 
 async function supersedeOlderEvidence(client: DbClient, input: { edgeId: string; evidenceId: string; approved: ApprovedCandidate }): Promise<void> {
-  const superseded = await client.query<{ evidence_id: string } & pg.QueryResultRow>(
+  const superseded = await client.query<{ evidence_id: string } & DbRow>(
     `UPDATE evidence
      SET superseded_by = $2
      WHERE edge_id = $1
@@ -275,30 +275,10 @@ async function updatePrimaryEvidence(client: DbClient, edgeId: string): Promise<
   );
 }
 
-interface EdgeIdentityRow extends pg.QueryResultRow {
-  edge_id: string;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-}
-
 interface ComponentReference {
   component: string | null;
   component_id: string | null;
   component_specificity: ComponentSpecificity | null;
-}
-
-interface ComponentLookupRow extends pg.QueryResultRow {
-  component_id: string;
-  name: string;
-}
-
-interface EvidenceDocumentRow extends pg.QueryResultRow {
-  bytes_sha256: string;
-  metadata: Record<string, unknown>;
-}
-
-interface EvidenceChunkRow extends pg.QueryResultRow {
-  text: string;
 }
 
 interface LoadedEvidenceTraceInput {

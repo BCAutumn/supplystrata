@@ -1,36 +1,8 @@
-import type pg from "pg";
 import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
 import type { AlertSeverity, DbClient, UpsertAlertCandidateInput } from "@supplystrata/db";
 import { upsertAlertCandidate } from "@supplystrata/db";
-
-interface ObservationAnomalyChangeRow extends pg.QueryResultRow {
-  change_id: string;
-  detected_at: Date;
-  observation_id: string;
-  after: Record<string, unknown>;
-}
-
-interface SourceFailureEventRow extends pg.QueryResultRow {
-  event_id: string;
-  detected_at: Date;
-  source_adapter_id: string;
-  after: Record<string, unknown>;
-}
-
-interface ComponentRiskMetricAlertRow extends pg.QueryResultRow {
-  risk_view_id: string;
-  generated_at: Date;
-  model_version: string;
-  metric_id: string;
-  metric_kind: RiskMetricKind;
-  subject_kind: string;
-  subject_id: string;
-  component_id: string;
-  value: string | null;
-  confidence: number;
-  attrs: Record<string, unknown>;
-}
+import type { ComponentRiskMetricAlertRow, ObservationAnomalyChangeRow, SourceFailureEventRow } from "./db-rows.js";
 
 export interface ComponentRiskAlertPolicyInput {
   metric_kind: RiskMetricKind;

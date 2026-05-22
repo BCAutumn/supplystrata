@@ -34,7 +34,7 @@ import { oshInputFromConfig } from "./osh-checks.js";
 import { secCompanyFactsInputFromTargetConfig, secEdgarInputFromTargetConfig } from "./sec-edgar.js";
 import { createTwseMopsAdapterContext, twseMopsAdapter, twseMopsElectronicDocumentsInputFromConfig } from "./twse-mops-checks.js";
 import { worldBankPinkInputFromConfig } from "./worldbank-pink-checks.js";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 
 export interface SourcePlanSmokeTarget {
   check_target_id: string;
@@ -166,7 +166,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     target_kind: "supplier-list-review",
     adapter: appleSuppliersAdapter,
     inputFromConfig: appleSupplierInputFromConfig,
-    createContext: () => createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInput())
+    createContext: () => createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
   }),
   createSmokeRunner({
     source_adapter_id: "dart-kr",
@@ -196,14 +196,14 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     target_kind: "sec-company-filings",
     adapter: secEdgarAdapter,
     inputFromConfig: secEdgarInputFromTargetConfig,
-    createContext: () => createSecAdapterContext(sourceWorkflowAdapterContextInput())
+    createContext: () => createSecAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
   }),
   createSmokeRunner({
     source_adapter_id: "sec-edgar",
     target_kind: "sec-company-facts",
     adapter: secCompanyFactsAdapter,
     inputFromConfig: secCompanyFactsInputFromTargetConfig,
-    createContext: () => createSecAdapterContext(sourceWorkflowAdapterContextInput())
+    createContext: () => createSecAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
   }),
   createSmokeRunner({
     source_adapter_id: "company-ir",
@@ -253,7 +253,7 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     credential_requirements: CENSUS_TRADE_CREDENTIALS,
     adapter: censusTradeAdapter,
     inputFromConfig: censusTradeInputFromConfig,
-    createContext: () => createCensusTradeAdapterContext(sourceWorkflowAdapterContextInput())
+    createContext: () => createCensusTradeAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
   }),
   createSmokeRunner({
     source_adapter_id: "osh",
@@ -261,14 +261,14 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
     credential_requirements: OSH_CREDENTIALS,
     adapter: oshAdapter,
     inputFromConfig: oshInputFromConfig,
-    createContext: () => createOshAdapterContext(sourceWorkflowAdapterContextInput())
+    createContext: () => createOshAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
   }),
   createSmokeRunner({
     source_adapter_id: "worldbank-pink",
     target_kind: "commodity-price-observation",
     adapter: worldBankPinkAdapter,
     inputFromConfig: worldBankPinkInputFromConfig,
-    createContext: () => createWorldBankPinkAdapterContext(sourceWorkflowAdapterContextInput())
+    createContext: () => createWorldBankPinkAdapterContext(sourceWorkflowAdapterContextInputFromEnv())
   })
 ];
 

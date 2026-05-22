@@ -1,5 +1,5 @@
-import type pg from "pg";
 import type { DbClient } from "@supplystrata/db";
+import type { SourceTargetCoverageRow } from "./db-rows.js";
 import type { SourceCheckJobStatus, SourceCheckTargetInput } from "./types.js";
 
 export type SourceTargetCoverageState =
@@ -55,31 +55,6 @@ export interface SourceTargetCoverageItem {
 export interface SourceTargetCoverageInput {
   expected_targets: readonly SourceCheckTargetInput[];
   now?: string;
-}
-
-interface SourceTargetCoverageRow extends pg.QueryResultRow {
-  check_target_id: string;
-  target_enabled: boolean;
-  policy_enabled: boolean;
-  next_check_at: Date | null;
-  effective_check_cadence_minutes: number;
-  effective_jitter_minutes: number;
-  job_id: string | null;
-  job_status: SourceCheckJobStatus | null;
-  job_attempts: number | null;
-  job_last_error: string | null;
-  job_next_attempt_at: Date | null;
-  job_completed_at: Date | null;
-  job_created_at: Date | null;
-  job_updated_at: Date | null;
-  event_id: string | null;
-  event_type: string | null;
-  event_doc_id: string | null;
-  event_detected_at: Date | null;
-  event_caused_by: string | null;
-  observation_count: string | number;
-  latest_observation_at: Date | null;
-  match_rank: number;
 }
 
 export async function listSourceTargetCoverage(client: DbClient, input: SourceTargetCoverageInput): Promise<SourceTargetCoverageItem[]> {

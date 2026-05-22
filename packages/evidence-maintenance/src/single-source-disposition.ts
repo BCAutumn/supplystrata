@@ -1,6 +1,6 @@
-import type pg from "pg";
 import { createHash } from "node:crypto";
 import { upsertUnknownItem, type DbClient } from "@supplystrata/db";
+import type { ExistingEdgeRow, OfficialSignalDispositionChangeRow } from "./db-rows.js";
 
 export interface ProposedSingleSourceDispositionUnknown {
   unknown_id: string;
@@ -49,17 +49,6 @@ export interface MaterializeOfficialSignalDispositionUnknownsSummary {
   skipped_missing_edges: number;
   skipped_unknown_ids: string[];
   generated_by: string;
-}
-
-interface ExistingEdgeRow extends pg.QueryResultRow {
-  edge_id: string;
-}
-
-interface OfficialSignalDispositionChangeRow extends pg.QueryResultRow {
-  change_id: string;
-  review_id: string;
-  after: Record<string, unknown> | null;
-  detected_at: Date | string;
 }
 
 type OfficialSignalDispositionDecision =

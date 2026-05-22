@@ -87,3 +87,52 @@ export interface SourceCheckJobStateRow extends pg.QueryResultRow {
   next_attempt_at: Date;
   completed_at: Date | null;
 }
+
+export interface SourceItemRow extends pg.QueryResultRow {
+  source_item_id: string;
+  latest_doc_id: string | null;
+  latest_bytes_sha256: string | null;
+  latest_storage_key: string | null;
+}
+
+export interface NextCheckPolicyRow extends pg.QueryResultRow {
+  check_cadence_minutes: number;
+  jitter_minutes: number;
+}
+
+export interface SourceCheckTargetEnableRow extends pg.QueryResultRow {
+  check_target_id: string;
+  status: "enabled" | "missing" | "blocked_unregistered" | "blocked_manual_only" | "blocked_rejected" | "blocked_unupdated";
+  requires_key: boolean | null;
+}
+
+export interface SourceTargetCoverageRow extends pg.QueryResultRow {
+  check_target_id: string;
+  target_enabled: boolean;
+  policy_enabled: boolean;
+  next_check_at: Date | null;
+  effective_check_cadence_minutes: number;
+  effective_jitter_minutes: number;
+  job_id: string | null;
+  job_status: SourceCheckJobStatus | null;
+  job_attempts: number | null;
+  job_last_error: string | null;
+  job_next_attempt_at: Date | null;
+  job_completed_at: Date | null;
+  job_created_at: Date | null;
+  job_updated_at: Date | null;
+  event_id: string | null;
+  event_type: string | null;
+  event_doc_id: string | null;
+  event_detected_at: Date | null;
+  event_caused_by: string | null;
+  observation_count: string | number;
+  latest_observation_at: Date | null;
+  match_rank: number;
+}
+
+export interface SourceHealthStateRow extends pg.QueryResultRow {
+  failure_count: number;
+  last_failure_at: Date | null;
+  last_error_message: string | null;
+}

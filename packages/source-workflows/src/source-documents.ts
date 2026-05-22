@@ -3,7 +3,7 @@ import { noopLogger } from "@supplystrata/observability";
 import { createAdapterContext, secEdgarAdapter, type SecEdgarInput } from "@supplystrata/sources-sec-edgar";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import type { SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 
 export interface FetchAndNormalizeInput<TInput> {
   adapter: SourceAdapter<TInput, Uint8Array>;
@@ -37,7 +37,7 @@ export async function fetchAndNormalizeFirstTask<TInput>(input: FetchAndNormaliz
 }
 
 export async function fetchAndParseSecEdgar(input: SecEdgarInput, options: { logger?: SourceCheckConnectorLogger } = {}): Promise<FetchedSecDocument> {
-  const context = createAdapterContext(sourceWorkflowAdapterContextInput());
+  const context = createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
   const task = await firstPlannedTask(secEdgarAdapter, input, context);
   const logger = options.logger ?? noopLogger;
   logger.info({ stage: "ingest", adapter: "sec-edgar", task_id: task.task_id }, "fetching SEC filing");

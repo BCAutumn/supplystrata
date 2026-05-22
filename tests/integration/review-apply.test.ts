@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { normalizeAlias, type NormalizedDocument } from "@supplystrata/core";
-import { createDatabaseStore, migrate, saveNormalizedDocument, type DbClient } from "@supplystrata/db";
+import { migrate, saveNormalizedDocument, type DbClient } from "@supplystrata/db";
 import { applyApprovedReviewCandidate } from "@supplystrata/pipeline";
 import { buildSupplierListReviewCandidate, supplierListFacilityDisplayName, supplierListFacilityEntityId } from "@supplystrata/review-candidates";
 import { decideReviewCandidate, enqueueReviewCandidates, getReviewCandidate } from "@supplystrata/review-store";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
-import { canConnectToIntegrationDatabase } from "./helpers.js";
+import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 
 interface CountRow extends pg.QueryResultRow {
   count: string;
@@ -24,7 +24,7 @@ interface EdgeRow extends pg.QueryResultRow {
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("review apply integration", () => {
-  const pool = createDatabaseStore();
+  const pool = createIntegrationDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);

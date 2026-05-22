@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createDatabaseStore } from "@supplystrata/db";
+import { loadEnv } from "@supplystrata/config";
 import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { parseSourceCheckWorkerOptions, shouldShowSourceCheckWorkerHelp, sourceCheckWorkerHelp } from "./options.js";
 import { runSourceCheckWorkerLoop } from "./source-check-worker.js";
@@ -13,7 +14,7 @@ if (shouldShowSourceCheckWorkerHelp(args)) {
 } else {
   const controller = new AbortController();
   installShutdownHandlers(controller);
-  const store = createDatabaseStore();
+  const store = createDatabaseStore({ connectionString: loadEnv().POSTGRES_URL });
   try {
     const options = parseSourceCheckWorkerOptions(args, process.env);
     logger.info({ stage: "source-check-worker", options }, "source check worker starting");

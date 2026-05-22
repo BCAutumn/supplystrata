@@ -25,7 +25,7 @@ import {
   type SecEdgarFormType,
   type SecEdgarInput
 } from "@supplystrata/sources-sec-edgar";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { fetchAndParseSecEdgar } from "./source-documents.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 
@@ -112,7 +112,7 @@ export async function runDefaultNvidiaSlice(
 }
 
 export async function checkSecEdgarSource(store: DatabaseStore, input: SecEdgarInput, options: SourceCheckOptions = {}): Promise<SourceCheckSummary[]> {
-  const context = createAdapterContext(sourceWorkflowAdapterContextInput());
+  const context = createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
   return runSourceAdapterCheck(store, {
     adapter: secEdgarAdapter,
     adapterInput: input,
@@ -126,7 +126,7 @@ export async function checkSecCompanyFactsSource(
   input: SecCompanyFactsInput,
   options: SourceCheckOptions = {}
 ): Promise<SourceCheckSummary[]> {
-  const context = createAdapterContext(sourceWorkflowAdapterContextInput());
+  const context = createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
   const summaries: SourceCheckSummary[] = [];
   const logger = options.logger ?? noopLogger;
   try {

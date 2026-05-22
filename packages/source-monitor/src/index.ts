@@ -1,11 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import type pg from "pg";
 import type { DbClient, DbTxClient } from "@supplystrata/db";
 import { parseSourcePolicyConfig } from "./policy-config.js";
 import { calculateNextCheckAt } from "./scheduling.js";
 import { ensureRegisteredSourceHealth, syncSourceHealthRegistry } from "./source-health-registry.js";
 import { normalizeSourceCheckTargetSelection, uniqueCheckTargetIds } from "./source-check-target-selection.js";
-import type { DueSourceCheckRow, SourceHealthRow, SourcePolicyRow } from "./db-rows.js";
+import type { DueSourceCheckRow, NextCheckPolicyRow, SourceCheckTargetEnableRow, SourceHealthRow, SourceItemRow, SourcePolicyRow } from "./db-rows.js";
 import type {
   DocumentObservationInput,
   DocumentObservationResult,
@@ -48,24 +47,6 @@ export type {
   SourcePolicyConfig,
   SourcePolicyInput
 } from "./types.js";
-
-interface SourceItemRow extends pg.QueryResultRow {
-  source_item_id: string;
-  latest_doc_id: string | null;
-  latest_bytes_sha256: string | null;
-  latest_storage_key: string | null;
-}
-
-interface NextCheckPolicyRow extends pg.QueryResultRow {
-  check_cadence_minutes: number;
-  jitter_minutes: number;
-}
-
-interface SourceCheckTargetEnableRow extends pg.QueryResultRow {
-  check_target_id: string;
-  status: "enabled" | "missing" | "blocked_unregistered" | "blocked_manual_only" | "blocked_rejected" | "blocked_unupdated";
-  requires_key: boolean | null;
-}
 
 export async function listSourceHealthRows(client: DbClient): Promise<SourceHealthRow[]> {
   const result = await client.query<SourceHealthRow>(

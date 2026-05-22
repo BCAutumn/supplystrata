@@ -11,7 +11,7 @@ import {
   type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 
 export interface GleifLeiSearchInput {
   query: string;
@@ -78,7 +78,7 @@ const gleifLeiAdapterBase: SourceAdapter<GleifLeiSearchInput, Uint8Array> = {
 export const gleifLeiAdapter = createRateLimitedSourceAdapter(gleifLeiAdapterBase);
 
 export function createGleifLeiAdapterContext(): AdapterContext {
-  return createAdapterContext(sourceWorkflowAdapterContextInput());
+  return createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
 }
 
 export async function lookupGleifLeiRecords(

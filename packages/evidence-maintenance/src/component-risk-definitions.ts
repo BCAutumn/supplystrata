@@ -1,6 +1,3 @@
-import type pg from "pg";
-import type { EvidenceLevel, RelationType } from "@supplystrata/core";
-
 export const COMPONENT_RISK_MODEL_VERSION = "component-risk-baseline.v1";
 
 export interface RefreshComponentRiskViewInput {
@@ -19,21 +16,4 @@ export interface ComponentRiskRefreshSummary {
   risk_changes_recorded: number;
   model_version: string;
   inputs_fingerprint: string;
-}
-
-export interface ComponentRiskEdgeRow extends pg.QueryResultRow {
-  edge_id: string;
-  relation: RelationType;
-  subject_id: string;
-  subject_name: string;
-  object_id: string;
-  object_name: string;
-  component_id: string;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  primary_evidence_id: string | null;
-}
-
-export interface ComponentRiskComponentRow extends pg.QueryResultRow {
-  component_id: string;
 }

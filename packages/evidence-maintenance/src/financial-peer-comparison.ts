@@ -1,27 +1,8 @@
-import type pg from "pg";
 import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
 import type { DbClient, RiskMetricRecord } from "@supplystrata/db";
 import { replaceRiskView } from "@supplystrata/db";
-
-interface FinancialMetricObservationRow extends pg.QueryResultRow {
-  observation_id: string;
-  source_adapter_id: string;
-  source_item_id: string | null;
-  doc_id: string | null;
-  scope_kind: string;
-  scope_id: string;
-  company_name: string | null;
-  metric_name: string;
-  metric_value: string;
-  metric_unit: string | null;
-  time_window_start: Date | null;
-  time_window_end: Date | null;
-  confidence: number;
-  provenance: Record<string, unknown>;
-  attrs: Record<string, unknown>;
-  created_at: Date;
-}
+import type { FinancialMetricObservationRow } from "./db-rows.js";
 
 interface PeerComparisonGroup {
   key: PeerComparisonKey;

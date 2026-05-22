@@ -1,10 +1,6 @@
 import type pg from "pg";
 import { getClaim, recordSemanticChange, type ClaimRow, type ClaimStatus, type DatabaseStore, type DbClient } from "@supplystrata/db";
-
-interface ClaimLifecycleStatusUpdateRow extends pg.QueryResultRow {
-  claim_id: string;
-  status: ClaimStatus;
-}
+import type { ClaimLifecycleStatusUpdateRow } from "./db-rows.js";
 
 export type ClaimLifecycleAction = "supersede_claim" | "reject_claim" | "keep_with_context";
 export type ClaimLifecycleSourceKind = "evidence" | "review" | "claim" | "unknown" | "semantic_change";

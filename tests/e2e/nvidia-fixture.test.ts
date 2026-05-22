@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type EntityRecord, type RawDocument } from "@supplystrata/core";
-import { createDatabaseStore, migrate, seedFromCsv, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { migrate, seedFromCsv, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
 import { parseHtml } from "@supplystrata/parsers-html";
@@ -13,12 +13,12 @@ import { loadCompanyCard, loadUnknownMap } from "@supplystrata/card-builder";
 import { renderCompanyCard, renderUnknownMapCard } from "@supplystrata/render";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { buildResearchPack } from "@supplystrata/research-pack";
-import { canConnectToIntegrationDatabase } from "../integration/helpers.js";
+import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "../integration/helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
-  const pool = createDatabaseStore();
+  const pool = createIntegrationDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);

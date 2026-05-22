@@ -18,7 +18,7 @@ import {
   type SourceCheckConnector,
   type SourceCheckConnectorLogger
 } from "@supplystrata/source-connectors";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { fetchAndNormalizeFirstTask } from "./source-documents.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import type { ReviewEnqueueSummary } from "./types.js";
@@ -117,7 +117,7 @@ async function ingestAppleSupplierReviewCandidates(
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,
-    context: createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInput()),
+    context: createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInputFromEnv()),
     logLabel: "Apple Supplier List",
     ...(options.logger === undefined ? {} : { logger: options.logger })
   });

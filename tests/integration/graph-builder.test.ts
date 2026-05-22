@@ -1,11 +1,11 @@
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ApprovedCandidate, EntityRecord } from "@supplystrata/core";
-import { createDatabaseStore, migrate, type DbClient } from "@supplystrata/db";
+import { migrate, type DbClient } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
-import { canConnectToIntegrationDatabase } from "./helpers.js";
+import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 
 class StaticResolver implements EntityResolver {
   async resolve(input: { surface: string }): ReturnType<EntityResolver["resolve"]> {
@@ -92,7 +92,7 @@ interface EvidenceTraceTestRow extends pg.QueryResultRow {
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
-  const pool = createDatabaseStore();
+  const pool = createIntegrationDatabaseStore();
 
   beforeAll(async () => {
     await migrate(pool);

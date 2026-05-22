@@ -1,9 +1,9 @@
-import type pg from "pg";
 import { createHash } from "node:crypto";
-import type { CandidateRelation, ComponentSpecificity, EdgeStrengthKind, EvidenceLevel, RelationType } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import type { CandidateRelation, EdgeStrengthKind, EvidenceLevel, RelationType } from "@supplystrata/core";
+import type { DbClient, DbRow } from "@supplystrata/db";
 import { listEdgeStrengthEstimates, recordSemanticChange, refreshEdgeFreshness, upsertEdgeStrengthEstimate, upsertUnknownItem } from "@supplystrata/db";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
+import type { EvidenceTraceBackfillRow, IntelligenceRefreshEdgeRow } from "./db-rows.js";
 
 export * from "./alerts.js";
 export * from "./calibration.js";
@@ -11,39 +11,6 @@ export * from "./component-risk.js";
 export * from "./financial-peer-comparison.js";
 export * from "./observation-anomaly.js";
 export * from "./single-source-disposition.js";
-
-interface EvidenceTraceBackfillRow extends pg.QueryResultRow {
-  evidence_id: string;
-  cite_text: string;
-  extractor_id: string | null;
-  llm_meta: unknown;
-  doc_id: string;
-  chunk_id: string | null;
-  bytes_sha256: string;
-  metadata: Record<string, unknown>;
-  chunk_text: string | null;
-  subject_id: string | null;
-  object_id: string | null;
-  relation: RelationType | null;
-  component: string | null;
-  component_id: string | null;
-  component_specificity: ComponentSpecificity | null;
-}
-
-interface IntelligenceRefreshEdgeRow extends pg.QueryResultRow {
-  edge_id: string;
-  subject_id: string;
-  subject_name: string;
-  object_id: string;
-  object_name: string;
-  relation: RelationType;
-  component: string | null;
-  component_id: string | null;
-  evidence_level: EvidenceLevel;
-  primary_evidence_id: string;
-  cite_text: string;
-  source_date: Date | string | null;
-}
 
 export interface EvidenceTraceBackfillSummary {
   scanned: number;
@@ -357,7 +324,7 @@ async function resolveGeneratedStrengthUnknownIfOpen(
   input: { edge: IntelligenceRefreshEdgeRow; evidenceId: string; reviewer: string }
 ): Promise<number> {
   const unknownId = deterministicEdgeStrengthUnknownId(input.edge.edge_id);
-  const result = await client.query<{ unknown_id: string } & pg.QueryResultRow>(
+  const result = await client.query<{ unknown_id: string } & DbRow>(
     `UPDATE unknown_items
      SET status = 'resolved',
          resolved_at = now(),

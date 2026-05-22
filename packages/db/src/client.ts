@@ -1,5 +1,4 @@
 import pg from "pg";
-import { loadEnv } from "@supplystrata/config";
 import { runMigrations } from "./migrations.js";
 
 const { Pool } = pg;
@@ -26,18 +25,15 @@ export interface DatabaseStore extends DbClient {
   close(): Promise<void>;
 }
 
-export interface PostgresDatabaseStoreOptions {
-  connectionString?: string;
-  pool?: pg.Pool;
-}
+export type PostgresDatabaseStoreOptions = { connectionString: string; pool?: never } | { pool: pg.Pool; connectionString?: never };
 
 export class PostgresDatabaseStore implements DatabaseStore {
   readonly adapter_id = "postgres";
   readonly #pool: pg.Pool;
   readonly #ownsPool: boolean;
 
-  constructor(options: PostgresDatabaseStoreOptions = {}) {
-    this.#pool = options.pool ?? new Pool({ connectionString: options.connectionString ?? loadEnv().POSTGRES_URL });
+  constructor(options: PostgresDatabaseStoreOptions) {
+    this.#pool = options.pool ?? new Pool({ connectionString: options.connectionString });
     this.#ownsPool = options.pool === undefined;
   }
 
@@ -72,7 +68,7 @@ export class PostgresDatabaseStore implements DatabaseStore {
   }
 }
 
-export function createDatabaseStore(options: PostgresDatabaseStoreOptions = {}): DatabaseStore {
+export function createDatabaseStore(options: PostgresDatabaseStoreOptions): DatabaseStore {
   return new PostgresDatabaseStore(options);
 }
 

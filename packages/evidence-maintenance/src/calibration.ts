@@ -1,29 +1,8 @@
 import { createHash } from "node:crypto";
-import type pg from "pg";
-import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel, RelationType } from "@supplystrata/core";
+import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
 import type { DbClient } from "@supplystrata/db";
 import { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel } from "@supplystrata/db";
-
-interface EdgeCalibrationSampleRow extends pg.QueryResultRow {
-  label_id: string;
-  edge_id: string;
-  evidence_id: string | null;
-  label: EdgeCalibrationLabel;
-  error_category: EdgeCalibrationErrorCategory | null;
-  reviewer: string;
-  reviewed_at: Date;
-  rationale: string | null;
-  subject_id: string;
-  object_id: string;
-  relation: RelationType;
-  component_id: string | null;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  extraction_method: string;
-  source_adapter_id: string | null;
-  doc_id: string | null;
-}
+import type { EdgeCalibrationSampleRow } from "./db-rows.js";
 
 export interface RecordEdgeCalibrationLabelInput {
   label_id?: string;

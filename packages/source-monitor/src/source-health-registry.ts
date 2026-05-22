@@ -1,13 +1,7 @@
-import type pg from "pg";
 import type { DbClient } from "@supplystrata/db";
 import { listSources, type SourceRegistryEntry } from "@supplystrata/source-registry";
+import type { SourceHealthStateRow } from "./db-rows.js";
 import type { SourcePolicyInput } from "./types.js";
-
-interface SourceHealthStateRow extends pg.QueryResultRow {
-  failure_count: number;
-  last_failure_at: Date | null;
-  last_error_message: string | null;
-}
 
 export async function syncSourceHealthRegistry(client: DbClient): Promise<{ upserted: number }> {
   const sources = listSources();

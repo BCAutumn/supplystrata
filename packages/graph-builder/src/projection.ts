@@ -1,5 +1,4 @@
-import type pg from "pg";
-import type { ComponentSpecificity, EdgeValidity, EntityRecord, EvidenceLevel, RelationType } from "@supplystrata/core";
+import type { EntityRecord } from "@supplystrata/core";
 import {
   claimDueGraphProjectionJobs,
   listCurrentEdges,
@@ -9,6 +8,7 @@ import {
 } from "@supplystrata/db";
 import type { GraphProjectionStats, GraphStore } from "@supplystrata/graph-store";
 import { messageFromUnknown } from "@supplystrata/observability";
+import type { EntityRow, GraphEdgeRow, ProjectionStatsRow } from "./db-rows.js";
 
 export type GraphConsistencyCheck =
   | { status: "synced"; postgres: GraphProjectionStats; graph: GraphProjectionStats; recommendation: "none" }
@@ -131,39 +131,6 @@ async function postgresProjectionStats(store: DatabaseStore): Promise<GraphProje
   const row = result.rows[0];
   if (row === undefined) throw new Error("Postgres projection stats query returned no rows");
   return { nodes: row.nodes, edges: row.edges };
-}
-
-interface EntityRow extends pg.QueryResultRow {
-  entity_id: string;
-  kind: EntityRecord["kind"];
-  canonical_name: string;
-  display_name: string;
-  language_of_canonical: string;
-  identifiers: Record<string, unknown>;
-  primary_country: string | null;
-  industry: string[];
-  status: EntityRecord["status"];
-  attrs: Record<string, unknown>;
-}
-
-interface GraphEdgeRow extends pg.QueryResultRow {
-  edge_id: string;
-  subject_id: string;
-  object_id: string;
-  relation: RelationType;
-  component: string | null;
-  component_id: string | null;
-  component_specificity: ComponentSpecificity | null;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  validity: EdgeValidity;
-  last_verified_at: Date;
-}
-
-interface ProjectionStatsRow extends pg.QueryResultRow {
-  nodes: number;
-  edges: number;
 }
 
 function entityRecordFromRow(row: EntityRow): EntityRecord {

@@ -144,6 +144,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -248,9 +251,6 @@ importers:
 
   packages/db:
     dependencies:
-      '@supplystrata/config':
-        specifier: workspace:*
-        version: link:../config
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core

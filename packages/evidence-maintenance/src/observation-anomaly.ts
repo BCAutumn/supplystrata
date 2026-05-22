@@ -1,41 +1,8 @@
-import type pg from "pg";
 import { createHash } from "node:crypto";
 import type { ObservationType, RiskMetricKind } from "@supplystrata/core";
 import type { DbClient, RiskMetricRecord } from "@supplystrata/db";
 import { recordSemanticChange, replaceRiskView } from "@supplystrata/db";
-
-interface ObservationAnomalyRow extends pg.QueryResultRow {
-  observation_id: string;
-  observation_type: ObservationType;
-  source_adapter_id: string;
-  source_item_id: string | null;
-  doc_id: string | null;
-  scope_kind: string;
-  scope_id: string;
-  geography_kind: string | null;
-  geography_id: string | null;
-  component_id: string | null;
-  metric_name: string;
-  metric_value: string | null;
-  metric_unit: string | null;
-  time_window_start: Date | null;
-  time_window_end: Date | null;
-  baseline_value: string | null;
-  change_value: string | null;
-  change_percent: number | null;
-  confidence: number;
-  provenance: Record<string, unknown>;
-  attrs: Record<string, unknown>;
-  created_at: Date;
-}
-
-interface ObservationAnomalyHistoryRow extends ObservationAnomalyRow {
-  candidate_observation_id: string;
-}
-
-interface ExistingSemanticChangeRow extends pg.QueryResultRow {
-  change_id: string;
-}
+import type { ExistingSemanticChangeRow, ObservationAnomalyHistoryRow, ObservationAnomalyRow } from "./db-rows.js";
 
 export interface RefreshObservationAnomalyViewsInput {
   limit?: number;

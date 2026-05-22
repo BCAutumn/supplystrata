@@ -19,7 +19,7 @@ import {
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { EDINET_CREDENTIALS } from "./source-check-credentials.js";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import type { DatabaseStore } from "@supplystrata/db";
 
 const EDINET_DOCUMENT_LIST_TYPES = [1, 2] as const;
@@ -139,7 +139,7 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
 };
 
 export function createEdinetAdapterContext(): AdapterContext {
-  return createAdapterContext(sourceWorkflowAdapterContextInput());
+  return createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
 }
 
 export function buildEdinetDocumentsListUrl(input: EdinetDailyFilingsInput, apiKey: string): string {

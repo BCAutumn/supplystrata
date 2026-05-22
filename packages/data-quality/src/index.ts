@@ -1,5 +1,14 @@
-import type pg from "pg";
 import type { DbClient } from "@supplystrata/db";
+import type {
+  CiteChunkRow,
+  CountRow,
+  DuplicateEvidenceTraceRow,
+  EdgeWithoutEvidenceRow,
+  EmptyDocumentRow,
+  EvidenceRow,
+  EvidenceTraceRow,
+  PrimaryEvidenceMismatchRow
+} from "./db-rows.js";
 
 export type DataQualitySeverity = "error" | "warn" | "info";
 
@@ -23,52 +32,6 @@ export interface DataQualityRule {
   readonly rule_id: string;
   readonly scope: "global" | "entity_specific";
   check(client: DbClient): Promise<DataQualityIssue[]>;
-}
-
-interface EdgeWithoutEvidenceRow extends pg.QueryResultRow {
-  edge_id: string;
-  subject_id: string;
-  object_id: string;
-}
-
-interface EvidenceRow extends pg.QueryResultRow {
-  evidence_id: string;
-  edge_id: string | null;
-  doc_id: string;
-}
-
-interface CiteChunkRow extends pg.QueryResultRow {
-  evidence_id: string;
-  chunk_id: string | null;
-  doc_id: string;
-}
-
-interface EvidenceTraceRow extends pg.QueryResultRow {
-  evidence_id: string;
-  chunk_id: string | null;
-  doc_id: string;
-}
-
-interface DuplicateEvidenceTraceRow extends pg.QueryResultRow {
-  relation_candidate_hash: string;
-  normalized_cite_text_sha256: string;
-  evidence_ids: string[];
-  count: number;
-}
-
-interface PrimaryEvidenceMismatchRow extends pg.QueryResultRow {
-  edge_id: string;
-  primary_evidence_id: string | null;
-  expected_evidence_id: string;
-}
-
-interface EmptyDocumentRow extends pg.QueryResultRow {
-  doc_id: string;
-  source_adapter_id: string;
-}
-
-interface CountRow extends pg.QueryResultRow {
-  count: number;
 }
 
 export async function runDataQualityChecks(client: DbClient): Promise<DataQualitySummary> {

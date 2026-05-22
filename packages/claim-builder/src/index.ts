@@ -1,5 +1,3 @@
-import type pg from "pg";
-import type { DocumentType } from "@supplystrata/core";
 import {
   linkClaimEvidence,
   linkClaimUnknown,
@@ -68,44 +66,23 @@ export {
   type ResolveClaimLifecycleInput,
   type ResolveClaimLifecycleResult
 } from "./claim-lifecycle.js";
+import type {
+  ClaimableFactEdgeRow,
+  ClaimConflictEvidenceRow,
+  ClaimConflictTargetRow,
+  ClaimFusionEvidenceRow,
+  ClaimUnknownLinkRow,
+  MatchingActiveClaimRow
+} from "./db-rows.js";
 import {
   buildClaimDraftFromEdge,
   buildClaimDraftFromSemanticChangeReview,
   deterministicConflictUnknownIdForClaimEvidence,
   deterministicConflictUnknownIdForSemanticReview,
   isConflictingSemanticChange,
-  type ClaimableFactEdge,
   type SemanticChangeClaimDraft
 } from "./claim-drafts.js";
-import { fuseClaimConfidenceFromEvidence, type ClaimFusionEvidence } from "./claim-fusion.js";
-
-interface ClaimableFactEdgeRow extends pg.QueryResultRow, ClaimableFactEdge {}
-
-interface ClaimFusionEvidenceRow extends pg.QueryResultRow, ClaimFusionEvidence {}
-
-interface MatchingActiveClaimRow extends pg.QueryResultRow {
-  claim_id: string;
-  edge_id: string | null;
-}
-
-interface ClaimConflictTargetRow extends pg.QueryResultRow {
-  claim_id: string;
-  claim_text: string;
-  status: string;
-  edge_id: string | null;
-}
-
-interface ClaimConflictEvidenceRow extends pg.QueryResultRow {
-  evidence_id: string;
-  doc_id: string;
-  cite_locator: string | null;
-  source_adapter_id: string;
-  document_type: DocumentType;
-}
-
-interface ClaimUnknownLinkRow extends pg.QueryResultRow {
-  claim_id: string;
-}
+import { fuseClaimConfidenceFromEvidence } from "./claim-fusion.js";
 
 export interface SemanticChangeClaimDraftResult {
   claim_id: string;

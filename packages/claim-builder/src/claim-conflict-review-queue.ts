@@ -1,4 +1,3 @@
-import type pg from "pg";
 import { listClaimEvidenceLinks, listClaimUnknownLinks, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import {
   buildClaimConflictReviewCandidate,
@@ -18,13 +17,7 @@ import {
   type ClaimConflictReviewPacket,
   type ClaimConflictReviewStep
 } from "./claim-conflict.js";
-
-interface ClaimConflictReviewScanRow extends pg.QueryResultRow {
-  claim_id: string;
-  claim_text: string;
-  status: "draft" | "active";
-  edge_id: string | null;
-}
+import type { ClaimConflictReviewScanRow } from "./db-rows.js";
 
 export interface EnqueueClaimConflictReviewsInput {
   limit?: number;

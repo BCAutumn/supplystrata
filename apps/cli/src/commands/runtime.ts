@@ -40,7 +40,7 @@ async function probeRuntimeDoctorReport(input: { workbenchPath: string; checkDb:
 }
 
 async function checkDatabaseConnection(): Promise<boolean> {
-  const store = createDatabaseStore();
+  const store = createDatabaseStore({ connectionString: loadEnv().POSTGRES_URL });
   try {
     await store.query("SELECT 1");
     return true;

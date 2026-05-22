@@ -1,5 +1,5 @@
 import type { DbClient } from "@supplystrata/db";
-import type { ComponentRiskComponentRow, ComponentRiskEdgeRow } from "./component-risk-definitions.js";
+import type { ComponentRiskComponentRow, ComponentRiskEdgeRow } from "./db-rows.js";
 
 export async function listRefreshableComponentRiskComponentIds(client: DbClient, componentIds: readonly string[]): Promise<string[]> {
   const normalizedComponentIds = uniqueSorted(componentIds.map((componentId) => componentId.trim()).filter((componentId) => componentId.length > 0));

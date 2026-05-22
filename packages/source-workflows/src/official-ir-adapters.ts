@@ -1,6 +1,6 @@
 import { createAdapterContext, defineHtmlSnapshotAdapter, type AdapterContext } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 
 export interface TsmcIrInput {
   year: number;
@@ -191,7 +191,7 @@ export function micronAnnualReportUrl(year: number): string {
 
 export function createOfficialIrAdapterContext(): AdapterContext {
   // 官方 IR HTML 检查共用同一套 snapshot store，避免每个薄 adapter 包重复持有环境装配逻辑。
-  return createAdapterContext(sourceWorkflowAdapterContextInput());
+  return createAdapterContext(sourceWorkflowAdapterContextInputFromEnv());
 }
 
 function assertDisclosureYear(year: number, label: string): void {

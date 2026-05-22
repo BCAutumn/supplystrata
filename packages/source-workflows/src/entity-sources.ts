@@ -4,7 +4,7 @@ import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidate
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import { createCompaniesHouseAdapterContext, lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
 import { createOpenCorporatesAdapterContext, lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { createGleifLeiAdapterContext, lookupGleifLeiRecords, type GleifLeiSearchInput } from "./gleif-entity-source.js";
 
 export type EntityLookupSource = "all" | "gleif" | "opencorporates" | "companies-house";
@@ -93,7 +93,7 @@ async function lookupGleifSource(input: GleifLeiSearchInput): Promise<EntitySour
 
 async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupOpenCorporatesCompanies(input, createOpenCorporatesAdapterContext(sourceWorkflowAdapterContextInput()));
+    const result = await lookupOpenCorporatesCompanies(input, createOpenCorporatesAdapterContext(sourceWorkflowAdapterContextInputFromEnv()));
     return {
       source_adapter_id: "opencorporates",
       source_url: result.raw.url,
@@ -110,7 +110,7 @@ async function lookupOpenCorporatesSource(input: OpenCorporatesSearchInput): Pro
 
 async function lookupCompaniesHouseSource(input: CompaniesHouseSearchInput): Promise<EntitySourceLookupResult> {
   try {
-    const result = await lookupCompaniesHouseCompanies(input, createCompaniesHouseAdapterContext(sourceWorkflowAdapterContextInput()));
+    const result = await lookupCompaniesHouseCompanies(input, createCompaniesHouseAdapterContext(sourceWorkflowAdapterContextInputFromEnv()));
     return {
       source_adapter_id: "companies-house",
       source_url: result.raw.url,

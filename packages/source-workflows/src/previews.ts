@@ -30,7 +30,7 @@ import {
   type SkHynixIrInput,
   type TsmcIrInput
 } from "./official-ir-adapters.js";
-import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
+import { sourceWorkflowAdapterContextInputFromEnv } from "./adapter-context.js";
 import { fetchAndNormalizeFirstTask, fetchAndParseSecEdgar } from "./source-documents.js";
 import type {
   AppleSuppliersPreview,
@@ -149,7 +149,7 @@ export async function previewAppleSuppliers(input: AppleSuppliersInput = { fisca
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,
-    context: createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInput()),
+    context: createAppleSuppliersAdapterContext(sourceWorkflowAdapterContextInputFromEnv()),
     logLabel: "Apple Supplier List"
   });
   return {

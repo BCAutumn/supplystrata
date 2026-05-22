@@ -1,6 +1,7 @@
 import { createDatabaseStore, type DatabaseStore, type PendingEntityStatusFilter } from "@supplystrata/db";
 import type { ChangeTimelineScope } from "@supplystrata/db";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
+import { loadEnv } from "@supplystrata/config";
 import { isSecFormType, type SecFormType } from "@supplystrata/core";
 import type { EntityLookupSource } from "@supplystrata/source-workflows";
 import type { OutputFormat } from "@supplystrata/render";
@@ -8,7 +9,7 @@ import type { OutputFormat } from "@supplystrata/render";
 export type PreviewFormat = OutputFormat | "csv";
 
 export async function withDatabase<T>(fn: (store: DatabaseStore) => Promise<T>): Promise<T> {
-  const store = createDatabaseStore();
+  const store = createDatabaseStore({ connectionString: loadEnv().POSTGRES_URL });
   try {
     return await fn(store);
   } finally {

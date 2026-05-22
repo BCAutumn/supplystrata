@@ -1,7 +1,12 @@
 import { createDatabaseStore } from "@supplystrata/db";
+import { loadEnv } from "@supplystrata/config";
+
+export function createIntegrationDatabaseStore(): ReturnType<typeof createDatabaseStore> {
+  return createDatabaseStore({ connectionString: loadEnv().POSTGRES_URL });
+}
 
 export async function canConnectToIntegrationDatabase(): Promise<boolean> {
-  const pool = createDatabaseStore();
+  const pool = createIntegrationDatabaseStore();
   try {
     await pool.query("SELECT 1");
     return true;
