@@ -18,9 +18,9 @@ import {
   type OshFacilityCandidate,
   type OshFacilitySearchInput
 } from "@supplystrata/sources-osh";
-import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import { OSH_CREDENTIALS } from "./source-check-credentials.js";
+import { recordSavedDocumentObservation } from "./saved-document-observation.js";
 
 export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "osh",

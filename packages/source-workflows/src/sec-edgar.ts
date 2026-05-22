@@ -3,7 +3,7 @@ import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import type { GraphStore } from "@supplystrata/graph-store";
 import { storeObservation } from "@supplystrata/observation-store";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
-import { recordSavedDocumentObservation, runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
+import { runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
   optionalConfigPositiveInteger,
@@ -28,6 +28,7 @@ import {
 } from "@supplystrata/sources-sec-edgar";
 import { fetchAndParseSecEdgar } from "./source-documents.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
+import { recordSavedDocumentObservation } from "./saved-document-observation.js";
 
 export interface SourceCheckOptions {
   checkTargetId?: string;

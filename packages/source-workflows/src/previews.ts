@@ -1,4 +1,4 @@
-import type { ResolveResult } from "@supplystrata/core";
+import { isValidCandidateRelation as validateCandidate, type ResolveResult } from "@supplystrata/core";
 import { SeedEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { noopLogger } from "@supplystrata/observability";
@@ -19,7 +19,6 @@ import {
 import type { SecEdgarInput } from "@supplystrata/sources-sec-edgar";
 import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
-import { isValidCandidate as validateCandidate } from "@supplystrata/pipeline";
 import {
   asmlIrAdapter,
   createOfficialIrAdapterContext,

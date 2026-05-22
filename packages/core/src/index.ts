@@ -296,6 +296,10 @@ export interface CandidateRelation {
   llm_meta?: { model: string; prompt_hash: string };
 }
 
+export function isValidCandidateRelation(candidate: CandidateRelation, documentText: string): boolean {
+  return candidate.cite_text.length >= 30 && documentText.includes(candidate.cite_text);
+}
+
 export interface ScoringResult {
   evidence_level: EvidenceLevel;
   confidence: number;

@@ -10,7 +10,6 @@ import {
   type AppleSupplierCandidate,
   type AppleSuppliersInput
 } from "@supplystrata/sources-apple-suppliers";
-import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import { ensureSourceCheckTarget, recordSourceFailure, type SourceCheckTargetInput } from "@supplystrata/source-monitor";
 import {
   optionalConfigPositiveInteger,
@@ -21,6 +20,7 @@ import {
 } from "@supplystrata/source-connectors";
 import { fetchAndNormalizeFirstTask } from "./source-documents.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
+import { recordSavedDocumentObservation } from "./saved-document-observation.js";
 import type { ReviewEnqueueSummary } from "./types.js";
 
 export const appleSupplierListReviewSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {

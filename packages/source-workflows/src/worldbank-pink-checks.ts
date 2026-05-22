@@ -1,7 +1,6 @@
 import { saveNormalizedDocumentTx, type DatabaseStore, type DbClient } from "@supplystrata/db";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
-import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
   requireConfigString,
@@ -17,6 +16,7 @@ import {
   type WorldBankPinkRow
 } from "@supplystrata/sources-worldbank-pink";
 import type { SourceCheckSummary } from "./source-check-runner.js";
+import { recordSavedDocumentObservation } from "./saved-document-observation.js";
 
 export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "worldbank-pink",
