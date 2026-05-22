@@ -8,116 +8,24 @@ import {
   type MaterialObservationTarget,
   type ComponentUpstreamLead
 } from "@supplystrata/component-context";
-import {
-  getSourceById,
-  type AutomationPolicy,
-  type SourceCategory,
-  type SourceRegistryEntry,
-  type SourceStatus,
-  type SourceTier
-} from "@supplystrata/source-registry";
+import { getSourceById, type SourceRegistryEntry, type SourceTier } from "@supplystrata/source-registry";
+import type {
+  MaterialObservationContext,
+  OfficialDisclosureContext,
+  PlannedOutputLayer,
+  ResearchSourcePurpose,
+  SourcePlanCheckTargetSuggestion,
+  SourcePlanContext,
+  SourcePlanDraft,
+  SourcePlanForComponentsInput,
+  SourcePlanItem,
+  SourcePlanOfficialDisclosureTargetNode,
+  SourceRelationPolicy,
+  TradeObservationContext,
+  TradeObservationDirection
+} from "./definitions.js";
 
-export type ResearchSourcePurpose =
-  | "official_disclosure"
-  | "entity_resolution"
-  | "facility"
-  | "commodity"
-  | "macro"
-  | "trade"
-  | "logistics"
-  | "procurement"
-  | "policy"
-  | "manual_review";
-
-export type PlannedOutputLayer = "edge" | "observation" | "lead" | "entity";
-export type SourceRelationPolicy = "can_create_fact_edge" | "observation_only" | "lead_only" | "entity_only";
-export type TradeObservationDirection = "imports" | "exports";
-
-export interface SourcePlanCheckTargetSuggestion {
-  source_adapter_id: string;
-  target_kind: string;
-  runnable: boolean;
-  target_config: Record<string, string | number | boolean | string[]>;
-  reason: string;
-}
-
-export interface SourcePlanItem {
-  source_id: string;
-  source_name: string;
-  purpose: ResearchSourcePurpose;
-  priority: SourceTier;
-  status: SourceStatus;
-  automation: AutomationPolicy;
-  requires_key: boolean;
-  expected_output_layer: PlannedOutputLayer;
-  relation_policy: SourceRelationPolicy;
-  parent_component_ids: string[];
-  target_ids: string[];
-  trigger_dependency_ids: string[];
-  reasons: string[];
-  suggested_check_targets: SourcePlanCheckTargetSuggestion[];
-}
-
-export type SourcePlanTargetNodeKind = "company" | "component";
-
-export interface SourcePlanOfficialDisclosureTargetConfig {
-  source_id: string;
-  target_kind: string;
-  target_config: Record<string, string | number | boolean | string[]>;
-  reason?: string;
-}
-
-export interface SourcePlanOfficialDisclosureTargetNode {
-  node_id: string;
-  node_kind: SourcePlanTargetNodeKind;
-  name?: string;
-  expected_source_ids?: readonly string[];
-  expected_source_targets?: readonly SourcePlanOfficialDisclosureTargetConfig[];
-}
-
-export interface SourcePlanForComponentsInput {
-  component_ids: readonly string[];
-  entity_ids?: readonly string[];
-  officialDisclosureTargetNodes?: readonly SourcePlanOfficialDisclosureTargetNode[];
-  maxTierDepth?: number;
-  tradeObservationMonth?: string;
-  tradeObservationCountryCode?: string;
-  tradeObservationDirections?: readonly TradeObservationDirection[];
-  officialDisclosureYear?: string;
-  materialObservationYear?: string;
-  commodityObservationMonth?: string;
-}
-
-interface SourcePlanDraft {
-  sourceId: string;
-  parentComponentId: string | null;
-  targetId: string;
-  dependencyId: string;
-  reason: string;
-}
-
-interface SourcePlanContext {
-  entityIds: ReadonlySet<string>;
-  officialDisclosureTargetNodes: readonly SourcePlanOfficialDisclosureTargetNode[];
-  officialDisclosure?: OfficialDisclosureContext;
-  tradeObservation?: TradeObservationContext;
-  materialObservation?: MaterialObservationContext;
-}
-
-interface OfficialDisclosureContext {
-  year: string;
-}
-
-export interface TradeObservationContext {
-  month: string;
-  countryCode?: string;
-  directions: readonly TradeObservationDirection[];
-}
-
-interface MaterialObservationContext {
-  year?: string;
-  month?: string;
-}
+export * from "./definitions.js";
 
 const CATEGORY_SOURCE_IDS = {
   component: ["sec-edgar", "company-ir", "osh"],
