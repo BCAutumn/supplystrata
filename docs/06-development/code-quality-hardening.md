@@ -100,6 +100,7 @@
 [x] `upsertUnknownItem()` 对已 resolved 的 unknown 改为终态内容保护：重复 materialize 只记录 `UNKNOWN_REASSERTED_RESOLVED`，不会覆写原始 question/scope/proxy 边界。
 [x] `entity-resolver` 的 Samsung / Foxconn / TSMC 特殊消歧迁入 `patterns/special-entity-rules.json`，运行时代码只负责解释规则目录，不再在流程里堆公司专属正则补丁。
 [x] `claim-builder/src/index.ts` 收敛为稳定 public surface；claim draft 写入、edge claim refresh、冲突 evidence/unknown resolution 等写库流程迁入 `claim-write-orchestration.ts`。
+[x] source check runner 改为依赖 `SourceDocumentObservationStore` 窄 port；默认实现仍复用 pipeline normalized-document 内核，但监控 runner 不再直接 import pipeline 写入函数。
 ```
 
 ## 下一批质量修复
@@ -112,7 +113,7 @@
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] `claim` / `observation` upsert 仍偏“全量覆盖”；后续应把 create、patch、state transition 分开，避免状态字段被普通 upsert 意外覆盖。
 [ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；后续如果对外暴露 API，应把 claim status / role、source plan layer、attention status 等剩余 schema 常量继续收敛到 core/db public contract，避免 schema 校验和领域枚举双源漂移。
-[ ] `source-workflows/src/source-check-runner.ts` 仍通过 `pipeline.persistDocumentObservations()` 写 document observations；这是 normalized-document pipeline 内核复用，不是具体 source adapter 依赖，但边界命名容易误解，后续可抽成 `document-observation-store` port 让 source check runner 只依赖窄写入契约。
+[ ] `source-workflows` 包级别仍包含 legacy SEC pipeline / preview 入口，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与 source check 监控 workflow 继续拆边界。
 [ ] `GraphBuilder` 仍同时提供自开事务 `apply()` 和事务内 `applySqlInTransaction()`；后续应拆成 `GraphSqlWriter` / `GraphProjectionSync` 或用类型隐藏自开事务入口，避免在外层事务中误调 `apply()`。
 [ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；后续应逐步把写函数签名收紧到 `DbTxClient`，读函数只接 `DbClient`。
 [ ] `source-check` 的 enqueue 与 claim 是两个短事务，已通过 job lease / unique active job 控制安全性；如要追求统计强一致，应新增单事务 enqueue-and-claim repository，而不是在 workflow 层补 if/else。

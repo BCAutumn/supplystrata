@@ -3,8 +3,9 @@ import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import { recordSourceDegraded, recordSourceFailure, type SourceDocumentChangeType } from "@supplystrata/source-monitor";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import type { FetchTask, RawDocument } from "@supplystrata/core";
-import { persistDocumentObservations } from "@supplystrata/pipeline";
 import type { SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
+import type { SourceDocumentObservationStore } from "./document-observation-port.js";
+import { PIPELINE_DOCUMENT_OBSERVATION_STORE } from "./pipeline-document-observation-store.js";
 
 export interface SourceCheckSummary {
   source_adapter_id: string;
@@ -23,6 +24,7 @@ export interface SourceCheckSummary {
 export interface SourceCheckOptions {
   checkTargetId?: string;
   failureCausedBy: string;
+  documentObservationStore?: SourceDocumentObservationStore;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -37,6 +39,7 @@ export async function runSourceAdapterCheck<TInput>(
 ): Promise<SourceCheckSummary[]> {
   const summaries: SourceCheckSummary[] = [];
   const logger = input.options.logger ?? noopLogger;
+  const documentObservationStore = input.options.documentObservationStore ?? PIPELINE_DOCUMENT_OBSERVATION_STORE;
   try {
     for await (const task of input.adapter.plan(input.adapterInput, input.context)) {
       const raw = await fetchSourceTask(input.adapter, task, input.context, logger);
@@ -56,7 +59,7 @@ export async function runSourceAdapterCheck<TInput>(
       const normalized = await input.adapter.normalize(raw, input.context);
       const { saved, observation } = await store.transaction(async (client) => {
         const savedDocument = await saveNormalizedDocumentTx(client, normalized);
-        const documentObservation = await persistDocumentObservations(client, normalized, savedDocument.doc_id, {
+        const documentObservation = await documentObservationStore.persistDocumentObservations(client, normalized, savedDocument.doc_id, {
           ...(input.options.checkTargetId === undefined ? {} : { checkTargetId: input.options.checkTargetId })
         });
         return { saved: savedDocument, observation: documentObservation };
