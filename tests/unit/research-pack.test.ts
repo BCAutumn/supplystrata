@@ -280,7 +280,18 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.official_disclosure_l4_l5_edges).toBe(1);
     expect(pack.manifest.stats.review_candidates).toBe(1);
     expect(pack.manifest.stats.official_disclosure_signal_review_candidates).toBe(1);
+    expect(pack.manifest.stats.official_disclosure_signal_correlation_hints).toBeGreaterThan(0);
     expect(pack.official_disclosure_readiness.official_disclosure_signals[0]?.review_id).toBe("REV-OFFICIAL-SIGNAL-1");
+    expect(pack.official_disclosure_readiness.official_disclosure_signal_correlation_hints[0]).toEqual(
+      expect.objectContaining({
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        edge_id: "EDGE-1",
+        review_policy: "review_only_no_fact_mutation"
+      })
+    );
+    expect(pack.official_disclosure_readiness.official_disclosure_signal_correlation_hints[0]?.match_reasons).toContain(
+      "signal_source_matches_candidate_source"
+    );
     expect(pack.manifest.stats.official_disclosure_traceable_edges).toBe(1);
     expect(pack.manifest.stats.official_disclosure_gate1_overall_progress).toBe(pack.official_disclosure_readiness.scorecard.overall_progress);
     expect(pack.manifest.stats.official_disclosure_corroboration_queue_items).toBe(pack.official_disclosure_readiness.summary.corroboration_queue_items);
@@ -308,6 +319,7 @@ describe("research-pack", () => {
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Gate 1 scorecard");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Corroboration queue");
+    expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Official disclosure signal correlation hints");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Target profile: ai-compute-memory.v0");
   });
 

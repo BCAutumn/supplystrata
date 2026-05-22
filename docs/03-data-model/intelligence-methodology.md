@@ -197,6 +197,8 @@ Observation 不是关系。它回答：
 
 `official_disclosure_signal` 由 source-check / pipeline 在保存官方文档后生成 review candidate。它只把已有文档中的可引用句子推进到人工复核队列，帮助研究员寻找 corroboration、补 claim 或记录 unknown；即使 approved，也只能 acknowledge 并写审计 change，不能自动生成供应链事实边。
 
+research-pack 会用 `official-disclosure-signal-correlation` 纯函数模块，把 open `official_disclosure_signal` 和 edge-level corroboration queue 做确定性 review hint 关联。第一版只看来源是否命中 candidate source / runnable target、信号文本是否提到边两端公司或组件 token，并输出 `review_policy='review_only_no_fact_mutation'`、分数和原因。这个分数只给研究员排序下一步看什么，不计入 Gate 1 data progress，不把 signal 计为二源 corroboration，也不修改 review candidate / edge / claim / unknown。
+
 第一版变化检测：
 
 ```text
