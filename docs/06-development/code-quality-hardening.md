@@ -115,6 +115,7 @@
 [x] source-check 新增 `enqueueAndClaimDueSourceCheckJobs()` 单事务 repository；`runDueSourceChecks()` 不再用两个事务分别 enqueue / claim，统计和领取使用同一事务快照。
 [x] Source plan layer / relation policy 收敛到 `@supplystrata/source-plan` 公共常量，Workbench attention kind / priority / status 收敛到 workbench definitions；schema 校验不再维护这些重复数组。
 [x] `@supplystrata/db` 新增 `./read`、`./write`、`./admin` 子路径出口；root barrel 暂保留兼容，但新代码可以按只读 repository、写入 repository、迁移/seed admin 明确依赖面。
+[x] source adapter API key / token 的 header 与 query 参数拼装收敛到 `@supplystrata/source-adapter-runtime`；各 adapter 保留 source label、credential key、ToS 和 URL 语义，不再各自手写 base64、Token header 或 key query 参数。
 ```
 
 ## 下一批质量修复
@@ -122,7 +123,6 @@
 ```text
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
-[ ] source adapter 的鉴权 header / API key 读取仍在各 adapter 内；后续可按 connector 类型继续抽出官方 API runtime helper，但不要把 source-specific ToS 逻辑藏起来。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
 [ ] `source-workflows` 包级别仍包含 legacy SEC full-pipeline demo 与 source-check runner 默认 document-observation bridge，因此还保留 `@supplystrata/pipeline` 依赖；后续应把完整 pipeline demo 与监控 workflow 的默认持久化 bridge 继续拆边界。

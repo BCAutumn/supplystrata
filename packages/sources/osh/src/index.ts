@@ -3,9 +3,9 @@ import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supp
 import {
   createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
+  credentialAuthorizationHeader,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
-  requireAdapterCredential,
   type AdapterContext,
   type CreateAdapterContextInput,
   type SourceAdapter
@@ -49,14 +49,13 @@ const oshAdapterBase: SourceAdapter<OshFacilitySearchInput, Uint8Array> = {
     };
   },
   async fetch(task, ctx) {
-    const token = requireAdapterCredential(ctx, "OSH_API_TOKEN", "Open Supply Hub");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 15_000,
       sourceLabel: "Open Supply Hub",
       headers: {
         Accept: "application/json",
-        Authorization: `Token ${token}`
+        ...credentialAuthorizationHeader(ctx, "OSH_API_TOKEN", "Open Supply Hub", "Token")
       }
     });
     return persistRawDocumentSnapshot({

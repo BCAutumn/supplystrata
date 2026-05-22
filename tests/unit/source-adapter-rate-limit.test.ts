@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  credentialAuthorizationHeader,
+  credentialBasicAuthorizationHeader,
+  credentialNamedHeader,
+  credentialQueryParamUrl,
   createRateLimitedSourceAdapter,
   defineHtmlSnapshotAdapter,
+  requireAdapterCredential,
   SourceRateLimiter,
+  urlWithCredentialQueryParam,
   type AdapterContext,
   type SourceAdapter,
   type SourceSnapshotStore
@@ -156,6 +162,39 @@ describe("source adapter rate limiter", () => {
     expect(writes[0]?.key).toBe(raw.storage_key);
     expect(new TextDecoder().decode(writes[0]?.body)).toContain("<body>ok</body>");
   });
+
+  it("builds credential transport values from explicit adapter context", () => {
+    const ctx = adapterContext({
+      COMPANIES_HOUSE_API_KEY: " house-key ",
+      OSH_API_TOKEN: "osh-token",
+      OPEN_CORPORATES_API_TOKEN: "oc-token",
+      CENSUS_API_KEY: " census-key "
+    });
+
+    expect(requireAdapterCredential(ctx, "COMPANIES_HOUSE_API_KEY", "Companies House")).toBe("house-key");
+    expect(credentialBasicAuthorizationHeader(ctx, "COMPANIES_HOUSE_API_KEY", "Companies House")).toEqual({
+      Authorization: "Basic aG91c2Uta2V5Og=="
+    });
+    expect(credentialAuthorizationHeader(ctx, "OSH_API_TOKEN", "Open Supply Hub", "Token")).toEqual({ Authorization: "Token osh-token" });
+    expect(credentialNamedHeader(ctx, "OPEN_CORPORATES_API_TOKEN", "OpenCorporates", "X-API-TOKEN")).toEqual({
+      "X-API-TOKEN": "oc-token"
+    });
+    expect(credentialQueryParamUrl("https://api.example.test/search?q=abc", ctx, "CENSUS_API_KEY", "Census", "key")).toBe(
+      "https://api.example.test/search?q=abc&key=census-key"
+    );
+    expect(urlWithCredentialQueryParam("https://api.example.test/search?q=abc", " raw-key ", "Subscription-Key", "EDINET")).toBe(
+      "https://api.example.test/search?q=abc&Subscription-Key=raw-key"
+    );
+  });
+
+  it("rejects missing credential values before building transport fields", () => {
+    expect(() => requireAdapterCredential(adapterContext(), "MISSING_KEY", "Test source")).toThrow(
+      "Test source requires AdapterContext.credentials.MISSING_KEY"
+    );
+    expect(() => urlWithCredentialQueryParam("https://api.example.test/search", " ", "key", "Test source")).toThrow(
+      "Test source credential query param key must not be empty"
+    );
+  });
 });
 
 function fakeAdapter(calls: string[]): SourceAdapter<{ id: string }, Uint8Array> {
@@ -204,9 +243,10 @@ function fakeAdapter(calls: string[]): SourceAdapter<{ id: string }, Uint8Array>
   };
 }
 
-function adapterContext(): AdapterContext {
+function adapterContext(credentials?: AdapterContext["credentials"]): AdapterContext {
   return {
     userAgent: "SupplyStrata test contact@example.com",
-    now: () => new Date("2026-05-17T00:00:00.000Z")
+    now: () => new Date("2026-05-17T00:00:00.000Z"),
+    ...(credentials === undefined ? {} : { credentials })
   };
 }

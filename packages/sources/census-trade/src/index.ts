@@ -3,9 +3,10 @@ import { type FetchTask, type NormalizedDocument, type RawDocument } from "@supp
 import {
   createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
+  credentialQueryParamUrl,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
-  requireAdapterCredential,
+  urlWithCredentialQueryParam,
   type AdapterContext,
   type CreateAdapterContextInput,
   type SourceAdapter
@@ -52,8 +53,7 @@ const censusTradeAdapterBase: SourceAdapter<CensusTradeInput, Uint8Array> = {
   },
   async fetch(task, ctx) {
     // API key 只在真实抓取 URL 上附加；task.url 作为 provenance 入库时保持无密钥。
-    const key = requireAdapterCredential(ctx, "CENSUS_API_KEY", "U.S. Census International Trade");
-    const bytes = await fetchBytesWithTimeout(censusFetchUrl(task.url, key), {
+    const bytes = await fetchBytesWithTimeout(credentialQueryParamUrl(task.url, ctx, "CENSUS_API_KEY", "U.S. Census International Trade", "key"), {
       userAgent: ctx.userAgent,
       timeoutMs: 15_000,
       sourceLabel: "U.S. Census International Trade",
@@ -102,11 +102,7 @@ export function buildCensusTradeUrl(input: CensusTradeInput): string {
 }
 
 export function censusFetchUrl(publicUrl: string, apiKey: string): string {
-  const trimmedKey = apiKey.trim();
-  if (trimmedKey.length === 0) throw new Error("Census API key must not be empty");
-  const url = new URL(publicUrl);
-  url.searchParams.set("key", trimmedKey);
-  return url.toString();
+  return urlWithCredentialQueryParam(publicUrl, apiKey, "key", "Census API key");
 }
 
 export function parseCensusTradeRows(bytes: Uint8Array, direction: CensusTradeDirection): CensusTradeRow[] {

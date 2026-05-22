@@ -6,6 +6,7 @@ import {
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
   requireAdapterCredential,
+  urlWithCredentialQueryParam,
   type AdapterContext,
   type CreateAdapterContextInput,
   type SourceAdapter
@@ -147,8 +148,7 @@ export function buildEdinetDocumentsListUrl(input: EdinetDailyFilingsInput, apiK
   const url = new URL("https://api.edinet-fsa.go.jp/api/v2/documents.json");
   url.searchParams.set("date", input.date);
   url.searchParams.set("type", String(input.listType ?? 2));
-  url.searchParams.set("Subscription-Key", apiKey);
-  return url.toString();
+  return urlWithCredentialQueryParam(url.toString(), apiKey, "Subscription-Key", "EDINET");
 }
 
 export function extractEdinetDocumentEntries(raw: RawDocument<Uint8Array>): EdinetDocumentEntry[] {

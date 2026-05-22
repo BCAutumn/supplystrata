@@ -6,6 +6,7 @@ import {
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
   requireAdapterCredential,
+  urlWithCredentialQueryParam,
   type AdapterContext,
   type CreateAdapterContextInput,
   type SourceAdapter
@@ -144,7 +145,6 @@ export function createDartKrAdapterContext(input: CreateAdapterContextInput): Ad
 export function buildDartKrDisclosureListUrl(input: DartKrCompanyFilingsInput, disclosureType: DartKrDisclosureType, apiKey: string): string {
   validateDartKrCompanyFilingsInput(input);
   const url = new URL("https://engopendart.fss.or.kr/engapi/list.json");
-  url.searchParams.set("crtfc_key", apiKey);
   url.searchParams.set("corp_code", input.corpCode);
   url.searchParams.set("bgn_de", `${input.year}0101`);
   url.searchParams.set("end_de", `${input.year}1231`);
@@ -155,7 +155,7 @@ export function buildDartKrDisclosureListUrl(input: DartKrCompanyFilingsInput, d
   url.searchParams.set("page_count", String(clampLimit(input.limit)));
   url.searchParams.set("last_reprt_at", input.finalReportsOnly ?? "Y");
   if (input.corpClass !== undefined) url.searchParams.set("corp_cls", input.corpClass);
-  return url.toString();
+  return urlWithCredentialQueryParam(url.toString(), apiKey, "crtfc_key", "OpenDART");
 }
 
 export function extractDartKrDisclosureEntries(raw: RawDocument<Uint8Array>): DartKrDisclosureEntry[] {

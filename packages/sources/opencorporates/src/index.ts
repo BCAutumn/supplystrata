@@ -4,9 +4,9 @@ import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supply
 import {
   createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
+  credentialNamedHeader,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
-  requireAdapterCredential,
   type AdapterContext,
   type CreateAdapterContextInput,
   type SourceAdapter
@@ -51,14 +51,13 @@ const openCorporatesAdapterBase: SourceAdapter<OpenCorporatesSearchInput, Uint8A
     };
   },
   async fetch(task, ctx) {
-    const token = requireAdapterCredential(ctx, "OPEN_CORPORATES_API_TOKEN", "OpenCorporates");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 12_000,
       sourceLabel: "OpenCorporates",
       headers: {
         Accept: "application/json",
-        "X-API-TOKEN": token
+        ...credentialNamedHeader(ctx, "OPEN_CORPORATES_API_TOKEN", "OpenCorporates", "X-API-TOKEN")
       }
     });
     return persistRawDocumentSnapshot({

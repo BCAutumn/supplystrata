@@ -5,9 +5,9 @@ import { createEntitySourceCandidate, type EntitySourceCandidate } from "@supply
 import {
   createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
+  credentialBasicAuthorizationHeader,
   fetchBytesWithTimeout,
   persistRawDocumentSnapshot,
-  requireAdapterCredential,
   type AdapterContext,
   type CreateAdapterContextInput,
   type SourceAdapter
@@ -44,14 +44,13 @@ const companiesHouseAdapterBase: SourceAdapter<CompaniesHouseSearchInput, Uint8A
     };
   },
   async fetch(task, ctx) {
-    const apiKey = requireAdapterCredential(ctx, "COMPANIES_HOUSE_API_KEY", "Companies House");
     const bytes = await fetchBytesWithTimeout(task.url, {
       userAgent: ctx.userAgent,
       timeoutMs: 12_000,
       sourceLabel: "Companies House",
       headers: {
         Accept: "application/json",
-        Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}`
+        ...credentialBasicAuthorizationHeader(ctx, "COMPANIES_HOUSE_API_KEY", "Companies House")
       }
     });
     return persistRawDocumentSnapshot({

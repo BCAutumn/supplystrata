@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize, resolve } from "node:path";
@@ -196,8 +197,35 @@ export function requireSnapshotStore(ctx: AdapterContext, sourceAdapterId: strin
 
 export function requireAdapterCredential(ctx: AdapterContext, key: string, sourceLabel: string): string {
   const value = ctx.credentials?.[key];
-  if (value === undefined || value.trim().length === 0) throw new Error(`${sourceLabel} requires AdapterContext.credentials.${key}`);
-  return value;
+  const trimmed = value?.trim();
+  if (trimmed === undefined || trimmed.length === 0) throw new Error(`${sourceLabel} requires AdapterContext.credentials.${key}`);
+  return trimmed;
+}
+
+export function credentialBasicAuthorizationHeader(ctx: AdapterContext, key: string, sourceLabel: string): { Authorization: string } {
+  const credential = requireAdapterCredential(ctx, key, sourceLabel);
+  // Companies House 这类 Basic auth API 需要把 key 放在用户名位置，密码为空；这里集中处理，避免 adapter 各自拼 base64。
+  return { Authorization: `Basic ${Buffer.from(`${credential}:`).toString("base64")}` };
+}
+
+export function credentialAuthorizationHeader(ctx: AdapterContext, key: string, sourceLabel: string, scheme: "Bearer" | "Token"): { Authorization: string } {
+  return { Authorization: `${scheme} ${requireAdapterCredential(ctx, key, sourceLabel)}` };
+}
+
+export function credentialNamedHeader(ctx: AdapterContext, key: string, sourceLabel: string, headerName: string): Record<string, string> {
+  return { [headerName]: requireAdapterCredential(ctx, key, sourceLabel) };
+}
+
+export function credentialQueryParamUrl(publicUrl: string, ctx: AdapterContext, key: string, sourceLabel: string, paramName: string): string {
+  return urlWithCredentialQueryParam(publicUrl, requireAdapterCredential(ctx, key, sourceLabel), paramName, sourceLabel);
+}
+
+export function urlWithCredentialQueryParam(publicUrl: string, credential: string, paramName: string, sourceLabel: string): string {
+  const trimmedCredential = credential.trim();
+  if (trimmedCredential.length === 0) throw new Error(`${sourceLabel} credential query param ${paramName} must not be empty`);
+  const url = new URL(publicUrl);
+  url.searchParams.set(paramName, trimmedCredential);
+  return url.toString();
 }
 
 export async function persistRawDocumentSnapshot(input: PersistRawDocumentSnapshotInput): Promise<RawDocument<Uint8Array>> {
