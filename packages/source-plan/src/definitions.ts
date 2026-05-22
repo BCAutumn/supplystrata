@@ -12,8 +12,11 @@ export type ResearchSourcePurpose =
   | "policy"
   | "manual_review";
 
-export type PlannedOutputLayer = "edge" | "observation" | "lead" | "entity";
-export type SourceRelationPolicy = "can_create_fact_edge" | "observation_only" | "lead_only" | "entity_only";
+export const PLANNED_OUTPUT_LAYERS = ["edge", "observation", "lead", "entity"] as const;
+export const SOURCE_RELATION_POLICIES = ["can_create_fact_edge", "observation_only", "lead_only", "entity_only"] as const;
+
+export type PlannedOutputLayer = (typeof PLANNED_OUTPUT_LAYERS)[number];
+export type SourceRelationPolicy = (typeof SOURCE_RELATION_POLICIES)[number];
 export type TradeObservationDirection = "imports" | "exports";
 
 export interface SourcePlanCheckTargetSuggestion {

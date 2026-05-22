@@ -165,9 +165,13 @@ export interface WorkbenchSourceHealth {
   policy_notes: string | null;
 }
 
-export type WorkbenchAttentionKind = "claim_conflict" | "claim_lifecycle" | "alert" | "source_degraded" | "change_requires_attention";
-export type WorkbenchAttentionPriority = "P0" | "P1" | "P2" | "P3";
-export type WorkbenchAttentionStatus = "open" | "acknowledged" | "resolved" | "suppressed";
+export const WORKBENCH_ATTENTION_KINDS = ["claim_conflict", "claim_lifecycle", "alert", "source_degraded", "change_requires_attention"] as const;
+export const WORKBENCH_ATTENTION_PRIORITIES = ["P0", "P1", "P2", "P3"] as const;
+export const WORKBENCH_ATTENTION_STATUSES = ["open", "acknowledged", "resolved", "suppressed"] as const;
+
+export type WorkbenchAttentionKind = (typeof WORKBENCH_ATTENTION_KINDS)[number];
+export type WorkbenchAttentionPriority = (typeof WORKBENCH_ATTENTION_PRIORITIES)[number];
+export type WorkbenchAttentionStatus = (typeof WORKBENCH_ATTENTION_STATUSES)[number];
 
 export interface WorkbenchAttentionItem {
   attention_id: string;

@@ -1,4 +1,4 @@
-import type { WorkbenchModel } from "./definitions.js";
+import { WORKBENCH_ATTENTION_KINDS, WORKBENCH_ATTENTION_PRIORITIES, WORKBENCH_ATTENTION_STATUSES, type WorkbenchModel } from "./definitions.js";
 import {
   CLAIM_EVIDENCE_ROLES,
   CLAIM_STATUSES,
@@ -9,6 +9,7 @@ import {
   EDGE_VALIDITIES,
   SEMANTIC_LAYERS
 } from "@supplystrata/core";
+import { PLANNED_OUTPUT_LAYERS, SOURCE_RELATION_POLICIES } from "@supplystrata/source-plan";
 
 export function parseWorkbenchModel(text: string): WorkbenchModel {
   const parsed: unknown = JSON.parse(text);
@@ -36,11 +37,6 @@ const CLAIM_CONFLICT_REVIEW_STEPS = [
   "review_fact_edge_for_deprecation",
   "record_resolution_context"
 ] as const;
-const SOURCE_PLAN_LAYERS = ["edge", "observation", "lead", "entity"] as const;
-const SOURCE_RELATION_POLICIES = ["can_create_fact_edge", "observation_only", "lead_only", "entity_only"] as const;
-const ATTENTION_KINDS = ["claim_conflict", "claim_lifecycle", "alert", "source_degraded", "change_requires_attention"] as const;
-const ATTENTION_PRIORITIES = ["P0", "P1", "P2", "P3"] as const;
-const ATTENTION_STATUSES = ["open", "acknowledged", "resolved", "suppressed"] as const;
 const REVIEW_CANDIDATE_STATUSES = ["pending", "in_review", "approved", "rejected", "blocked", "applied"] as const;
 const OFFICIAL_SIGNAL_DISPOSITION_DECISIONS = [
   "supports_existing_edge",
@@ -240,7 +236,7 @@ function validateSourceHint(value: unknown, path: string, errors: string[]): voi
   if (!isRecordAt(value, path, errors)) return;
   expectString(value, "source_id", path, errors);
   expectString(value, "source_name", path, errors);
-  expectEnum(value, "expected_output_layer", SOURCE_PLAN_LAYERS, path, errors);
+  expectEnum(value, "expected_output_layer", PLANNED_OUTPUT_LAYERS, path, errors);
   expectEnum(value, "relation_policy", SOURCE_RELATION_POLICIES, path, errors);
   expectBoolean(value, "requires_key", path, errors);
   expectString(value, "status", path, errors);
@@ -429,7 +425,7 @@ function validateSourcePlanItem(value: unknown, path: string, errors: string[]):
   expectString(value, "status", path, errors);
   expectString(value, "automation", path, errors);
   expectBoolean(value, "requires_key", path, errors);
-  expectEnum(value, "expected_output_layer", SOURCE_PLAN_LAYERS, path, errors);
+  expectEnum(value, "expected_output_layer", PLANNED_OUTPUT_LAYERS, path, errors);
   expectEnum(value, "relation_policy", SOURCE_RELATION_POLICIES, path, errors);
   expectStringArray(value, "parent_component_ids", path, errors);
   expectStringArray(value, "target_ids", path, errors);
@@ -450,9 +446,9 @@ function validateChange(value: unknown, path: string, errors: string[]): void {
 function validateAttentionItem(value: unknown, path: string, errors: string[]): void {
   if (!isRecordAt(value, path, errors)) return;
   expectString(value, "attention_id", path, errors);
-  expectEnum(value, "kind", ATTENTION_KINDS, path, errors);
-  expectEnum(value, "priority", ATTENTION_PRIORITIES, path, errors);
-  expectEnum(value, "status", ATTENTION_STATUSES, path, errors);
+  expectEnum(value, "kind", WORKBENCH_ATTENTION_KINDS, path, errors);
+  expectEnum(value, "priority", WORKBENCH_ATTENTION_PRIORITIES, path, errors);
+  expectEnum(value, "status", WORKBENCH_ATTENTION_STATUSES, path, errors);
   expectString(value, "title", path, errors);
   expectString(value, "summary", path, errors);
   expectString(value, "action", path, errors);
