@@ -255,6 +255,7 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.investigation_backlog_items).toBeGreaterThan(0);
     expect(pack.manifest.stats.investigation_backlog_corroboration_reviews).toBeGreaterThan(0);
     expect(pack.manifest.stats.corroboration_source_plan_targets).toBe(pack.corroboration_source_plan.summary.runnable_targets);
+    expect(pack.manifest.stats.corroboration_source_plan_next_actions).toEqual(pack.corroboration_source_plan.summary.by_next_action);
     expect(pack.corroboration_source_plan.target_refs.every((target) => target.edge_ids.length > 0)).toBe(true);
     expect(pack.question_readiness.items.some((item) => item.question_id === "company.upstream_dependencies" && item.status === "partial")).toBe(true);
     expect(renderQuestionReadinessMarkdown(pack.question_readiness)).toContain("company.upstream_dependencies");

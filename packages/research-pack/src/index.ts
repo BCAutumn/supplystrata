@@ -149,6 +149,7 @@ export interface ResearchPackStats {
   corroboration_source_plan_due: number;
   corroboration_source_plan_failed_preflight: number;
   corroboration_source_plan_missing_credentials: number;
+  corroboration_source_plan_next_actions: Record<string, number>;
   investigation_backlog_runnable_targets: number;
   source_target_expected_targets: number;
   source_target_synced_targets: number;
@@ -916,6 +917,7 @@ function manifestFromModel(input: {
       corroboration_source_plan_due: input.corroborationSourcePlan.summary.targets_due,
       corroboration_source_plan_failed_preflight: input.corroborationSourcePlan.summary.targets_failed_preflight,
       corroboration_source_plan_missing_credentials: input.corroborationSourcePlan.summary.targets_missing_credentials,
+      corroboration_source_plan_next_actions: input.corroborationSourcePlan.summary.by_next_action,
       investigation_backlog_runnable_targets: input.investigationBacklog.summary.runnable_check_targets,
       source_target_expected_targets: input.sourceTargetCoverage?.summary.expected_targets ?? 0,
       source_target_synced_targets: input.sourceTargetCoverage?.summary.synced_targets ?? 0,
@@ -1014,7 +1016,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
-    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight)`,
+    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight; next actions ${formatStatsCountMap(pack.manifest.stats.corroboration_source_plan_next_actions)})`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_due_targets} due`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
@@ -1079,7 +1081,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `- Component risk metrics written: ${pack.manifest.stats.component_risk_metrics_written}`,
     `- Question readiness: ${pack.manifest.stats.question_readiness_ready} ready, ${pack.manifest.stats.question_readiness_partial} partial, ${pack.manifest.stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${pack.manifest.stats.investigation_backlog_items} open (${pack.manifest.stats.investigation_backlog_p0} P0, ${pack.manifest.stats.investigation_backlog_p1} P1); ${pack.manifest.stats.investigation_backlog_corroboration_reviews} corroboration reviews (${pack.manifest.stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_sync} need sync, ${pack.manifest.stats.investigation_backlog_corroboration_review_need_enable} need enable, ${pack.manifest.stats.investigation_backlog_corroboration_review_due} due, ${pack.manifest.stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${pack.manifest.stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
-    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight)`,
+    `- Corroboration source plan: ${pack.manifest.stats.corroboration_source_plan_targets} runnable targets across ${pack.manifest.stats.corroboration_source_plan_edges} review edges (${pack.manifest.stats.corroboration_source_plan_need_sync} need sync, ${pack.manifest.stats.corroboration_source_plan_need_enable} need enable, ${pack.manifest.stats.corroboration_source_plan_due} due, ${pack.manifest.stats.corroboration_source_plan_failed_preflight} failed preflight; next actions ${formatStatsCountMap(pack.manifest.stats.corroboration_source_plan_next_actions)})`,
     `- Source target coverage: ${pack.manifest.stats.source_target_synced_targets}/${pack.manifest.stats.source_target_expected_targets} synced; ${pack.manifest.stats.source_target_not_synced} not synced`,
     `- Source target preflight: ${pack.manifest.stats.source_target_preflight_checked_targets}/${pack.manifest.stats.source_target_preflight_selected_targets} checked; ${pack.manifest.stats.source_target_preflight_failed_targets} failed; ${pack.manifest.stats.source_target_preflight_degraded_documents} degraded documents`,
     `- Source plan items: ${pack.manifest.stats.source_plan_items}`,
@@ -1161,6 +1163,12 @@ function countContradictingEvidenceLinks(workbench: WorkbenchModel): number {
 
 function countClaimLifecycleWarnings(workbench: WorkbenchModel): number {
   return [...workbench.claims, ...workbench.draft_claims].reduce((count, claim) => count + claim.lifecycle_warnings.length, 0);
+}
+
+function formatStatsCountMap(counts: Record<string, number>): string {
+  const entries = Object.entries(counts).sort(([left], [right]) => left.localeCompare(right));
+  if (entries.length === 0) return "none";
+  return entries.map(([key, count]) => `${key}=${count}`).join(", ");
 }
 
 async function sourceTargetPreflightFiles(outDir: string, report: SourceTargetPreflightReport | null): Promise<ResearchPackFile[]> {
