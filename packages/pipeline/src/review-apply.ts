@@ -6,7 +6,6 @@ import {
   recordSemanticChange,
   recordPendingEntity,
   type DatabaseStore,
-  type DbClient,
   type DbTxClient,
   type DocumentWithChunks
 } from "@supplystrata/db";
@@ -113,7 +112,7 @@ export async function applyApprovedReviewCandidate(
     const result = await strategy(store, item, reviewer, { logger });
     if (result !== undefined) return result;
   }
-  return blockReviewCandidate(store, reviewId, `unsupported review candidate kind: ${item.kind}`);
+  return store.transaction((client) => blockReviewCandidate(client, reviewId, `unsupported review candidate kind: ${item.kind}`));
 }
 
 function canApplyReviewItem(item: ReviewQueueItem): boolean {
@@ -123,7 +122,7 @@ function canApplyReviewItem(item: ReviewQueueItem): boolean {
 
 async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
   if (!isEntitySourceReviewCandidate(item.candidate)) {
-    return blockReviewCandidate(store, item.review_id, `unsupported entity review candidate kind: ${item.kind}`);
+    return store.transaction((client) => blockReviewCandidate(client, item.review_id, `unsupported entity review candidate kind: ${item.kind}`));
   }
   const candidate = item.candidate;
   return store.transaction(async (client) => {
@@ -306,7 +305,7 @@ async function applySupplierListReviewCandidate(
 type SupplierEntityResolution = { status: "ready"; supplier_entity_id: string } | Extract<ReviewApplyResult, { status: "blocked" }>;
 
 async function resolveSupplierListEntities(
-  client: DbClient,
+  client: DbTxClient,
   item: SupplierListReviewItem,
   resolver: DbEntityResolver,
   supplierRelation: ReturnType<typeof supplierListReviewToSupplierRelation>
@@ -341,7 +340,7 @@ type FacilityPreparation =
   | Extract<ReviewApplyResult, { status: "blocked" }>;
 
 async function prepareSupplierListFacility(
-  client: DbClient,
+  client: DbTxClient,
   item: SupplierListReviewItem,
   resolver: DbEntityResolver,
   reviewer: string,
@@ -364,7 +363,7 @@ async function prepareSupplierListFacility(
 
 type LoadedReviewDocument = { status: "ready"; docId: string; document: DocumentWithChunks } | Extract<ReviewApplyResult, { status: "blocked" }>;
 
-async function loadReviewDocument(client: DbClient, item: SupplierListReviewItem): Promise<LoadedReviewDocument> {
+async function loadReviewDocument(client: DbTxClient, item: SupplierListReviewItem): Promise<LoadedReviewDocument> {
   const docId = item.candidate.evidence.doc_id;
   if (docId === undefined) return blockReviewCandidate(client, item.review_id, "supplier-list review candidate is missing doc_id");
   return { status: "ready", docId, document: await loadDocument(client, docId) };
@@ -456,7 +455,7 @@ async function applySupplierListEdges(
 }
 
 async function blockReviewCandidate(
-  client: DbClient,
+  client: DbTxClient,
   reviewId: string,
   reason: string,
   pendingId?: string

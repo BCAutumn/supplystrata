@@ -1,4 +1,4 @@
-import { listClaimEvidenceLinks, listClaimUnknownLinks, type DatabaseStore, type DbClient } from "@supplystrata/db";
+import { listClaimEvidenceLinks, listClaimUnknownLinks, type DatabaseStore, type DbClient, type DbTxClient } from "@supplystrata/db";
 import {
   buildClaimConflictReviewCandidate,
   type ClaimConflictReviewCandidate,
@@ -30,7 +30,7 @@ export interface EnqueueClaimConflictReviewsSummary {
 }
 
 export async function enqueueClaimConflictReviewCandidates(
-  client: DbClient,
+  client: DbTxClient,
   input: EnqueueClaimConflictReviewsInput = {}
 ): Promise<EnqueueClaimConflictReviewsSummary> {
   const rows = await listClaimsWithUnresolvedConflict(client, { limit: input.limit ?? 500 });

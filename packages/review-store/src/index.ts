@@ -1,4 +1,4 @@
-import { recordSemanticChange, type DbClient } from "@supplystrata/db";
+import { recordSemanticChange, type DatabaseStore, type DbClient, type DbTxClient } from "@supplystrata/db";
 import {
   isOfficialDisclosureSignalReviewCandidate,
   isReviewCandidate,
@@ -69,7 +69,7 @@ export interface OfficialDisclosureSignalDispositionRecord {
   };
 }
 
-export async function enqueueReviewCandidates(client: DbClient, candidates: readonly ReviewCandidate[]): Promise<{ inserted: number; skipped: number }> {
+export async function enqueueReviewCandidates(client: DbTxClient, candidates: readonly ReviewCandidate[]): Promise<{ inserted: number; skipped: number }> {
   let inserted = 0;
   let skipped = 0;
   for (const candidate of candidates) {
@@ -83,6 +83,13 @@ export async function enqueueReviewCandidates(client: DbClient, candidates: read
     else skipped += 1;
   }
   return { inserted, skipped };
+}
+
+export async function enqueueReviewCandidatesTransactionally(
+  store: DatabaseStore,
+  candidates: readonly ReviewCandidate[]
+): Promise<{ inserted: number; skipped: number }> {
+  return store.transaction((client) => enqueueReviewCandidates(client, candidates));
 }
 
 export async function reviewStats(client: DbClient): Promise<ReviewStats> {
@@ -101,7 +108,7 @@ export async function reviewStats(client: DbClient): Promise<ReviewStats> {
   return stats;
 }
 
-export async function nextReviewCandidate(client: DbClient): Promise<ReviewQueueItem | undefined> {
+export async function nextReviewCandidate(client: DbTxClient): Promise<ReviewQueueItem | undefined> {
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'in_review', updated_at = now()
@@ -116,6 +123,10 @@ export async function nextReviewCandidate(client: DbClient): Promise<ReviewQueue
      RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`
   );
   return rowToReviewItem(result.rows[0]);
+}
+
+export async function nextReviewCandidateTransactionally(store: DatabaseStore): Promise<ReviewQueueItem | undefined> {
+  return store.transaction((client) => nextReviewCandidate(client));
 }
 
 export async function listApprovedReviewCandidates(client: DbClient, input: { limit: number }): Promise<ReviewQueueItem[]> {
@@ -134,7 +145,7 @@ export async function listApprovedReviewCandidates(client: DbClient, input: { li
   });
 }
 
-export async function claimApprovedReviewCandidates(client: DbClient, input: { limit: number }): Promise<ReviewQueueItem[]> {
+export async function claimApprovedReviewCandidates(client: DbTxClient, input: { limit: number }): Promise<ReviewQueueItem[]> {
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'in_review', updated_at = now()
@@ -167,7 +178,7 @@ export async function getReviewCandidate(client: DbClient, reviewId: string): Pr
 }
 
 export async function decideReviewCandidate(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     reviewId: string;
     decision: Extract<ReviewCandidateStatus, "approved" | "rejected">;
@@ -199,7 +210,19 @@ export async function decideReviewCandidate(
   return item;
 }
 
-export async function markReviewCandidateApplied(client: DbClient, input: { reviewId: string; reason: string }): Promise<void> {
+export async function decideReviewCandidateTransactionally(
+  store: DatabaseStore,
+  input: {
+    reviewId: string;
+    decision: Extract<ReviewCandidateStatus, "approved" | "rejected">;
+    reviewer: string;
+    reason?: string;
+  }
+): Promise<ReviewQueueItem> {
+  return store.transaction((client) => decideReviewCandidate(client, input));
+}
+
+export async function markReviewCandidateApplied(client: DbTxClient, input: { reviewId: string; reason: string }): Promise<void> {
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'applied', decision_reason = $2, updated_at = now()
@@ -226,7 +249,7 @@ export async function markReviewCandidateApplied(client: DbClient, input: { revi
   });
 }
 
-export async function markReviewCandidateBlocked(client: DbClient, input: { reviewId: string; reason: string }): Promise<void> {
+export async function markReviewCandidateBlocked(client: DbTxClient, input: { reviewId: string; reason: string }): Promise<void> {
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'blocked', decision_reason = $2, updated_at = now()
@@ -250,7 +273,7 @@ export async function markReviewCandidateBlocked(client: DbClient, input: { revi
 }
 
 export async function recordOfficialDisclosureSignalDisposition(
-  client: DbClient,
+  client: DbTxClient,
   input: OfficialDisclosureSignalDispositionInput
 ): Promise<OfficialDisclosureSignalDispositionRecord> {
   const item = await getReviewCandidate(client, input.reviewId);

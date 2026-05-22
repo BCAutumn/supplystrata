@@ -5,7 +5,7 @@ import { normalizeAlias, type NormalizedDocument } from "@supplystrata/core";
 import { migrate, saveNormalizedDocument, type DbClient } from "@supplystrata/db";
 import { applyApprovedReviewCandidate } from "@supplystrata/pipeline";
 import { buildSupplierListReviewCandidate, supplierListFacilityDisplayName, supplierListFacilityEntityId } from "@supplystrata/review-candidates";
-import { decideReviewCandidate, enqueueReviewCandidates, getReviewCandidate } from "@supplystrata/review-store";
+import { decideReviewCandidateTransactionally, enqueueReviewCandidatesTransactionally, getReviewCandidate } from "@supplystrata/review-store";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 
@@ -46,8 +46,13 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
       sourceDate: "2022-09-30"
     });
 
-    await enqueueReviewCandidates(pool, [candidate]);
-    await decideReviewCandidate(pool, { reviewId: candidate.review_id, decision: "approved", reviewer: "integration", reason: "integration fixture" });
+    await enqueueReviewCandidatesTransactionally(pool, [candidate]);
+    await decideReviewCandidateTransactionally(pool, {
+      reviewId: candidate.review_id,
+      decision: "approved",
+      reviewer: "integration",
+      reason: "integration fixture"
+    });
 
     const result = await applyApprovedReviewCandidate(pool, candidate.review_id, "integration");
     const applied = await getReviewCandidate(pool, candidate.review_id);

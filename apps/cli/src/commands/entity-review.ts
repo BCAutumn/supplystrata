@@ -9,7 +9,7 @@ import {
   sourceWorkflowAdapterContextInput
 } from "@supplystrata/source-workflows";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
-import { decideReviewCandidate, getReviewCandidate, nextReviewCandidate, reviewStats } from "@supplystrata/review-store";
+import { decideReviewCandidateTransactionally, getReviewCandidate, nextReviewCandidateTransactionally, reviewStats } from "@supplystrata/review-store";
 import { parseEntityLookupSource, parseFormat, parseLimit, parsePendingEntityStatus, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderEntityLookup } from "../entity-render.js";
 import { renderReviewApplyBatch, renderReviewItemOrEmpty } from "../review-render.js";
@@ -156,7 +156,7 @@ function registerReviewCommands(program: Command): void {
     .description("claim and show the next pending review candidate")
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
-        const item = await nextReviewCandidate(pool);
+        const item = await nextReviewCandidateTransactionally(pool);
         write(renderReviewItemOrEmpty(item, parseFormat(options.format)));
       });
     });
@@ -179,7 +179,7 @@ function registerReviewCommands(program: Command): void {
     .description("mark a review candidate approved")
     .action(async (reviewId: string, options: { reviewer: string; reason?: string }) => {
       await withDatabase(async (pool) => {
-        const item = await decideReviewCandidate(pool, {
+        const item = await decideReviewCandidateTransactionally(pool, {
           reviewId,
           decision: "approved",
           reviewer: options.reviewer,
@@ -196,7 +196,7 @@ function registerReviewCommands(program: Command): void {
     .description("mark a review candidate rejected")
     .action(async (reviewId: string, options: { reviewer: string; reason: string }) => {
       await withDatabase(async (pool) => {
-        const item = await decideReviewCandidate(pool, { reviewId, decision: "rejected", reviewer: options.reviewer, reason: options.reason });
+        const item = await decideReviewCandidateTransactionally(pool, { reviewId, decision: "rejected", reviewer: options.reviewer, reason: options.reason });
         writeJson({ ok: true, review_id: item.review_id, status: item.status });
       });
     });

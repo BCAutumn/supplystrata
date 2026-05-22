@@ -1,5 +1,5 @@
 import type { NormalizedDocument } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db";
+import type { DbTxClient } from "@supplystrata/db";
 import { buildOfficialDisclosureSignalReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import { extractOfficialDisclosureSignalsForSource, type OfficialDisclosureSignal } from "@supplystrata/signal-extractor";
@@ -10,7 +10,7 @@ export interface OfficialDisclosureSignalCandidateResult {
 }
 
 export async function enqueueOfficialDisclosureSignalReviewCandidates(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     normalized: NormalizedDocument;
     docId: string;

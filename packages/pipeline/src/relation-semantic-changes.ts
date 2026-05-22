@@ -1,5 +1,5 @@
 import type { CandidateRelation, NormalizedDocument, RelationType } from "@supplystrata/core";
-import { recordSemanticChange, type DbClient } from "@supplystrata/db";
+import { recordSemanticChange, type DbTxClient } from "@supplystrata/db";
 import { ruleExtractors } from "@supplystrata/relation-extractor-rule";
 import { buildSemanticChangeReviewCandidate, type SemanticChangeReviewPayloadSnapshot } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
@@ -12,7 +12,7 @@ export interface RelationSemanticChangeInput {
   sourceItemId: string;
 }
 
-export async function recordRelationSemanticChanges(client: DbClient, input: RelationSemanticChangeInput): Promise<number> {
+export async function recordRelationSemanticChanges(client: DbTxClient, input: RelationSemanticChangeInput): Promise<number> {
   const before = relationSnapshotsByKey(await extractRelationSnapshots(input.previous));
   const after = relationSnapshotsByKey(await extractRelationSnapshots(input.next));
   let count = 0;
@@ -149,7 +149,7 @@ function changeTypeForRelation(snapshot: RelationSnapshot, status: "added" | "ch
 }
 
 async function recordRelationChange(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     changeType: string;
     sourceAdapterId: string;
@@ -202,7 +202,7 @@ function relationChangePayload(snapshot: RelationSnapshot, docId: string, source
 }
 
 async function enqueueSemanticChangeReviewCandidate(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     changeType: string;
     sourceAdapterId: string;

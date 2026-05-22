@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
-import type { DbClient } from "@supplystrata/db";
+import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/db";
 import {
   claimApprovedReviewCandidates,
   decideReviewCandidate,
@@ -31,7 +31,12 @@ class ReviewChangeDbClient implements DbClient {
   }
 }
 
-class OfficialSignalDispositionDbClient implements DbClient {
+class ReviewChangeTxClient extends ReviewChangeDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
+}
+
+class OfficialSignalDispositionDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
   readonly calls: QueryCall[] = [];
 
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
@@ -48,7 +53,7 @@ class OfficialSignalDispositionDbClient implements DbClient {
 
 describe("review-store semantic changes", () => {
   it("records approve and reject decisions as review-scoped semantic changes", async () => {
-    const client = new ReviewChangeDbClient();
+    const client = new ReviewChangeTxClient();
 
     await decideReviewCandidate(client, { reviewId: "REV-APPROVE", decision: "approved", reviewer: "unit-test", reason: "source row checked" });
     await decideReviewCandidate(client, { reviewId: "REV-REJECT", decision: "rejected", reviewer: "unit-test", reason: "duplicate row" });
@@ -59,7 +64,7 @@ describe("review-store semantic changes", () => {
   });
 
   it("records apply and block outcomes without touching fact edges", async () => {
-    const client = new ReviewChangeDbClient();
+    const client = new ReviewChangeTxClient();
 
     await markReviewCandidateApplied(client, { reviewId: "REV-APPLY", reason: "applied edges EDGE-1" });
     await markReviewCandidateBlocked(client, { reviewId: "REV-BLOCK", reason: "cannot resolve supplier" });
@@ -70,7 +75,7 @@ describe("review-store semantic changes", () => {
   });
 
   it("claims the next review candidate with row locking", async () => {
-    const client = new ReviewChangeDbClient();
+    const client = new ReviewChangeTxClient();
 
     const item = await nextReviewCandidate(client);
 
@@ -80,7 +85,7 @@ describe("review-store semantic changes", () => {
   });
 
   it("claims approved review candidates before batch apply", async () => {
-    const client = new ReviewChangeDbClient();
+    const client = new ReviewChangeTxClient();
 
     const items = await claimApprovedReviewCandidates(client, { limit: 3 });
 

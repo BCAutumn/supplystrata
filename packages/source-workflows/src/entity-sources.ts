@@ -1,7 +1,7 @@
 import type { DatabaseStore } from "@supplystrata/db";
 import type { EntitySourceLookupResult } from "@supplystrata/entity-source";
 import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidates";
-import { enqueueReviewCandidates } from "@supplystrata/review-store";
+import { enqueueReviewCandidatesTransactionally } from "@supplystrata/review-store";
 import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
 import { createCompaniesHouseAdapterContext, lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
 import { createOpenCorporatesAdapterContext, lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
@@ -75,7 +75,7 @@ export async function enqueueEntitySourceReviewCandidates(
   const candidates = lookup.results.flatMap((result) =>
     result.candidates.map((candidate) => buildEntitySourceReviewCandidate({ surface: lookup.query, candidate }))
   );
-  const result = await enqueueReviewCandidates(store, candidates);
+  const result = await enqueueReviewCandidatesTransactionally(store, candidates);
   return {
     query: lookup.query,
     candidates: candidates.length,
