@@ -19,7 +19,7 @@ import {
 } from "@supplystrata/entity-import";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
-import { GraphBuilder } from "@supplystrata/graph-builder";
+import { GraphSqlWriter } from "@supplystrata/graph-builder";
 import {
   isClaimConflictReviewCandidate,
   isEntitySourceReviewCandidate,
@@ -285,8 +285,8 @@ async function applySupplierListReviewCandidate(
     });
     const citationChunks = locateSupplierListCitations(doc.document, scored);
     if (citationChunks.status === "blocked") return blockReviewCandidate(client, reviewId, citationChunks.reason);
-    const builder = new GraphBuilder(store, resolver, { graphSyncMode: "defer", logger: options.logger });
-    const applyResults = await applySupplierListEdges(client, builder, scored, doc.docId, citationChunks, { reviewer, reviewed_at: reviewedAt });
+    const sqlWriter = new GraphSqlWriter(resolver);
+    const applyResults = await applySupplierListEdges(client, sqlWriter, scored, doc.docId, citationChunks, { reviewer, reviewed_at: reviewedAt });
     const pendingResolved = await resolvePendingEntitySurface(client, {
       surface: supplierRelation.object_resolve.surface,
       entityId: entityResolution.supplier_entity_id,
@@ -421,14 +421,14 @@ function locateSupplierListCitations(
 
 async function applySupplierListEdges(
   client: DbTxClient,
-  builder: GraphBuilder,
+  sqlWriter: GraphSqlWriter,
   scored: ScoredSupplierListRelations,
   docId: string,
   citationChunks: SupplierListCitationChunks,
   reviewed: { reviewer: string; reviewed_at: string }
 ): Promise<[AppliedReviewEdgeResult, AppliedReviewEdgeResult]> {
   const supplierApply = await applyReviewedRelation(
-    builder,
+    sqlWriter,
     {
       candidate: scored.supplierRelation,
       scoring: scored.supplierScoring,
@@ -439,7 +439,7 @@ async function applySupplierListEdges(
     client
   );
   const facilityApply = await applyReviewedRelation(
-    builder,
+    sqlWriter,
     {
       candidate: scored.facilityRelation,
       scoring: scored.facilityScoring,
@@ -505,7 +505,7 @@ export async function applyApprovedReviewCandidates(
   };
 }
 
-async function applyReviewedRelation(builder: GraphBuilder, approved: ApprovedCandidate, client: DbTxClient): Promise<ApplyResult> {
-  const committed = await builder.applySqlInTransaction(client, approved);
+async function applyReviewedRelation(sqlWriter: GraphSqlWriter, approved: ApprovedCandidate, client: DbTxClient): Promise<ApplyResult> {
+  const committed = await sqlWriter.applyApprovedCandidate(client, approved);
   return { ...committed, graph_sync: { status: "deferred" } };
 }

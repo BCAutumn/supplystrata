@@ -4,7 +4,6 @@ import {
   markGraphProjectionJobsSucceeded,
   recordGraphProjectionFailure,
   type DatabaseStore,
-  type DbTxClient,
   type EdgeDeprecationSourceRef,
   type GraphProjectionOperation
 } from "@supplystrata/db";
@@ -19,7 +18,7 @@ import {
   type GraphConsistencyCheck,
   type GraphProjectionRetrySummary
 } from "./projection.js";
-import { applyApprovedCandidateToSql } from "./sql-store.js";
+import { GraphSqlWriter } from "./sql-writer.js";
 
 export type GraphSyncMode = "sync" | "defer";
 
@@ -30,6 +29,7 @@ export interface GraphBuilderOptions {
 }
 
 export type { GraphConsistencyCheck, GraphProjectionRetrySummary } from "./projection.js";
+export { GraphSqlWriter } from "./sql-writer.js";
 
 export interface DeprecateEdgeRequest {
   edge_id: string;
@@ -48,14 +48,14 @@ export interface DeprecateEdgeApplyResult {
 
 export class GraphBuilder {
   readonly #store: DatabaseStore;
-  readonly #resolver: EntityResolver;
+  readonly #sqlWriter: GraphSqlWriter;
   readonly #graph: GraphStore | null;
   readonly #graphSyncMode: GraphSyncMode;
   readonly #logger: SupplyStrataLogger;
 
   constructor(store: DatabaseStore, resolver: EntityResolver, graphOrOptions: GraphStore | GraphBuilderOptions = {}, options: GraphBuilderOptions = {}) {
     this.#store = store;
-    this.#resolver = resolver;
+    this.#sqlWriter = new GraphSqlWriter(resolver);
     if (isGraphStore(graphOrOptions)) {
       this.#graph = graphOrOptions;
       this.#graphSyncMode = options.graphSyncMode ?? "sync";
@@ -74,24 +74,9 @@ export class GraphBuilder {
   }
 
   async apply(approved: ApprovedCandidate): Promise<ApplyResult> {
-    const committed = await this.#store.transaction((client) => this.applySqlInTransaction(client, approved));
+    const committed = await this.#store.transaction((client) => this.#sqlWriter.applyApprovedCandidate(client, approved));
     const graphSync = await this.#trySyncEdge(committed.edge_id);
     return { ...committed, graph_sync: graphSync };
-  }
-
-  async applySqlInTransaction(client: DbTxClient, approved: ApprovedCandidate): Promise<Omit<ApplyResult, "graph_sync">> {
-    const subject = await this.#resolver.resolve(approved.candidate.subject_resolve, { client });
-    const object = await this.#resolver.resolve(approved.candidate.object_resolve, { client });
-    if (subject.status !== "resolved" || subject.entity_id === undefined) {
-      throw new Error(`Cannot resolve subject: ${approved.candidate.subject_resolve.surface}`);
-    }
-    if (object.status !== "resolved" || object.entity_id === undefined) {
-      throw new Error(`Cannot resolve object: ${approved.candidate.object_resolve.surface}`);
-    }
-    const subjectId = subject.entity_id;
-    const objectId = object.entity_id;
-
-    return applyApprovedCandidateToSql(client, { approved, subject_id: subjectId, object_id: objectId });
   }
 
   async deprecate(input: DeprecateEdgeRequest): Promise<DeprecateEdgeApplyResult> {
