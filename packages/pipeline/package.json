@@ -24,6 +24,7 @@
     "@supplystrata/relation-extractor-rule": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
+    "@supplystrata/signal-extractor": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*"
   },
   "main": "./dist/index.js",

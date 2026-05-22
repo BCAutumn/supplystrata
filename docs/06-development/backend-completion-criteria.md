@@ -153,6 +153,8 @@ Gate 1 的 core node 指标按目标节点中已有 fact/source-plan/target/obse
 
 无数据库连通性 smoke 已补上：`sources policy smoke-plan-targets` 会从同一个 `source-plan.json + namespace` 生成 runnable target，复用 source-check 的 target config 解析和 adapter，执行 `plan / fetch / normalize`，但不连接 Postgres、不写 `source_check_targets`、不写 source monitor event、不写 observation / fact edge。source key 现在统一收口到 `@supplystrata/config` 的 source credential 定义和 git 忽略的 `config/source-credentials.local.json`；`.env` / 环境变量仍可覆盖本地文件，便于 CI 和宿主 App 注入凭据。source-check connector capability 统一声明 target 级 `credential_requirements`，source-management catalog / preview 和 smoke 都读取同一份凭据契约；缺失凭据会在访问外部源前归类为 `missing_credentials`，并在 preflight item / investigation backlog coverage 中结构化输出缺失 env key，不会散落成各命令自己的字符串判断。它用于同步和启用前发现外部源不可达、凭据缺失或 target config 失效；smoke 成功不等于进入持续监控闭环，正式调度仍以 `sync-plan-targets / enable-plan-targets / due / run-due / worker` 为准。
 
+DB-backed source-check 现在会在保存 TSMC / Samsung / SK hynix / Micron / ASML 等官方披露文档后，按确定性 `signal-extractor` 规则把可引用的供应链、产能、需求或技术路线信号写入 `review_candidates(kind='official_disclosure_signal')`。这解决的是“官方文档已经跑进监控，但还没形成 fact edge / observation 时，研究员下一步看什么”的问题；它不会抽 counterparty 边、不会自动生成 claim，也不会把 signal 当成二源 corroboration。approved 后的 `review apply` 只 acknowledge 并写 `OFFICIAL_DISCLOSURE_SIGNAL_REVIEW_APPLIED` / `REVIEW_APPLIED` 审计事件。
+
 参考官方源：
 
 - SEC EDGAR 官方检索与 API 入口：<https://www.sec.gov/search-filings>

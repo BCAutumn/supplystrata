@@ -467,6 +467,9 @@ importers:
       '@supplystrata/review-store':
         specifier: workspace:*
         version: link:../review-store
+      '@supplystrata/signal-extractor':
+        specifier: workspace:*
+        version: link:../signal-extractor
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor

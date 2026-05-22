@@ -181,12 +181,48 @@ export interface ClaimConflictReviewCandidate {
   review_reason: string;
 }
 
+export interface OfficialDisclosureSignalReviewPayload {
+  source_item_id: string;
+  doc_id: string;
+  source_adapter_id: string;
+  signal_title: string;
+  cite_text: string;
+  cite_locator: string;
+  evidence_level_hint: OfficialDisclosureSignalReviewInput["evidence_level"];
+  fact_write_policy: {
+    automatic_fact_mutation_allowed: false;
+    allowed_edge_mutation: "none";
+    requires_human_review: true;
+    reason_codes: string[];
+  };
+}
+
+export interface OfficialDisclosureSignalReviewInput {
+  title: string;
+  cite_text: string;
+  evidence_level: 4 | 5;
+  confidence: number;
+}
+
+export interface OfficialDisclosureSignalReviewCandidate {
+  review_id: string;
+  candidate_key: string;
+  kind: "official_disclosure_signal";
+  title: string;
+  payload: OfficialDisclosureSignalReviewPayload;
+  evidence: ReviewEvidenceContext;
+  confidence: number;
+  needs_review: true;
+  review_reason: string;
+}
+
 export type ReviewCandidate =
   | SupplierListReviewCandidate
   | EntitySourceReviewCandidate
   | SemanticChangeReviewCandidate
   | OshFacilityReviewCandidate
-  | ClaimConflictReviewCandidate;
+  | ClaimConflictReviewCandidate
+  | OfficialDisclosureSignalReviewCandidate;
 
 export function buildSupplierListReviewCandidate(input: {
   candidate: SupplierListCandidate;
@@ -381,6 +417,51 @@ export function buildClaimConflictReviewCandidate(input: { payload: ClaimConflic
   };
 }
 
+export function buildOfficialDisclosureSignalReviewCandidate(input: {
+  signal: OfficialDisclosureSignalReviewInput;
+  docId: string;
+  sourceItemId: string;
+  sourceAdapterId: string;
+  sourceUrl: string;
+  sourceDate?: string;
+  sourceLocator: string;
+}): OfficialDisclosureSignalReviewCandidate {
+  const candidateKey = stableOfficialDisclosureSignalCandidateKey(input);
+  return {
+    review_id: stableOfficialDisclosureSignalReviewId(input, candidateKey),
+    candidate_key: candidateKey,
+    kind: "official_disclosure_signal",
+    title: `Official disclosure signal: ${input.signal.title}`,
+    payload: {
+      source_item_id: input.sourceItemId,
+      doc_id: input.docId,
+      source_adapter_id: input.sourceAdapterId,
+      signal_title: input.signal.title,
+      cite_text: input.signal.cite_text,
+      cite_locator: input.sourceLocator,
+      evidence_level_hint: input.signal.evidence_level,
+      fact_write_policy: {
+        automatic_fact_mutation_allowed: false,
+        allowed_edge_mutation: "none",
+        requires_human_review: true,
+        reason_codes: ["review_only_official_signal", "not_a_relation_extractor", "no_counterparty_edge_without_review"]
+      }
+    },
+    evidence: {
+      doc_id: input.docId,
+      source_url: input.sourceUrl,
+      ...(input.sourceDate === undefined ? {} : { source_date: input.sourceDate }),
+      source_adapter_id: input.sourceAdapterId,
+      source_locator: input.sourceLocator,
+      source_row_text: input.signal.cite_text,
+      normalized_record_text: [input.signal.title, `evidence_level=${input.signal.evidence_level}`, input.signal.cite_text].join(" | ")
+    },
+    confidence: input.signal.confidence,
+    needs_review: true,
+    review_reason: "官方披露信号只说明该文档出现了供应链、产能、需求或技术路线相关内容；它用于研究员复核、补充 claim 或寻找 corroboration，不会自动写入事实边。"
+  };
+}
+
 export interface SemanticChangeReviewPayloadSnapshot {
   doc_id: string;
   source_adapter_id: string;
@@ -404,6 +485,7 @@ export function isReviewCandidate(value: unknown): value is ReviewCandidate {
   if (value["kind"] === "semantic_change") return isSemanticChangeReviewCandidatePayload(value);
   if (value["kind"] === "osh_facility_candidate") return isOshFacilityReviewCandidatePayload(value);
   if (value["kind"] === "claim_conflict_review") return isClaimConflictReviewCandidatePayload(value);
+  if (value["kind"] === "official_disclosure_signal") return isOfficialDisclosureSignalReviewCandidatePayload(value);
   return false;
 }
 
@@ -425,6 +507,10 @@ export function isOshFacilityReviewCandidate(candidate: ReviewCandidate): candid
 
 export function isClaimConflictReviewCandidate(candidate: ReviewCandidate): candidate is ClaimConflictReviewCandidate {
   return candidate.kind === "claim_conflict_review";
+}
+
+export function isOfficialDisclosureSignalReviewCandidate(candidate: ReviewCandidate): candidate is OfficialDisclosureSignalReviewCandidate {
+  return candidate.kind === "official_disclosure_signal";
 }
 
 export function supplierListReviewToSupplierRelation(candidate: SupplierListReviewCandidate): CandidateRelation {
@@ -618,6 +704,38 @@ function stableClaimConflictCandidateKey(payload: ClaimConflictReviewPayload): s
   ].join("|");
 }
 
+function stableOfficialDisclosureSignalCandidateKey(input: {
+  signal: OfficialDisclosureSignalReviewInput;
+  docId: string;
+  sourceItemId: string;
+  sourceAdapterId: string;
+  sourceUrl: string;
+  sourceLocator: string;
+}): string {
+  return [
+    "official-disclosure-signal",
+    input.sourceAdapterId,
+    input.sourceItemId,
+    input.docId,
+    input.sourceUrl,
+    input.sourceLocator,
+    input.signal.title,
+    input.signal.cite_text
+  ].join("|");
+}
+
+function stableOfficialDisclosureSignalReviewId(input: { signal: OfficialDisclosureSignalReviewInput; sourceAdapterId: string }, candidateKey: string): string {
+  const readable = [input.sourceAdapterId, input.signal.title]
+    .join("|")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 56);
+  const digest = createHash("sha256").update(candidateKey).digest("hex").slice(0, 16);
+  return `REV-OFFICIAL-SIGNAL-${readable}-${digest}`;
+}
+
 function stableClaimConflictReviewId(payload: ClaimConflictReviewPayload, candidateKey: string): string {
   const readable = [payload.claim_id, payload.conflict_state]
     .join("|")
@@ -749,6 +867,22 @@ function isClaimConflictReviewCandidatePayload(value: Record<string, unknown>): 
     isClaimConflictReviewStepArray(payload["required_review_steps"]) &&
     isClaimConflictReviewEvidenceRefArray(payload["evidence_refs"]) &&
     isClaimConflictReviewUnknownRefArray(payload["unknown_refs"]) &&
+    isClaimConflictReviewFactWritePolicy(payload["fact_write_policy"])
+  );
+}
+
+function isOfficialDisclosureSignalReviewCandidatePayload(value: Record<string, unknown>): boolean {
+  const payload = value["payload"];
+  const evidence = value["evidence"];
+  if (!hasCommonReviewFields(value) || !isRecord(payload) || !isReviewEvidenceContext(evidence)) return false;
+  return (
+    isNonEmptyString(payload["source_item_id"]) &&
+    isNonEmptyString(payload["doc_id"]) &&
+    isNonEmptyString(payload["source_adapter_id"]) &&
+    isNonEmptyString(payload["signal_title"]) &&
+    isNonEmptyString(payload["cite_text"]) &&
+    isNonEmptyString(payload["cite_locator"]) &&
+    (payload["evidence_level_hint"] === 4 || payload["evidence_level_hint"] === 5) &&
     isClaimConflictReviewFactWritePolicy(payload["fact_write_policy"])
   );
 }

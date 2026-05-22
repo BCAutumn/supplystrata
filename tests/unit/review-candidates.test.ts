@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildEntitySourceReviewCandidate,
   buildClaimConflictReviewCandidate,
+  buildOfficialDisclosureSignalReviewCandidate,
   buildOshFacilityReviewCandidate,
   buildSemanticChangeReviewCandidate,
   buildSupplierListReviewCandidate,
   isReviewCandidate,
   isClaimConflictReviewCandidate,
+  isOfficialDisclosureSignalReviewCandidate,
   supplierListFacilityDisplayName,
   supplierListFacilityEntityId,
   supplierListReviewToFacilityRelation,
@@ -338,6 +340,49 @@ describe("review candidates", () => {
     expect(candidate.review_id).toContain("REV-CLAIM-CONFLICT");
     expect(isReviewCandidate(candidate)).toBe(true);
     expect(isClaimConflictReviewCandidate(candidate)).toBe(true);
+    expect(isReviewCandidate({ ...candidate, payload: { ...candidate.payload, fact_write_policy: { automatic_fact_mutation_allowed: true } } })).toBe(false);
+  });
+
+  it("converts official disclosure signals into review-only candidates", () => {
+    const candidate = buildOfficialDisclosureSignalReviewCandidate({
+      signal: {
+        title: "SK hynix links results to HBM demand",
+        cite_text: "SK hynix reported that HBM demand from AI customers remained strong during the quarter.",
+        evidence_level: 4,
+        confidence: 0.84
+      },
+      docId: "DOC-SKHYNIX",
+      sourceItemId: "SRCITEM-SKHYNIX",
+      sourceAdapterId: "skhynix-ir",
+      sourceUrl: "https://www.skhynix.com/ir/example.pdf",
+      sourceDate: "2026-04-24",
+      sourceLocator: "page 7"
+    });
+
+    expect(candidate).toMatchObject({
+      kind: "official_disclosure_signal",
+      title: "Official disclosure signal: SK hynix links results to HBM demand",
+      payload: {
+        source_item_id: "SRCITEM-SKHYNIX",
+        doc_id: "DOC-SKHYNIX",
+        source_adapter_id: "skhynix-ir",
+        signal_title: "SK hynix links results to HBM demand",
+        evidence_level_hint: 4,
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none"
+        }
+      },
+      evidence: {
+        doc_id: "DOC-SKHYNIX",
+        source_adapter_id: "skhynix-ir",
+        source_locator: "page 7",
+        source_row_text: "SK hynix reported that HBM demand from AI customers remained strong during the quarter."
+      }
+    });
+    expect(candidate.review_id).toContain("REV-OFFICIAL-SIGNAL");
+    expect(isReviewCandidate(candidate)).toBe(true);
+    expect(isOfficialDisclosureSignalReviewCandidate(candidate)).toBe(true);
     expect(isReviewCandidate({ ...candidate, payload: { ...candidate.payload, fact_write_policy: { automatic_fact_mutation_allowed: true } } })).toBe(false);
   });
 });

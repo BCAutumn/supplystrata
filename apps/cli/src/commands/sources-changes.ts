@@ -524,6 +524,7 @@ function renderSourceCheckSummary(sourceAdapterId: string, summaries: readonly S
     lines.push(`  Source item: ${item.source_item_id}`);
     lines.push(`  Event: ${item.source_event_id}`);
     lines.push(`  Observations: ${item.observations}`);
+    lines.push(`  Review candidates: ${item.review_candidates ?? 0}`);
     lines.push(`  Semantic changes: ${item.semantic_changes}`);
     lines.push(`  Relation changes: ${item.relation_changes}`);
     lines.push(`  URL: ${item.source_url}`);
@@ -607,7 +608,7 @@ function renderDueSourceCheckRun(result: DueSourceCheckRunResult): string {
     lines.push(`  Documents checked: ${item.checked_documents}`);
     for (const summary of item.summaries) {
       lines.push(
-        `  - ${summary.change_type} ${summary.doc_id} (${summary.observations} observations, ${summary.semantic_changes} semantic changes, ${summary.relation_changes} relation changes)`
+        `  - ${summary.change_type} ${summary.doc_id} (${summary.observations} observations, ${summary.review_candidates ?? 0} review candidates, ${summary.semantic_changes} semantic changes, ${summary.relation_changes} relation changes)`
       );
     }
   }

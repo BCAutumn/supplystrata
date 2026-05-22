@@ -1,6 +1,7 @@
 import {
   isClaimConflictReviewCandidate,
   isEntitySourceReviewCandidate,
+  isOfficialDisclosureSignalReviewCandidate,
   isOshFacilityReviewCandidate,
   isSemanticChangeReviewCandidate,
   isSupplierListReviewCandidate
@@ -29,6 +30,7 @@ export function renderReviewItemOrEmpty(item: ReviewQueueItem | undefined, forma
   if (isSemanticChangeReviewCandidate(candidate)) appendSemanticChangeCandidate(lines, candidate);
   if (isOshFacilityReviewCandidate(candidate)) appendOshFacilityCandidate(lines, candidate);
   if (isClaimConflictReviewCandidate(candidate)) appendClaimConflictCandidate(lines, candidate);
+  if (isOfficialDisclosureSignalReviewCandidate(candidate)) appendOfficialDisclosureSignalCandidate(lines, candidate);
   lines.push("", "## Review Note", "", candidate.review_reason);
   if (item.reviewer !== undefined) lines.push("", `Reviewer: ${item.reviewer}`);
   if (item.decision_reason !== undefined) lines.push(`Decision reason: ${item.decision_reason}`);
@@ -171,5 +173,27 @@ function appendClaimConflictCandidate(lines: string[], candidate: Extract<Review
     `Source: ${candidate.evidence.source_adapter_id}`,
     `Locator: ${candidate.evidence.source_locator}`,
     `Claim text: ${candidate.payload.claim_text}`
+  );
+}
+
+function appendOfficialDisclosureSignalCandidate(
+  lines: string[],
+  candidate: Extract<ReviewQueueItem["candidate"], { kind: "official_disclosure_signal" }>
+): void {
+  lines.push(
+    "",
+    "## Official Disclosure Signal",
+    "",
+    `- Signal: ${candidate.payload.signal_title}`,
+    `- Evidence level hint: L${candidate.payload.evidence_level_hint}`,
+    `- Source item: ${candidate.payload.source_item_id}`,
+    `- Auto fact mutation: ${candidate.payload.fact_write_policy.automatic_fact_mutation_allowed}`,
+    "",
+    "## Evidence Context",
+    "",
+    `Source: ${candidate.evidence.source_adapter_id}`,
+    `URL: ${candidate.evidence.source_url}`,
+    `Locator: ${candidate.evidence.source_locator}`,
+    `Text: ${candidate.evidence.source_row_text}`
   );
 }

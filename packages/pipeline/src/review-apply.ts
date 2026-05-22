@@ -23,6 +23,7 @@ import { GraphBuilder } from "@supplystrata/graph-builder";
 import {
   isClaimConflictReviewCandidate,
   isEntitySourceReviewCandidate,
+  isOfficialDisclosureSignalReviewCandidate,
   isOshFacilityReviewCandidate,
   isSemanticChangeReviewCandidate,
   isSupplierListReviewCandidate,
@@ -57,6 +58,7 @@ export type ReviewApplyResult =
   | { status: "acknowledged"; review_id: string; kind: "semantic_change"; claim_id: string; reason: string }
   | { status: "acknowledged"; review_id: string; kind: "osh_facility_candidate"; reason: string; lead_id?: string }
   | { status: "acknowledged"; review_id: string; kind: "claim_conflict_review"; claim_id: string; edge_id: string | null; reason: string }
+  | { status: "acknowledged"; review_id: string; kind: "official_disclosure_signal"; signal_title: string; reason: string }
   | { status: "blocked"; review_id: string; reason: string; pending_id?: string };
 
 export type ReviewApplyBatchItem = ReviewApplyResult | { status: "error"; review_id: string; reason: string };
@@ -153,6 +155,35 @@ export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewI
         kind: "claim_conflict_review",
         claim_id: candidate.payload.claim_id,
         edge_id: candidate.payload.edge_id,
+        reason
+      };
+    });
+  }
+  if (isOfficialDisclosureSignalReviewCandidate(item.candidate)) {
+    const candidate = item.candidate;
+    return store.transaction(async (client) => {
+      const reason = `acknowledged official disclosure signal ${candidate.payload.signal_title}; no fact edge is applied by design`;
+      await recordSemanticChange(client, {
+        scope_kind: "source",
+        scope_id: candidate.payload.source_adapter_id,
+        change_type: "OFFICIAL_DISCLOSURE_SIGNAL_REVIEW_APPLIED",
+        after: {
+          review_id: item.review_id,
+          source_item_id: candidate.payload.source_item_id,
+          doc_id: candidate.payload.doc_id,
+          signal_title: candidate.payload.signal_title,
+          evidence_level_hint: candidate.payload.evidence_level_hint,
+          cite_locator: candidate.payload.cite_locator,
+          fact_write_policy: candidate.payload.fact_write_policy
+        },
+        caused_by: reviewer
+      });
+      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+      return {
+        status: "acknowledged",
+        review_id: item.review_id,
+        kind: "official_disclosure_signal",
+        signal_title: candidate.payload.signal_title,
         reason
       };
     });

@@ -145,6 +145,8 @@ pnpm --silent cli sources run-due --source-plan reports/nvidia-research-pack/sou
 
 `sources due` 和 `sources run-due` 都支持同一组过滤参数：`--source-plan + --namespace`、`--check-target-id` 或 `--source`。建议先用 `sources due` 预览，确认只包含本轮要跑的小批量目标，再运行 `run-due`。这些过滤参数只限制 due target 范围，不改变 source policy，不改变 target config，也不让 observation 自动升级成 fact edge。
 
+DB-backed `sources run-due` 的 Markdown summary 会显示每份文档产生的 `Review candidates` 数量。对 TSMC / Samsung / SK hynix / Micron / ASML 等官方 IR 文档，这些候选可能包含 `official_disclosure_signal`：它们只是可引用官方信号的复核入口，不是事实边，也不是自动 corroboration。
+
 再次运行同一个 `research run --source-target-namespace nvidia-memory-2025` 时，研究包会输出 `source-target-coverage.json/md`。这个文件把 runnable source-plan target 对齐到 `source_check_targets / source_check_jobs / source_change_events / observations`，显示目标是否已同步、是否启用、是否 due、是否 degraded、最近 job/event 是什么，以及有没有产出 observation。`investigation-backlog.md` 也会把这些状态写进每个相关任务的 action 和 coverage 行里，例如“已同步但未启用”时会提示先启用 target，“source fetch degraded” 时会提示先排查源退化；如果显式传入 `--source-target-preflight`，failed/skipped/degraded preflight 会优先提示先修 target config、凭据、connector 注册或源连通性，而不是笼统提示去同步 source。它是监控闭环的可见性层，不会自动把 observation 升级成 fact edge。
 
 如果当前环境没有 SQL truth store，也可以先用静态 Workbench 跑同一套 source-plan / readiness 输出：

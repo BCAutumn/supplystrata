@@ -8,12 +8,14 @@ import {
 } from "@supplystrata/observation-extractor";
 import { storeObservation } from "@supplystrata/observation-store";
 import { recordDocumentObservation, type DocumentObservationResult } from "@supplystrata/source-monitor";
+import { enqueueOfficialDisclosureSignalReviewCandidates } from "./official-disclosure-signal-candidates.js";
 import { recordRelationSemanticChanges } from "./relation-semantic-changes.js";
 
 export interface PersistDocumentObservationResult extends DocumentObservationResult {
   stored_observations: number;
   semantic_changes: number;
   relation_changes: number;
+  review_candidates: number;
 }
 
 export interface PersistDocumentObservationOptions {
@@ -55,7 +57,18 @@ export async function persistDocumentObservations(
     previous === undefined
       ? 0
       : await recordRelationSemanticChanges(client, { previous, next: normalized, nextDocId: docId, sourceItemId: documentObservation.source_item_id });
-  return { ...documentObservation, stored_observations: storedObservations, semantic_changes: semanticChanges, relation_changes: relationChanges };
+  const reviewCandidates = await enqueueOfficialDisclosureSignalReviewCandidates(client, {
+    normalized,
+    docId,
+    sourceItemId: documentObservation.source_item_id
+  });
+  return {
+    ...documentObservation,
+    stored_observations: storedObservations,
+    semantic_changes: semanticChanges,
+    relation_changes: relationChanges,
+    review_candidates: reviewCandidates.inserted
+  };
 }
 
 async function storeOfficialDisclosureObservations(client: DbClient, normalized: NormalizedDocument, docId: string): Promise<number> {

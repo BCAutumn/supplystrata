@@ -39,6 +39,20 @@ describe("pipeline document observations", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
+  it("enqueues official disclosure signals as review-only candidates", async () => {
+    const client = new RecordingDbClient();
+    const text =
+      "SK hynix reported that HBM demand from AI memory customers remained strong during the quarter, supporting product shipments and revenue visibility.";
+
+    const result = await persistDocumentObservations(client, normalizedIrFixture(text), "DOC-SKHYNIX-1");
+
+    expect(result).toMatchObject({ review_candidates: 3, change_type: "DOCUMENT_NEW" });
+    expect(
+      client.calls.filter((call) => call.sql.includes("INSERT INTO review_candidates") && call.params.includes("official_disclosure_signal"))
+    ).toHaveLength(3);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
   it("records deterministic semantic section changes when a watched source document changes", async () => {
     const client = new ChangedDocumentDbClient();
 
@@ -134,6 +148,32 @@ function normalizedDisclosureFixture(
   };
 }
 
+function normalizedIrFixture(text: string): NormalizedDocument {
+  return {
+    doc_id: "DOC-IR-FIXTURE",
+    source_adapter_id: "skhynix-ir",
+    document_type: "annual_report",
+    primary_entity_id: "ENT-SKHYNIX",
+    language: "en",
+    fetched_at: "2026-04-24T00:00:00.000Z",
+    source_date: "2026-04-24",
+    source_url: "https://www.skhynix.com/ir/fixture.html",
+    storage_key: "skhynix-ir/fixture.html",
+    bytes_sha256: "fixture-sha-skhynix",
+    text,
+    chunks: [
+      {
+        chunk_id: "CHUNK-IR-FIXTURE-1",
+        locator: "ir:1",
+        text,
+        token_count: 18,
+        language: "en"
+      }
+    ],
+    metadata: { fixture: true }
+  };
+}
+
 class ChangedDocumentDbClient extends RecordingDbClient {
   readonly #oldText: string;
   readonly #oldSourceUrl: string;
@@ -165,6 +205,9 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
   }
   if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ observation_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("INSERT INTO review_candidates") && typeof params[0] === "string") {
+    return [{ review_id: params[0] }] as unknown as T[];
   }
   return [];
 }

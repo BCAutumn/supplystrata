@@ -5,6 +5,15 @@ export interface OfficialDisclosureSignal {
   confidence: number;
 }
 
+export function extractOfficialDisclosureSignalsForSource(sourceAdapterId: string, text: string): OfficialDisclosureSignal[] {
+  if (sourceAdapterId === "tsmc-ir") return extractTsmcIrSignalsFromText(text);
+  if (sourceAdapterId === "skhynix-ir") return extractSkHynixSignalsFromText(text);
+  if (sourceAdapterId === "samsung-ir") return extractSamsungSignalsFromText(text);
+  if (sourceAdapterId === "asml-ir") return extractAsmlSignalsFromText(text);
+  if (sourceAdapterId === "micron-ir") return extractMicronSignalsFromText(text);
+  return [];
+}
+
 export function extractTsmcIrSignalsFromText(text: string): OfficialDisclosureSignal[] {
   const signals: OfficialDisclosureSignal[] = [];
   addPatternSignal(signals, "TSMC describes itself as a dedicated foundry", text, [/pure-play foundry/i, /foundry/i]);
@@ -39,6 +48,14 @@ export function extractAsmlSignalsFromText(text: string): OfficialDisclosureSign
     "We deliver value throughout the semiconductor value chain. Our comprehensive lithography portfolio enables cost-effective microchip scaling for our customers."
   );
   addExactSignal(signals, "ASML reports EUV lithography demand", text, "TWINSCAN NXE:3800E – full-specification system improves throughput by 37%");
+  return signals;
+}
+
+export function extractMicronSignalsFromText(text: string): OfficialDisclosureSignal[] {
+  const signals: OfficialDisclosureSignal[] = [];
+  addPatternSignal(signals, "Micron links results to AI data center demand", text, [/\bAI\b|artificial intelligence/i, /data center|datacenter/i]);
+  addPatternSignal(signals, "Micron describes HBM demand or ramp", text, [/\bHBM\b/i, /demand|ramp|revenue|shipments/i]);
+  addPatternSignal(signals, "Micron describes DRAM or NAND market conditions", text, [/DRAM|NAND/i, /demand|pricing|inventory|supply/i]);
   return signals;
 }
 

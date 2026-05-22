@@ -183,16 +183,19 @@ Observation 不是关系。它回答：
 
 第一版 signal 类型：
 
-| signal_kind              | 来源                  | 用途                                                                |
-| ------------------------ | --------------------- | ------------------------------------------------------------------- |
-| `financial_metric_delta` | SEC/XBRL/财报         | 库存、capex、应付、收入集中度                                       |
-| `trade_flow_delta`       | Census/USITC/Comtrade | 国家/HS/港口贸易变化                                                |
-| `commodity_price_delta`  | WorldBank/FRED/LME    | 原材料价格变化                                                      |
-| `energy_price_delta`     | EIA/FRED              | 能源成本变化                                                        |
-| `policy_event`           | BIS/OFAC/EU           | 管制与制裁暴露                                                      |
-| `news_lead`              | GDELT/新闻            | 线索，优先进入 lead layer                                           |
-| `port_activity_delta`    | NOAA/AIS/港口统计     | 物流拥堵或流量变化                                                  |
-| `disclosure_semantic`    | 官方披露文本          | inventory/backlog/capex/procurement/customer concentration 语义观测 |
+| signal_kind                  | 来源                   | 用途                                                                |
+| ---------------------------- | ---------------------- | ------------------------------------------------------------------- |
+| `financial_metric_delta`     | SEC/XBRL/财报          | 库存、capex、应付、收入集中度                                       |
+| `trade_flow_delta`           | Census/USITC/Comtrade  | 国家/HS/港口贸易变化                                                |
+| `commodity_price_delta`      | WorldBank/FRED/LME     | 原材料价格变化                                                      |
+| `energy_price_delta`         | EIA/FRED               | 能源成本变化                                                        |
+| `policy_event`               | BIS/OFAC/EU            | 管制与制裁暴露                                                      |
+| `news_lead`                  | GDELT/新闻             | 线索，优先进入 lead layer                                           |
+| `port_activity_delta`        | NOAA/AIS/港口统计      | 物流拥堵或流量变化                                                  |
+| `disclosure_semantic`        | 官方披露文本           | inventory/backlog/capex/procurement/customer concentration 语义观测 |
+| `official_disclosure_signal` | 官方 IR / 监管披露文本 | 供应链、产能、需求或技术路线的 review-only 信号，不写 fact edge     |
+
+`official_disclosure_signal` 由 source-check / pipeline 在保存官方文档后生成 review candidate。它只把已有文档中的可引用句子推进到人工复核队列，帮助研究员寻找 corroboration、补 claim 或记录 unknown；即使 approved，也只能 acknowledge 并写审计 change，不能自动生成供应链事实边。
 
 第一版变化检测：
 

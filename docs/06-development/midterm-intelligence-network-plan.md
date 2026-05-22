@@ -104,8 +104,9 @@ packages/source-workflows
   Apple Supplier List workflow 会把官方供应商设施行同时写入 review candidates 和 OSH cross-check leads，并把 lead 物化成 OSH facility-search source check target；前者经人工审核后才生成 fact edge，后者触发 Open Supply Hub 设施候选检索，并落入 `osh_facility_candidate` review candidate。
 
 packages/pipeline
-  只做 normalized document engine；已拆成 run / document-observations / citation-location / review-apply。
+  只做 normalized document engine；已拆成 run / document-observations / official-disclosure-signal-candidates / citation-location / review-apply。
   不直接 import `sources/*`，新增免费源不能再塞回 pipeline。
+  官方披露信号只能从已保存的 normalized document 进入 `official_disclosure_signal` review candidate，不能在 pipeline 里直接抽 fact edge。
 
 packages/chain-view
   把 edges、claims、observations、leads、unknowns 组装成 ChainViewModel。
@@ -532,6 +533,8 @@ PROCUREMENT_CHANGED
 
 已接入 review queue 和 draft claim：relation-level semantic diff 会生成 `semantic_change` 候选。研究员可以 approve / reject；`review apply` 对这类候选只做 acknowledge，并生成 `CLM-REVIEW-*` draft claim，不生成事实边。这条边界很重要：relation semantic diff 是“披露变化提醒”，不是已审计事实边。changes timeline 会把 relation surfaces、relation type、component、fingerprint、previous/next doc id 带出，避免工作台或 CLI 只能展示原始 JSON payload。
 
+官方披露信号也已接入 review queue：TSMC / Samsung / SK hynix / Micron / ASML 这类官方 IR 文档在 DB-backed source-check 保存后，会由确定性 signal extractor 生成 `official_disclosure_signal` 候选，保留原文 cite、locator、evidence level hint 和 `automatic_fact_mutation_allowed=false`。它用于提示研究员检查供应链、产能、需求或技术路线线索；`review apply` 只 acknowledge，不生成 draft claim 或 fact edge。
+
 仍待补齐：让工作台单独展示 draft claim，并提供“升级为事实边候选”的显式入口；如果要升级为 edge/evidence，仍必须走实体解析、scoring 和 GraphBuilder 的严格路径。
 
 验收：
@@ -548,6 +551,7 @@ PROCUREMENT_CHANGED
 - [x] 采购义务、产能预留、单一供应商风险从普通 supplier relation diff 中分离为专门语义事件。
 - [x] evidence supersession 和 relation semantic diff 在 timeline / Markdown 中有结构化展示。
 - [x] relation semantic diff 自动入 `review_candidates(kind='semantic_change')`，且确认后只 acknowledge，不绕过 fact edge 写入规则。
+- [x] 官方披露信号自动入 `review_candidates(kind='official_disclosure_signal')`，且确认后只 acknowledge，不绕过 fact edge 写入规则。
 - [x] 已确认的 `semantic_change` 生成 `status='draft'` 的 claim 草稿；active fact claim 查询不会混入这些草稿。
 
 ### PR G：research-preview 数据接口

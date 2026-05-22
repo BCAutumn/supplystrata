@@ -67,6 +67,7 @@ export async function runSourceAdapterCheck<TInput>(
         source_item_id: observation.source_item_id,
         source_event_id: observation.event_id,
         observations: observation.stored_observations,
+        review_candidates: observation.review_candidates,
         semantic_changes: observation.semantic_changes,
         relation_changes: observation.relation_changes
       });
