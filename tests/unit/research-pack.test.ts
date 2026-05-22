@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CORROBORATION_SOURCE_PLAN_ACTION_BATCHES,
   buildCorroborationSourcePlan,
+  buildCorroborationSourcePlanActionBatch,
   buildInvestigationBacklog,
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
@@ -22,6 +24,7 @@ import { buildSourcePolicyConfigFromPlanTargets, parseManagedSourcePlanDocument 
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type {
+  InvestigationBacklog,
   ObservationCoverageObservation,
   ObservationCoverageReport,
   QuestionReadinessMatrix,
@@ -1222,6 +1225,131 @@ describe("research-pack", () => {
     expect(renderCorroborationSourcePlanMarkdown(corroborationSourcePlan)).toContain("Missing credentials: SAMSUNG_IR_TOKEN");
     expect(renderCorroborationSourcePlanMarkdown(corroborationSourcePlan)).toContain("Next action: configure_credentials");
   });
+
+  it("splits corroboration source plans into action-specific executable batches", () => {
+    const sourcePlanItem = officialSourcePlanItem();
+    const smokeTarget = sourcePlanItem.suggested_check_targets[0];
+    if (smokeTarget === undefined) throw new Error("officialSourcePlanItem fixture must include a smoke target");
+    const syncTarget = {
+      ...smokeTarget,
+      target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2024 },
+      reason: "Samsung IR 2024 connector target."
+    };
+    const sourcePlan: SourcePlanItem[] = [
+      {
+        ...sourcePlanItem,
+        suggested_check_targets: [smokeTarget, syncTarget]
+      }
+    ];
+    const backlog: InvestigationBacklog = {
+      schema_version: "1.0.0",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      summary: {
+        open_items: 2,
+        p0: 0,
+        p1: 2,
+        p2: 0,
+        p3: 0,
+        runnable_check_targets: 2,
+        source_target_coverage_items: 1,
+        corroboration_reviews: 2,
+        corroboration_review_runnable_targets: 2,
+        corroboration_review_with_source_target_coverage: 1,
+        corroboration_review_explicit_disposition_only: 0,
+        corroboration_review_need_sync: 1,
+        corroboration_review_need_enable: 0,
+        corroboration_review_due: 0,
+        corroboration_review_failed_preflight: 0,
+        corroboration_review_missing_credentials: 0,
+        corroboration_review_invalid_config: 0,
+        corroboration_review_unsupported_connector: 0,
+        corroboration_review_source_unreachable: 0
+      },
+      items: [
+        {
+          backlog_id: "BACKLOG-SMOKE",
+          kind: "corroboration_review",
+          priority: "P1",
+          title: "Smoke Samsung IR target",
+          rationale: "No preflight exists yet.",
+          action: "Run smoke before syncing.",
+          target: {
+            component_ids: ["COMP-DRAM"],
+            edge_ids: ["EDGE-SMOKE"],
+            unknown_ids: [],
+            source_ids: ["samsung-ir"],
+            question_ids: ["official_disclosure.corroboration"]
+          },
+          supporting_refs: [],
+          runnable_check_targets: [smokeTarget],
+          source_target_coverage: []
+        },
+        {
+          backlog_id: "BACKLOG-SYNC",
+          kind: "corroboration_review",
+          priority: "P1",
+          title: "Sync Samsung IR target",
+          rationale: "Preflight exists and target has not been synced.",
+          action: "Sync target after smoke.",
+          target: {
+            component_ids: ["COMP-DRAM"],
+            edge_ids: ["EDGE-SYNC"],
+            unknown_ids: [],
+            source_ids: ["samsung-ir"],
+            question_ids: ["official_disclosure.corroboration"]
+          },
+          supporting_refs: [],
+          runnable_check_targets: [syncTarget],
+          source_target_coverage: [
+            {
+              source_adapter_id: "samsung-ir",
+              target_kind: "official-html-disclosure",
+              target_config: syncTarget.target_config,
+              check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:sync",
+              state: "not_synced",
+              synced: false,
+              observations: 0,
+              latest_job_id: null,
+              latest_job_status: null,
+              latest_event_id: null,
+              latest_event_type: null,
+              preflight_status: "checked",
+              preflight_issue_kind: null,
+              preflight_error_message: null,
+              preflight_missing_credential_env_keys: [],
+              preflight_normalized_documents: 1,
+              preflight_degraded_documents: 0
+            }
+          ]
+        }
+      ]
+    };
+
+    const plan = buildCorroborationSourcePlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      source_plan: sourcePlan,
+      investigation_backlog: backlog
+    });
+    const smokeBatch = buildCorroborationSourcePlanActionBatch(plan, actionBatchDefinition("smoke"));
+    const syncBatch = buildCorroborationSourcePlanActionBatch(plan, actionBatchDefinition("sync"));
+
+    expect(plan.summary.by_next_action).toEqual({ smoke_target: 1, sync_target: 1 });
+    expect(smokeBatch.summary).toEqual(
+      expect.objectContaining({
+        runnable_targets: 1,
+        target_refs: 1,
+        review_edges: 1,
+        by_source: { "samsung-ir": 1 }
+      })
+    );
+    expect(smokeBatch.source_plan[0]?.suggested_check_targets[0]?.target_config["year"]).toBe(2025);
+    expect(syncBatch.source_plan[0]?.suggested_check_targets[0]?.target_config["year"]).toBe(2024);
+    expect(parseManagedSourcePlanDocument(JSON.stringify(smokeBatch)).source_plan[0]?.suggested_check_targets).toHaveLength(1);
+    expect(parseManagedSourcePlanDocument(JSON.stringify(syncBatch)).source_plan[0]?.suggested_check_targets).toHaveLength(1);
+    expect(renderCorroborationSourcePlanMarkdown(plan)).toContain("corroboration-source-plan-smoke.json");
+  });
 });
 
 function officialSourcePlanItem(): SourcePlanItem {
@@ -1249,6 +1377,12 @@ function officialSourcePlanItem(): SourcePlanItem {
       }
     ]
   };
+}
+
+function actionBatchDefinition(kind: "smoke" | "sync" | "enable" | "run_due") {
+  const definition = CORROBORATION_SOURCE_PLAN_ACTION_BATCHES.find((item) => item.kind === kind);
+  if (definition === undefined) throw new Error(`Missing action batch definition: ${kind}`);
+  return definition;
 }
 
 function officialSourceTargetCoverage(state: SourceTargetCoverageReport["items"][number]["state"]): SourceTargetCoverageReport {

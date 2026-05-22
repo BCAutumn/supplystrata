@@ -21,7 +21,13 @@ import {
 } from "@supplystrata/render";
 import { planSourcesForComponents, type SourcePlanItem, type TradeObservationDirection } from "@supplystrata/source-plan";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
-import { buildCorroborationSourcePlan, renderCorroborationSourcePlanMarkdown, type CorroborationSourcePlan } from "./corroboration-source-plan.js";
+import {
+  CORROBORATION_SOURCE_PLAN_ACTION_BATCHES,
+  buildCorroborationSourcePlan,
+  buildCorroborationSourcePlanActionBatch,
+  renderCorroborationSourcePlanMarkdown,
+  type CorroborationSourcePlan
+} from "./corroboration-source-plan.js";
 import { buildInvestigationBacklog, renderInvestigationBacklogMarkdown, type InvestigationBacklog } from "./investigation-backlog.js";
 import { buildObservationCoverageReport, renderObservationCoverageMarkdown, type ObservationCoverageReport } from "./observation-coverage.js";
 import {
@@ -574,6 +580,7 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
       renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan),
       "Filtered source plan for edge corroboration review targets markdown"
     ),
+    ...(await corroborationSourcePlanActionBatchFiles(outDir, pack.corroboration_source_plan)),
     await writeJsonFile(outDir, "source-target-coverage.json", pack.source_target_coverage, "Source target coverage from source monitor"),
     await writeMarkdownFile(
       outDir,
@@ -662,6 +669,7 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
       renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan),
       "Filtered source plan for edge corroboration review targets markdown"
     ),
+    ...(await corroborationSourcePlanActionBatchFiles(outDir, pack.corroboration_source_plan)),
     await writeJsonFile(outDir, "source-target-coverage.json", pack.source_target_coverage, "Expected source target coverage"),
     await writeMarkdownFile(
       outDir,
@@ -1033,7 +1041,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage and methodology gaps.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
-    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands.",
+    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show whether runnable source-plan targets are synced, enabled, due, running, failed, or producing observations.",
     "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
     "- `components/*.md` contains component-level evidence, observation, strength, freshness, and unknown context.",
@@ -1096,7 +1104,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage visible from the snapshot.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
-    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands.",
+    "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show expected runnable targets as `not_synced` until a SQL truth store syncs them into `source_check_targets`.",
     "- `source-target-preflight.json` and `source-target-preflight.md`, when present, carry an explicit no-database source-plan smoke result. They do not imply fact coverage.",
     "- `source-plan.json` lists existing free/public source checks suggested by the components in this workbench.",
@@ -1169,6 +1177,16 @@ function formatStatsCountMap(counts: Record<string, number>): string {
   const entries = Object.entries(counts).sort(([left], [right]) => left.localeCompare(right));
   if (entries.length === 0) return "none";
   return entries.map(([key, count]) => `${key}=${count}`).join(", ");
+}
+
+async function corroborationSourcePlanActionBatchFiles(outDir: string, plan: CorroborationSourcePlan): Promise<ResearchPackFile[]> {
+  const files: ResearchPackFile[] = [];
+  for (const definition of CORROBORATION_SOURCE_PLAN_ACTION_BATCHES) {
+    const batch = buildCorroborationSourcePlanActionBatch(plan, definition);
+    if (batch.summary.runnable_targets === 0) continue;
+    files.push(await writeJsonFile(outDir, definition.file_name, batch, definition.description));
+  }
+  return files;
 }
 
 async function sourceTargetPreflightFiles(outDir: string, report: SourceTargetPreflightReport | null): Promise<ResearchPackFile[]> {

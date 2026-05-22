@@ -13,6 +13,58 @@ export type CorroborationSourcePlanNextAction =
   | "investigate_source_failure"
   | "review_observations";
 
+export type CorroborationSourcePlanActionBatchKind = "smoke" | "sync" | "enable" | "run_due";
+
+export interface CorroborationSourcePlanActionBatchDefinition {
+  kind: CorroborationSourcePlanActionBatchKind;
+  file_name: string;
+  description: string;
+  next_actions: readonly CorroborationSourcePlanNextAction[];
+}
+
+export interface CorroborationSourcePlanActionBatch {
+  schema_version: "1.0.0";
+  generated_at: string;
+  company_id: string;
+  batch_kind: CorroborationSourcePlanActionBatchKind;
+  next_actions: readonly CorroborationSourcePlanNextAction[];
+  summary: {
+    source_plan_items: number;
+    runnable_targets: number;
+    target_refs: number;
+    review_edges: number;
+    by_source: Record<string, number>;
+  };
+  source_plan: SourcePlanItem[];
+}
+
+export const CORROBORATION_SOURCE_PLAN_ACTION_BATCHES = [
+  {
+    kind: "smoke",
+    file_name: "corroboration-source-plan-smoke.json",
+    description: "Corroboration source-plan targets whose next action is smoke_target",
+    next_actions: ["smoke_target"]
+  },
+  {
+    kind: "sync",
+    file_name: "corroboration-source-plan-sync.json",
+    description: "Corroboration source-plan targets whose next action is sync_target",
+    next_actions: ["sync_target"]
+  },
+  {
+    kind: "enable",
+    file_name: "corroboration-source-plan-enable.json",
+    description: "Corroboration source-plan targets whose next action is enable_target",
+    next_actions: ["enable_target"]
+  },
+  {
+    kind: "run_due",
+    file_name: "corroboration-source-plan-run-due.json",
+    description: "Corroboration source-plan targets whose next action is run_due_target",
+    next_actions: ["run_due_target"]
+  }
+] as const satisfies readonly CorroborationSourcePlanActionBatchDefinition[];
+
 export interface CorroborationSourcePlanTargetRef {
   backlog_id: string;
   edge_ids: string[];
@@ -61,7 +113,7 @@ export function buildCorroborationSourcePlan(input: CorroborationSourcePlanInput
   const reviews = input.investigation_backlog.items.filter((item) => item.kind === "corroboration_review");
   const targetRefs = buildTargetRefs(reviews);
   const targetRefsByKey = new Map(targetRefs.map((target) => [sourceTargetKey(target), target]));
-  const sourcePlan = filterSourcePlan(input.source_plan, targetRefsByKey);
+  const sourcePlan = filterSourcePlan(input.source_plan, targetRefsByKey, { annotate: true });
   return {
     schema_version: "1.0.0",
     generated_at: input.generated_at,
@@ -80,6 +132,31 @@ export function buildCorroborationSourcePlan(input: CorroborationSourcePlanInput
       by_source: countBy(targetRefs, (target) => target.source_adapter_id)
     },
     target_refs: targetRefs,
+    source_plan: sourcePlan
+  };
+}
+
+export function buildCorroborationSourcePlanActionBatch(
+  plan: CorroborationSourcePlan,
+  definition: CorroborationSourcePlanActionBatchDefinition
+): CorroborationSourcePlanActionBatch {
+  const nextActions = new Set<CorroborationSourcePlanNextAction>(definition.next_actions);
+  const targetRefs = plan.target_refs.filter((target) => nextActions.has(target.next_action));
+  const targetRefsByKey = new Map(targetRefs.map((target) => [sourceTargetKey(target), target]));
+  const sourcePlan = filterSourcePlan(plan.source_plan, targetRefsByKey, { annotate: false });
+  return {
+    schema_version: "1.0.0",
+    generated_at: plan.generated_at,
+    company_id: plan.company_id,
+    batch_kind: definition.kind,
+    next_actions: definition.next_actions,
+    summary: {
+      source_plan_items: sourcePlan.length,
+      runnable_targets: sourcePlan.reduce((count, item) => count + item.suggested_check_targets.length, 0),
+      target_refs: targetRefs.length,
+      review_edges: uniqueSorted(targetRefs.flatMap((target) => target.edge_ids)).length,
+      by_source: countBy(targetRefs, (target) => target.source_adapter_id)
+    },
     source_plan: sourcePlan
   };
 }
@@ -105,6 +182,14 @@ export function renderCorroborationSourcePlanMarkdown(plan: CorroborationSourceP
     `- Missing credentials: ${plan.summary.targets_missing_credentials}`,
     `- By next action: ${formatCountMap(plan.summary.by_next_action)}`,
     `- By source: ${formatCountMap(plan.summary.by_source)}`,
+    "",
+    "## Action Batches",
+    "",
+    "Use the action-specific source-plan files when they are present, so smoke/sync/enable/run-due steps stay aligned with the audited next action for each target.",
+    "",
+    ...CORROBORATION_SOURCE_PLAN_ACTION_BATCHES.map(
+      (batch) => `- ${batch.file_name}: ${batch.next_actions.join(", ")} targets for ${batch.kind.replace("_", "-")} execution`
+    ),
     "",
     "## Targets",
     ""
@@ -258,14 +343,19 @@ function nextActionRank(action: CorroborationSourcePlanNextAction): number {
   ].indexOf(action);
 }
 
-function filterSourcePlan(sourcePlan: readonly SourcePlanItem[], targetRefsByKey: ReadonlyMap<string, CorroborationSourcePlanTargetRef>): SourcePlanItem[] {
+function filterSourcePlan(
+  sourcePlan: readonly SourcePlanItem[],
+  targetRefsByKey: ReadonlyMap<string, CorroborationSourcePlanTargetRef>,
+  options: { annotate: boolean }
+): SourcePlanItem[] {
   return sourcePlan
     .map((item) => {
       const suggestedTargets = item.suggested_check_targets
         .filter((target) => target.runnable)
         .flatMap((target) => {
           const ref = targetRefsByKey.get(sourceTargetKey(target));
-          return ref === undefined ? [] : [annotateTargetForCorroboration(target, ref)];
+          if (ref === undefined) return [];
+          return [options.annotate ? annotateTargetForCorroboration(target, ref) : cloneTargetSuggestion(target)];
         });
       return {
         ...item,
@@ -275,6 +365,13 @@ function filterSourcePlan(sourcePlan: readonly SourcePlanItem[], targetRefsByKey
     })
     .filter((item) => item.suggested_check_targets.length > 0)
     .sort((left, right) => left.source_id.localeCompare(right.source_id));
+}
+
+function cloneTargetSuggestion(target: SourcePlanCheckTargetSuggestion): SourcePlanCheckTargetSuggestion {
+  return {
+    ...target,
+    target_config: copyTargetConfig(target.target_config)
+  };
 }
 
 function annotateTargetForCorroboration(target: SourcePlanCheckTargetSuggestion, ref: CorroborationSourcePlanTargetRef): SourcePlanCheckTargetSuggestion {

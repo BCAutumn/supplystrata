@@ -589,6 +589,7 @@ pnpm cli workbench export --company nvidia --out reports/nvidia-workbench.json
 - [x] source-management / CLI 能把 research-pack source-plan 的 runnable target suggestions 同步到 source_check_targets，并复用统一监控频率、jitter 和重试配置。
 - [x] source-management / CLI 能在同步前无数据库预览 runnable target suggestions，输出 target id、去重统计、credentials warning 和 validation 结果。
 - [x] source-workflows / CLI 能在同步前无数据库执行 runnable target 的 plan/fetch/normalize smoke，提前发现外部源、凭据或 target config 问题，但不写 monitor event、observation 或 fact edge。
+- [x] research-pack 能把 edge-level corroboration source plan 按 audited next-action 拆成非空 smoke / sync / enable / run-due 批次，让 Gate 1 二源检查可以小步执行，而不是把所有 runnable target 一次性同步或启用。
 - [x] source-monitor / CLI 能在审计后受控启用已同步 source-plan targets，不把 cadence / jitter / retry / next_check_at 散落成调度期临时参数。
 - [x] source-monitor / research-pack 能输出 source target coverage，把 runnable target 的调度与结果状态回流到研究包。
 - [x] coverage 能区分 succeeded 与 degraded，源退化会进入 backlog 排查动作，不会被误读成可用证据。

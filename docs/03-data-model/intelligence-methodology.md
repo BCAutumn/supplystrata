@@ -399,6 +399,7 @@ Phase 6+
 [x] research-pack 能输出 question readiness matrix，区分 ready / partial / blocked
 [x] research-pack 能输出 investigation backlog，把 gap / unknown / source-plan 转成下一步调查任务
 [x] runnable source-plan target 能在无数据库场景下执行 plan/fetch/normalize smoke，用于同步前发现外部源和凭据问题
+[x] `corroboration-source-plan` 能按 audited next-action 生成非空的 smoke / sync / enable / run-due source-plan 执行批次，避免把仍需预检或排错的二源 target 误混入后续步骤
 [x] runnable source-plan target 能同步到 source_check_targets，并进入统一 due/worker 监控链路
 [x] 审计后的 runnable source-plan target 能受控启用，并继续使用统一 target 级 cadence / jitter / retry / next_check_at 配置
 [x] research-pack 能输出 source target coverage，把 target 级 job/event/observation 状态回流到数据准备进度
