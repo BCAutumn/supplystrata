@@ -56,9 +56,19 @@ interface UpsertObservationRow extends pg.QueryResultRow {
   inserted: boolean;
 }
 
+interface ObservationPatchRow extends pg.QueryResultRow {
+  observation_id: string;
+}
+
 export interface UpsertObservationResult {
   observation_id: string;
   inserted: boolean;
+}
+
+export interface PatchObservationMetadataInput {
+  observation_id: string;
+  provenance_patch?: Record<string, unknown>;
+  attrs_patch?: Record<string, unknown>;
 }
 
 export async function insertObservation(client: DbClient, input: NewObservationInput): Promise<{ observation_id: string }> {
@@ -87,32 +97,27 @@ export async function upsertObservation(client: DbClient, input: NewObservationI
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
      ON CONFLICT (observation_id) DO UPDATE SET
-       observation_type = EXCLUDED.observation_type,
-       source_adapter_id = EXCLUDED.source_adapter_id,
-       source_item_id = EXCLUDED.source_item_id,
-       doc_id = EXCLUDED.doc_id,
-       scope_kind = EXCLUDED.scope_kind,
-       scope_id = EXCLUDED.scope_id,
-       geography_kind = EXCLUDED.geography_kind,
-       geography_id = EXCLUDED.geography_id,
-       component_id = EXCLUDED.component_id,
-       metric_name = EXCLUDED.metric_name,
-       metric_value = EXCLUDED.metric_value,
-       metric_unit = EXCLUDED.metric_unit,
-       time_window_start = EXCLUDED.time_window_start,
-       time_window_end = EXCLUDED.time_window_end,
-       baseline_value = EXCLUDED.baseline_value,
-       change_value = EXCLUDED.change_value,
-       change_percent = EXCLUDED.change_percent,
-       confidence = EXCLUDED.confidence,
-       provenance = observations.provenance || EXCLUDED.provenance,
-       attrs = observations.attrs || EXCLUDED.attrs
+       observation_id = observations.observation_id
      RETURNING observation_id, (xmax = 0) AS inserted`,
     observationParams(observationId, input)
   );
   const row = result.rows[0];
   if (row === undefined) throw new Error(`Observation upsert did not return a row: ${observationId}`);
   return { observation_id: row.observation_id, inserted: row.inserted };
+}
+
+export async function patchObservationMetadata(client: DbClient, input: PatchObservationMetadataInput): Promise<{ observation_id: string } | undefined> {
+  const result = await client.query<ObservationPatchRow>(
+    `UPDATE observations
+     SET provenance = provenance || $2::jsonb,
+         attrs = attrs || $3::jsonb
+     WHERE observation_id = $1
+     RETURNING observation_id`,
+    [input.observation_id, JSON.stringify(input.provenance_patch ?? {}), JSON.stringify(input.attrs_patch ?? {})]
+  );
+  const row = result.rows[0];
+  if (row === undefined) return undefined;
+  return { observation_id: row.observation_id };
 }
 
 export async function listObservationsByScope(

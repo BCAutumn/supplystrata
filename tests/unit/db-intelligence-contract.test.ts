@@ -46,6 +46,7 @@ import {
   listClaimsByScope,
   listLeadObservationsByScope,
   listObservationsByScope,
+  patchObservationMetadata,
   replaceRiskView,
   updateAlertCandidateStatus,
   upsertAlertCandidate,
@@ -339,7 +340,7 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
-  it("upserts observations without replacing existing provenance and attrs blobs wholesale", async () => {
+  it("reasserts existing observations without mutating measurement or metadata fields", async () => {
     const client = new RecordingDbClient();
 
     await upsertObservation(client, {
@@ -354,8 +355,25 @@ describe("db intelligence-network repositories", () => {
       attrs: { country: "MY" }
     });
 
-    expect(client.calls[0]?.sql).toContain("provenance = observations.provenance || EXCLUDED.provenance");
-    expect(client.calls[0]?.sql).toContain("attrs = observations.attrs || EXCLUDED.attrs");
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (observation_id) DO UPDATE SET");
+    expect(client.calls[0]?.sql).toContain("observation_id = observations.observation_id");
+    expect(client.calls[0]?.sql).not.toContain("metric_value = EXCLUDED.metric_value");
+    expect(client.calls[0]?.sql).not.toContain("provenance = observations.provenance || EXCLUDED.provenance");
+  });
+
+  it("patches observation metadata through an explicit patch entrypoint", async () => {
+    const client = new RecordingDbClient();
+
+    await patchObservationMetadata(client, {
+      observation_id: "OBS-TEST",
+      provenance_patch: { reviewer: "unit-test" },
+      attrs_patch: { reviewed: true }
+    });
+
+    expect(client.calls[0]?.sql).toContain("UPDATE observations");
+    expect(client.calls[0]?.sql).toContain("provenance = provenance || $2::jsonb");
+    expect(client.calls[0]?.sql).toContain("attrs = attrs || $3::jsonb");
+    expect(client.calls[0]?.params[0]).toBe("OBS-TEST");
   });
 
   it("does not reopen or rewrite terminal lead observations through ordinary upserts", async () => {
@@ -755,6 +773,9 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
   }
   if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ observation_id: params[0], inserted: true }] as unknown as T[];
+  }
+  if (sql.includes("RETURNING observation_id") && sql.includes("UPDATE observations") && typeof params[0] === "string") {
+    return [{ observation_id: params[0] }] as unknown as T[];
   }
   if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
     return [

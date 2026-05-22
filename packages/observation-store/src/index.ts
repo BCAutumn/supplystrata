@@ -66,7 +66,7 @@ export async function storeObservation(client: DbClient, input: ObservationStore
   await recordSemanticChange(client, {
     scope_kind: "observation",
     scope_id: result.observation_id,
-    change_type: result.inserted ? "OBSERVATION_ADDED" : "OBSERVATION_UPDATED",
+    change_type: result.inserted ? "OBSERVATION_ADDED" : "OBSERVATION_REASSERTED",
     after: {
       observation_type: input.observation_type,
       source_adapter_id: input.source_adapter_id,

@@ -23,6 +23,28 @@ class RecordingDbClient implements DbClient {
   }
 }
 
+class ReassertedObservationDbClient extends RecordingDbClient {
+  override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
+      return {
+        command: "MOCK",
+        rowCount: 1,
+        oid: 0,
+        fields: [],
+        rows: [{ observation_id: params[0], inserted: false }] as unknown as T[]
+      };
+    }
+    return {
+      command: "MOCK",
+      rowCount: 0,
+      oid: 0,
+      fields: [],
+      rows: []
+    };
+  }
+}
+
 describe("observation-store", () => {
   it("stores component observations idempotently without writing edges", async () => {
     const client = new RecordingDbClient();
@@ -48,6 +70,25 @@ describe("observation-store", () => {
     expect(client.calls[1]?.sql).toContain("INSERT INTO change_records");
     expect(client.calls[1]?.params).toContain("OBSERVATION_ADDED");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("records deterministic duplicate observations as reasserted instead of updated", async () => {
+    const client = new ReassertedObservationDbClient();
+    const input = {
+      observation_type: "INVENTORY_OBSERVATION",
+      source_adapter_id: "fixture-observation",
+      scope_kind: "component",
+      scope_id: "COMP-MEMORY",
+      metric_name: "inventory_days",
+      metric_value: "42",
+      confidence: 0.72
+    } as const;
+
+    const result = await storeObservation(client, input);
+
+    expect(result).toEqual({ id: deterministicObservationId(input), inserted: false });
+    expect(client.calls[1]?.params).toContain("OBSERVATION_REASSERTED");
+    expect(client.calls[1]?.params).not.toContain("OBSERVATION_UPDATED");
   });
 
   it("rejects invalid observation confidence and inverted windows before db writes", async () => {
