@@ -47,6 +47,13 @@ const ATTENTION_KINDS = ["claim_conflict", "claim_lifecycle", "alert", "source_d
 const ATTENTION_PRIORITIES = ["P0", "P1", "P2", "P3"] as const;
 const ATTENTION_STATUSES = ["open", "acknowledged", "resolved", "suppressed"] as const;
 const REVIEW_CANDIDATE_STATUSES = ["pending", "in_review", "approved", "rejected", "blocked", "applied"] as const;
+const OFFICIAL_SIGNAL_DISPOSITION_DECISIONS = [
+  "supports_existing_edge",
+  "needs_more_evidence",
+  "not_relevant",
+  "record_single_source_unknown",
+  "create_counterparty_source_target"
+] as const;
 
 function assertWorkbenchModel(value: unknown): asserts value is WorkbenchModel {
   const errors: string[] = [];
@@ -92,6 +99,7 @@ function normalizeWorkbenchModelJson(value: unknown): void {
   normalizeUnknownArray(value["unknown_items"]);
   normalizeClaimArray(value["claims"]);
   normalizeClaimArray(value["draft_claims"]);
+  normalizeReviewQueueArray(value["review_queue"]);
 }
 
 function normalizeUnknownArray(value: unknown): void {
@@ -130,6 +138,14 @@ function normalizeClaimArray(value: unknown): void {
     if (item["conflict_review"] === undefined) {
       item["conflict_review"] = legacyClaimConflictReviewPacket(item);
     }
+  }
+}
+
+function normalizeReviewQueueArray(value: unknown): void {
+  if (!Array.isArray(value)) return;
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    if (item["dispositions"] === undefined) item["dispositions"] = [];
   }
 }
 
@@ -458,6 +474,7 @@ function validateReviewCandidate(value: unknown, path: string, errors: string[])
   expectString(value, "created_at", path, errors);
   expectNullableString(value, "reviewed_at", path, errors);
   expectNullableString(value, "decision_reason", path, errors);
+  validateArrayField(value, "dispositions", path, errors, validateOfficialSignalDisposition);
   const signal = value["signal"];
   if (signal !== null) validateReviewCandidateSignal(signal, `${path}.signal`, errors);
 }
@@ -467,6 +484,28 @@ function validateReviewCandidateSignal(value: unknown, path: string, errors: str
   expectString(value, "signal_title", path, errors);
   expectNumber(value, "evidence_level_hint", path, errors);
   expectBoolean(value, "automatic_fact_mutation_allowed", path, errors);
+}
+
+function validateOfficialSignalDisposition(value: unknown, path: string, errors: string[]): void {
+  if (!isRecordAt(value, path, errors)) return;
+  expectString(value, "change_id", path, errors);
+  expectString(value, "review_id", path, errors);
+  expectString(value, "edge_id", path, errors);
+  expectEnum(value, "decision", OFFICIAL_SIGNAL_DISPOSITION_DECISIONS, path, errors);
+  expectString(value, "reviewer", path, errors);
+  expectString(value, "reason", path, errors);
+  expectString(value, "source_adapter_id", path, errors);
+  expectNullableString(value, "doc_id", path, errors);
+  expectString(value, "signal_title", path, errors);
+  expectNullableString(value, "evidence_id", path, errors);
+  expectNullableString(value, "unknown_id", path, errors);
+  expectNullableString(value, "check_target_id", path, errors);
+  expectString(value, "recorded_at", path, errors);
+  const policy = value["fact_write_policy"];
+  if (!isRecordAt(policy, `${path}.fact_write_policy`, errors)) return;
+  expectLiteral(policy, "automatic_fact_mutation_allowed", false, `${path}.fact_write_policy`, errors);
+  expectLiteral(policy, "allowed_edge_mutation", "none", `${path}.fact_write_policy`, errors);
+  expectLiteral(policy, "requires_human_review", true, `${path}.fact_write_policy`, errors);
 }
 
 function validateIntelligenceContext(value: unknown, path: string, errors: string[]): void {
@@ -516,7 +555,7 @@ function validateArrayField(
   value.forEach((item, index) => validateItem(item, `${path}.${key}[${index}]`, errors));
 }
 
-function expectLiteral(record: Record<string, unknown>, key: string, expected: string, path: string, errors: string[]): void {
+function expectLiteral(record: Record<string, unknown>, key: string, expected: string | boolean, path: string, errors: string[]): void {
   if (record[key] !== expected) errors.push(`${path}.${key} must equal ${expected}`);
 }
 

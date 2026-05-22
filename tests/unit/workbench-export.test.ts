@@ -234,7 +234,20 @@ describe("workbench-export", () => {
         automatic_fact_mutation_allowed: false
       }
     });
+    expect(model.review_queue[0]?.dispositions).toContainEqual(
+      expect.objectContaining({
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        edge_id: "EDGE-NVIDIA-TSMC",
+        decision: "needs_more_evidence",
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none",
+          requires_human_review: true
+        }
+      })
+    );
     expect(client.calls.some((call) => call.sql.includes("FROM review_candidates") && call.params[1] === 10)).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED"))).toBe(true);
   });
 });
 
@@ -433,6 +446,35 @@ function rowsForWorkbench<T extends pg.QueryResultRow>(
         reviewed_at: null,
         decision_reason: null,
         created_at: new Date("2026-05-21T00:00:00.000Z")
+      }
+    ] as unknown as T[];
+  }
+  if (input.includeReviewSignals && sql.includes("FROM change_records") && sql.includes("OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED")) {
+    return [
+      {
+        change_id: "CHG-OFFICIAL-SIGNAL-DISPOSITION-1",
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        after: {
+          review_id: "REV-OFFICIAL-SIGNAL-1",
+          edge_id: "EDGE-NVIDIA-TSMC",
+          decision: "needs_more_evidence",
+          reviewer: "unit-test",
+          reason: "Signal mentions demand but does not name the exact edge counterparty.",
+          source_adapter_id: "tsmc-ir",
+          doc_id: "DOC-TSMC-IR",
+          signal_title: "TSMC links demand to AI and HPC",
+          evidence_id: null,
+          unknown_id: null,
+          check_target_id: null,
+          recorded_at: "2026-05-22T00:00:00.000Z",
+          fact_write_policy: {
+            automatic_fact_mutation_allowed: false,
+            allowed_edge_mutation: "none",
+            requires_human_review: true
+          }
+        },
+        caused_by: "unit-test",
+        detected_at: new Date("2026-05-22T00:00:00.000Z")
       }
     ] as unknown as T[];
   }

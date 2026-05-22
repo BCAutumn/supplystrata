@@ -147,7 +147,29 @@ describe("research-pack", () => {
             signal_title: "SK hynix links results to HBM demand",
             evidence_level_hint: 4,
             automatic_fact_mutation_allowed: false
-          }
+          },
+          dispositions: [
+            {
+              change_id: "CHG-OFFICIAL-SIGNAL-DISPOSITION-1",
+              review_id: "REV-OFFICIAL-SIGNAL-1",
+              edge_id: "EDGE-1",
+              decision: "needs_more_evidence",
+              reviewer: "unit-test",
+              reason: "The signal supports HBM demand context but does not provide enough reviewed relation evidence yet.",
+              source_adapter_id: "skhynix-ir",
+              doc_id: "DOC-SKHYNIX-IR",
+              signal_title: "SK hynix links results to HBM demand",
+              evidence_id: null,
+              unknown_id: null,
+              check_target_id: null,
+              recorded_at: "2026-01-02T00:00:00.000Z",
+              fact_write_policy: {
+                automatic_fact_mutation_allowed: false,
+                allowed_edge_mutation: "none",
+                requires_human_review: true
+              }
+            }
+          ]
         }
       ],
       intelligence: {
@@ -280,12 +302,19 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.official_disclosure_l4_l5_edges).toBe(1);
     expect(pack.manifest.stats.review_candidates).toBe(1);
     expect(pack.manifest.stats.official_disclosure_signal_review_candidates).toBe(1);
+    expect(pack.manifest.stats.official_disclosure_signal_dispositions).toBe(1);
     expect(pack.manifest.stats.official_disclosure_signal_correlation_hints).toBeGreaterThan(0);
+    expect(pack.manifest.stats.open_official_disclosure_signal_correlation_hints).toBe(0);
     expect(pack.official_disclosure_readiness.official_disclosure_signals[0]?.review_id).toBe("REV-OFFICIAL-SIGNAL-1");
+    expect(pack.official_disclosure_readiness.official_disclosure_signals[0]?.dispositions[0]).toEqual(
+      expect.objectContaining({ decision: "needs_more_evidence", edge_id: "EDGE-1" })
+    );
     expect(pack.official_disclosure_readiness.official_disclosure_signal_correlation_hints[0]).toEqual(
       expect.objectContaining({
         review_id: "REV-OFFICIAL-SIGNAL-1",
         edge_id: "EDGE-1",
+        disposition_status: "recorded",
+        recorded_decision: "needs_more_evidence",
         review_policy: "review_only_no_fact_mutation"
       })
     );

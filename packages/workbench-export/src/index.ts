@@ -245,6 +245,34 @@ export interface WorkbenchReviewCandidateSignal {
   automatic_fact_mutation_allowed: boolean;
 }
 
+export type WorkbenchOfficialDisclosureSignalDispositionDecision =
+  | "supports_existing_edge"
+  | "needs_more_evidence"
+  | "not_relevant"
+  | "record_single_source_unknown"
+  | "create_counterparty_source_target";
+
+export interface WorkbenchOfficialDisclosureSignalDisposition {
+  change_id: string;
+  review_id: string;
+  edge_id: string;
+  decision: WorkbenchOfficialDisclosureSignalDispositionDecision;
+  reviewer: string;
+  reason: string;
+  source_adapter_id: string;
+  doc_id: string | null;
+  signal_title: string;
+  evidence_id: string | null;
+  unknown_id: string | null;
+  check_target_id: string | null;
+  recorded_at: string;
+  fact_write_policy: {
+    automatic_fact_mutation_allowed: false;
+    allowed_edge_mutation: "none";
+    requires_human_review: true;
+  };
+}
+
 export interface WorkbenchReviewCandidate {
   review_id: string;
   kind: string;
@@ -260,6 +288,7 @@ export interface WorkbenchReviewCandidate {
   reviewed_at: string | null;
   decision_reason: string | null;
   signal: WorkbenchReviewCandidateSignal | null;
+  dispositions: WorkbenchOfficialDisclosureSignalDisposition[];
 }
 
 export interface WorkbenchModel {
@@ -627,7 +656,105 @@ async function loadWorkbenchReviewQueue(client: DbClient, input: { sourceAdapter
      LIMIT $2`,
     [sourceAdapterIds, input.limit]
   );
-  return result.rows.map(reviewCandidateToDto);
+  const candidates = result.rows.map(reviewCandidateToDto);
+  const dispositions = await loadOfficialDisclosureSignalDispositions(client, {
+    reviewIds: candidates.filter((candidate) => candidate.kind === "official_disclosure_signal").map((candidate) => candidate.review_id)
+  });
+  const dispositionsByReviewId = groupDispositionsByReviewId(dispositions);
+  return candidates.map((candidate) => ({
+    ...candidate,
+    dispositions: dispositionsByReviewId.get(candidate.review_id) ?? []
+  }));
+}
+
+interface OfficialSignalDispositionDbShape {
+  change_id: string;
+  review_id: string;
+  after: Record<string, unknown> | null;
+  caused_by: string;
+  detected_at: Date | string;
+}
+
+async function loadOfficialDisclosureSignalDispositions(
+  client: DbClient,
+  input: { reviewIds: readonly string[] }
+): Promise<WorkbenchOfficialDisclosureSignalDisposition[]> {
+  const reviewIds = uniqueStrings(input.reviewIds);
+  if (reviewIds.length === 0) return [];
+  const result = await client.query<OfficialSignalDispositionDbShape>(
+    `SELECT change_id, scope_id AS review_id, after, caused_by, detected_at
+     FROM change_records
+     WHERE change_type = 'OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'
+       AND scope_kind = 'review'
+       AND scope_id = ANY($1::text[])
+     ORDER BY detected_at DESC, change_id DESC`,
+    [reviewIds]
+  );
+  return result.rows.map(officialSignalDispositionToDto);
+}
+
+function officialSignalDispositionToDto(row: OfficialSignalDispositionDbShape): WorkbenchOfficialDisclosureSignalDisposition {
+  const after = row.after;
+  if (after === null) throw new Error(`Official signal disposition change is missing payload: ${row.change_id}`);
+  const policy = recordField(after, "fact_write_policy", row.change_id);
+  if (policy["automatic_fact_mutation_allowed"] !== false || policy["allowed_edge_mutation"] !== "none" || policy["requires_human_review"] !== true)
+    throw new Error(`Official signal disposition cannot authorize fact mutation: ${row.change_id}`);
+  return {
+    change_id: row.change_id,
+    review_id: textField(after, "review_id", row.review_id),
+    edge_id: textField(after, "edge_id", row.review_id),
+    decision: dispositionDecision(textField(after, "decision", row.review_id), row.change_id),
+    reviewer: textField(after, "reviewer", row.caused_by),
+    reason: textField(after, "reason", row.change_id),
+    source_adapter_id: textField(after, "source_adapter_id", row.change_id),
+    doc_id: nullableTextField(after, "doc_id", row.change_id),
+    signal_title: textField(after, "signal_title", row.change_id),
+    evidence_id: nullableTextField(after, "evidence_id", row.change_id),
+    unknown_id: nullableTextField(after, "unknown_id", row.change_id),
+    check_target_id: nullableTextField(after, "check_target_id", row.change_id),
+    recorded_at: textField(after, "recorded_at", toIsoString(row.detected_at)),
+    fact_write_policy: {
+      automatic_fact_mutation_allowed: false,
+      allowed_edge_mutation: "none",
+      requires_human_review: true
+    }
+  };
+}
+
+function dispositionDecision(value: string, changeId: string): WorkbenchOfficialDisclosureSignalDispositionDecision {
+  if (
+    value === "supports_existing_edge" ||
+    value === "needs_more_evidence" ||
+    value === "not_relevant" ||
+    value === "record_single_source_unknown" ||
+    value === "create_counterparty_source_target"
+  ) {
+    return value;
+  }
+  throw new Error(`Invalid official signal disposition decision for ${changeId}: ${value}`);
+}
+
+function recordField(record: Record<string, unknown>, key: string, context: string): Record<string, unknown> {
+  const value = record[key];
+  if (!isRecord(value)) throw new Error(`Expected object field ${key} in ${context}`);
+  return value;
+}
+
+function textField(record: Record<string, unknown>, key: string, context: string): string {
+  const value = record[key];
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`Expected non-empty string field ${key} in ${context}`);
+  return value;
+}
+
+function nullableTextField(record: Record<string, unknown>, key: string, context: string): string | null {
+  const value = record[key];
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") throw new Error(`Expected nullable string field ${key} in ${context}`);
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function reviewCandidateToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandidate {
@@ -645,7 +772,8 @@ function reviewCandidateToDto(row: ReviewCandidateDbShape): WorkbenchReviewCandi
     created_at: toIsoString(row.created_at),
     reviewed_at: toNullableIsoString(row.reviewed_at),
     decision_reason: row.decision_reason,
-    signal: reviewCandidateSignalToDto(row)
+    signal: reviewCandidateSignalToDto(row),
+    dispositions: []
   };
 }
 
@@ -675,6 +803,17 @@ function parseReviewCandidateNumber(value: string | null, reviewId: string, fiel
   const parsed = value === null ? Number.NaN : Number.parseFloat(value);
   if (!Number.isFinite(parsed)) throw new Error(`Review candidate ${reviewId} has invalid ${field}`);
   return parsed;
+}
+
+function groupDispositionsByReviewId(
+  dispositions: readonly WorkbenchOfficialDisclosureSignalDisposition[]
+): Map<string, WorkbenchOfficialDisclosureSignalDisposition[]> {
+  const byId = new Map<string, WorkbenchOfficialDisclosureSignalDisposition[]>();
+  for (const disposition of dispositions) {
+    const existing = byId.get(disposition.review_id) ?? [];
+    byId.set(disposition.review_id, [...existing, disposition]);
+  }
+  return byId;
 }
 
 async function claimToDto(client: DbClient, row: ClaimDbShape): Promise<WorkbenchClaim> {

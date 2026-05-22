@@ -1,6 +1,12 @@
 import type pg from "pg";
 import { recordSemanticChange, type DbClient } from "@supplystrata/db";
-import { isReviewCandidate, type ReviewCandidate, type ReviewCandidateKind, type ReviewCandidateStatus } from "@supplystrata/review-candidates";
+import {
+  isOfficialDisclosureSignalReviewCandidate,
+  isReviewCandidate,
+  type ReviewCandidate,
+  type ReviewCandidateKind,
+  type ReviewCandidateStatus
+} from "@supplystrata/review-candidates";
 
 export interface ReviewQueueItem {
   review_id: string;
@@ -24,6 +30,45 @@ export interface ReviewStats {
   total: number;
 }
 
+export type OfficialDisclosureSignalDispositionDecision =
+  | "supports_existing_edge"
+  | "needs_more_evidence"
+  | "not_relevant"
+  | "record_single_source_unknown"
+  | "create_counterparty_source_target";
+
+export interface OfficialDisclosureSignalDispositionInput {
+  reviewId: string;
+  edgeId: string;
+  decision: OfficialDisclosureSignalDispositionDecision;
+  reviewer: string;
+  reason: string;
+  evidenceId?: string;
+  unknownId?: string;
+  checkTargetId?: string;
+}
+
+export interface OfficialDisclosureSignalDispositionRecord {
+  change_id: string;
+  review_id: string;
+  edge_id: string;
+  decision: OfficialDisclosureSignalDispositionDecision;
+  reviewer: string;
+  reason: string;
+  source_adapter_id: string;
+  doc_id: string | null;
+  signal_title: string;
+  evidence_id: string | null;
+  unknown_id: string | null;
+  check_target_id: string | null;
+  recorded_at: string;
+  fact_write_policy: {
+    automatic_fact_mutation_allowed: false;
+    allowed_edge_mutation: "none";
+    requires_human_review: true;
+  };
+}
+
 interface ReviewCandidateRow extends pg.QueryResultRow {
   review_id: string;
   candidate_key: string | null;
@@ -34,6 +79,14 @@ interface ReviewCandidateRow extends pg.QueryResultRow {
   reviewed_at: Date | null;
   decision_reason: string | null;
   created_at: Date;
+}
+
+interface OfficialDisclosureSignalDispositionRow extends pg.QueryResultRow {
+  change_id: string;
+  review_id: string;
+  after: Record<string, unknown> | null;
+  caused_by: string;
+  detected_at: Date;
 }
 
 interface ReviewStatsRow extends pg.QueryResultRow {
@@ -221,6 +274,81 @@ export async function markReviewCandidateBlocked(client: DbClient, input: { revi
   });
 }
 
+export async function recordOfficialDisclosureSignalDisposition(
+  client: DbClient,
+  input: OfficialDisclosureSignalDispositionInput
+): Promise<OfficialDisclosureSignalDispositionRecord> {
+  const item = await getReviewCandidate(client, input.reviewId);
+  if (item === undefined) throw new Error(`Official disclosure signal review candidate not found: ${input.reviewId}`);
+  if (item.kind !== "official_disclosure_signal" || !isOfficialDisclosureSignalReviewCandidate(item.candidate))
+    throw new Error(`Review candidate is not an official disclosure signal: ${input.reviewId}`);
+  if (item.status === "rejected" || item.status === "applied")
+    throw new Error(`Official disclosure signal disposition cannot be recorded for ${item.status} review candidate: ${input.reviewId}`);
+  if (input.edgeId.trim().length === 0) throw new Error("Official disclosure signal disposition requires an edge id");
+  if (input.reason.trim().length === 0) throw new Error("Official disclosure signal disposition requires a reason");
+
+  const recordedAt = new Date().toISOString();
+  const after = {
+    review_id: item.review_id,
+    edge_id: input.edgeId,
+    decision: input.decision,
+    reviewer: input.reviewer,
+    reason: input.reason,
+    source_adapter_id: item.candidate.evidence.source_adapter_id,
+    doc_id: item.candidate.evidence.doc_id ?? null,
+    signal_title: item.candidate.payload.signal_title,
+    evidence_id: input.evidenceId ?? null,
+    unknown_id: input.unknownId ?? null,
+    check_target_id: input.checkTargetId ?? null,
+    fact_write_policy: {
+      automatic_fact_mutation_allowed: false,
+      allowed_edge_mutation: "none",
+      requires_human_review: true
+    },
+    recorded_at: recordedAt
+  };
+  const change = await recordSemanticChange(client, {
+    scope_kind: "review",
+    scope_id: item.review_id,
+    change_type: "OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED",
+    after,
+    caused_by: input.reviewer
+  });
+  return officialDisclosureSignalDispositionRecordFromAfter({
+    change_id: change.change_id,
+    review_id: item.review_id,
+    after,
+    caused_by: input.reviewer,
+    detected_at: new Date(recordedAt)
+  });
+}
+
+export async function listOfficialDisclosureSignalDispositions(
+  client: DbClient,
+  input: { reviewIds?: readonly string[]; edgeIds?: readonly string[]; limit?: number } = {}
+): Promise<OfficialDisclosureSignalDispositionRecord[]> {
+  const params: unknown[] = [];
+  const predicates = ["change_type = 'OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'", "scope_kind = 'review'"];
+  if (input.reviewIds !== undefined && input.reviewIds.length > 0) {
+    params.push([...new Set(input.reviewIds)]);
+    predicates.push(`scope_id = ANY($${params.length}::text[])`);
+  }
+  if (input.edgeIds !== undefined && input.edgeIds.length > 0) {
+    params.push([...new Set(input.edgeIds)]);
+    predicates.push(`after->>'edge_id' = ANY($${params.length}::text[])`);
+  }
+  params.push(input.limit ?? 200);
+  const result = await client.query<OfficialDisclosureSignalDispositionRow>(
+    `SELECT change_id, scope_id AS review_id, after, caused_by, detected_at
+     FROM change_records
+     WHERE ${predicates.join(" AND ")}
+     ORDER BY detected_at DESC, change_id DESC
+     LIMIT $${params.length}`,
+    params
+  );
+  return result.rows.map(officialDisclosureSignalDispositionRecordFromAfter);
+}
+
 function rowToReviewItem(row: ReviewCandidateRow | undefined): ReviewQueueItem | undefined {
   if (row === undefined) return undefined;
   if (!isReviewCandidate(row.candidate)) throw new Error(`Invalid review candidate payload: ${row.review_id}`);
@@ -235,4 +363,65 @@ function rowToReviewItem(row: ReviewCandidateRow | undefined): ReviewQueueItem |
     ...(row.reviewed_at === null ? {} : { reviewed_at: row.reviewed_at.toISOString() }),
     ...(row.decision_reason === null ? {} : { decision_reason: row.decision_reason })
   };
+}
+
+function officialDisclosureSignalDispositionRecordFromAfter(row: OfficialDisclosureSignalDispositionRow): OfficialDisclosureSignalDispositionRecord {
+  if (!isRecord(row.after)) throw new Error(`Invalid official disclosure signal disposition payload: ${row.change_id}`);
+  const factWritePolicy = row.after["fact_write_policy"];
+  if (!isRecord(factWritePolicy)) throw new Error(`Missing fact write policy for official signal disposition: ${row.change_id}`);
+  if (factWritePolicy["automatic_fact_mutation_allowed"] !== false || factWritePolicy["allowed_edge_mutation"] !== "none")
+    throw new Error(`Official signal disposition cannot authorize fact mutation: ${row.change_id}`);
+  if (factWritePolicy["requires_human_review"] !== true) throw new Error(`Official signal disposition must require human review: ${row.change_id}`);
+  const decision = dispositionDecision(row.after["decision"]);
+  return {
+    change_id: row.change_id,
+    review_id: stringField(row.after, "review_id", row.review_id),
+    edge_id: stringField(row.after, "edge_id", ""),
+    decision,
+    reviewer: stringField(row.after, "reviewer", row.caused_by),
+    reason: stringField(row.after, "reason", ""),
+    source_adapter_id: stringField(row.after, "source_adapter_id", ""),
+    doc_id: nullableStringField(row.after, "doc_id"),
+    signal_title: stringField(row.after, "signal_title", ""),
+    evidence_id: nullableStringField(row.after, "evidence_id"),
+    unknown_id: nullableStringField(row.after, "unknown_id"),
+    check_target_id: nullableStringField(row.after, "check_target_id"),
+    recorded_at: stringField(row.after, "recorded_at", row.detected_at.toISOString()),
+    fact_write_policy: {
+      automatic_fact_mutation_allowed: false,
+      allowed_edge_mutation: "none",
+      requires_human_review: true
+    }
+  };
+}
+
+function dispositionDecision(value: unknown): OfficialDisclosureSignalDispositionDecision {
+  if (
+    value === "supports_existing_edge" ||
+    value === "needs_more_evidence" ||
+    value === "not_relevant" ||
+    value === "record_single_source_unknown" ||
+    value === "create_counterparty_source_target"
+  ) {
+    return value;
+  }
+  throw new Error(`Invalid official disclosure signal disposition decision: ${String(value)}`);
+}
+
+function stringField(record: Record<string, unknown>, key: string, fallback: string): string {
+  const value = record[key];
+  if (value === undefined && fallback.length > 0) return fallback;
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`Expected non-empty string field: ${key}`);
+  return value;
+}
+
+function nullableStringField(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") throw new Error(`Expected nullable string field: ${key}`);
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -4,9 +4,11 @@ import type { DbClient } from "@supplystrata/db";
 import {
   claimApprovedReviewCandidates,
   decideReviewCandidate,
+  listOfficialDisclosureSignalDispositions,
   markReviewCandidateApplied,
   markReviewCandidateBlocked,
-  nextReviewCandidate
+  nextReviewCandidate,
+  recordOfficialDisclosureSignalDisposition
 } from "@supplystrata/review-store";
 
 interface QueryCall {
@@ -25,6 +27,21 @@ class ReviewChangeDbClient implements DbClient {
       oid: 0,
       fields: [],
       rows: sql.includes("RETURNING review_id") ? ([reviewRow(String(params[0] ?? "REV-TEST"), statusFromSql(sql, params))] as T[]) : []
+    };
+  }
+}
+
+class OfficialSignalDispositionDbClient implements DbClient {
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    return {
+      command: "MOCK",
+      rowCount: sql.includes("INSERT INTO change_records") ? 1 : 0,
+      oid: 0,
+      fields: [],
+      rows: officialSignalRows<T>(sql, params)
     };
   }
 }
@@ -74,6 +91,58 @@ describe("review-store semantic changes", () => {
     expect(client.calls[0]?.sql).toContain("FOR UPDATE SKIP LOCKED");
     expect(client.calls[0]?.sql).toContain("SET status = 'in_review'");
   });
+
+  it("records official disclosure signal dispositions without authorizing fact mutation", async () => {
+    const client = new OfficialSignalDispositionDbClient();
+
+    const record = await recordOfficialDisclosureSignalDisposition(client, {
+      reviewId: "REV-OFFICIAL-SIGNAL-1",
+      edgeId: "EDGE-NVIDIA-TSMC",
+      decision: "supports_existing_edge",
+      reviewer: "unit-test",
+      reason: "Reviewed counterparty disclosure supports using this signal as evidence context.",
+      evidenceId: "EV-TSMC-IR"
+    });
+
+    expect(record).toEqual(
+      expect.objectContaining({
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        edge_id: "EDGE-NVIDIA-TSMC",
+        decision: "supports_existing_edge",
+        evidence_id: "EV-TSMC-IR",
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none",
+          requires_human_review: true
+        }
+      })
+    );
+    expect(
+      client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED"))
+    ).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges") || call.sql.includes("UPDATE edges"))).toBe(false);
+  });
+
+  it("lists official disclosure signal dispositions from review-scoped change records", async () => {
+    const client = new OfficialSignalDispositionDbClient();
+
+    const records = await listOfficialDisclosureSignalDispositions(client, {
+      reviewIds: ["REV-OFFICIAL-SIGNAL-1"],
+      edgeIds: ["EDGE-NVIDIA-TSMC"],
+      limit: 10
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toEqual(
+      expect.objectContaining({
+        review_id: "REV-OFFICIAL-SIGNAL-1",
+        edge_id: "EDGE-NVIDIA-TSMC",
+        decision: "supports_existing_edge"
+      })
+    );
+    expect(client.calls[0]?.sql).toContain("scope_id = ANY");
+    expect(client.calls[0]?.sql).toContain("after->>'edge_id' = ANY");
+  });
 });
 
 function statusFromSql(sql: string, params: readonly unknown[]): string {
@@ -119,5 +188,84 @@ function reviewRow(reviewId: string, status: string): pg.QueryResultRow {
     reviewed_at: new Date("2026-05-17T00:00:00.000Z"),
     decision_reason: "fixture decision",
     created_at: new Date("2026-05-17T00:00:00.000Z")
+  };
+}
+
+function officialSignalRows<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("FROM review_candidates")) return [officialSignalReviewRow(String(params[0] ?? "REV-OFFICIAL-SIGNAL-1"))] as T[];
+  if (sql.includes("FROM change_records")) return [officialSignalDispositionRow()] as T[];
+  return [];
+}
+
+function officialSignalReviewRow(reviewId: string): pg.QueryResultRow {
+  return {
+    review_id: reviewId,
+    candidate_key: `${reviewId}-key`,
+    kind: "official_disclosure_signal",
+    status: "approved",
+    candidate: {
+      review_id: reviewId,
+      candidate_key: `${reviewId}-key`,
+      kind: "official_disclosure_signal",
+      title: "Official disclosure signal: TSMC links demand to AI and HPC",
+      payload: {
+        source_item_id: "SRC-ITEM-TSMC",
+        doc_id: "DOC-TSMC-IR",
+        source_adapter_id: "tsmc-ir",
+        signal_title: "TSMC links demand to AI and HPC",
+        cite_text: "TSMC observed AI and HPC demand across customer products.",
+        cite_locator: "page 4",
+        evidence_level_hint: 4,
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none",
+          requires_human_review: true,
+          reason_codes: ["review_only_official_signal"]
+        }
+      },
+      evidence: {
+        doc_id: "DOC-TSMC-IR",
+        source_url: "https://investor.tsmc.com/fixture",
+        source_adapter_id: "tsmc-ir",
+        source_locator: "page 4",
+        source_row_text: "TSMC observed AI and HPC demand across customer products.",
+        normalized_record_text: "TSMC links demand to AI and HPC | evidence_level=4 | TSMC observed AI and HPC demand across customer products."
+      },
+      confidence: 0.84,
+      needs_review: true,
+      review_reason: "fixture official signal"
+    },
+    reviewer: "unit-test",
+    reviewed_at: new Date("2026-05-21T00:00:00.000Z"),
+    decision_reason: "fixture decision",
+    created_at: new Date("2026-05-21T00:00:00.000Z")
+  };
+}
+
+function officialSignalDispositionRow(): pg.QueryResultRow {
+  return {
+    change_id: "CHG-OFFICIAL-SIGNAL-DISPOSITION-1",
+    review_id: "REV-OFFICIAL-SIGNAL-1",
+    after: {
+      review_id: "REV-OFFICIAL-SIGNAL-1",
+      edge_id: "EDGE-NVIDIA-TSMC",
+      decision: "supports_existing_edge",
+      reviewer: "unit-test",
+      reason: "Reviewed counterparty disclosure supports using this signal as evidence context.",
+      source_adapter_id: "tsmc-ir",
+      doc_id: "DOC-TSMC-IR",
+      signal_title: "TSMC links demand to AI and HPC",
+      evidence_id: "EV-TSMC-IR",
+      unknown_id: null,
+      check_target_id: null,
+      recorded_at: "2026-05-22T00:00:00.000Z",
+      fact_write_policy: {
+        automatic_fact_mutation_allowed: false,
+        allowed_edge_mutation: "none",
+        requires_human_review: true
+      }
+    },
+    caused_by: "unit-test",
+    detected_at: new Date("2026-05-22T00:00:00.000Z")
   };
 }

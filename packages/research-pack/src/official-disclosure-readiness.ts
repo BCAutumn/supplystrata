@@ -61,7 +61,9 @@ export interface OfficialDisclosureReadinessSummary {
   official_targets_with_observations: number;
   official_disclosure_signal_review_candidates: number;
   open_official_disclosure_signal_review_candidates: number;
+  official_disclosure_signal_dispositions: number;
   official_disclosure_signal_correlation_hints: number;
+  open_official_disclosure_signal_correlation_hints: number;
 }
 
 export interface OfficialDisclosureGateStatus {
@@ -329,6 +331,19 @@ export interface OfficialDisclosureSignalReviewSummary {
   source_url: string;
   source_locator: string;
   cite_text: string;
+  dispositions: OfficialDisclosureSignalDispositionSummary[];
+}
+
+export interface OfficialDisclosureSignalDispositionSummary {
+  change_id: string;
+  edge_id: string;
+  decision: string;
+  reviewer: string;
+  reason: string;
+  evidence_id: string | null;
+  unknown_id: string | null;
+  check_target_id: string | null;
+  recorded_at: string;
 }
 
 const DEFAULT_TARGETS: OfficialDisclosureReadinessTargets = {
@@ -472,7 +487,9 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
   lines.push(
     `- Official disclosure review signals: ${report.summary.official_disclosure_signal_review_candidates} total; ${report.summary.open_official_disclosure_signal_review_candidates} open`
   );
-  lines.push(`- Official disclosure signal correlation hints: ${report.summary.official_disclosure_signal_correlation_hints}`);
+  lines.push(
+    `- Official disclosure signal dispositions: ${report.summary.official_disclosure_signal_dispositions}; correlation hints ${report.summary.open_official_disclosure_signal_correlation_hints}/${report.summary.official_disclosure_signal_correlation_hints} open`
+  );
 
   lines.push("", "## Gate 1 scorecard", "");
   for (const criterion of report.scorecard.criteria) {
@@ -552,6 +569,10 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
       );
       lines.push(`  Locator: ${signal.source_locator}`);
       lines.push(`  Text: ${signal.cite_text}`);
+      for (const disposition of signal.dispositions.slice(0, 5)) {
+        lines.push(`  Disposition: ${disposition.decision} for ${disposition.edge_id} by ${disposition.reviewer}`);
+        lines.push(`  Disposition reason: ${disposition.reason}`);
+      }
     }
   }
 
@@ -561,7 +582,9 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
   } else {
     for (const hint of report.official_disclosure_signal_correlation_hints.slice(0, 40)) {
       lines.push(`- score=${hint.relevance_score.toFixed(2)} ${hint.review_id} -> ${hint.edge_id}: ${hint.edge_summary}`);
-      lines.push(`  Policy: ${hint.review_policy}; disposition=${hint.disposition}; status=${hint.status}`);
+      lines.push(
+        `  Policy: ${hint.review_policy}; disposition=${hint.disposition}; status=${hint.status}; review=${hint.disposition_status}${hint.recorded_decision === null ? "" : `/${hint.recorded_decision}`}`
+      );
       lines.push(`  Reasons: ${hint.match_reasons.join(", ")}`);
       lines.push(`  Action: ${hint.action}`);
     }
@@ -788,7 +811,10 @@ function readinessSummary(input: {
     open_official_disclosure_signal_review_candidates: input.officialDisclosureSignals.filter((signal) =>
       ["pending", "in_review", "approved", "blocked"].includes(signal.status)
     ).length,
-    official_disclosure_signal_correlation_hints: input.officialDisclosureSignalCorrelationHints.length
+    official_disclosure_signal_dispositions: input.officialDisclosureSignals.reduce((count, signal) => count + signal.dispositions.length, 0),
+    official_disclosure_signal_correlation_hints: input.officialDisclosureSignalCorrelationHints.length,
+    open_official_disclosure_signal_correlation_hints: input.officialDisclosureSignalCorrelationHints.filter((hint) => hint.disposition_status === "open")
+      .length
   };
 }
 
@@ -805,7 +831,18 @@ function summarizeOfficialDisclosureSignals(reviewQueue: readonly WorkbenchRevie
       confidence: candidate.confidence,
       source_url: candidate.source_url,
       source_locator: candidate.source_locator,
-      cite_text: candidate.source_row_text
+      cite_text: candidate.source_row_text,
+      dispositions: candidate.dispositions.map((disposition) => ({
+        change_id: disposition.change_id,
+        edge_id: disposition.edge_id,
+        decision: disposition.decision,
+        reviewer: disposition.reviewer,
+        reason: disposition.reason,
+        evidence_id: disposition.evidence_id,
+        unknown_id: disposition.unknown_id,
+        check_target_id: disposition.check_target_id,
+        recorded_at: disposition.recorded_at
+      }))
     }))
     .filter((signal) => signal.signal_title.length > 0 && signal.evidence_level_hint > 0)
     .sort(compareOfficialDisclosureSignals);

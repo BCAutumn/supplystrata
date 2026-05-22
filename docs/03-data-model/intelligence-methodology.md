@@ -199,6 +199,8 @@ Observation 不是关系。它回答：
 
 research-pack 会用 `official-disclosure-signal-correlation` 纯函数模块，把 open `official_disclosure_signal` 和 edge-level corroboration queue 做确定性 review hint 关联。第一版只看来源是否命中 candidate source / runnable target、信号文本是否提到边两端公司或组件 token，并输出 `review_policy='review_only_no_fact_mutation'`、分数和原因。这个分数只给研究员排序下一步看什么，不计入 Gate 1 data progress，不把 signal 计为二源 corroboration，也不修改 review candidate / edge / claim / unknown。
 
+official signal disposition 是后续审阅结论，不是证据本身。`review-store.recordOfficialDisclosureSignalDisposition()` 只允许记录 `supports_existing_edge`、`needs_more_evidence`、`not_relevant`、`record_single_source_unknown` 或 `create_counterparty_source_target`，并写入 `change_records.change_type='OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'`。该事件必须带 `fact_write_policy.automatic_fact_mutation_allowed=false` 和 `allowed_edge_mutation='none'`。即使 decision 是 `supports_existing_edge`，也只表示研究员认为这个 signal 可以作为后续 evidence/claim/unknown/source-target 流程的上下文；真正写 evidence、unknown 或 source target 必须走各自受控用例。
+
 第一版变化检测：
 
 ```text

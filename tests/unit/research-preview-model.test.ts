@@ -201,7 +201,8 @@ function validWorkbenchModel(): Record<string, unknown> & { evidences: Record<st
           signal_title: "TSMC links demand to AI and HPC",
           evidence_level_hint: 4,
           automatic_fact_mutation_allowed: false
-        }
+        },
+        dispositions: []
       }
     ],
     intelligence: {

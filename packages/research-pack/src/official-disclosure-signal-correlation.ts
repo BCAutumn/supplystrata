@@ -10,6 +10,8 @@ export interface OfficialDisclosureSignalCorrelationHint {
   disposition: OfficialDisclosureCorroborationQueueItem["disposition"];
   relevance_score: number;
   match_reasons: OfficialDisclosureSignalCorrelationReason[];
+  disposition_status: "open" | "recorded";
+  recorded_decision: string | null;
   review_policy: "review_only_no_fact_mutation";
   action: string;
 }
@@ -50,6 +52,8 @@ export function buildOfficialDisclosureSignalCorrelationHints(input: OfficialDis
         disposition: queueItem.disposition,
         relevance_score: scored.relevance_score,
         match_reasons: scored.match_reasons,
+        disposition_status: scored.recorded_decision === null ? "open" : "recorded",
+        recorded_decision: scored.recorded_decision,
         review_policy: "review_only_no_fact_mutation",
         action: signalCorrelationAction(queueItem)
       });
@@ -61,7 +65,7 @@ export function buildOfficialDisclosureSignalCorrelationHints(input: OfficialDis
 function scoreSignalCorrelation(
   signal: OfficialDisclosureSignalReviewSummary,
   queueItem: OfficialDisclosureCorroborationQueueItem
-): { relevance_score: number; match_reasons: OfficialDisclosureSignalCorrelationReason[] } {
+): { relevance_score: number; match_reasons: OfficialDisclosureSignalCorrelationReason[]; recorded_decision: string | null } {
   let score = 0;
   const reasons: OfficialDisclosureSignalCorrelationReason[] = [];
   const signalText = normalizeText(`${signal.signal_title} ${signal.cite_text}`);
@@ -94,7 +98,8 @@ function scoreSignalCorrelation(
 
   return {
     relevance_score: roundSix(Math.min(score, 1)),
-    match_reasons: reasons
+    match_reasons: reasons,
+    recorded_decision: signal.dispositions.find((disposition) => disposition.edge_id === queueItem.edge_id)?.decision ?? null
   };
 }
 
