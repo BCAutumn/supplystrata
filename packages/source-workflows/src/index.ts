@@ -43,7 +43,7 @@ export type { AsmlIrInput, CompanyIrExplicitUrlInput, MicronIrInput, SamsungIrIn
 export type { SourceCheckSummary } from "./source-check-runner.js";
 export { listRegisteredSourceCheckConnectorCapabilities, listSourceCheckConnectorIds, runDueSourceChecks, runManualSourceCheck } from "./source-checks.js";
 export type { DueSourceCheckRunInput, DueSourceCheckRunItem, DueSourceCheckRunResult, ManualSourceCheckInput } from "./source-checks.js";
-export { runSourcePlanConnectivitySmoke, selectSourcePlanSmokeTargets } from "./source-plan-smoke.js";
+export { listSourcePlanSmokeRunnerIds, runSourcePlanConnectivitySmoke, selectSourcePlanSmokeTargets } from "./source-plan-smoke.js";
 export type {
   SourcePlanSmokeDocument,
   SourcePlanSmokeInput,

@@ -271,6 +271,10 @@ const SMOKE_RUNNERS: readonly SourcePlanSmokeRunner[] = [
   })
 ];
 
+export function listSourcePlanSmokeRunnerIds(): string[] {
+  return SMOKE_RUNNERS.map((runner) => connectorKey(runner)).sort();
+}
+
 function createSmokeRunner<TInput>(input: {
   source_adapter_id: string;
   target_kind: string;

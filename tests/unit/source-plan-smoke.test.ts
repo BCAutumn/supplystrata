@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { runSourcePlanConnectivitySmoke, selectSourcePlanSmokeTargets, type SourcePlanSmokeTarget } from "@supplystrata/source-workflows";
+import {
+  listSourceCheckConnectorIds,
+  listSourcePlanSmokeRunnerIds,
+  runSourcePlanConnectivitySmoke,
+  selectSourcePlanSmokeTargets,
+  type SourcePlanSmokeTarget
+} from "@supplystrata/source-workflows";
 
 const TARGETS: SourcePlanSmokeTarget[] = [
   {
@@ -44,6 +50,10 @@ const TARGETS: SourcePlanSmokeTarget[] = [
 ];
 
 describe("source-plan connectivity smoke", () => {
+  it("keeps smoke runner coverage aligned with source check connectors", () => {
+    expect(listSourcePlanSmokeRunnerIds()).toEqual(listSourceCheckConnectorIds());
+  });
+
   it("selects source-plan smoke targets with source filters and limit before network work", () => {
     const selected = selectSourcePlanSmokeTargets({
       targets: TARGETS,
