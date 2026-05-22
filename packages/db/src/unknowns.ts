@@ -35,22 +35,31 @@ interface UnknownIdRow extends pg.QueryResultRow {
   unknown_id: string;
 }
 
+interface UpsertUnknownItemRow extends pg.QueryResultRow {
+  unknown_id: string;
+  status: UnknownItemStatus;
+  scope_kind: string;
+  scope_id: string;
+  question: string;
+}
+
 export async function upsertUnknownItem(client: DbClient, input: NewUnknownItemInput): Promise<{ unknown_id: string; inserted: boolean }> {
   const unknownId = input.unknown_id ?? createId("UNK");
   const existing = await client.query<UnknownIdRow>("SELECT unknown_id FROM unknown_items WHERE unknown_id = $1", [unknownId]);
-  await client.query(
+  const upserted = await client.query<UpsertUnknownItemRow>(
     `INSERT INTO unknown_items (
        unknown_id, scope_kind, scope_id, question, why_unknown, blocking_data_sources, proxies, status, created_by
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,'open',$8)
      ON CONFLICT (unknown_id) DO UPDATE SET
-       scope_kind = EXCLUDED.scope_kind,
-       scope_id = EXCLUDED.scope_id,
-       question = EXCLUDED.question,
-       why_unknown = EXCLUDED.why_unknown,
-       blocking_data_sources = EXCLUDED.blocking_data_sources,
-       proxies = EXCLUDED.proxies,
-       status = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.status ELSE 'open' END`,
+       scope_kind = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.scope_kind ELSE EXCLUDED.scope_kind END,
+       scope_id = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.scope_id ELSE EXCLUDED.scope_id END,
+       question = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.question ELSE EXCLUDED.question END,
+       why_unknown = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.why_unknown ELSE EXCLUDED.why_unknown END,
+       blocking_data_sources = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.blocking_data_sources ELSE EXCLUDED.blocking_data_sources END,
+       proxies = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.proxies ELSE EXCLUDED.proxies END,
+       status = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.status ELSE 'open' END
+     RETURNING unknown_id, status, scope_kind, scope_id, question`,
     [
       unknownId,
       input.scope_kind,
@@ -62,19 +71,27 @@ export async function upsertUnknownItem(client: DbClient, input: NewUnknownItemI
       input.created_by
     ]
   );
+  const row = upserted.rows[0];
+  if (row === undefined) throw new Error(`Unknown item upsert did not return a row: ${unknownId}`);
   const inserted = existing.rows[0] === undefined;
   await recordSemanticChange(client, {
     scope_kind: "unknown",
-    scope_id: unknownId,
-    change_type: inserted ? "UNKNOWN_ADDED" : "UNKNOWN_UPDATED",
+    scope_id: row.unknown_id,
+    change_type: unknownChangeType(inserted, row.status),
     after: {
-      scope_kind: input.scope_kind,
-      scope_id: input.scope_id,
-      question: input.question
+      scope_kind: row.scope_kind,
+      scope_id: row.scope_id,
+      question: row.question,
+      status: row.status
     },
     caused_by: input.created_by
   });
-  return { unknown_id: unknownId, inserted };
+  return { unknown_id: row.unknown_id, inserted };
+}
+
+function unknownChangeType(inserted: boolean, status: UnknownItemStatus): "UNKNOWN_ADDED" | "UNKNOWN_UPDATED" | "UNKNOWN_REASSERTED_RESOLVED" {
+  if (inserted) return "UNKNOWN_ADDED";
+  return status === "resolved" ? "UNKNOWN_REASSERTED_RESOLVED" : "UNKNOWN_UPDATED";
 }
 
 export async function resolveUnknownItem(

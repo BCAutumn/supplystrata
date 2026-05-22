@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkbenchModel, workbenchEdgeFromSegment } from "@supplystrata/workbench-export";
+import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type pg from "pg";
 import type { DbClient } from "@supplystrata/db";
@@ -144,6 +145,35 @@ describe("workbench-export", () => {
     );
     expect(model.chain_segments.some((segment) => segment.claim_id === model.draft_claims[0]?.claim_id)).toBe(false);
     expect(client.calls.some((call) => call.sql.includes("WHERE c.status = 'draft'"))).toBe(true);
+  });
+
+  it("normalizes legacy workbench snapshots without mutating caller-owned objects", async () => {
+    const model = await buildWorkbenchModel(new WorkbenchDbClient(), { company: "nvidia", depth: 1 });
+    const legacy = JSON.parse(JSON.stringify(model)) as {
+      draft_claims?: unknown;
+      attention_queue?: unknown;
+      review_queue?: unknown;
+      intelligence?: unknown;
+      unknown_items?: Record<string, unknown>[];
+    };
+    delete legacy.draft_claims;
+    delete legacy.attention_queue;
+    delete legacy.review_queue;
+    delete legacy.intelligence;
+    if (legacy.unknown_items?.[0] !== undefined) {
+      delete legacy.unknown_items[0]["scope_kind"];
+      delete legacy.unknown_items[0]["scope_id"];
+    }
+
+    const parsed = parseWorkbenchModel(JSON.stringify(legacy));
+
+    expect(parsed.draft_claims).toEqual([]);
+    expect(parsed.attention_queue).toEqual([]);
+    expect(parsed.review_queue).toEqual([]);
+    expect(parsed.intelligence).toEqual({ edge_strengths: [], edge_freshness: [] });
+    expect(parsed.unknown_items[0]).toMatchObject({ scope_kind: "legacy", scope_id: parsed.unknown_items[0]?.unknown_id });
+    expect(legacy.draft_claims).toBeUndefined();
+    expect(legacy.unknown_items?.[0]?.["scope_kind"]).toBeUndefined();
   });
 
   it("exports all evidence attached to chain edges, including superseded evidence", async () => {

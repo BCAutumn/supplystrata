@@ -81,6 +81,22 @@ export interface ReviewApplyOptions {
   logger?: SupplyStrataLogger;
 }
 
+type ReviewApplyStrategy = (
+  store: DatabaseStore,
+  item: ReviewQueueItem,
+  reviewer: string,
+  options: Required<ReviewApplyOptions>
+) => Promise<ReviewApplyResult | undefined>;
+
+const reviewApplyStrategies: readonly ReviewApplyStrategy[] = [
+  applyEntityReviewStrategy,
+  applySupplierListReviewStrategy,
+  applySemanticChangeReviewStrategy,
+  applyOshFacilityReviewStrategy,
+  applyClaimConflictReviewStrategy,
+  applyOfficialDisclosureSignalReviewStrategy
+];
+
 export async function applyApprovedReviewCandidate(
   store: DatabaseStore,
   reviewId: string,
@@ -92,111 +108,10 @@ export async function applyApprovedReviewCandidate(
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
   if (!canApplyReviewItem(item))
     return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };
-  if (isEntitySourceReviewCandidate(item.candidate)) {
-    return applyEntityReviewCandidate(store, item, reviewer);
-  }
-  if (isSupplierListReviewCandidate(item.candidate)) {
-    return applySupplierListReviewCandidate(store, { ...item, candidate: item.candidate }, reviewer, { logger });
-  }
-  if (isSemanticChangeReviewCandidate(item.candidate)) {
-    const candidate = item.candidate;
-    return store.transaction(async (client) => {
-      const draft = await upsertSemanticChangeClaimDraft(client, candidate, {
-        ...(item.reviewed_at === undefined ? {} : { reviewed_at: item.reviewed_at }),
-        caused_by: reviewer
-      });
-      const reason = `acknowledged semantic change review candidate and created draft claim ${draft.claim_id}; no graph edge is applied by design`;
-      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
-      return { status: "acknowledged", review_id: item.review_id, kind: "semantic_change", claim_id: draft.claim_id, reason };
-    });
-  }
-  if (isOshFacilityReviewCandidate(item.candidate)) {
-    const candidate = item.candidate;
-    return store.transaction(async (client) => {
-      const sourceLeadId = candidate.payload.source_lead_id;
-      if (sourceLeadId !== undefined) {
-        await markLeadObservationPromoted(client, {
-          leadId: sourceLeadId,
-          reviewId: item.review_id,
-          attrsPatch: {
-            promoted_review_id: item.review_id,
-            promoted_observation_id: candidate.payload.observation_id,
-            promoted_osh_facility_id: candidate.payload.osh_candidate.os_id
-          }
-        });
-      }
-      const reason = `acknowledged OSH facility candidate ${candidate.payload.osh_candidate.os_id}; no graph edge is applied by design`;
-      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
-      return {
-        status: "acknowledged",
-        review_id: item.review_id,
-        kind: "osh_facility_candidate",
-        reason,
-        ...(sourceLeadId === undefined ? {} : { lead_id: sourceLeadId })
-      };
-    });
-  }
-  if (isClaimConflictReviewCandidate(item.candidate)) {
-    const candidate = item.candidate;
-    return store.transaction(async (client) => {
-      const reason = `acknowledged claim conflict review for ${candidate.payload.claim_id}; no fact edge or claim status is changed by design`;
-      await recordSemanticChange(client, {
-        scope_kind: "claim",
-        scope_id: candidate.payload.claim_id,
-        change_type: "CLAIM_CONFLICT_REVIEW_APPLIED",
-        after: {
-          review_id: item.review_id,
-          edge_id: candidate.payload.edge_id,
-          conflict_state: candidate.payload.conflict_state,
-          severity: candidate.payload.severity,
-          recommended_action: candidate.payload.recommended_action,
-          safe_write_status: candidate.payload.safe_write_status,
-          edge_review_required: candidate.payload.edge_review_required,
-          required_review_steps: candidate.payload.required_review_steps,
-          fact_write_policy: candidate.payload.fact_write_policy
-        },
-        evidence_ids: candidate.payload.evidence_refs.map((ref) => ref.evidence_id),
-        caused_by: reviewer
-      });
-      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
-      return {
-        status: "acknowledged",
-        review_id: item.review_id,
-        kind: "claim_conflict_review",
-        claim_id: candidate.payload.claim_id,
-        edge_id: candidate.payload.edge_id,
-        reason
-      };
-    });
-  }
-  if (isOfficialDisclosureSignalReviewCandidate(item.candidate)) {
-    const candidate = item.candidate;
-    return store.transaction(async (client) => {
-      const reason = `acknowledged official disclosure signal ${candidate.payload.signal_title}; no fact edge is applied by design`;
-      await recordSemanticChange(client, {
-        scope_kind: "source",
-        scope_id: candidate.payload.source_adapter_id,
-        change_type: "OFFICIAL_DISCLOSURE_SIGNAL_REVIEW_APPLIED",
-        after: {
-          review_id: item.review_id,
-          source_item_id: candidate.payload.source_item_id,
-          doc_id: candidate.payload.doc_id,
-          signal_title: candidate.payload.signal_title,
-          evidence_level_hint: candidate.payload.evidence_level_hint,
-          cite_locator: candidate.payload.cite_locator,
-          fact_write_policy: candidate.payload.fact_write_policy
-        },
-        caused_by: reviewer
-      });
-      await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
-      return {
-        status: "acknowledged",
-        review_id: item.review_id,
-        kind: "official_disclosure_signal",
-        signal_title: candidate.payload.signal_title,
-        reason
-      };
-    });
+
+  for (const strategy of reviewApplyStrategies) {
+    const result = await strategy(store, item, reviewer, { logger });
+    if (result !== undefined) return result;
   }
   return blockReviewCandidate(store, reviewId, `unsupported review candidate kind: ${item.kind}`);
 }
@@ -216,6 +131,133 @@ async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueu
     if (importResult.status === "blocked") return blockReviewCandidate(client, item.review_id, importResult.reason);
     await markReviewCandidateApplied(client, { reviewId: item.review_id, reason: `imported entity ${importResult.entity_id}` });
     return { status: "entity_applied", review_id: item.review_id, import_result: importResult };
+  });
+}
+
+async function applyEntityReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult | undefined> {
+  if (!isEntitySourceReviewCandidate(item.candidate)) return undefined;
+  return applyEntityReviewCandidate(store, item, reviewer);
+}
+
+async function applySupplierListReviewStrategy(
+  store: DatabaseStore,
+  item: ReviewQueueItem,
+  reviewer: string,
+  options: Required<ReviewApplyOptions>
+): Promise<ReviewApplyResult | undefined> {
+  if (!isSupplierListReviewCandidate(item.candidate)) return undefined;
+  return applySupplierListReviewCandidate(store, { ...item, candidate: item.candidate }, reviewer, options);
+}
+
+async function applySemanticChangeReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult | undefined> {
+  if (!isSemanticChangeReviewCandidate(item.candidate)) return undefined;
+  const candidate = item.candidate;
+  return store.transaction(async (client) => {
+    const draft = await upsertSemanticChangeClaimDraft(client, candidate, {
+      ...(item.reviewed_at === undefined ? {} : { reviewed_at: item.reviewed_at }),
+      caused_by: reviewer
+    });
+    const reason = `acknowledged semantic change review candidate and created draft claim ${draft.claim_id}; no graph edge is applied by design`;
+    await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+    return { status: "acknowledged", review_id: item.review_id, kind: "semantic_change", claim_id: draft.claim_id, reason };
+  });
+}
+
+async function applyOshFacilityReviewStrategy(store: DatabaseStore, item: ReviewQueueItem): Promise<ReviewApplyResult | undefined> {
+  if (!isOshFacilityReviewCandidate(item.candidate)) return undefined;
+  const candidate = item.candidate;
+  return store.transaction(async (client) => {
+    const sourceLeadId = candidate.payload.source_lead_id;
+    if (sourceLeadId !== undefined) {
+      await markLeadObservationPromoted(client, {
+        leadId: sourceLeadId,
+        reviewId: item.review_id,
+        attrsPatch: {
+          promoted_review_id: item.review_id,
+          promoted_observation_id: candidate.payload.observation_id,
+          promoted_osh_facility_id: candidate.payload.osh_candidate.os_id
+        }
+      });
+    }
+    const reason = `acknowledged OSH facility candidate ${candidate.payload.osh_candidate.os_id}; no graph edge is applied by design`;
+    await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+    return {
+      status: "acknowledged",
+      review_id: item.review_id,
+      kind: "osh_facility_candidate",
+      reason,
+      ...(sourceLeadId === undefined ? {} : { lead_id: sourceLeadId })
+    };
+  });
+}
+
+async function applyClaimConflictReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult | undefined> {
+  if (!isClaimConflictReviewCandidate(item.candidate)) return undefined;
+  const candidate = item.candidate;
+  return store.transaction(async (client) => {
+    const reason = `acknowledged claim conflict review for ${candidate.payload.claim_id}; no fact edge or claim status is changed by design`;
+    await recordSemanticChange(client, {
+      scope_kind: "claim",
+      scope_id: candidate.payload.claim_id,
+      change_type: "CLAIM_CONFLICT_REVIEW_APPLIED",
+      after: {
+        review_id: item.review_id,
+        edge_id: candidate.payload.edge_id,
+        conflict_state: candidate.payload.conflict_state,
+        severity: candidate.payload.severity,
+        recommended_action: candidate.payload.recommended_action,
+        safe_write_status: candidate.payload.safe_write_status,
+        edge_review_required: candidate.payload.edge_review_required,
+        required_review_steps: candidate.payload.required_review_steps,
+        fact_write_policy: candidate.payload.fact_write_policy
+      },
+      evidence_ids: candidate.payload.evidence_refs.map((ref) => ref.evidence_id),
+      caused_by: reviewer
+    });
+    await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+    return {
+      status: "acknowledged",
+      review_id: item.review_id,
+      kind: "claim_conflict_review",
+      claim_id: candidate.payload.claim_id,
+      edge_id: candidate.payload.edge_id,
+      reason
+    };
+  });
+}
+
+async function applyOfficialDisclosureSignalReviewStrategy(
+  store: DatabaseStore,
+  item: ReviewQueueItem,
+  reviewer: string
+): Promise<ReviewApplyResult | undefined> {
+  if (!isOfficialDisclosureSignalReviewCandidate(item.candidate)) return undefined;
+  const candidate = item.candidate;
+  return store.transaction(async (client) => {
+    const reason = `acknowledged official disclosure signal ${candidate.payload.signal_title}; no fact edge is applied by design`;
+    await recordSemanticChange(client, {
+      scope_kind: "source",
+      scope_id: candidate.payload.source_adapter_id,
+      change_type: "OFFICIAL_DISCLOSURE_SIGNAL_REVIEW_APPLIED",
+      after: {
+        review_id: item.review_id,
+        source_item_id: candidate.payload.source_item_id,
+        doc_id: candidate.payload.doc_id,
+        signal_title: candidate.payload.signal_title,
+        evidence_level_hint: candidate.payload.evidence_level_hint,
+        cite_locator: candidate.payload.cite_locator,
+        fact_write_policy: candidate.payload.fact_write_policy
+      },
+      caused_by: reviewer
+    });
+    await markReviewCandidateApplied(client, { reviewId: item.review_id, reason });
+    return {
+      status: "acknowledged",
+      review_id: item.review_id,
+      kind: "official_disclosure_signal",
+      signal_title: candidate.payload.signal_title,
+      reason
+    };
   });
 }
 

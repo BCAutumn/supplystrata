@@ -86,6 +86,8 @@
 [x] ReviewCandidate 运行时校验从只看 `kind` 升级为逐 kind 校验 payload / evidence / confidence / relation 字段；DB JSON 读出后不再只凭顶层 kind 被信任。
 [x] source monitor 的 `jitter_minutes` 接入 deterministic jitter；`next_check_at` 由纯函数 `calculateNextCheckAt()` 计算并覆盖测试，避免同 cadence 数据源集中触发。
 [x] research-preview 的 Workbench JSON parser 升级为深层结构校验；坏 report 会在加载入口报出具体字段路径，不再拖到 canvas/panel 渲染阶段才失败。
+[x] Workbench JSON legacy normalize 改为返回新对象，不再对解析出来的对象就地补字段；后续如果 parser 接收调用方对象，也不会污染调用方持有的引用。
+[x] Workbench schema 的 `SEMANTIC_LAYERS`、`EDGE_VALIDITIES`、`CLAIM_TYPES` 改为引用 core 常量，减少 schema 校验和领域枚举双源漂移。
 [x] `.gitignore` 的 `data/` / `reports/` 改为根目录限定，避免误忽略 `apps/research-preview/src/data` 这类源码目录。
 [x] `@supplystrata/source-monitor` 从单个 700+ 行 index 拆出 `types.ts` / `policy-config.ts` / `scheduling.ts`；index 继续只承载数据库编排入口，后续拆 health/event store 更容易。
 [x] `@supplystrata/source-registry` 从单个大 index 拆出 `types.ts` / `registry-data.ts`，并移除 `sec-edgar-fixture` 在生产 registry 中的短路映射；离线 SEC fixture 使用真实 `sec-edgar` source id + fixture URL。
@@ -94,6 +96,8 @@
 [x] `@supplystrata/source-adapter-runtime` 不再直接读取 `loadEnv()` 或创建 `FsObjectStore`；HTML snapshot 持久化改为通过 `AdapterContext.snapshotStore` / definition 显式注入，宿主 App 可替换为自己的存储后端。
 [x] SEC / Apple PDF / registry JSON / Census / OSH 等非 HTML adapter 也改为通过 `AdapterContext.snapshotStore` 写原始响应；所有 source adapter 不再直接依赖 `@supplystrata/object-store`。
 [x] 新增 `persistRawDocumentSnapshot()`，把 sha256、storage_key 落盘、`RawDocument` 元数据组装收口到 source runtime；非 HTML adapter 只保留 URL、鉴权、业务 metadata。
+[x] review apply 入口从线性 `if isXReviewCandidate` 胶水链改为策略列表分发；每个 review kind 的事务和业务规则留在独立策略函数中，新 kind 不再需要改主流程分支。
+[x] `upsertUnknownItem()` 对已 resolved 的 unknown 改为终态内容保护：重复 materialize 只记录 `UNKNOWN_REASSERTED_RESOLVED`，不会覆写原始 question/scope/proxy 边界。
 ```
 
 ## 下一批质量修复
@@ -105,7 +109,14 @@
 [ ] source adapter 的鉴权 header / API key 读取仍在各 adapter 内；后续可按 connector 类型继续抽出官方 API runtime helper，但不要把 source-specific ToS 逻辑藏起来。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] `claim` / `observation` upsert 仍偏“全量覆盖”；后续应把 create、patch、state transition 分开，避免状态字段被普通 upsert 意外覆盖。
-[ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；后续如果对外暴露 API，应把同一套 schema 上移到 `workbench-export` 或独立 contract 包，避免前后端各维护一份。
+[ ] `WorkbenchModel` 运行时校验已覆盖当前静态 preview 需要的核心结构；后续如果对外暴露 API，应把 claim status / role、source plan layer、attention status 等剩余 schema 常量继续收敛到 core/db public contract，避免 schema 校验和领域枚举双源漂移。
+[ ] `entity-resolver/src/special-entities.ts` 仍是代码化补丁表；后续应迁为数据驱动 alias/context rule catalog，并让 P0/P1 profile 或 seed 数据提供 Samsung/Foxconn/TSMC business-unit disambiguation。
+[ ] `claim-builder/src/index.ts` 已低于 700 行，但仍混合 public re-export 与部分 claim write use-case；后续应拆出 claim-write orchestration，index 只保留稳定 public surface。
+[ ] `source-workflows/src/source-check-runner.ts` 仍通过 `pipeline.persistDocumentObservations()` 写 document observations；这是 normalized-document pipeline 内核复用，不是具体 source adapter 依赖，但边界命名容易误解，后续可抽成 `document-observation-store` port 让 source check runner 只依赖窄写入契约。
+[ ] `GraphBuilder` 仍同时提供自开事务 `apply()` 和事务内 `applySqlInTransaction()`；后续应拆成 `GraphSqlWriter` / `GraphProjectionSync` 或用类型隐藏自开事务入口，避免在外层事务中误调 `apply()`。
+[ ] `DatabaseStore extends DbClient` 仍让“普通连接”和“事务连接”可在部分函数签名中混用；后续应逐步把写函数签名收紧到 `DbTxClient`，读函数只接 `DbClient`。
+[ ] `source-check` 的 enqueue 与 claim 是两个短事务，已通过 job lease / unique active job 控制安全性；如要追求统计强一致，应新增单事务 enqueue-and-claim repository，而不是在 workflow 层补 if/else。
+[ ] `db/src/index.ts` 仍是宽 barrel export；短期为了兼容 CLI/包调用保留。后续若做 API/SDK 边界，应按 read repository / write repository / migration admin 分出口，而不是一次性大规模改 import。
 ```
 
 ## 验收门槛

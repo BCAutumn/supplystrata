@@ -85,6 +85,27 @@ class UnknownResolveDbClient extends RecordingDbClient {
   }
 }
 
+class ResolvedUnknownUpsertDbClient extends RecordingDbClient {
+  override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    if (sql.includes("SELECT unknown_id FROM unknown_items")) {
+      return queryResult([{ unknown_id: "UNK-TEST" }] as unknown as T[]);
+    }
+    if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question")) {
+      return queryResult([
+        {
+          unknown_id: "UNK-TEST",
+          status: "resolved",
+          scope_kind: "company",
+          scope_id: "ENT-NVIDIA",
+          question: "Original resolved question"
+        }
+      ] as unknown as T[]);
+    }
+    return queryResult([]);
+  }
+}
+
 class EdgeDeprecationDbClient extends RecordingDbClient {
   override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
@@ -413,6 +434,33 @@ describe("db intelligence-network repositories", () => {
     expect(resolveClient.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
+  it("does not overwrite resolved unknown content on deterministic re-upsert", async () => {
+    const client = new ResolvedUnknownUpsertDbClient();
+
+    const unknown = await upsertUnknownItem(client, {
+      unknown_id: "UNK-TEST",
+      scope_kind: "edge",
+      scope_id: "EDGE-NEW",
+      question: "New generated question must not replace resolved content",
+      why_unknown: "New generated reason",
+      blocking_data_sources: ["new source"],
+      proxies: ["new proxy"],
+      created_by: "unit-test"
+    });
+
+    expect(unknown).toEqual({ unknown_id: "UNK-TEST", inserted: false });
+    const upsertCall = client.calls.find((call) => call.sql.includes("INSERT INTO unknown_items"));
+    expect(upsertCall?.sql).toContain("CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.question ELSE EXCLUDED.question END");
+    const changeCall = client.calls.find((call) => call.sql.includes("INSERT INTO change_records"));
+    expect(changeCall?.params[3]).toBe("UNKNOWN_REASSERTED_RESOLVED");
+    expect(changeCall?.params[5]).toMatchObject({
+      scope_kind: "company",
+      scope_id: "ENT-NVIDIA",
+      question: "Original resolved question",
+      status: "resolved"
+    });
+  });
+
   it("keeps observation and lead scope queries read-only", async () => {
     const client = new RecordingDbClient();
 
@@ -657,6 +705,17 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
   if (sql.includes("RETURNING observation_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ observation_id: params[0], inserted: true }] as unknown as T[];
   }
+  if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
+    return [
+      {
+        unknown_id: params[0],
+        status: "open",
+        scope_kind: params[1],
+        scope_id: params[2],
+        question: params[3]
+      }
+    ] as unknown as T[];
+  }
   if (sql.includes("RETURNING lead_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ lead_id: params[0], inserted: true }] as unknown as T[];
   }
@@ -691,6 +750,16 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
     return [{ run_id: params[0] }] as unknown as T[];
   }
   return [];
+}
+
+function queryResult<T extends pg.QueryResultRow>(rows: T[]): pg.QueryResult<T> {
+  return {
+    command: "MOCK",
+    rowCount: rows.length,
+    oid: 0,
+    fields: [],
+    rows
+  };
 }
 
 function rowsForAlertStatusUpdate<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {

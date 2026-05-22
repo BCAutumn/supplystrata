@@ -1,15 +1,13 @@
 import type { WorkbenchModel } from "./definitions.js";
-import { EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS } from "@supplystrata/core";
+import { CLAIM_TYPES, EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS, EDGE_VALIDITIES, SEMANTIC_LAYERS } from "@supplystrata/core";
 
 export function parseWorkbenchModel(text: string): WorkbenchModel {
   const parsed: unknown = JSON.parse(text);
-  normalizeWorkbenchModelJson(parsed);
-  assertWorkbenchModel(parsed);
-  return parsed;
+  const normalized = normalizeWorkbenchModelJson(parsed);
+  assertWorkbenchModel(normalized);
+  return normalized;
 }
 
-const SEMANTIC_LAYERS = ["edge", "claim", "observation", "lead", "unknown"] as const;
-const EDGE_VALIDITIES = ["current", "historical", "deprecated"] as const;
 const CLAIM_STATUSES = ["draft", "active", "superseded", "rejected"] as const;
 const CLAIM_EVIDENCE_ROLES = ["primary", "supporting", "contradicting", "context"] as const;
 const CLAIM_UNKNOWN_ROLES = ["boundary", "blocking", "context"] as const;
@@ -31,15 +29,6 @@ const CLAIM_CONFLICT_REVIEW_STEPS = [
   "review_claim_scope",
   "review_fact_edge_for_deprecation",
   "record_resolution_context"
-] as const;
-const CLAIM_TYPES = [
-  "SUPPLY_RELATION_CLAIM",
-  "FACILITY_RELATION_CLAIM",
-  "ENTITY_FACT_CLAIM",
-  "COMPONENT_EXPOSURE_CLAIM",
-  "DEMAND_SIGNAL_CLAIM",
-  "RISK_SIGNAL_CLAIM",
-  "UNKNOWN_BOUNDARY_CLAIM"
 ] as const;
 const SOURCE_PLAN_LAYERS = ["edge", "observation", "lead", "entity"] as const;
 const SOURCE_RELATION_POLICIES = ["can_create_fact_edge", "observation_only", "lead_only", "entity_only"] as const;
@@ -86,48 +75,53 @@ function validateWorkbenchModel(value: unknown, path: string, errors: string[]):
   validateIntelligenceContext(value["intelligence"], `${path}.intelligence`, errors);
 }
 
-function normalizeWorkbenchModelJson(value: unknown): void {
-  if (!isRecord(value)) return;
+function normalizeWorkbenchModelJson(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const normalized: Record<string, unknown> = { ...value };
   // 旧版 Workbench 在 claim draft 落地前没有 draft_claims；契约层统一补为空数组。
-  if (value["draft_claims"] === undefined) value["draft_claims"] = [];
+  if (normalized["draft_claims"] === undefined) normalized["draft_claims"] = [];
   // 旧版 Workbench 没有统一 attention queue；读取端统一补空数组以保持静态 snapshot 可重放。
-  if (value["attention_queue"] === undefined) value["attention_queue"] = [];
+  if (normalized["attention_queue"] === undefined) normalized["attention_queue"] = [];
   // 旧版 Workbench 没有 review queue 摘要；读取端统一补空数组以保持静态 snapshot 可重放。
-  if (value["review_queue"] === undefined) value["review_queue"] = [];
+  if (normalized["review_queue"] === undefined) normalized["review_queue"] = [];
   // 旧版 Workbench 没有关系强度和新鲜度上下文；前端用空对象维持稳定读取路径。
-  if (value["intelligence"] === undefined) value["intelligence"] = { edge_strengths: [], edge_freshness: [] };
-  normalizeUnknownArray(value["unknown_items"]);
-  normalizeClaimArray(value["claims"]);
-  normalizeClaimArray(value["draft_claims"]);
-  normalizeReviewQueueArray(value["review_queue"]);
+  if (normalized["intelligence"] === undefined) normalized["intelligence"] = { edge_strengths: [], edge_freshness: [] };
+  normalized["unknown_items"] = normalizeUnknownArray(normalized["unknown_items"]);
+  normalized["claims"] = normalizeClaimArray(normalized["claims"]);
+  normalized["draft_claims"] = normalizeClaimArray(normalized["draft_claims"]);
+  normalized["review_queue"] = normalizeReviewQueueArray(normalized["review_queue"]);
+  return normalized;
 }
 
-function normalizeUnknownArray(value: unknown): void {
-  if (!Array.isArray(value)) return;
-  for (const item of value) {
-    if (!isRecord(item)) continue;
+function normalizeUnknownArray(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((item) => {
+    if (!isRecord(item)) return item;
+    const normalized: Record<string, unknown> = { ...item };
     // 旧版静态 Workbench 没有 unknown scope；用 legacy scope 保持快照可重放，新导出必须给出真实 scope。
-    if (item["scope_kind"] === undefined) item["scope_kind"] = "legacy";
-    if (item["scope_id"] === undefined) item["scope_id"] = stringField(item, "unknown_id", "");
-  }
+    if (normalized["scope_kind"] === undefined) normalized["scope_kind"] = "legacy";
+    if (normalized["scope_id"] === undefined) normalized["scope_id"] = stringField(normalized, "unknown_id", "");
+    return normalized;
+  });
 }
 
-function normalizeClaimArray(value: unknown): void {
-  if (!Array.isArray(value)) return;
-  for (const item of value) {
-    if (!isRecord(item)) continue;
+function normalizeClaimArray(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((item) => {
+    if (!isRecord(item)) return item;
+    const normalized: Record<string, unknown> = { ...item };
     // 旧版 Workbench 导出对非 review claim 会省略 review_id；契约层统一补成 null。
-    if (item["review_id"] === undefined) item["review_id"] = null;
-    if (item["evidence_refs"] === undefined) item["evidence_refs"] = [];
-    if (item["unknown_refs"] === undefined) item["unknown_refs"] = [];
-    if (item["edge_validity"] === undefined) item["edge_validity"] = null;
-    if (item["edge_deprecated_reason"] === undefined) item["edge_deprecated_reason"] = null;
-    if (item["edge_superseded_by_edge_id"] === undefined) item["edge_superseded_by_edge_id"] = null;
-    if (item["lifecycle_warnings"] === undefined) item["lifecycle_warnings"] = [];
-    if (item["conflict_state"] === undefined) item["conflict_state"] = "none";
-    if (item["conflict_adjudication"] === undefined) {
-      item["conflict_adjudication"] = {
-        state: item["conflict_state"],
+    if (normalized["review_id"] === undefined) normalized["review_id"] = null;
+    if (normalized["evidence_refs"] === undefined) normalized["evidence_refs"] = [];
+    if (normalized["unknown_refs"] === undefined) normalized["unknown_refs"] = [];
+    if (normalized["edge_validity"] === undefined) normalized["edge_validity"] = null;
+    if (normalized["edge_deprecated_reason"] === undefined) normalized["edge_deprecated_reason"] = null;
+    if (normalized["edge_superseded_by_edge_id"] === undefined) normalized["edge_superseded_by_edge_id"] = null;
+    if (normalized["lifecycle_warnings"] === undefined) normalized["lifecycle_warnings"] = [];
+    if (normalized["conflict_state"] === undefined) normalized["conflict_state"] = "none";
+    if (normalized["conflict_adjudication"] === undefined) {
+      normalized["conflict_adjudication"] = {
+        state: normalized["conflict_state"],
         severity: "none",
         recommended_action: "none",
         edge_review_required: false,
@@ -135,18 +129,21 @@ function normalizeClaimArray(value: unknown): void {
         reason_codes: []
       };
     }
-    if (item["conflict_review"] === undefined) {
-      item["conflict_review"] = legacyClaimConflictReviewPacket(item);
+    if (normalized["conflict_review"] === undefined) {
+      normalized["conflict_review"] = legacyClaimConflictReviewPacket(normalized);
     }
-  }
+    return normalized;
+  });
 }
 
-function normalizeReviewQueueArray(value: unknown): void {
-  if (!Array.isArray(value)) return;
-  for (const item of value) {
-    if (!isRecord(item)) continue;
-    if (item["dispositions"] === undefined) item["dispositions"] = [];
-  }
+function normalizeReviewQueueArray(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((item) => {
+    if (!isRecord(item)) return item;
+    const normalized: Record<string, unknown> = { ...item };
+    if (normalized["dispositions"] === undefined) normalized["dispositions"] = [];
+    return normalized;
+  });
 }
 
 function legacyClaimConflictReviewPacket(claim: Record<string, unknown>): Record<string, unknown> {
