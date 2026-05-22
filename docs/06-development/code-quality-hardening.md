@@ -110,6 +110,7 @@
 [x] edge intelligence refresh 与 single-source disposition unknown materialization 的函数签名收紧到 `DbTxClient`，调用方必须通过事务客户端执行 unknown/change 写入链路。
 [x] candidate relation citation 校验下沉到 core 纯函数；pipeline 与 source preview 复用同一规则，避免 preview 为了轻量入口继续反向依赖 pipeline。
 [x] source-workflows 的 Census / OSH / Apple / World Bank Pink / SEC facts 监控写入改为使用本包 `saved-document-observation` 窄适配层，直接调用 source-monitor 的事务内 observation 入口，不再为了记录文档变化依赖 pipeline helper。
+[x] CLI 公共入口按 runtime / parse / output 拆分；`cli-utils.ts` 只保留兼容 re-export，数据库生命周期、参数解析和输出错误格式化不再混在同一文件里。
 ```
 
 ## 下一批质量修复
@@ -117,7 +118,6 @@
 ```text
 [ ] 建立正式 npm publish 流程；当前已有 dist 构建与 package exports，但尚未做版本发布自动化。
 [ ] LLM / 语义变化 review 候选仍以 `cite_text` 为主；后续应让这些入口也尽量补齐 `source_location`，做到所有自动或半自动 evidence 都有强定位。
-[ ] `apps/cli/src/cli-utils.ts` 仍承担较多 DB 生命周期、参数解析和输出工具职责；后续可以继续拆成 runtime / parse / io 三个小模块。
 [ ] source adapter 的鉴权 header / API key 读取仍在各 adapter 内；后续可按 connector 类型继续抽出官方 API runtime helper，但不要把 source-specific ToS 逻辑藏起来。
 [ ] `source-workflows` 当前是集中式 feature workflow 包；后续如果 DART / EDINET / AIS / procurement 等源继续增多，可以拆成多个 feature workflow 包并由 registry 聚合。
 [ ] observation measurement correction 还没有独立业务入口；如未来需要修正已落库测量值，应新增显式 correction/change record，而不是重新放宽 `upsertObservation()`。
