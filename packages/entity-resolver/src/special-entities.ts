@@ -1,150 +1,174 @@
+import { readFileSync } from "node:fs";
 import { normalizeAlias, type ResolveResult } from "@supplystrata/core";
 
+interface SpecialEntityResolvedResult {
+  status: "resolved";
+  entity_id: string;
+  confidence: number;
+  needs_human_review: false;
+}
+
+interface SpecialEntityAmbiguousCandidate {
+  entity_id: string;
+  confidence: number;
+  reason: string;
+}
+
+interface SpecialEntityAmbiguousResult {
+  status: "ambiguous";
+  confidence: number;
+  needs_human_review: true;
+  candidates: SpecialEntityAmbiguousCandidate[];
+}
+
+type SpecialEntityResult = SpecialEntityResolvedResult | SpecialEntityAmbiguousResult;
+
+interface SpecialEntityContextRule {
+  context_patterns: string[];
+  result: SpecialEntityResult;
+}
+
+interface SpecialEntityFamilyRule {
+  rule_id: string;
+  surface_aliases: string[];
+  context_rules: SpecialEntityContextRule[];
+  default_result: SpecialEntityResult;
+}
+
+// 公司家族/业务单元消歧规则放在 patterns 中，避免每新增一个公司就在流程里堆正则分支。
+const SPECIAL_ENTITY_RULES_URL = new URL("../patterns/special-entity-rules.json", import.meta.url);
+
+let cachedRules: SpecialEntityFamilyRule[] | undefined;
+
 export function resolveSpecialEntity(surface: string, context: string): ResolveResult | undefined {
-  const samsung = resolveSamsungBusinessUnit(surface, context);
-  if (samsung !== undefined) return samsung;
-  const foxconn = resolveFoxconnFamily(surface, context);
-  if (foxconn !== undefined) return foxconn;
-  const tsmc = resolveTsmcFamily(surface, context);
-  if (tsmc !== undefined) return tsmc;
+  const normalizedSurface = normalizeAlias(surface);
+  const normalizedContext = normalizeAlias(context);
+  for (const familyRule of loadSpecialEntityRules()) {
+    if (!familyRule.surface_aliases.map(normalizeAlias).includes(normalizedSurface)) continue;
+    return resolveFamilyRule(familyRule, normalizedSurface, normalizedContext);
+  }
   return undefined;
 }
 
-function resolveSamsungBusinessUnit(surface: string, context: string): ResolveResult | undefined {
-  const normalizedSurface = normalizeAlias(surface);
-  if (normalizedSurface !== "samsung") return undefined;
-  const normalizedContext = normalizeAlias(context);
-  if (/\bfoundry|wafer|fabricat|manufactur/.test(normalizedContext)) {
-    return {
-      status: "resolved",
-      entity_id: "ENT-SAMSUNG-FOUNDRY",
-      confidence: 0.9,
-      needs_human_review: false
-    };
+function resolveFamilyRule(rule: SpecialEntityFamilyRule, normalizedSurface: string, normalizedContext: string): ResolveResult {
+  for (const contextRule of rule.context_rules) {
+    if (
+      normalizedSurfaceMatchesRule(normalizedSurface, contextRule) ||
+      contextRule.context_patterns.some((pattern) => matchesPattern(normalizedContext, pattern))
+    ) {
+      return cloneSpecialEntityResult(contextRule.result);
+    }
   }
-  if (/\bmemory|dram|hbm|high bandwidth/.test(normalizedContext)) {
-    return {
-      status: "resolved",
-      entity_id: "ENT-SAMSUNG-MEMORY",
-      confidence: 0.9,
-      needs_human_review: false
-    };
-  }
-  if (/\bgalaxy|smartphone|tv|consumer electronics|mobile device/.test(normalizedContext)) {
-    return {
-      status: "resolved",
-      entity_id: "ENT-SAMSUNG-ELECTRONICS",
-      confidence: 0.85,
-      needs_human_review: false
-    };
-  }
+  return cloneSpecialEntityResult(rule.default_result);
+}
+
+function normalizedSurfaceMatchesRule(normalizedSurface: string, rule: SpecialEntityContextRule): boolean {
+  return rule.context_patterns.some((pattern) => pattern.startsWith("surface:") && normalizeAlias(pattern.slice("surface:".length)) === normalizedSurface);
+}
+
+function matchesPattern(text: string, pattern: string): boolean {
+  if (pattern.startsWith("surface:")) return false;
+  return new RegExp(pattern).test(text);
+}
+
+function loadSpecialEntityRules(): SpecialEntityFamilyRule[] {
+  if (cachedRules !== undefined) return cachedRules;
+  const parsed: unknown = JSON.parse(readFileSync(SPECIAL_ENTITY_RULES_URL, "utf8"));
+  cachedRules = parseSpecialEntityRules(parsed, SPECIAL_ENTITY_RULES_URL.toString());
+  return cachedRules;
+}
+
+function parseSpecialEntityRules(value: unknown, path: string): SpecialEntityFamilyRule[] {
+  return expectArray(value, path).map((item, index) => parseSpecialEntityFamilyRule(item, `${path}[${index}]`));
+}
+
+function parseSpecialEntityFamilyRule(value: unknown, path: string): SpecialEntityFamilyRule {
+  const record = expectRecord(value, path);
   return {
-    status: "ambiguous",
-    confidence: 0.45,
-    needs_human_review: true,
-    candidates: [
-      {
-        entity_id: "ENT-SAMSUNG-ELECTRONICS",
-        confidence: 0.4,
-        reason: "孤立 Samsung 可能指母公司"
-      },
-      {
-        entity_id: "ENT-SAMSUNG-FOUNDRY",
-        confidence: 0.3,
-        reason: "供应链语境可能指 Foundry"
-      },
-      {
-        entity_id: "ENT-SAMSUNG-MEMORY",
-        confidence: 0.3,
-        reason: "供应链语境可能指 Memory"
-      },
-      {
-        entity_id: "ENT-SAMSUNG-DISPLAY",
-        confidence: 0.2,
-        reason: "消费电子语境可能指 Display"
-      }
-    ]
+    rule_id: expectString(readField(record, "rule_id", path), `${path}.rule_id`),
+    surface_aliases: parseStringArray(readField(record, "surface_aliases", path), `${path}.surface_aliases`),
+    context_rules: expectArray(readField(record, "context_rules", path), `${path}.context_rules`).map((item, index) =>
+      parseSpecialEntityContextRule(item, `${path}.context_rules[${index}]`)
+    ),
+    default_result: parseSpecialEntityResult(readField(record, "default_result", path), `${path}.default_result`)
   };
 }
 
-function resolveFoxconnFamily(surface: string, context: string): ResolveResult | undefined {
-  const normalizedSurface = normalizeAlias(surface);
-  if (!["foxconn", "hon hai", "hon hai precision industry", "鴻海", "鸿海", "富士康", "fii", "fih", "hongfujin"].includes(normalizedSurface)) return undefined;
-  const normalizedContext = normalizeAlias(context);
-  if (/\bindustrial internet\b|\bfii\b|工业互联网/.test(normalizedContext) || normalizedSurface === "fii") {
+function parseSpecialEntityContextRule(value: unknown, path: string): SpecialEntityContextRule {
+  const record = expectRecord(value, path);
+  return {
+    context_patterns: parseStringArray(readField(record, "context_patterns", path), `${path}.context_patterns`),
+    result: parseSpecialEntityResult(readField(record, "result", path), `${path}.result`)
+  };
+}
+
+function parseSpecialEntityResult(value: unknown, path: string): SpecialEntityResult {
+  const record = expectRecord(value, path);
+  const status = expectString(readField(record, "status", path), `${path}.status`);
+  if (status === "resolved") {
     return {
-      status: "resolved",
-      entity_id: "ENT-FOXCONN-FII",
-      confidence: 0.9,
+      status,
+      entity_id: expectString(readField(record, "entity_id", path), `${path}.entity_id`),
+      confidence: expectConfidence(readField(record, "confidence", path), `${path}.confidence`),
       needs_human_review: false
     };
   }
-  if (/\bfih\b|mobile|handset/.test(normalizedContext) || normalizedSurface === "fih") {
+  if (status === "ambiguous") {
     return {
-      status: "resolved",
-      entity_id: "ENT-FIH-MOBILE",
-      confidence: 0.88,
-      needs_human_review: false
-    };
-  }
-  if (/hongfujin|shenzhen|深圳/.test(normalizedContext) || normalizedSurface === "hongfujin") {
-    return {
-      status: "resolved",
-      entity_id: "ENT-HONGFUJIN-SHENZHEN",
-      confidence: 0.86,
-      needs_human_review: false
-    };
-  }
-  if (/ohio|wisconsin|mt\.?\s*pleasant/.test(normalizedContext)) {
-    return {
-      status: "ambiguous",
-      confidence: 0.65,
+      status,
+      confidence: expectConfidence(readField(record, "confidence", path), `${path}.confidence`),
       needs_human_review: true,
-      candidates: [
-        {
-          entity_id: "ENT-FOXCONN-OHIO",
-          confidence: 0.55,
-          reason: "美国厂区语境可能指 Foxconn Ohio"
-        },
-        {
-          entity_id: "ENT-FOXCONN-ASSEMBLY",
-          confidence: 0.45,
-          reason: "美国组装法人也可能相关"
-        }
-      ]
+      candidates: expectArray(readField(record, "candidates", path), `${path}.candidates`).map((item, index) =>
+        parseAmbiguousCandidate(item, `${path}.candidates[${index}]`)
+      )
     };
   }
+  throw new Error(`Invalid special entity result status at ${path}.status: ${status}`);
+}
+
+function parseAmbiguousCandidate(value: unknown, path: string): SpecialEntityAmbiguousCandidate {
+  const record = expectRecord(value, path);
   return {
-    status: "resolved",
-    entity_id: "ENT-FOXCONN",
-    confidence: 0.92,
-    needs_human_review: false
+    entity_id: expectString(readField(record, "entity_id", path), `${path}.entity_id`),
+    confidence: expectConfidence(readField(record, "confidence", path), `${path}.confidence`),
+    reason: expectString(readField(record, "reason", path), `${path}.reason`)
   };
 }
 
-function resolveTsmcFamily(surface: string, context: string): ResolveResult | undefined {
-  const normalizedSurface = normalizeAlias(surface);
-  if (normalizedSurface !== "tsmc") return undefined;
-  const normalizedContext = normalizeAlias(context);
-  if (/arizona/.test(normalizedContext))
-    return {
-      status: "resolved",
-      entity_id: "ENT-TSMC-ARIZONA",
-      confidence: 0.9,
-      needs_human_review: false
-    };
-  if (/jasm|kumamoto|japan advanced semiconductor/.test(normalizedContext)) {
-    return {
-      status: "resolved",
-      entity_id: "ENT-JASM",
-      confidence: 0.88,
-      needs_human_review: false
-    };
+function cloneSpecialEntityResult(result: SpecialEntityResult): ResolveResult {
+  if (result.status === "resolved") return { ...result };
+  return { ...result, candidates: result.candidates.map((candidate) => ({ ...candidate })) };
+}
+
+function readField(record: Record<string, unknown>, key: string, path: string): unknown {
+  if (!(key in record)) throw new Error(`Missing required field ${path}.${key}`);
+  return record[key];
+}
+
+function parseStringArray(value: unknown, path: string): string[] {
+  return expectArray(value, path).map((item, index) => expectString(item, `${path}[${index}]`));
+}
+
+function expectRecord(value: unknown, path: string): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const record: Record<string, unknown> = {};
+    for (const [key, field] of Object.entries(value)) record[key] = field;
+    return record;
   }
-  return {
-    status: "resolved",
-    entity_id: "ENT-TSMC",
-    confidence: 0.96,
-    needs_human_review: false
-  };
+  throw new Error(`Expected object at ${path}`);
+}
+
+function expectArray(value: unknown, path: string): unknown[] {
+  if (Array.isArray(value)) return value;
+  throw new Error(`Expected array at ${path}`);
+}
+
+function expectString(value: unknown, path: string): string {
+  if (typeof value === "string" && value.length > 0) return value;
+  throw new Error(`Expected non-empty string at ${path}`);
+}
+
+function expectConfidence(value: unknown, path: string): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1) return value;
+  throw new Error(`Expected confidence between 0 and 1 at ${path}`);
 }

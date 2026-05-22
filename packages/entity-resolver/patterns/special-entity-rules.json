@@ -1,0 +1,139 @@
+[
+  {
+    "rule_id": "samsung-business-unit",
+    "surface_aliases": ["Samsung"],
+    "context_rules": [
+      {
+        "context_patterns": ["\\bfoundry", "wafer", "fabricat", "manufactur"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-SAMSUNG-FOUNDRY",
+          "confidence": 0.9
+        }
+      },
+      {
+        "context_patterns": ["\\bmemory", "dram", "hbm", "high bandwidth"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-SAMSUNG-MEMORY",
+          "confidence": 0.9
+        }
+      },
+      {
+        "context_patterns": ["\\bgalaxy", "smartphone", "tv", "consumer electronics", "mobile device"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-SAMSUNG-ELECTRONICS",
+          "confidence": 0.85
+        }
+      }
+    ],
+    "default_result": {
+      "status": "ambiguous",
+      "confidence": 0.45,
+      "candidates": [
+        {
+          "entity_id": "ENT-SAMSUNG-ELECTRONICS",
+          "confidence": 0.4,
+          "reason": "孤立 Samsung 可能指母公司"
+        },
+        {
+          "entity_id": "ENT-SAMSUNG-FOUNDRY",
+          "confidence": 0.3,
+          "reason": "供应链语境可能指 Foundry"
+        },
+        {
+          "entity_id": "ENT-SAMSUNG-MEMORY",
+          "confidence": 0.3,
+          "reason": "供应链语境可能指 Memory"
+        },
+        {
+          "entity_id": "ENT-SAMSUNG-DISPLAY",
+          "confidence": 0.2,
+          "reason": "消费电子语境可能指 Display"
+        }
+      ]
+    }
+  },
+  {
+    "rule_id": "foxconn-family",
+    "surface_aliases": ["Foxconn", "Hon Hai", "Hon Hai Precision Industry", "鴻海", "鸿海", "富士康", "FII", "FIH", "Hongfujin"],
+    "context_rules": [
+      {
+        "context_patterns": ["\\bindustrial internet\\b", "\\bfii\\b", "工业互联网", "surface:FII"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-FOXCONN-FII",
+          "confidence": 0.9
+        }
+      },
+      {
+        "context_patterns": ["\\bfih\\b", "mobile", "handset", "surface:FIH"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-FIH-MOBILE",
+          "confidence": 0.88
+        }
+      },
+      {
+        "context_patterns": ["hongfujin", "shenzhen", "深圳", "surface:Hongfujin"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-HONGFUJIN-SHENZHEN",
+          "confidence": 0.86
+        }
+      },
+      {
+        "context_patterns": ["ohio", "wisconsin", "mt\\.?\\s*pleasant"],
+        "result": {
+          "status": "ambiguous",
+          "confidence": 0.65,
+          "candidates": [
+            {
+              "entity_id": "ENT-FOXCONN-OHIO",
+              "confidence": 0.55,
+              "reason": "美国厂区语境可能指 Foxconn Ohio"
+            },
+            {
+              "entity_id": "ENT-FOXCONN-ASSEMBLY",
+              "confidence": 0.45,
+              "reason": "美国组装法人也可能相关"
+            }
+          ]
+        }
+      }
+    ],
+    "default_result": {
+      "status": "resolved",
+      "entity_id": "ENT-FOXCONN",
+      "confidence": 0.92
+    }
+  },
+  {
+    "rule_id": "tsmc-family",
+    "surface_aliases": ["TSMC"],
+    "context_rules": [
+      {
+        "context_patterns": ["arizona"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-TSMC-ARIZONA",
+          "confidence": 0.9
+        }
+      },
+      {
+        "context_patterns": ["jasm", "kumamoto", "japan advanced semiconductor"],
+        "result": {
+          "status": "resolved",
+          "entity_id": "ENT-JASM",
+          "confidence": 0.88
+        }
+      }
+    ],
+    "default_result": {
+      "status": "resolved",
+      "entity_id": "ENT-TSMC",
+      "confidence": 0.96
+    }
+  }
+]
