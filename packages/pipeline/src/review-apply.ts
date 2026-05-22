@@ -38,7 +38,7 @@ import {
   markReviewCandidateBlocked,
   type ReviewQueueItem
 } from "@supplystrata/review-store";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { getLogger, messageFromUnknown, type SupplyStrataLogger } from "@supplystrata/observability";
 import { locateCandidateCitation } from "./citation-location.js";
 
 export interface AppliedReviewEdgeResult extends ApplyResult {
@@ -77,7 +77,17 @@ export interface ReviewApplyBatchSummary {
 
 type SupplierListReviewItem = ReviewQueueItem & { candidate: SupplierListReviewCandidate };
 
-export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewId: string, reviewer: string): Promise<ReviewApplyResult> {
+export interface ReviewApplyOptions {
+  logger?: SupplyStrataLogger;
+}
+
+export async function applyApprovedReviewCandidate(
+  store: DatabaseStore,
+  reviewId: string,
+  reviewer: string,
+  options: ReviewApplyOptions = {}
+): Promise<ReviewApplyResult> {
+  const logger = options.logger ?? getLogger();
   const item = await getReviewCandidate(store, reviewId);
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
   if (!canApplyReviewItem(item))
@@ -86,7 +96,7 @@ export async function applyApprovedReviewCandidate(store: DatabaseStore, reviewI
     return applyEntityReviewCandidate(store, item, reviewer);
   }
   if (isSupplierListReviewCandidate(item.candidate)) {
-    return applySupplierListReviewCandidate(store, { ...item, candidate: item.candidate }, reviewer);
+    return applySupplierListReviewCandidate(store, { ...item, candidate: item.candidate }, reviewer, { logger });
   }
   if (isSemanticChangeReviewCandidate(item.candidate)) {
     const candidate = item.candidate;
@@ -209,7 +219,12 @@ async function applyEntityReviewCandidate(store: DatabaseStore, item: ReviewQueu
   });
 }
 
-async function applySupplierListReviewCandidate(store: DatabaseStore, item: SupplierListReviewItem, reviewer: string): Promise<ReviewApplyResult> {
+async function applySupplierListReviewCandidate(
+  store: DatabaseStore,
+  item: SupplierListReviewItem,
+  reviewer: string,
+  options: Required<ReviewApplyOptions>
+): Promise<ReviewApplyResult> {
   return store.transaction(async (client) => {
     const reviewId = item.review_id;
     const supplierRelation = supplierListReviewToSupplierRelation(item.candidate);
@@ -217,7 +232,7 @@ async function applySupplierListReviewCandidate(store: DatabaseStore, item: Supp
     const entityResolution = await resolveSupplierListEntities(client, item, resolver, supplierRelation);
     if (entityResolution.status === "blocked") return entityResolution;
 
-    const facilityPreparation = await prepareSupplierListFacility(client, item, resolver, reviewer);
+    const facilityPreparation = await prepareSupplierListFacility(client, item, resolver, reviewer, options);
     if (facilityPreparation.status === "blocked") return facilityPreparation;
     const doc = await loadReviewDocument(client, item);
     if (doc.status === "blocked") return doc;
@@ -228,7 +243,7 @@ async function applySupplierListReviewCandidate(store: DatabaseStore, item: Supp
     });
     const citationChunks = locateSupplierListCitations(doc.document, scored);
     if (citationChunks.status === "blocked") return blockReviewCandidate(client, reviewId, citationChunks.reason);
-    const builder = new GraphBuilder(store, resolver, { graphSyncMode: "defer" });
+    const builder = new GraphBuilder(store, resolver, { graphSyncMode: "defer", logger: options.logger });
     const applyResults = await applySupplierListEdges(client, builder, scored, doc.docId, citationChunks, { reviewer, reviewed_at: reviewedAt });
     const pendingResolved = await resolvePendingEntitySurface(client, {
       surface: supplierRelation.object_resolve.surface,
@@ -287,7 +302,8 @@ async function prepareSupplierListFacility(
   client: DbClient,
   item: SupplierListReviewItem,
   resolver: DbEntityResolver,
-  reviewer: string
+  reviewer: string,
+  options: Required<ReviewApplyOptions>
 ): Promise<FacilityPreparation> {
   const facilityImport = await ensureSupplierListFacilityEntity(client, item.candidate, reviewer);
   if (facilityImport.status === "blocked") return blockReviewCandidate(client, item.review_id, facilityImport.reason);
@@ -295,7 +311,7 @@ async function prepareSupplierListFacility(
   const facilityRelation = supplierListReviewToFacilityRelation(item.candidate, facilityImport.display_name);
   const facilityResolution = await resolver.resolve(facilityRelation.object_resolve);
   if (facilityResolution.status !== "resolved" || facilityResolution.entity_id === undefined) {
-    getLogger().warn(
+    options.logger.warn(
       { review_id: item.review_id, facility_entity_id: facilityImport.entity_id },
       "facility entity was imported but could not be resolved by its canonical alias"
     );
@@ -407,12 +423,16 @@ async function blockReviewCandidate(
   return { status: "blocked", review_id: reviewId, reason, ...(pendingId === undefined ? {} : { pending_id: pendingId }) };
 }
 
-export async function applyApprovedReviewCandidates(store: DatabaseStore, input: { reviewer: string; limit: number }): Promise<ReviewApplyBatchSummary> {
+export async function applyApprovedReviewCandidates(
+  store: DatabaseStore,
+  input: { reviewer: string; limit: number } & ReviewApplyOptions
+): Promise<ReviewApplyBatchSummary> {
+  const logger = input.logger ?? getLogger();
   const items = await store.transaction((client) => claimApprovedReviewCandidates(client, { limit: input.limit }));
   const results: ReviewApplyBatchItem[] = [];
   for (const item of items) {
     try {
-      results.push(await applyApprovedReviewCandidate(store, item.review_id, input.reviewer));
+      results.push(await applyApprovedReviewCandidate(store, item.review_id, input.reviewer, { logger }));
     } catch (error) {
       const reason = messageFromUnknown(error);
       try {

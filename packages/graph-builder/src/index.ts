@@ -10,7 +10,7 @@ import {
 } from "@supplystrata/db";
 import type { EntityResolver } from "@supplystrata/entity-resolver";
 import type { GraphStore } from "@supplystrata/graph-store";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { getLogger, messageFromUnknown, type SupplyStrataLogger } from "@supplystrata/observability";
 import {
   checkGraphConsistency,
   rebuildGraphProjection,
@@ -26,6 +26,7 @@ export type GraphSyncMode = "sync" | "defer";
 export interface GraphBuilderOptions {
   graphSyncMode?: GraphSyncMode;
   graphStore?: GraphStore;
+  logger?: SupplyStrataLogger;
 }
 
 export type { GraphConsistencyCheck, GraphProjectionRetrySummary } from "./projection.js";
@@ -50,6 +51,7 @@ export class GraphBuilder {
   readonly #resolver: EntityResolver;
   readonly #graph: GraphStore | null;
   readonly #graphSyncMode: GraphSyncMode;
+  readonly #logger: SupplyStrataLogger;
 
   constructor(store: DatabaseStore, resolver: EntityResolver, graphOrOptions: GraphStore | GraphBuilderOptions = {}, options: GraphBuilderOptions = {}) {
     this.#store = store;
@@ -57,10 +59,12 @@ export class GraphBuilder {
     if (isGraphStore(graphOrOptions)) {
       this.#graph = graphOrOptions;
       this.#graphSyncMode = options.graphSyncMode ?? "sync";
+      this.#logger = options.logger ?? getLogger();
     } else {
       this.#graph = graphOrOptions.graphStore ?? null;
       // 没有 GraphStore adapter 时，GraphBuilder 只维护 Postgres 真相存储；图投影由后续 rebuild/check 命令补齐。
       this.#graphSyncMode = graphOrOptions.graphSyncMode ?? (this.#graph === null ? "defer" : "sync");
+      this.#logger = graphOrOptions.logger ?? getLogger();
     }
   }
 
@@ -125,7 +129,7 @@ export class GraphBuilder {
     } catch (error) {
       const errorMessage = messageFromUnknown(error);
       await this.#recordProjectionFailure("upsert_edge", edgeId, errorMessage);
-      getLogger().warn({ stage: "graph-sync", edge_id: edgeId, err: errorMessage }, "GraphStore projection sync failed; Postgres truth was committed");
+      this.#logger.warn({ stage: "graph-sync", edge_id: edgeId, err: errorMessage }, "GraphStore projection sync failed; Postgres truth was committed");
       return { status: "failed", error_message: errorMessage };
     }
   }
@@ -139,7 +143,10 @@ export class GraphBuilder {
     } catch (error) {
       const errorMessage = messageFromUnknown(error);
       await this.#recordProjectionFailure("remove_edge", edgeId, errorMessage);
-      getLogger().warn({ stage: "graph-remove-edge", edge_id: edgeId, err: errorMessage }, "GraphStore projection remove failed; Postgres truth was committed");
+      this.#logger.warn(
+        { stage: "graph-remove-edge", edge_id: edgeId, err: errorMessage },
+        "GraphStore projection remove failed; Postgres truth was committed"
+      );
       return { status: "failed", error_message: errorMessage };
     }
   }
@@ -148,7 +155,7 @@ export class GraphBuilder {
     try {
       await recordGraphProjectionFailure(this.#store, { operation, edge_id: edgeId, error_message: errorMessage });
     } catch (error) {
-      getLogger().error(
+      this.#logger.error(
         { stage: "graph-projection-outbox", operation, edge_id: edgeId, err: messageFromUnknown(error) },
         "Failed to persist GraphStore projection retry job"
       );

@@ -121,12 +121,16 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
   target_kind: "company-filings",
   config_schema: dartKrConfigSchema(),
   credential_requirements: OPENDART_CREDENTIALS,
-  run(store, target) {
+  run(store, target, context) {
     return runSourceAdapterCheck(store, {
       adapter: dartKrAdapter,
       adapterInput: dartKrCompanyFilingsInputFromConfig(target.target_config),
       context: createDartKrAdapterContext(),
-      options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.dart-kr" }
+      options: {
+        checkTargetId: target.check_target_id,
+        failureCausedBy: "source-check.dart-kr",
+        ...(context.logger === undefined ? {} : { logger: context.logger })
+      }
     });
   }
 };

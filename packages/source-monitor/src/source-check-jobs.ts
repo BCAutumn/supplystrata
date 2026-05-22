@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { DbClient, DbTxClient } from "@supplystrata/db";
 import { normalizeSourceCheckTargetSelection } from "./source-check-target-selection.js";
-import type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow, SourceCheckTargetSelection } from "./types.js";
+import type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow } from "./db-rows.js";
+import type { SourceCheckTargetSelection } from "./types.js";
 
 const DEFAULT_SOURCE_CHECK_JOB_LEASE_MINUTES = 15;
 

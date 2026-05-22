@@ -6,7 +6,13 @@ import { storeObservation } from "@supplystrata/observation-store";
 import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { recordSavedDocumentObservation, runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
-import { optionalConfigPositiveInteger, requireConfigString, requireConfigStringArray, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import {
+  optionalConfigPositiveInteger,
+  requireConfigString,
+  requireConfigStringArray,
+  type SourceCheckConnector,
+  type SourceCheckConnectorLogger
+} from "@supplystrata/source-connectors";
 import {
   createAdapterContext,
   isSecEdgarFormType,
@@ -25,6 +31,7 @@ import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-r
 
 export interface SourceCheckOptions {
   checkTargetId?: string;
+  logger?: SourceCheckConnectorLogger;
 }
 
 export const secEdgarSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
@@ -38,8 +45,11 @@ export const secEdgarSourceCheckConnector: SourceCheckConnector<DatabaseStore, S
       { key: "limit", type: "positive_integer", required: false, description: "Maximum filings to fetch per check." }
     ]
   },
-  run(store, target) {
-    return checkSecEdgarSource(store, secEdgarInputFromTargetConfig(target.target_config), { checkTargetId: target.check_target_id });
+  run(store, target, context) {
+    return checkSecEdgarSource(store, secEdgarInputFromTargetConfig(target.target_config), {
+      checkTargetId: target.check_target_id,
+      ...(context.logger === undefined ? {} : { logger: context.logger })
+    });
   }
 };
 
@@ -60,8 +70,11 @@ export const secCompanyFactsSourceCheckConnector: SourceCheckConnector<DatabaseS
       { key: "max_periods", type: "positive_integer", required: false, description: "Maximum periods to keep per metric." }
     ]
   },
-  run(store, target) {
-    return checkSecCompanyFactsSource(store, secCompanyFactsInputFromTargetConfig(target.target_config), { checkTargetId: target.check_target_id });
+  run(store, target, context) {
+    return checkSecCompanyFactsSource(store, secCompanyFactsInputFromTargetConfig(target.target_config), {
+      checkTargetId: target.check_target_id,
+      ...(context.logger === undefined ? {} : { logger: context.logger })
+    });
   }
 };
 
@@ -117,8 +130,10 @@ export async function checkSecCompanyFactsSource(
 ): Promise<SourceCheckSummary[]> {
   const context = createAdapterContext();
   const summaries: SourceCheckSummary[] = [];
+  const logger = options.logger ?? getLogger();
   try {
     for await (const task of secCompanyFactsAdapter.plan(input, context)) {
+      logger.info({ stage: "source-check", adapter: secCompanyFactsAdapter.id, task_id: task.task_id }, "checking SEC company facts source task");
       const raw = await secCompanyFactsAdapter.fetch(task, context);
       const normalized = await secCompanyFactsAdapter.normalize(raw, context);
       const facts = parseSecCompanyFactObservations(raw.body, {

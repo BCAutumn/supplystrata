@@ -9,8 +9,8 @@ import {
   type SourceCheckJobStatus,
   type SourceCheckTargetSelection
 } from "@supplystrata/source-monitor";
-import { messageFromUnknown } from "@supplystrata/observability";
-import type { SourceCheckTargetRow } from "@supplystrata/source-connectors";
+import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import type { SourceCheckConnectorLogger, SourceCheckTargetRow } from "@supplystrata/source-connectors";
 import { inferUniqueTargetKind, runRegisteredManualSourceCheckConnector, runRegisteredSourceCheckConnector } from "./source-check-registry.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
@@ -48,9 +48,14 @@ export interface ManualSourceCheckInput {
   subject_entity_id?: string;
 }
 
-export type DueSourceCheckRunInput = { now?: string; limit?: number } & SourceCheckTargetSelection;
+export interface SourceCheckRunOptions {
+  logger?: SourceCheckConnectorLogger;
+}
+
+export type DueSourceCheckRunInput = { now?: string; limit?: number } & SourceCheckTargetSelection & SourceCheckRunOptions;
 
 export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput = {}): Promise<DueSourceCheckRunResult> {
+  const logger = input.logger ?? getLogger();
   const enqueue = await store.transaction((client) =>
     enqueueDueSourceCheckJobs(client, {
       limit: input.limit ?? 50,
@@ -68,7 +73,7 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
   );
   const items: DueSourceCheckRunItem[] = [];
   for (const job of due) {
-    items.push(await runDueSourceCheckJob(store, job));
+    items.push(await runDueSourceCheckJob(store, job, { logger }));
   }
   return {
     due_targets: enqueue.due_targets,
@@ -82,8 +87,8 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
   };
 }
 
-async function runDueSourceCheckTarget(store: DatabaseStore, target: DueSourceCheckRow): Promise<DueSourceCheckRunItem> {
-  const summaries = await runRegisteredSourceCheckConnector(store, target);
+async function runDueSourceCheckTarget(store: DatabaseStore, target: DueSourceCheckRow, options: SourceCheckRunOptions): Promise<DueSourceCheckRunItem> {
+  const summaries = await runRegisteredSourceCheckConnector(store, target, options);
   return {
     check_target_id: target.check_target_id,
     source_adapter_id: target.source_adapter_id,
@@ -95,9 +100,9 @@ async function runDueSourceCheckTarget(store: DatabaseStore, target: DueSourceCh
   };
 }
 
-async function runDueSourceCheckJob(store: DatabaseStore, job: SourceCheckJobRow): Promise<DueSourceCheckRunItem> {
+async function runDueSourceCheckJob(store: DatabaseStore, job: SourceCheckJobRow, options: SourceCheckRunOptions): Promise<DueSourceCheckRunItem> {
   try {
-    const item = await runDueSourceCheckTarget(store, job);
+    const item = await runDueSourceCheckTarget(store, job, options);
     await store.transaction((client) => markSourceCheckJobSucceeded(client, { job_id: job.job_id }));
     return { ...item, job_id: job.job_id };
   } catch (error) {
@@ -107,9 +112,13 @@ async function runDueSourceCheckJob(store: DatabaseStore, job: SourceCheckJobRow
   }
 }
 
-export async function runManualSourceCheck(store: DatabaseStore, input: ManualSourceCheckInput): Promise<SourceCheckSummary[]> {
+export async function runManualSourceCheck(
+  store: DatabaseStore,
+  input: ManualSourceCheckInput,
+  options: SourceCheckRunOptions = {}
+): Promise<SourceCheckSummary[]> {
   const target = manualSourceCheckTarget(input);
-  return runRegisteredManualSourceCheckConnector(store, target);
+  return runRegisteredManualSourceCheckConnector(store, target, { logger: options.logger ?? getLogger() });
 }
 
 function manualSourceCheckTarget(input: ManualSourceCheckInput): SourceCheckTargetRow {

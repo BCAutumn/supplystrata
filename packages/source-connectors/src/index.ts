@@ -26,12 +26,23 @@ export interface SourceCheckCredentialRequirement {
   required: boolean;
 }
 
+export interface SourceCheckConnectorLogger {
+  info(bindings: Record<string, unknown>, message: string): void;
+  warn(bindings: Record<string, unknown>, message: string): void;
+  error(bindings: Record<string, unknown>, message: string): void;
+  debug(bindings: Record<string, unknown>, message: string): void;
+}
+
+export interface SourceCheckConnectorRunContext {
+  logger?: SourceCheckConnectorLogger;
+}
+
 export interface SourceCheckConnector<TStore, TResult, TTarget extends SourceCheckTargetRow = SourceCheckTargetRow> {
   readonly source_adapter_id: string;
   readonly target_kind: string;
   readonly config_schema?: SourceCheckConfigSchema;
   readonly credential_requirements?: readonly SourceCheckCredentialRequirement[];
-  run(store: TStore, target: TTarget): Promise<TResult[]>;
+  run(store: TStore, target: TTarget, context: SourceCheckConnectorRunContext): Promise<TResult[]>;
 }
 
 export interface SourceCheckConnectorCapability {
@@ -67,13 +78,14 @@ export function listSourceCheckConnectorCapabilities(connectors: readonly Source
 export async function runSourceCheckConnector<TStore, TResult, TTarget extends SourceCheckTargetRow>(
   store: TStore,
   target: TTarget,
-  connectors: readonly SourceCheckConnector<TStore, TResult, TTarget>[]
+  connectors: readonly SourceCheckConnector<TStore, TResult, TTarget>[],
+  context: SourceCheckConnectorRunContext = {}
 ): Promise<TResult[]> {
   const connector = findSourceCheckConnector(target, connectors);
   if (connector === undefined) {
     throw new Error(unsupportedSourceCheckTargetMessage(target, connectors));
   }
-  return connector.run(store, target);
+  return connector.run(store, target, context);
 }
 
 export function findSourceCheckConnector<TStore, TResult, TTarget extends SourceCheckTargetRow>(

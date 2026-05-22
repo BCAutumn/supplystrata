@@ -1,4 +1,4 @@
-import { loadEnv } from "@supplystrata/config";
+import { loadEnv, missingSourceCredentialRequirements } from "@supplystrata/config";
 import { messageFromUnknown } from "@supplystrata/observability";
 import type { FetchTask, NormalizedDocument, RawDocument } from "@supplystrata/core";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
@@ -411,16 +411,8 @@ class MissingSourceCredentialsError extends Error {
 }
 
 function missingCredentialRequirements(requirements: readonly SourcePlanSmokeMissingCredential[] | undefined): readonly SourcePlanSmokeMissingCredential[] {
-  if (requirements === undefined) return [];
   // 和 adapter 使用同一个 .env 加载路径，避免 smoke 预检与真实 fetch 对凭据是否存在得出不同结论。
-  loadEnv();
-  const missingCredentials: SourcePlanSmokeMissingCredential[] = [];
-  for (const requirement of requirements) {
-    if (!requirement.required) continue;
-    const value = process.env[requirement.env_key];
-    if (value === undefined || value.trim().length === 0) missingCredentials.push(requirement);
-  }
-  return missingCredentials;
+  return missingSourceCredentialRequirements(loadEnv(), requirements);
 }
 
 function isTargetConfigIssue(message: string): boolean {

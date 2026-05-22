@@ -12,7 +12,12 @@ import {
 } from "@supplystrata/sources-apple-suppliers";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import { ensureSourceCheckTarget, recordSourceFailure, type SourceCheckTargetInput } from "@supplystrata/source-monitor";
-import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import {
+  optionalConfigPositiveInteger,
+  requireConfigString,
+  type SourceCheckConnector,
+  type SourceCheckConnectorLogger
+} from "@supplystrata/source-connectors";
 import { fetchAndNormalizeFirstTask } from "./source-documents.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import type { ReviewEnqueueSummary } from "./types.js";
@@ -35,9 +40,14 @@ export const appleSupplierListReviewSourceCheckConnector: SourceCheckConnector<D
       { key: "component_id", type: "string", required: false, description: "Component target id used by readiness and source-target coverage." }
     ]
   },
-  async run(store, target) {
+  async run(store, target, context) {
     try {
-      return [await runAppleSupplierListReviewCheck(store, appleSupplierInputFromConfig(target.target_config), { checkTargetId: target.check_target_id })];
+      return [
+        await runAppleSupplierListReviewCheck(store, appleSupplierInputFromConfig(target.target_config), {
+          checkTargetId: target.check_target_id,
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        })
+      ];
     } catch (error) {
       await store.transaction(async (client) => {
         await recordSourceFailure(client, {
@@ -71,7 +81,7 @@ export async function enqueueAppleSupplierReviewCandidates(
 async function runAppleSupplierListReviewCheck(
   store: DatabaseStore,
   input: AppleSuppliersInput,
-  options: { checkTargetId: string }
+  options: { checkTargetId: string; logger?: SourceCheckConnectorLogger }
 ): Promise<SourceCheckSummary> {
   const result = await ingestAppleSupplierReviewCandidates(store, input, options);
   return {
@@ -92,7 +102,7 @@ async function runAppleSupplierListReviewCheck(
 async function ingestAppleSupplierReviewCandidates(
   store: DatabaseStore,
   input: AppleSuppliersInput,
-  options: { checkTargetId?: string } = {}
+  options: { checkTargetId?: string; logger?: SourceCheckConnectorLogger } = {}
 ): Promise<{
   raw: Awaited<ReturnType<typeof fetchAndNormalizeFirstTask<AppleSuppliersInput>>>["raw"];
   saved: { doc_id: string };
@@ -107,7 +117,8 @@ async function ingestAppleSupplierReviewCandidates(
     adapter: appleSuppliersAdapter,
     input,
     context: createAppleSuppliersAdapterContext(),
-    logLabel: "Apple Supplier List"
+    logLabel: "Apple Supplier List",
+    ...(options.logger === undefined ? {} : { logger: options.logger })
   });
   const { saved, documentObservation, candidates, result, facilityCrossCheckLeads, facilityCrossCheckTargets } = await store.transaction(async (client) => {
     const savedDocument = await saveNormalizedDocumentTx(client, normalized);

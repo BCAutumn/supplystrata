@@ -130,6 +130,10 @@ CI 里加 dependency-cruiser 校验。
 
 `core` 必须保持纯净：不得读取 `.env`、不得实例化 logger、不得封装网络请求、不得访问文件系统。配置读取放在 `@supplystrata/config`；日志放在 `@supplystrata/observability`；source 抓取工具放在 `@supplystrata/source-adapter-runtime` 的 adapter 运行时层。
 
+类型边界必须按生命周期命名和放置：Domain Contract 描述业务概念，Persistence Row 只描述 SQL 查询结果，Workbench/API DTO 只描述对外消费契约。`source-monitor` 的 `db-rows` 是这条规则的样例：Row 形状不再混在业务输入类型里，内部查询直接依赖 `db-rows`，包入口只为兼容外部消费做稳定 re-export。后续治理 `core`、`db`、`workbench-export`、`card-builder` 时也按这条线推进，禁止为了省事把 DB Row 当 DTO 或把 DTO 字段塞回 domain contract。
+
+环境变量和 logger 只能在 app/worker/CLI 或 use-case 边界解析；feature 内部应接收显式 `Env`、adapter context 或 logger port。`source-plan-smoke` 缺凭据预检必须调用 `@supplystrata/config` 的 credential resolution，而不是直接读 `process.env`；source-check runtime 通过 connector run context 向 adapter check 传入 logger，避免深层 feature 自己创建默认 singleton。`getLogger()` 仍可作为边界默认实现，但不能成为新业务规则内部的隐式依赖。
+
 `db` 的包入口只做稳定 re-export，内部按职责拆分：`client` 负责 `DatabaseStore` 接口、Postgres adapter 与 migration 调用，`seed` 负责 CSV seed 与必要的数据回填，`documents` 负责 normalized document / chunk / review queue 写入，`pending` 负责待解析实体，`query` 负责边、证据、unknown map 的只读查询。新增仓储函数必须优先落在对应职责文件中，避免重新膨胀成单文件数据库工具箱。
 
 `pipeline` 是 normalized document engine：它接收已经标准化的 `NormalizedDocument`，调用 extractor/scorer/resolver/graph-builder，记录文档 observation，并把官方披露 observation draft 交给 `observation-store` 幂等写入。内部按职责拆分：`run.ts` 处理 normalized document 到事实边的纵向链路，`document-observations.ts` 处理文档监控和 observation 入库，`citation-location.ts` 负责把候选证据精确映射到唯一持久化 chunk。pipeline 不直接依赖 `sources/*`，也不直接维护具体数据源的抓取、预览、实体 registry 查询、Apple Supplier List enqueue 或 source check connector registry。
@@ -138,7 +142,7 @@ CI 里加 dependency-cruiser 校验。
 
 `source-plan` 是二/三级链路扩源的边界：它把 `component-context` 里的上游 lead 映射到 `source-registry` 里的免费/公开数据源，并标明 `edge / observation / lead / entity` 输出层与自动化策略。它也可以消费 research target profile 传入的官方源 hints，把已有 SEC CIK 或已注册官方 IR connector 转成 node-specific runnable target suggestions；没有 target config 或 connector 的来源只能停留为 coverage gap。profile 是研究目标和验收锚点，不是每家公司一套代码；如果用户输入任意上市公司，后端应优先从 entity / registry / regulator metadata 推导可运行 target，缺口进入 backlog，而不是要求用户手写 profile 或让开发者新增公司文件。它不抓取、不解析、不写 Postgres，也不允许把 Comtrade/AIS/能源/新闻这类弱源升级成事实边。
 
-`source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验和 unsupported target 错误。具体源例如 SEC EDGAR 在 `source-workflows` 侧提供 connector 实现；`sources check` 和 `run-due` 都只走 connector registry，不在 CLI 或调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
+`source-connectors` 是 source monitoring 执行层的分发边界：它只定义 `SourceCheckConnector`、connector key、target config 校验、凭据声明、run context 和 unsupported target 错误。具体源例如 SEC EDGAR 在 `source-workflows` 侧提供 connector 实现；`sources check` 和 `run-due` 都只走 connector registry，不在 CLI 或调度入口继续写 `if source_adapter_id === ...`。以后新增 DART、EDINET、OSH、Comtrade 等免费源时，应新增 connector 并注册，而不是改 CLI 或调度主循环。
 
 `source-management` 是统一数据源管理面：它把 `source-registry` 的权威来源清单、`source-connectors` 的可运行 target kind、connector 声明的 `target_config` 字段契约、外部 `source policy` 配置校验收口到一个纯模块。它不抓取、不写库、不读取环境变量；CLI、未来 TS 桌面端或 agent 宿主可以先调用它展示“哪些源可配置、哪些字段必填、哪些只登记未实现、哪些需要 key、哪些只能手工”，再决定是否同步到 Postgres。用户自定义 source policy 必须先通过这个模块校验，避免把不存在的 source/target 或字段错误的 target_config 写进调度表。
 

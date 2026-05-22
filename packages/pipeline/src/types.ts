@@ -1,6 +1,7 @@
 import type { NormalizedDocument } from "@supplystrata/core";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import type { GraphStore } from "@supplystrata/graph-store";
+import type { SupplyStrataLogger } from "@supplystrata/observability";
 
 export interface PipelineSummary {
   doc_id: string;
@@ -22,4 +23,5 @@ export interface NormalizedPipelineInput {
   fetchedUrl?: string;
   graphSyncMode?: GraphSyncMode;
   graphStore?: GraphStore;
+  logger?: SupplyStrataLogger;
 }

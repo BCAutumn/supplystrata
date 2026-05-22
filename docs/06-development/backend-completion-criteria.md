@@ -566,6 +566,7 @@ POST /review/:id/reject
 - 50 万 entity/edge 规模下的 chain/risk query benchmark。
 - 所有跨表写入有事务边界。
 - DTO / DB row / domain type 不混用。
+- Env / logger 不在深层 feature 隐式读取；app/CLI/worker/use-case 边界负责注入，配置和凭据判断统一走 `@supplystrata/config`。
 - 文档与代码差异有检查或明确维护流程。
 
 完成标准：

@@ -5,10 +5,10 @@ import { parseSourcePolicyConfig } from "./policy-config.js";
 import { calculateNextCheckAt } from "./scheduling.js";
 import { ensureRegisteredSourceHealth, syncSourceHealthRegistry } from "./source-health-registry.js";
 import { normalizeSourceCheckTargetSelection, uniqueCheckTargetIds } from "./source-check-target-selection.js";
+import type { DueSourceCheckRow, SourceHealthRow, SourcePolicyRow } from "./db-rows.js";
 import type {
   DocumentObservationInput,
   DocumentObservationResult,
-  DueSourceCheckRow,
   SourceCheckTargetEnableInput,
   SourceCheckTargetEnableResult,
   SourceCheckTargetSelection,
@@ -16,7 +16,6 @@ import type {
   SourceDegradedInput,
   SourceDocumentChangeType,
   SourceFailureInput,
-  SourceHealthRow,
   SourcePolicyConfig,
   SourcePolicyInput
 } from "./types.js";
@@ -34,12 +33,10 @@ export type {
   SourceTargetCoverageState,
   SourceTargetCoverageEvent
 } from "./coverage.js";
+export type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow, SourceHealthRow, SourcePolicyRow } from "./db-rows.js";
 export type {
   DocumentObservationInput,
   DocumentObservationResult,
-  DueSourceCheckRow,
-  SourceCheckJobRow,
-  SourceCheckJobStateRow,
   SourceCheckJobStatus,
   SourceCheckTargetEnableInput,
   SourceCheckTargetEnableResult,
@@ -48,10 +45,8 @@ export type {
   SourceDegradedInput,
   SourceDocumentChangeType,
   SourceFailureInput,
-  SourceHealthRow,
   SourcePolicyConfig,
-  SourcePolicyInput,
-  SourcePolicyRow
+  SourcePolicyInput
 } from "./types.js";
 
 interface SourceItemRow extends pg.QueryResultRow {

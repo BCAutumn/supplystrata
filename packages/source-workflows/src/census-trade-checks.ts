@@ -3,7 +3,7 @@ import { findComponentTradeCode, listComponentMaterialExposures } from "@supplys
 import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
-import { requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import { requireConfigString, type SourceCheckConnector, type SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
 import {
   censusTradeAdapter,
   createCensusTradeAdapterContext,
@@ -38,10 +38,11 @@ export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore
       { key: "scope_id", type: "string", required: false, description: "Observation scope id; defaults to component_id or commodity code." }
     ]
   },
-  run(store, target) {
+  run(store, target, context) {
     return runCensusTradeSourceCheck(store, censusTradeInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,
-      targetConfig: target.target_config
+      targetConfig: target.target_config,
+      ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
 };
@@ -49,14 +50,16 @@ export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore
 interface CensusTradeCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
+  logger?: SourceCheckConnectorLogger;
 }
 
 async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTradeInput, options: CensusTradeCheckOptions): Promise<SourceCheckSummary[]> {
   const context = createCensusTradeAdapterContext();
   const summaries: SourceCheckSummary[] = [];
+  const logger = options.logger ?? getLogger();
   try {
     for await (const task of censusTradeAdapter.plan(input, context)) {
-      getLogger().info({ stage: "source-check", adapter: censusTradeAdapter.id, task_id: task.task_id }, "checking Census trade source task");
+      logger.info({ stage: "source-check", adapter: censusTradeAdapter.id, task_id: task.task_id }, "checking Census trade source task");
       const raw = await censusTradeAdapter.fetch(task, context);
       const normalized = await censusTradeAdapter.normalize(raw, context);
       const rows = parseCensusTradeRows(raw.body, input.direction);

@@ -6,6 +6,7 @@ import {
   unsupportedSourceCheckTargetMessage,
   type SourceCheckConnector,
   type SourceCheckConnectorCapability,
+  type SourceCheckConnectorRunContext,
   type SourceCheckTargetRow
 } from "@supplystrata/source-connectors";
 import { appleSupplierListReviewSourceCheckConnector } from "./apple-suppliers.js";
@@ -32,12 +33,20 @@ export const SOURCE_CHECK_CONNECTORS: readonly SourceCheckConnector<DatabaseStor
   worldBankPinkSourceCheckConnector
 ];
 
-export function runRegisteredSourceCheckConnector(store: DatabaseStore, target: SourceCheckTargetRow): Promise<SourceCheckSummary[]> {
-  return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS);
+export function runRegisteredSourceCheckConnector(
+  store: DatabaseStore,
+  target: SourceCheckTargetRow,
+  context: SourceCheckConnectorRunContext = {}
+): Promise<SourceCheckSummary[]> {
+  return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS, context);
 }
 
-export function runRegisteredManualSourceCheckConnector(store: DatabaseStore, target: SourceCheckTargetRow): Promise<SourceCheckSummary[]> {
-  return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS);
+export function runRegisteredManualSourceCheckConnector(
+  store: DatabaseStore,
+  target: SourceCheckTargetRow,
+  context: SourceCheckConnectorRunContext = {}
+): Promise<SourceCheckSummary[]> {
+  return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS, context);
 }
 
 export function listSourceCheckConnectorIds(): string[] {

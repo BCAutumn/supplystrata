@@ -4,7 +4,12 @@ import { storeObservation } from "@supplystrata/observation-store";
 import { buildOshFacilityReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
-import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import {
+  optionalConfigPositiveInteger,
+  requireConfigString,
+  type SourceCheckConnector,
+  type SourceCheckConnectorLogger
+} from "@supplystrata/source-connectors";
 import {
   createOshAdapterContext,
   oshAdapter,
@@ -34,10 +39,11 @@ export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, Source
       { key: "source_country_or_region", type: "string", required: false, description: "Country or region text from the upstream source." }
     ]
   },
-  run(store, target) {
+  run(store, target, context) {
     return runOshFacilitySearchCheck(store, oshInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,
-      targetConfig: target.target_config
+      targetConfig: target.target_config,
+      ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
 };
@@ -45,14 +51,16 @@ export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, Source
 interface OshCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
+  logger?: SourceCheckConnectorLogger;
 }
 
 async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilitySearchInput, options: OshCheckOptions): Promise<SourceCheckSummary[]> {
   const context = createOshAdapterContext();
   const summaries: SourceCheckSummary[] = [];
+  const logger = options.logger ?? getLogger();
   try {
     for await (const task of oshAdapter.plan(input, context)) {
-      getLogger().info({ stage: "source-check", adapter: oshAdapter.id, task_id: task.task_id }, "checking OSH facility source task");
+      logger.info({ stage: "source-check", adapter: oshAdapter.id, task_id: task.task_id }, "checking OSH facility source task");
       const raw = await oshAdapter.fetch(task, context);
       const normalized = await oshAdapter.normalize(raw, context);
       const candidates = parseOshFacilityCandidates(raw.body, normalized.source_url);

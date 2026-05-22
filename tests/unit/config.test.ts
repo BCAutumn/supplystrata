@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadEnv, requireSourceCredential, sourceCredentialRequirement, type SourceCredentialEnvKey } from "@supplystrata/config";
+import {
+  loadEnv,
+  missingSourceCredentialRequirements,
+  requireSourceCredential,
+  sourceCredentialRequirement,
+  type SourceCredentialEnvKey
+} from "@supplystrata/config";
 
 const SOURCE_CREDENTIAL_KEYS: readonly SourceCredentialEnvKey[] = [
   "OPENDART_API_KEY",
@@ -55,6 +61,22 @@ describe("source credential config", () => {
       required: true,
       description: "OpenDART official API key used for Korean disclosure list monitoring."
     });
+  });
+
+  it("resolves missing connector credentials from an explicit Env object", () => {
+    const snapshot = snapshotEnv();
+    try {
+      clearSourceCredentialEnv();
+      const env = loadEnv({ dotenvPath: "/tmp/supplystrata-missing.env", sourceCredentialsPath: "/tmp/supplystrata-missing-credentials.json" });
+      const missing = missingSourceCredentialRequirements(env, [
+        sourceCredentialRequirement("OPENDART_API_KEY"),
+        sourceCredentialRequirement("EDINET_API_KEY")
+      ]);
+
+      expect(missing.map((requirement) => requirement.env_key)).toEqual(["OPENDART_API_KEY", "EDINET_API_KEY"]);
+    } finally {
+      restoreEnv(snapshot);
+    }
   });
 });
 

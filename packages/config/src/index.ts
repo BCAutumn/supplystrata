@@ -39,6 +39,12 @@ export interface SourceCredentialDefinition {
   required: true;
 }
 
+export interface SourceCredentialRequirementLike {
+  env_key: string;
+  description: string;
+  required: boolean;
+}
+
 export const DEFAULT_SOURCE_CREDENTIALS_PATH = "config/source-credentials.local.json";
 
 export const SOURCE_CREDENTIAL_DEFINITIONS: readonly SourceCredentialDefinition[] = [
@@ -114,10 +120,33 @@ export function requireSourceCredential(env: Env, key: SourceCredentialEnvKey): 
   return requireEnvValue(env[key], key);
 }
 
+export function missingSourceCredentialRequirements<TRequirement extends SourceCredentialRequirementLike>(
+  env: Env,
+  requirements: readonly TRequirement[] | undefined
+): TRequirement[] {
+  if (requirements === undefined) return [];
+  const missing: TRequirement[] = [];
+  for (const requirement of requirements) {
+    if (!requirement.required) continue;
+    const value = sourceCredentialValue(env, requirement.env_key);
+    if (value === undefined || value.trim().length === 0) missing.push(requirement);
+  }
+  return missing;
+}
+
 export function sourceCredentialRequirement(key: SourceCredentialEnvKey): Pick<SourceCredentialDefinition, "env_key" | "description" | "required"> {
   const definition = SOURCE_CREDENTIAL_DEFINITIONS.find((item) => item.env_key === key);
   if (definition === undefined) throw new Error(`Unknown source credential key: ${key}`);
   return { env_key: definition.env_key, description: definition.description, required: definition.required };
+}
+
+export function isSourceCredentialEnvKey(value: string): value is SourceCredentialEnvKey {
+  return SOURCE_CREDENTIAL_DEFINITIONS.some((definition) => definition.env_key === value);
+}
+
+function sourceCredentialValue(env: Env, key: string): string | undefined {
+  if (!isSourceCredentialEnvKey(key)) return undefined;
+  return env[key];
 }
 
 function loadDotEnvIfPresent(path: string): void {

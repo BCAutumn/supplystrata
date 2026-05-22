@@ -12,6 +12,7 @@ import type { NormalizedPipelineInput, PipelineSummary } from "./types.js";
 
 export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore, input: NormalizedPipelineInput): Promise<PipelineSummary> {
   const normalized = input.normalized;
+  const logger = input.logger ?? getLogger();
   const { savedDocument, observationResult } = await store.transaction(async (client) => {
     const documentRef = await saveNormalizedDocumentTx(client, normalized);
     const observations = await persistDocumentObservations(client, normalized, documentRef.doc_id);
@@ -22,7 +23,8 @@ export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore,
   const scorer = new DeterministicEvidenceScorer();
   const graphBuilder = new GraphBuilder(store, resolver, {
     graphSyncMode: input.graphSyncMode ?? "defer",
-    ...(input.graphStore === undefined ? {} : { graphStore: input.graphStore })
+    ...(input.graphStore === undefined ? {} : { graphStore: input.graphStore }),
+    logger
   });
   const evidenceIds: string[] = [];
   const graphSync = { synced: 0, deferred: 0, failed: 0 };
@@ -34,17 +36,17 @@ export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore,
       for await (const candidate of extractor.extract(normalized)) {
         candidates += 1;
         if (!isValidCandidate(candidate, normalized.text)) {
-          getLogger().warn({ stage: "extract", extractor: candidate.extractor_id }, "candidate rejected by local validation");
+          logger.warn({ stage: "extract", extractor: candidate.extractor_id }, "candidate rejected by local validation");
           continue;
         }
         const scoring = await scorer.score(candidate, normalized);
         if (scoring.needs_review) {
-          getLogger().warn({ stage: "score", candidate: candidate.extractor_id }, "candidate needs review and was not auto-applied");
+          logger.warn({ stage: "score", candidate: candidate.extractor_id }, "candidate needs review and was not auto-applied");
           continue;
         }
         const citationLocation = locateCandidateCitation(savedDocument.chunks, candidate);
         if (citationLocation.status !== "located") {
-          getLogger().warn(
+          logger.warn(
             {
               stage: "citation-location",
               extractor: candidate.extractor_id,

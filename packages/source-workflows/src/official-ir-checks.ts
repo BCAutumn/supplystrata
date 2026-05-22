@@ -22,12 +22,16 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
     source_adapter_id: "company-ir",
     target_kind: "official-html-disclosure",
     config_schema: companyIrConfigSchema(),
-    run(store, target) {
+    run(store, target, context) {
       return runSourceAdapterCheck(store, {
         adapter: companyIrExplicitUrlAdapter,
         adapterInput: companyIrExplicitUrlInputFromConfig(target.target_config),
         context: createOfficialIrAdapterContext(),
-        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.company-ir" }
+        options: {
+          checkTargetId: target.check_target_id,
+          failureCausedBy: "source-check.company-ir",
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        }
       });
     }
   },
@@ -35,12 +39,16 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
     source_adapter_id: "tsmc-ir",
     target_kind: "official-html-disclosure",
     config_schema: officialIrConfigSchema("ENT-TSMC"),
-    run(store, target) {
+    run(store, target, context) {
       return runSourceAdapterCheck(store, {
         adapter: tsmcIrAdapter,
         adapterInput: tsmcIrInputFromConfig(target.target_config),
         context: createOfficialIrAdapterContext(),
-        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.tsmc-ir" }
+        options: {
+          checkTargetId: target.check_target_id,
+          failureCausedBy: "source-check.tsmc-ir",
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        }
       });
     }
   },
@@ -48,12 +56,16 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
     source_adapter_id: "samsung-ir",
     target_kind: "official-html-disclosure",
     config_schema: officialIrConfigSchema("ENT-SAMSUNG-ELECTRONICS"),
-    run(store, target) {
+    run(store, target, context) {
       return runSourceAdapterCheck(store, {
         adapter: samsungIrAdapter,
         adapterInput: samsungIrInputFromConfig(target.target_config),
         context: createOfficialIrAdapterContext(),
-        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.samsung-ir" }
+        options: {
+          checkTargetId: target.check_target_id,
+          failureCausedBy: "source-check.samsung-ir",
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        }
       });
     }
   },
@@ -61,12 +73,16 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
     source_adapter_id: "skhynix-ir",
     target_kind: "official-html-disclosure",
     config_schema: officialIrConfigSchema("ENT-SKHYNIX"),
-    run(store, target) {
+    run(store, target, context) {
       return runSourceAdapterCheck(store, {
         adapter: skHynixIrAdapter,
         adapterInput: skHynixIrInputFromConfig(target.target_config),
         context: createOfficialIrAdapterContext(),
-        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.skhynix-ir" }
+        options: {
+          checkTargetId: target.check_target_id,
+          failureCausedBy: "source-check.skhynix-ir",
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        }
       });
     }
   },
@@ -74,12 +90,16 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
     source_adapter_id: "asml-ir",
     target_kind: "official-html-disclosure",
     config_schema: officialIrConfigSchema("ENT-ASML"),
-    run(store, target) {
+    run(store, target, context) {
       return runSourceAdapterCheck(store, {
         adapter: asmlIrAdapter,
         adapterInput: asmlIrInputFromConfig(target.target_config),
         context: createOfficialIrAdapterContext(),
-        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.asml-ir" }
+        options: {
+          checkTargetId: target.check_target_id,
+          failureCausedBy: "source-check.asml-ir",
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        }
       });
     }
   },
@@ -87,12 +107,16 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
     source_adapter_id: "micron-ir",
     target_kind: "official-html-disclosure",
     config_schema: officialIrConfigSchema("ENT-MICRON"),
-    run(store, target) {
+    run(store, target, context) {
       return runSourceAdapterCheck(store, {
         adapter: micronIrAdapter,
         adapterInput: micronIrInputFromConfig(target.target_config),
         context: createOfficialIrAdapterContext(),
-        options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.micron-ir" }
+        options: {
+          checkTargetId: target.check_target_id,
+          failureCausedBy: "source-check.micron-ir",
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        }
       });
     }
   }

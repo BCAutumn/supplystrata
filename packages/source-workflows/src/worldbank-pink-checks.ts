@@ -3,7 +3,7 @@ import { getLogger, messageFromUnknown } from "@supplystrata/observability";
 import { storeObservation, type ObservationScopeKind } from "@supplystrata/observation-store";
 import { recordSavedDocumentObservation } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
-import { requireConfigString, type SourceCheckConnector } from "@supplystrata/source-connectors";
+import { requireConfigString, type SourceCheckConnector, type SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
 import {
   createWorldBankPinkAdapterContext,
   parseWorldBankPinkRows,
@@ -32,10 +32,11 @@ export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseSto
       { key: "scope_id", type: "string", required: false, description: "Observation scope id; defaults to component_id, material_id, or commodity." }
     ]
   },
-  run(store, target) {
+  run(store, target, context) {
     return runWorldBankPinkSourceCheck(store, worldBankPinkInputFromConfig(target.target_config), {
       checkTargetId: target.check_target_id,
-      targetConfig: target.target_config
+      targetConfig: target.target_config,
+      ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
 };
@@ -43,14 +44,16 @@ export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseSto
 interface WorldBankPinkCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
+  logger?: SourceCheckConnectorLogger;
 }
 
 async function runWorldBankPinkSourceCheck(store: DatabaseStore, input: WorldBankPinkInput, options: WorldBankPinkCheckOptions): Promise<SourceCheckSummary[]> {
   const context = createWorldBankPinkAdapterContext();
   const summaries: SourceCheckSummary[] = [];
+  const logger = options.logger ?? getLogger();
   try {
     for await (const task of worldBankPinkAdapter.plan(input, context)) {
-      getLogger().info({ stage: "source-check", adapter: worldBankPinkAdapter.id, task_id: task.task_id }, "checking World Bank Pink Sheet source task");
+      logger.info({ stage: "source-check", adapter: worldBankPinkAdapter.id, task_id: task.task_id }, "checking World Bank Pink Sheet source task");
       const raw = await worldBankPinkAdapter.fetch(task, context);
       const normalized = await worldBankPinkAdapter.normalize(raw, context);
       const rows = parseWorldBankPinkRows(raw.body, input);

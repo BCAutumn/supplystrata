@@ -122,12 +122,16 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
   target_kind: "daily-filings",
   config_schema: edinetConfigSchema(),
   credential_requirements: EDINET_CREDENTIALS,
-  run(store, target) {
+  run(store, target, context) {
     return runSourceAdapterCheck(store, {
       adapter: edinetAdapter,
       adapterInput: edinetDailyFilingsInputFromConfig(target.target_config),
       context: createEdinetAdapterContext(),
-      options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.edinet" }
+      options: {
+        checkTargetId: target.check_target_id,
+        failureCausedBy: "source-check.edinet",
+        ...(context.logger === undefined ? {} : { logger: context.logger })
+      }
     });
   }
 };

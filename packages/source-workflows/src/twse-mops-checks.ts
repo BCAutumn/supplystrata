@@ -96,12 +96,16 @@ export const twseMopsElectronicDocumentsSourceCheckConnector: SourceCheckConnect
   source_adapter_id: "twse-mops",
   target_kind: "electronic-documents",
   config_schema: twseMopsConfigSchema(),
-  run(store, target) {
+  run(store, target, context) {
     return runSourceAdapterCheck(store, {
       adapter: twseMopsAdapter,
       adapterInput: twseMopsElectronicDocumentsInputFromConfig(target.target_config),
       context: createTwseMopsAdapterContext(),
-      options: { checkTargetId: target.check_target_id, failureCausedBy: "source-check.twse-mops" }
+      options: {
+        checkTargetId: target.check_target_id,
+        failureCausedBy: "source-check.twse-mops",
+        ...(context.logger === undefined ? {} : { logger: context.logger })
+      }
     });
   }
 };

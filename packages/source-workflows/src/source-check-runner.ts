@@ -4,6 +4,7 @@ import { recordSourceDegraded, recordSourceFailure, type SourceDocumentChangeTyp
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import type { FetchTask, RawDocument } from "@supplystrata/core";
 import { persistDocumentObservations } from "@supplystrata/pipeline";
+import type { SourceCheckConnectorLogger } from "@supplystrata/source-connectors";
 
 export interface SourceCheckSummary {
   source_adapter_id: string;
@@ -22,6 +23,7 @@ export interface SourceCheckSummary {
 export interface SourceCheckOptions {
   checkTargetId?: string;
   failureCausedBy: string;
+  logger?: SourceCheckConnectorLogger;
 }
 
 export async function runSourceAdapterCheck<TInput>(
@@ -34,9 +36,10 @@ export async function runSourceAdapterCheck<TInput>(
   }
 ): Promise<SourceCheckSummary[]> {
   const summaries: SourceCheckSummary[] = [];
+  const logger = input.options.logger ?? getLogger();
   try {
     for await (const task of input.adapter.plan(input.adapterInput, input.context)) {
-      const raw = await fetchSourceTask(input.adapter, task, input.context);
+      const raw = await fetchSourceTask(input.adapter, task, input.context, logger);
       if (raw.metadata["source_fetch_status"] === "fallback") {
         await store.transaction(async (client) => {
           await recordSourceDegraded(client, {
@@ -86,8 +89,13 @@ export async function runSourceAdapterCheck<TInput>(
   }
 }
 
-async function fetchSourceTask<TInput>(adapter: SourceAdapter<TInput, Uint8Array>, task: FetchTask, context: AdapterContext): Promise<RawDocument<Uint8Array>> {
-  getLogger().info({ stage: "source-check", adapter: adapter.id, task_id: task.task_id }, "checking source task");
+async function fetchSourceTask<TInput>(
+  adapter: SourceAdapter<TInput, Uint8Array>,
+  task: FetchTask,
+  context: AdapterContext,
+  logger: SourceCheckConnectorLogger
+): Promise<RawDocument<Uint8Array>> {
+  logger.info({ stage: "source-check", adapter: adapter.id, task_id: task.task_id }, "checking source task");
   return adapter.fetch(task, context);
 }
 
