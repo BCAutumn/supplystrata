@@ -18,7 +18,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .action(async () => {
       await withDatabase(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver, createCliNeo4jGraphStore());
+        const builder = new GraphBuilder(pool, resolver, { graphStore: createCliNeo4jGraphStore() });
         try {
           const stats = await builder.rebuild();
           writeJson({ ok: true, ...stats });
@@ -34,7 +34,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .action(async (options: { format: string }) => {
       await withDatabase(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver, createCliNeo4jGraphStore());
+        const builder = new GraphBuilder(pool, resolver, { graphStore: createCliNeo4jGraphStore() });
         try {
           const check = await builder.checkConsistency();
           write(renderGraphCheck(check, parseFormat(options.format)));
@@ -50,7 +50,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .action(async (options: { limit: string }) => {
       await withDatabase(async (pool) => {
         const resolver = new DbEntityResolver(pool);
-        const builder = new GraphBuilder(pool, resolver, createCliNeo4jGraphStore());
+        const builder = new GraphBuilder(pool, resolver, { graphStore: createCliNeo4jGraphStore() });
         try {
           const summary = await builder.retryProjectionJobs({ limit: parseLimit(options.limit) });
           writeJson({ ok: true, ...summary });

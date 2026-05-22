@@ -107,7 +107,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   });
 
   it("commits Postgres truth when GraphStore projection sync fails", async () => {
-    const builder = new GraphBuilder(pool, new StaticResolver(), new FailingGraphStore());
+    const builder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new FailingGraphStore() });
     const result = await builder.apply(approvedCandidate());
 
     expect(result.graph_sync).toMatchObject({ status: "failed", error_message: "simulated graph store outage" });
@@ -124,18 +124,20 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
 
   it("reports graph projection sync status from Postgres and graph counts", async () => {
     const postgres = await currentPostgresProjection(pool);
-    const syncedBuilder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore(postgres));
+    const syncedBuilder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new StatsGraphStore(postgres) });
     await expect(syncedBuilder.checkConsistency()).resolves.toMatchObject({ status: "synced", postgres, graph: postgres });
 
-    const staleBuilder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: postgres.nodes, edges: postgres.edges + 1 }));
+    const staleBuilder = new GraphBuilder(pool, new StaticResolver(), {
+      graphStore: new StatsGraphStore({ nodes: postgres.nodes, edges: postgres.edges + 1 })
+    });
     await expect(staleBuilder.checkConsistency()).resolves.toMatchObject({ status: "out_of_sync", recommendation: "run_graph_rebuild" });
 
-    const unreachableBuilder = new GraphBuilder(pool, new StaticResolver(), new UnreachableStatsGraphStore());
+    const unreachableBuilder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new UnreachableStatsGraphStore() });
     await expect(unreachableBuilder.checkConsistency()).resolves.toMatchObject({ status: "unreachable", error_message: "simulated stats outage" });
   });
 
   it("promotes the best evidence to the edge primary evidence", async () => {
-    const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
+    const builder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new StatsGraphStore({ nodes: 0, edges: 0 }) });
     const stale = await builder.apply(approvedCandidate({ component: "primary-evidence-test", confidence: 0.7, citeText: "Older integration evidence." }));
     const fresh = await builder.apply(approvedCandidate({ component: "primary-evidence-test", confidence: 0.9, citeText: "Newer integration evidence." }));
 
@@ -154,7 +156,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   });
 
   it("canonicalizes known component text onto component_id and specificity", async () => {
-    const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
+    const builder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new StatsGraphStore({ nodes: 0, edges: 0 }) });
     const result = await builder.apply(
       approvedCandidate({ component: "memory", confidence: 0.86, citeText: "Integration Test Buyer purchases memory from Integration Test Supplier." })
     );
@@ -174,7 +176,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   });
 
   it("records exact citation offsets and fingerprints for applied evidence", async () => {
-    const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
+    const builder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new StatsGraphStore({ nodes: 0, edges: 0 }) });
     const result = await builder.apply(approvedCandidate({ component: "traceability-test" }));
 
     const evidence = await pool.query<EvidenceTraceTestRow>(
@@ -200,7 +202,7 @@ describe.skipIf(!hasDatabase)("GraphBuilder integration", () => {
   });
 
   it("rejects approved candidates with unknown extractor_id prefixes before committing evidence", async () => {
-    const builder = new GraphBuilder(pool, new StaticResolver(), new StatsGraphStore({ nodes: 0, edges: 0 }));
+    const builder = new GraphBuilder(pool, new StaticResolver(), { graphStore: new StatsGraphStore({ nodes: 0, edges: 0 }) });
     await expect(builder.apply(approvedCandidate({ extractorId: "rules.10k.typo", component: "unknown-extractor-test" }))).rejects.toThrow(
       /Unknown extractor_id prefix/
     );

@@ -45,7 +45,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
       normalized
     });
     const graphStore = new CountingGraphStore();
-    const builder = new GraphBuilder(pool, new DbEntityResolver(pool), graphStore);
+    const builder = new GraphBuilder(pool, new DbEntityResolver(pool), { graphStore });
     try {
       const rebuildStats = await builder.rebuild();
       expect(rebuildStats.nodes).toBeGreaterThanOrEqual(59);
@@ -218,7 +218,7 @@ async function promoteBestPrimaryEvidenceExcludingFixture(client: DbClient, edge
 }
 
 async function rebuildGraphQuietly(pool: DatabaseStore): Promise<void> {
-  const builder = new GraphBuilder(pool, new DbEntityResolver(pool), new CountingGraphStore());
+  const builder = new GraphBuilder(pool, new DbEntityResolver(pool), { graphStore: new CountingGraphStore() });
   try {
     await builder.rebuild();
   } finally {

@@ -53,19 +53,13 @@ export class GraphBuilder {
   readonly #graphSyncMode: GraphSyncMode;
   readonly #logger: SupplyStrataLogger;
 
-  constructor(store: DatabaseStore, resolver: EntityResolver, graphOrOptions: GraphStore | GraphBuilderOptions = {}, options: GraphBuilderOptions = {}) {
+  constructor(store: DatabaseStore, resolver: EntityResolver, options: GraphBuilderOptions = {}) {
     this.#store = store;
     this.#sqlWriter = new GraphSqlWriter(resolver);
-    if (isGraphStore(graphOrOptions)) {
-      this.#graph = graphOrOptions;
-      this.#graphSyncMode = options.graphSyncMode ?? "sync";
-      this.#logger = options.logger ?? noopLogger;
-    } else {
-      this.#graph = graphOrOptions.graphStore ?? null;
-      // 没有 GraphStore adapter 时，GraphBuilder 只维护 Postgres 真相存储；图投影由后续 rebuild/check 命令补齐。
-      this.#graphSyncMode = graphOrOptions.graphSyncMode ?? (this.#graph === null ? "defer" : "sync");
-      this.#logger = graphOrOptions.logger ?? noopLogger;
-    }
+    this.#graph = options.graphStore ?? null;
+    // 没有 GraphStore adapter 时，GraphBuilder 只维护 Postgres 真相存储；图投影由后续 rebuild/check 命令补齐。
+    this.#graphSyncMode = options.graphSyncMode ?? (this.#graph === null ? "defer" : "sync");
+    this.#logger = options.logger ?? noopLogger;
   }
 
   async close(): Promise<void> {
@@ -151,16 +145,4 @@ export class GraphBuilder {
     if (this.#graph !== null) return this.#graph;
     throw new Error("No GraphStore adapter is configured for this GraphBuilder.");
   }
-}
-
-function isGraphStore(value: GraphStore | GraphBuilderOptions): value is GraphStore {
-  return (
-    "close" in value &&
-    "ensureSchema" in value &&
-    "clear" in value &&
-    "upsertEntity" in value &&
-    "upsertEdge" in value &&
-    "removeEdge" in value &&
-    "stats" in value
-  );
 }

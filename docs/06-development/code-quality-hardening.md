@@ -115,6 +115,7 @@
 [x] graph projection outbox 的 claim / record failure / mark succeeded / mark failed 写入口收紧到 `DbTxClient`，GraphBuilder 与 retry worker 通过显式事务更新投影 job 状态；`db/read` 不再导出 claim 写入口。
 [x] edge calibration label / run replacement 写入口收紧到 `DbTxClient`，校准运行的 run upsert、旧 items 删除和新 items 插入必须处在同一事务边界内。
 [x] chain view 写入口收紧到 `DbTxClient`：`insertChainView()`、`insertChainSegment()`、`insertChainSegments()` 不再接受普通连接，避免 chain header 与 segments 分离落库。
+[x] GraphBuilder 构造函数去掉 `GraphStore | options` 形状推断重载；图 adapter 现在必须通过 `{ graphStore }` 显式注入，sync/defer 策略只从 options 决定。
 [x] candidate relation citation 校验下沉到 core 纯函数；pipeline 与 source preview 复用同一规则，避免 preview 为了轻量入口继续反向依赖 pipeline。
 [x] source-workflows 的 Census / OSH / Apple / World Bank Pink / SEC facts 监控写入改为使用本包 `saved-document-observation` 窄适配层，直接调用 source-monitor 的事务内 observation 入口，不再为了记录文档变化依赖 pipeline helper。
 [x] CLI 公共入口按 runtime / parse / output 拆分；`cli-utils.ts` 只保留兼容 re-export，数据库生命周期、参数解析和输出错误格式化不再混在同一文件里。
