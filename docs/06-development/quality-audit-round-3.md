@@ -58,7 +58,7 @@
 
 ```text
 [ ] `workbench-export/src/schema.ts`、`source-management/src/index.ts`、`apps/cli/src/commands/sources-changes.ts`、`source-monitor/src/index.ts` 等文件继续按 feature / definitions / functions / orchestration 拆分。`workbench-export/src/schema.ts` 已将 legacy JSON normalize 拆到 `schema-normalize.ts`，运行时 validator 拆到 `schema-validator.ts`，schema 入口从 639 行降到 10 行；`source-management/src/index.ts` 已将 definitions、source-plan parser、target generation 拆出，index 从 636 行降到 267 行；`apps/cli/src/commands/sources-changes.ts` 已将 source-check 输入拼装拆到 `source-check-options.ts`，source-check run 渲染拆到 `source-render.ts`，命令文件从 630 行降到 456 行；`source-monitor/src/index.ts` 已将 policy sync / target enable / health list 拆到 `source-policy-management.ts`，document observation / failure / degraded 写路径拆到 `source-observation-events.ts`，入口从 601 行降到 75 行。
-[ ] EDINET / DART / TWSE 这类 source workflow 后续应把 parsing/normalization 下沉到对应 source 或 parser 包，workflow 保持 connector 薄层。
+[x] EDINET / DART / TWSE 目录监控已将 source-specific parsing / formatting / normalization 下沉到 `edinet-document-list.ts`、`dart-kr-disclosure-list.ts`、`twse-mops-electronic-documents.ts`；`*-checks.ts` 只保留 adapter / connector / config 入口。暂不新增 source/parser package，避免为了拆分制造更多包和跨包胶水。
 [x] signal / observation / relation / pipeline citation locate 逻辑已收敛到现有 `@supplystrata/parsers-text`：共享 candidate sentence、sentence offsets、nearby snippet、exact occurrence 计数；未新增包，避免 package 数继续膨胀。
 ```
 
@@ -87,6 +87,7 @@
 - 本轮继续拆分 Workbench schema：`schema.ts` 只保留 `parseWorkbenchModel()` 对外入口，运行时契约校验集中在 `schema-validator.ts`。
 - 本轮继续拆分 `source-monitor/src/index.ts`：source policy 同步、target enable、source health list、target ensure 进入 `source-policy-management.ts`；document observation / source failure / source degraded 事件写入和 next-check 推进进入 `source-observation-events.ts`；入口文件只保留 public facade 与 due list 查询。
 - 本轮继续收敛 citation / sentence 切分：`signal-extractor`、`observation-extractor`、`relation-extractor`、`pipeline` 复用 `@supplystrata/parsers-text` 的候选句、带 offset 句窗、nearby snippet 和精确 citation 计数，避免跨 extractor 规则漂移。
+- 本轮继续拆分 EDINET / DART / TWSE source workflow：官方披露目录的 URL/校验/解析/格式化/normalize 进入 source-specific 模块，source-check 文件只保留调度入口和 target config 解析。
 - 已跑完整门禁：
   pnpm -s type-check
   pnpm -s lint
