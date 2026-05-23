@@ -22,7 +22,10 @@ export interface EdgeRow extends pg.QueryResultRow {
 
 export async function listCurrentEdges(client: DbClient): Promise<EdgeRow[]> {
   const result = await client.query<EdgeRow>(
-    `SELECT e.*, s.display_name AS subject_name, o.display_name AS object_name
+    `SELECT e.edge_id, e.subject_id, e.object_id, e.relation, e.component, e.component_id,
+            e.component_specificity, e.evidence_level, e.confidence, e.is_inferred,
+            e.validity, e.primary_evidence_id, e.last_verified_at,
+            s.display_name AS subject_name, o.display_name AS object_name
      FROM edges e
      JOIN entity_master s ON s.entity_id = e.subject_id
      JOIN entity_master o ON o.entity_id = e.object_id

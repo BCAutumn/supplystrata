@@ -91,10 +91,22 @@ interface ChunkRow extends pg.QueryResultRow {
 }
 
 export async function loadDocument(client: DbClient, docId: string): Promise<DocumentWithChunks> {
-  const docResult = await client.query<DocumentRow>("SELECT * FROM documents WHERE doc_id = $1", [docId]);
+  const docResult = await client.query<DocumentRow>(
+    `SELECT doc_id, source_adapter_id, document_type, primary_entity_id, source_url, source_date,
+            fetched_at, bytes_sha256, storage_key, language, metadata
+     FROM documents
+     WHERE doc_id = $1`,
+    [docId]
+  );
   const doc = docResult.rows[0];
   if (doc === undefined) throw new Error(`Document not found: ${docId}`);
-  const chunkResult = await client.query<ChunkRow>("SELECT * FROM document_chunks WHERE doc_id = $1 ORDER BY chunk_index", [docId]);
+  const chunkResult = await client.query<ChunkRow>(
+    `SELECT chunk_id, text, locator, language, token_count
+     FROM document_chunks
+     WHERE doc_id = $1
+     ORDER BY chunk_index`,
+    [docId]
+  );
   return {
     doc_id: doc.doc_id,
     source_adapter_id: doc.source_adapter_id,

@@ -223,7 +223,7 @@ function rowsForChangedDocument<T extends pg.QueryResultRow>(sql: string, input:
       }
     ] as unknown as T[];
   }
-  if (sql.includes("FROM documents WHERE doc_id")) {
+  if (/FROM\s+documents\s+WHERE\s+doc_id/.test(sql)) {
     return [
       {
         doc_id: "DOC-OLD",
