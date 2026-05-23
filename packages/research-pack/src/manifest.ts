@@ -174,9 +174,9 @@ export function manifestFromModel(input: {
   };
 }
 
-export function emptyStaticDataQualitySummary(): DataQualitySummary {
+export function emptyStaticDataQualitySummary(generatedAt: string): DataQualitySummary {
   return {
-    checked_at: new Date().toISOString(),
+    checked_at: generatedAt,
     ok: true,
     counts: { error: 0, warn: 0, info: 0 },
     issues: []

@@ -36,7 +36,7 @@ export { resolveResearchPackWriteSteps } from "./prepare-data.js";
 export { safeFileSegment, writeResearchPack, writeWorkbenchSnapshotPack } from "./writer.js";
 
 export async function buildResearchPack(client: DatabaseStore, input: ResearchPackInput): Promise<ResearchPackModel> {
-  const generatedAt = new Date().toISOString();
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
   const depth = input.depth ?? 3;
   const writeSteps = resolveResearchPackWriteSteps(input);
   const claimBuild = await maybeBuildClaims(client, writeSteps, input);
@@ -44,6 +44,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   const workbench = await buildWorkbenchModel(client.read, {
     company: input.company,
     depth,
+    generatedAt,
     ...(input.since === undefined ? {} : { since: input.since }),
     ...(input.changeLimit === undefined ? {} : { changeLimit: input.changeLimit }),
     ...(input.sourceLimit === undefined ? {} : { sourceLimit: input.sourceLimit })
@@ -181,12 +182,13 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     components.length === 0 && officialDisclosureTargetNodes.length === 0
       ? input.workbench.source_plan
       : planSourcesForComponents(sourcePlanInput(input, components, depth, officialDisclosureTargetNodes));
-  const dataQuality = emptyStaticDataQualitySummary();
-  const generatedAt = new Date().toISOString();
+  const generatedAt = input.generatedAt ?? input.workbench.generated_at;
+  const dataQuality = emptyStaticDataQualitySummary(generatedAt);
   const staticInput: ResearchPackInput = {
     company: input.workbench.selected_company_id,
     components,
     depth,
+    generatedAt,
     ...(input.tradeObservationMonth === undefined
       ? {}
       : {

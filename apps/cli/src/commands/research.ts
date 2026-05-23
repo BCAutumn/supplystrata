@@ -20,6 +20,7 @@ export function registerResearchCommands(program: Command): void {
     .requiredOption("--company <query>", "company name, alias, ticker, or entity id")
     .option("--component <ids>", "optional comma-separated component ids to force into the research pack")
     .option("--depth <count>", "chain/source-plan traversal depth", "3")
+    .option("--generated-at <iso>", "explicit ISO timestamp for reproducible research-pack outputs")
     .option("--since <date>", "ISO date/time lower bound for changes")
     .option("--change-limit <count>", "max changes", "50")
     .option("--source-limit <count>", "max source health rows", "50")
@@ -47,6 +48,7 @@ export function registerResearchCommands(program: Command): void {
         company: string;
         component?: string;
         depth: string;
+        generatedAt?: string;
         since?: string;
         changeLimit: string;
         sourceLimit: string;
@@ -86,6 +88,7 @@ export function registerResearchCommands(program: Command): void {
     .requiredOption("--workbench <file>", "existing Workbench JSON export")
     .option("--component <ids>", "optional comma-separated component ids to force into the source plan")
     .option("--depth <count>", "source-plan traversal depth; defaults to the workbench chain depth")
+    .option("--generated-at <iso>", "explicit ISO timestamp for reproducible research-pack outputs")
     .option("--trade-month <yyyy-mm>", "emit Census Trade target suggestions for this month")
     .option("--trade-country <code>", "optional Census partner country code for trade target suggestions")
     .option("--trade-directions <directions>", "comma-separated trade directions", "imports,exports")
@@ -102,6 +105,7 @@ export function registerResearchCommands(program: Command): void {
         workbench: string;
         component?: string;
         depth?: string;
+        generatedAt?: string;
         tradeMonth?: string;
         tradeCountry?: string;
         tradeDirections: string;
@@ -118,6 +122,7 @@ export function registerResearchCommands(program: Command): void {
           workbench,
           ...(options.component === undefined ? {} : { components: parseCommaSeparated(options.component) }),
           ...(options.depth === undefined ? {} : { depth: parseLimit(options.depth) }),
+          ...(options.generatedAt === undefined ? {} : { generatedAt: parseSince(options.generatedAt) }),
           ...(options.tradeMonth === undefined
             ? {}
             : {
@@ -148,6 +153,7 @@ async function researchPackInputFromOptions(options: {
   company: string;
   component?: string;
   depth: string;
+  generatedAt?: string;
   since?: string;
   changeLimit: string;
   sourceLimit: string;
@@ -172,6 +178,7 @@ async function researchPackInputFromOptions(options: {
   return {
     company: options.company,
     depth: parseLimit(options.depth),
+    ...(options.generatedAt === undefined ? {} : { generatedAt: parseSince(options.generatedAt) }),
     ...(options.component === undefined ? {} : { components: parseCommaSeparated(options.component) }),
     ...(options.since === undefined ? {} : { since: parseSince(options.since) }),
     changeLimit: parseLimit(options.changeLimit),

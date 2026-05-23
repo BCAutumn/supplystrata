@@ -354,10 +354,17 @@ describe("research-pack", () => {
       workbench,
       components: ["COMP-HBM"],
       depth: 3,
+      generatedAt: "2026-05-23T00:00:00.000Z",
       sourceTargetNamespace: "nvidia-memory-2025",
       sourceTargetPreflight
     });
     expect(pack.manifest.mode).toBe("workbench_snapshot");
+    expect(pack.manifest.generated_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(pack.source_target_coverage.generated_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(pack.question_readiness.generated_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(pack.observation_coverage.generated_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(pack.official_disclosure_readiness.generated_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(pack.supply_chain_expansion_plan.generated_at).toBe("2026-05-23T00:00:00.000Z");
     expect(pack.manifest.research_target_profile?.profile_id).toBe("ai-compute-memory.v0");
     expect(pack.manifest.stats.official_disclosure_target_nodes).toBe(25);
     expect(pack.manifest.stats.fact_edges).toBe(1);

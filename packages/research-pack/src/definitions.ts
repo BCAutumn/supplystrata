@@ -17,6 +17,7 @@ export interface ResearchPackInput {
   company: string;
   components?: readonly string[];
   depth?: number;
+  generatedAt?: string;
   since?: string;
   changeLimit?: number;
   sourceLimit?: number;
@@ -225,6 +226,7 @@ export interface WorkbenchSnapshotPackInput {
   workbench: WorkbenchModel;
   components?: readonly string[];
   depth?: number;
+  generatedAt?: string;
   tradeObservationMonth?: string;
   tradeObservationCountryCode?: string;
   tradeObservationDirections?: readonly TradeObservationDirection[];
