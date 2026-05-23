@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { CandidateRelation } from "@supplystrata/core";
 import { candidateAliases, type EntitySourceCandidate } from "@supplystrata/entity-source";
 import type { SupplierListCandidate } from "@supplystrata/supplier-list";
+import { blockedFactWritePolicy } from "./definitions.js";
 import type {
   ClaimConflictReviewPayload,
   ClaimConflictReviewCandidate,
@@ -234,12 +235,7 @@ export function buildOfficialDisclosureSignalReviewCandidate(input: {
       cite_text: input.signal.cite_text,
       cite_locator: input.sourceLocator,
       evidence_level_hint: input.signal.evidence_level,
-      fact_write_policy: {
-        automatic_fact_mutation_allowed: false,
-        allowed_edge_mutation: "none",
-        requires_human_review: true,
-        reason_codes: ["review_only_official_signal", "not_a_relation_extractor", "no_counterparty_edge_without_review"]
-      }
+      fact_write_policy: blockedFactWritePolicy(["review_only_official_signal", "not_a_relation_extractor", "no_counterparty_edge_without_review"])
     },
     evidence: {
       doc_id: input.docId,

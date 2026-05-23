@@ -7,7 +7,8 @@ import {
   type ClaimConflictReviewRecommendedAction,
   type ClaimConflictReviewSeverity,
   type ClaimConflictReviewState,
-  type ClaimConflictReviewStep as CandidateClaimConflictReviewStep
+  type ClaimConflictReviewStep as CandidateClaimConflictReviewStep,
+  blockedFactWritePolicy
 } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidates } from "@supplystrata/review-store";
 import {
@@ -111,12 +112,7 @@ function claimConflictPacketToReviewPayload(packet: ClaimConflictReviewPacket, e
     required_review_steps: reviewSteps,
     evidence_refs: packet.evidence_refs.map((ref) => ({ evidence_id: ref.evidence_id, role: ref.role })),
     unknown_refs: packet.unknown_refs.map((ref) => ({ unknown_id: ref.unknown_id, role: ref.role, status: ref.status })),
-    fact_write_policy: {
-      automatic_fact_mutation_allowed: false,
-      allowed_edge_mutation: "none",
-      requires_human_review: true,
-      reason_codes: [...packet.fact_write_policy.reason_codes]
-    }
+    fact_write_policy: blockedFactWritePolicy(packet.fact_write_policy.reason_codes)
   };
 }
 

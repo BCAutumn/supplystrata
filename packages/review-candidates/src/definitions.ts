@@ -168,6 +168,15 @@ export interface ClaimConflictReviewFactWritePolicy {
   reason_codes: string[];
 }
 
+export function blockedFactWritePolicy(reasonCodes: readonly string[]): ClaimConflictReviewFactWritePolicy {
+  return {
+    automatic_fact_mutation_allowed: false,
+    allowed_edge_mutation: "none",
+    requires_human_review: true,
+    reason_codes: [...reasonCodes]
+  };
+}
+
 export interface ClaimConflictReviewPayload {
   claim_id: string;
   claim_text: string;
