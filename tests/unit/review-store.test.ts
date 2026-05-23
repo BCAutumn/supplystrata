@@ -107,7 +107,8 @@ describe("review-store semantic changes", () => {
       decision: "supports_existing_edge",
       reviewer: "unit-test",
       reason: "Reviewed counterparty disclosure supports using this signal as evidence context.",
-      evidenceId: "EV-TSMC-IR"
+      evidenceId: "EV-TSMC-IR",
+      recordedAt: "2026-05-23T00:00:00.000Z"
     });
 
     expect(record).toEqual(
@@ -116,6 +117,7 @@ describe("review-store semantic changes", () => {
         edge_id: "EDGE-NVIDIA-TSMC",
         decision: "supports_existing_edge",
         evidence_id: "EV-TSMC-IR",
+        recorded_at: "2026-05-23T00:00:00.000Z",
         fact_write_policy: {
           automatic_fact_mutation_allowed: false,
           allowed_edge_mutation: "none",
