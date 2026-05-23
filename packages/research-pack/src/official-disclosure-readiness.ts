@@ -369,16 +369,19 @@ function scorecardNextActions(criteria: readonly OfficialDisclosureGate1Scorecar
   return criteria.filter((criterion) => criterion.status !== "pass").map(scorecardNextAction);
 }
 
+const SCORECARD_NEXT_ACTIONS: Readonly<Partial<Record<OfficialDisclosureGate1ScorecardCriterion["criterion_id"], string>>> = {
+  core_node_official_coverage: "Close target-node official coverage gaps before expanding into lower-confidence signal sources.",
+  level_4_5_fact_edge_coverage:
+    "Convert useful official disclosures into reviewable evidence candidates, keeping observations and leads out of the fact layer.",
+  cross_source_corroboration: "Check counterparty official disclosures for single-source edges or record explicit single-source unknown/disposition.",
+  fact_edge_traceability: "Backfill cite text, source URL, source adapter, and fingerprint/snapshot context for every Level 4/5 edge."
+};
+
 function scorecardNextAction(criterion: OfficialDisclosureGate1ScorecardCriterion): string {
-  if (criterion.criterion_id === "core_node_official_coverage")
-    return "Close target-node official coverage gaps before expanding into lower-confidence signal sources.";
-  if (criterion.criterion_id === "level_4_5_fact_edge_coverage")
-    return "Convert useful official disclosures into reviewable evidence candidates, keeping observations and leads out of the fact layer.";
-  if (criterion.criterion_id === "cross_source_corroboration")
-    return "Check counterparty official disclosures for single-source edges or record explicit single-source unknown/disposition.";
-  if (criterion.criterion_id === "fact_edge_traceability")
-    return "Backfill cite text, source URL, source adapter, and fingerprint/snapshot context for every Level 4/5 edge.";
-  return "Wire expected source links into concrete source-plan targets, then preview, smoke, sync, and enable them through source-management.";
+  return (
+    SCORECARD_NEXT_ACTIONS[criterion.criterion_id] ??
+    "Wire expected source links into concrete source-plan targets, then preview, smoke, sync, and enable them through source-management."
+  );
 }
 
 function readinessGaps(input: {

@@ -38,6 +38,19 @@ export type {
 } from "./investigation-backlog-definitions.js";
 export { renderInvestigationBacklogMarkdown } from "./investigation-backlog-render.js";
 
+const QUESTION_READINESS_PRIORITY: Readonly<Record<string, InvestigationBacklogPriority>> = {
+  "relationship.strength_freshness": "P1",
+  "component.known_providers": "P1",
+  "graph.component_risk": "P1"
+};
+
+const QUESTION_READINESS_ACTION: Readonly<Record<string, string>> = {
+  "relationship.strength_freshness": "Find explicit share, dependency, capacity, or qualitative evidence; otherwise keep the edge strength unknown open.",
+  "component.known_providers": "Prioritize official disclosures that can create Level 4/5 component provider fact candidates through review.",
+  "graph.component_risk": "Add or verify component provider fact edges before expecting a component risk baseline.",
+  "investigation.next_sources": "Provide configured periods or targets so source-plan suggestions become runnable."
+};
+
 export function buildInvestigationBacklog(input: InvestigationBacklogInput): InvestigationBacklog {
   const items = [
     ...readinessGapDrafts(input),
@@ -431,9 +444,7 @@ function coverageHasIssueKind(coverage: readonly InvestigationBacklogSourceTarge
 
 function priorityForReadiness(status: QuestionReadinessStatus, questionId: string): InvestigationBacklogPriority {
   if (status === "blocked") return "P0";
-  if (questionId === "relationship.strength_freshness" || questionId === "component.known_providers") return "P1";
-  if (questionId === "graph.component_risk") return "P1";
-  return "P2";
+  return QUESTION_READINESS_PRIORITY[questionId] ?? "P2";
 }
 
 function priorityForUnknown(unknown: WorkbenchUnknownItem): InvestigationBacklogPriority {
@@ -455,13 +466,7 @@ function priorityForObservationSeries(series: ObservationSeriesReadiness): Inves
 }
 
 function actionForQuestion(questionId: string): string {
-  if (questionId === "relationship.strength_freshness")
-    return "Find explicit share, dependency, capacity, or qualitative evidence; otherwise keep the edge strength unknown open.";
-  if (questionId === "component.known_providers")
-    return "Prioritize official disclosures that can create Level 4/5 component provider fact candidates through review.";
-  if (questionId === "graph.component_risk") return "Add or verify component provider fact edges before expecting a component risk baseline.";
-  if (questionId === "investigation.next_sources") return "Provide configured periods or targets so source-plan suggestions become runnable.";
-  return "Collect the missing supporting data listed by the readiness matrix without changing fact edges directly.";
+  return QUESTION_READINESS_ACTION[questionId] ?? "Collect the missing supporting data listed by the readiness matrix without changing fact edges directly.";
 }
 
 function unknownAction(unknown: WorkbenchUnknownItem): string {
