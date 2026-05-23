@@ -23,14 +23,8 @@ export { loadDocument, type DocumentWithChunks, type SavedDocumentRef } from "./
 export { type EdgeDeprecationSourceKind, type EdgeDeprecationSourceRef } from "./edges.js";
 export { listDueGraphProjectionJobs, type GraphProjectionJobRow, type GraphProjectionOperation } from "./graph-projection-jobs.js";
 export { listEdgeFreshness, listEdgeStrengthEstimates } from "./intelligence.js";
-export {
-  getLeadObservation,
-  getObservation,
-  listLeadObservationsByScope,
-  listObservationsByScope,
-  type LeadObservationRow,
-  type ObservationRow
-} from "./observations.js";
+export { getLeadObservation, listLeadObservationsByScope, type LeadObservationRow } from "./leads.js";
+export { getObservation, listObservationsByScope, type ObservationRow } from "./observations.js";
 export { getPendingEntity, listPendingEntities, type PendingEntityRow, type PendingEntityStatusFilter } from "./pending.js";
 export {
   getEvidence,

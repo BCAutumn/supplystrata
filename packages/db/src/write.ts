@@ -28,15 +28,17 @@ export {
 export { refreshEdgeFreshness, upsertEdgeStrengthEstimate, type UpsertEdgeStrengthEstimateInput } from "./intelligence.js";
 export {
   insertLeadObservation,
-  insertObservation,
-  correctObservationMeasurement,
   markLeadObservationInReview,
   markLeadObservationPromoted,
-  patchObservationMetadata,
   upsertLeadObservation,
-  upsertObservation,
   type LeadStatus,
-  type NewLeadObservationInput,
+  type NewLeadObservationInput
+} from "./leads.js";
+export {
+  insertObservation,
+  correctObservationMeasurement,
+  patchObservationMetadata,
+  upsertObservation,
   type NewObservationInput,
   type CorrectObservationMeasurementInput,
   type PatchObservationMetadataInput
