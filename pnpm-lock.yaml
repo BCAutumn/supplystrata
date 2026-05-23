@@ -93,6 +93,9 @@ importers:
       '@supplystrata/graph-builder':
         specifier: workspace:*
         version: link:../../packages/graph-builder
+      '@supplystrata/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@supplystrata/pipeline':
         specifier: workspace:*
         version: link:../../packages/pipeline

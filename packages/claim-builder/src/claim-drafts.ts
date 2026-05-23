@@ -47,11 +47,39 @@ export interface SemanticChangeClaimDraft {
   last_verified_at: string;
 }
 
+interface ClaimTextParts {
+  componentObject: string;
+  componentContext: string;
+}
+
+type ClaimTextTemplate = (edge: ClaimableFactEdge, parts: ClaimTextParts) => string;
+
+const CLAIM_TYPE_BY_RELATION: Record<RelationType, ClaimType> = {
+  BUYS_FROM: "SUPPLY_RELATION_CLAIM",
+  SUPPLIES_TO: "SUPPLY_RELATION_CLAIM",
+  USES_FOUNDRY: "SUPPLY_RELATION_CLAIM",
+  USES_COMPONENT: "COMPONENT_EXPOSURE_CLAIM",
+  MANUFACTURES_AT: "FACILITY_RELATION_CLAIM",
+  OWNS_SUBSIDIARY: "ENTITY_FACT_CLAIM",
+  OWNS_BUSINESS_UNIT: "ENTITY_FACT_CLAIM",
+  IS_A: "ENTITY_FACT_CLAIM",
+  OPERATES_FACILITY: "FACILITY_RELATION_CLAIM"
+};
+
+const CLAIM_TEXT_TEMPLATES: Record<RelationType, ClaimTextTemplate> = {
+  BUYS_FROM: (edge, parts) => `${edge.subject_name} publicly discloses that it buys${parts.componentObject} from ${edge.object_name}.`,
+  SUPPLIES_TO: (edge, parts) => `${edge.subject_name} publicly discloses that it supplies${parts.componentObject} to ${edge.object_name}.`,
+  USES_FOUNDRY: (edge, parts) => `${edge.subject_name} publicly discloses that it uses ${edge.object_name} as a foundry${parts.componentContext}.`,
+  USES_COMPONENT: (edge, parts) => `${edge.subject_name} publicly discloses exposure to${parts.componentObject} through ${edge.object_name}.`,
+  MANUFACTURES_AT: (edge, parts) => `${edge.subject_name} publicly discloses manufacturing activity at ${edge.object_name}${parts.componentContext}.`,
+  OWNS_SUBSIDIARY: (edge) => `${edge.subject_name} publicly discloses ownership of subsidiary ${edge.object_name}.`,
+  OWNS_BUSINESS_UNIT: (edge) => `${edge.subject_name} publicly discloses ownership of business unit ${edge.object_name}.`,
+  IS_A: (edge) => `${edge.subject_name} publicly discloses that ${edge.object_name} is part of its entity structure.`,
+  OPERATES_FACILITY: (edge, parts) => `${edge.subject_name} publicly discloses that it operates ${edge.object_name}${parts.componentContext}.`
+};
+
 export function claimTypeForRelation(relation: RelationType): ClaimType {
-  if (relation === "MANUFACTURES_AT" || relation === "OPERATES_FACILITY") return "FACILITY_RELATION_CLAIM";
-  if (relation === "USES_COMPONENT") return "COMPONENT_EXPOSURE_CLAIM";
-  if (relation === "OWNS_SUBSIDIARY" || relation === "OWNS_BUSINESS_UNIT" || relation === "IS_A") return "ENTITY_FACT_CLAIM";
-  return "SUPPLY_RELATION_CLAIM";
+  return CLAIM_TYPE_BY_RELATION[relation];
 }
 
 export function deterministicClaimIdForEdge(edgeId: string): string {
@@ -102,7 +130,7 @@ export function buildClaimDraftFromEdge(edge: ClaimableFactEdge, input: { genera
 
 export function buildClaimDraftFromSemanticChangeReview(
   candidate: SemanticChangeReviewCandidate,
-  input: { generated_by?: string; reviewed_at?: string } = {}
+  input: { generated_by?: string; reviewed_at: string }
 ): SemanticChangeClaimDraft {
   return {
     claim_id: deterministicClaimIdForSemanticReview(candidate.review_id),
@@ -114,23 +142,15 @@ export function buildClaimDraftFromSemanticChangeReview(
     confidence: candidate.confidence,
     is_inferred: true,
     generated_by: input.generated_by ?? "claim-builder.semantic-change-draft.v1",
-    last_verified_at: input.reviewed_at ?? new Date().toISOString()
+    last_verified_at: input.reviewed_at
   };
 }
 
 function claimTextForEdge(edge: ClaimableFactEdge): string {
-  const componentObject = componentObjectText(edge.component);
-  const componentContext = componentContextText(edge.component);
-  if (edge.relation === "BUYS_FROM") return `${edge.subject_name} publicly discloses that it buys${componentObject} from ${edge.object_name}.`;
-  if (edge.relation === "SUPPLIES_TO") return `${edge.subject_name} publicly discloses that it supplies${componentObject} to ${edge.object_name}.`;
-  if (edge.relation === "USES_FOUNDRY") return `${edge.subject_name} publicly discloses that it uses ${edge.object_name} as a foundry${componentContext}.`;
-  if (edge.relation === "USES_COMPONENT") return `${edge.subject_name} publicly discloses exposure to${componentObject} through ${edge.object_name}.`;
-  if (edge.relation === "MANUFACTURES_AT") return `${edge.subject_name} publicly discloses manufacturing activity at ${edge.object_name}${componentContext}.`;
-  if (edge.relation === "OPERATES_FACILITY") return `${edge.subject_name} publicly discloses that it operates ${edge.object_name}${componentContext}.`;
-  if (edge.relation === "OWNS_SUBSIDIARY") return `${edge.subject_name} publicly discloses ownership of subsidiary ${edge.object_name}.`;
-  if (edge.relation === "OWNS_BUSINESS_UNIT") return `${edge.subject_name} publicly discloses ownership of business unit ${edge.object_name}.`;
-  if (edge.relation === "IS_A") return `${edge.subject_name} publicly discloses that ${edge.object_name} is part of its entity structure.`;
-  return `${edge.subject_name} publicly discloses a ${edge.relation} relationship with ${edge.object_name}${componentContext}.`;
+  return CLAIM_TEXT_TEMPLATES[edge.relation](edge, {
+    componentObject: componentObjectText(edge.component),
+    componentContext: componentContextText(edge.component)
+  });
 }
 
 function claimTypeForSemanticChange(candidate: SemanticChangeReviewCandidate): ClaimType {

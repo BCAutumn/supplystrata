@@ -35,7 +35,7 @@ interface ComponentCsvRow {
   aliases: string;
 }
 
-export async function seedFromCsv(store: DatabaseStore, rootDir = process.cwd()): Promise<{ entities: number; aliases: number; components: number }> {
+export async function seedFromCsv(store: DatabaseStore, rootDir: string): Promise<{ entities: number; aliases: number; components: number }> {
   return store.transaction(async (client) => {
     // seed 会写大量 deterministic id；事务级锁让并行测试 worker 串行执行同一批基础数据。
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended('supplystrata:seed', 0))");

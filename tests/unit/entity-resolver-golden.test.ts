@@ -28,7 +28,7 @@ interface GoldenCase {
 
 describe("SeedEntityResolver golden set", () => {
   it("resolves a seed-derived golden set above the Phase 2 floor", async () => {
-    const resolver = await SeedEntityResolver.fromCsv();
+    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
     const cases = await buildGoldenCases();
 
     expect(cases.length).toBeGreaterThanOrEqual(200);
@@ -45,7 +45,7 @@ describe("SeedEntityResolver golden set", () => {
   });
 
   it("keeps high-risk ambiguous and fuzzy cases out of auto-resolved graph writes", async () => {
-    const resolver = await SeedEntityResolver.fromCsv();
+    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
     const samsung = await resolver.resolve({ surface: "Samsung" });
     const samsungMemory = await resolver.resolve({
       surface: "Samsung",

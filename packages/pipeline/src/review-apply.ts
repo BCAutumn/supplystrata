@@ -139,10 +139,16 @@ async function applySupplierListReviewStrategy(
 
 async function applySemanticChangeReviewStrategy(store: DatabaseStore, item: ReviewQueueItem, reviewer: string): Promise<ReviewApplyResult> {
   assertReviewItemKind(item, "semantic_change");
+  if (item.reviewed_at === undefined) {
+    const reason = "semantic change review candidate cannot be applied without reviewed_at";
+    await store.transaction((client) => markReviewCandidateBlocked(client, { reviewId: item.review_id, reason }));
+    return { status: "blocked", review_id: item.review_id, reason };
+  }
+  const reviewedAt = item.reviewed_at;
   const candidate = item.candidate;
   return store.transaction(async (client) => {
     const draft = await upsertSemanticChangeClaimDraft(client, candidate, {
-      ...(item.reviewed_at === undefined ? {} : { reviewed_at: item.reviewed_at }),
+      reviewed_at: reviewedAt,
       caused_by: reviewer
     });
     const reason = `acknowledged semantic change review candidate and created draft claim ${draft.claim_id}; no graph edge is applied by design`;

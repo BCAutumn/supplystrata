@@ -10,7 +10,7 @@ describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
 
   beforeAll(async () => {
     await migrate(pool);
-    await seedFromCsv(pool);
+    await seedFromCsv(pool, process.cwd());
   });
 
   afterAll(async () => {

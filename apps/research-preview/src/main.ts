@@ -24,6 +24,9 @@ const sourceHealthPanel = requireElement("source-health-panel", HTMLElement);
 const changesPanel = requireElement("changes-panel", HTMLElement);
 
 const chainCanvas = createChainCanvas(canvas, {
+  canSelectSegment() {
+    return activeLoad === null;
+  },
   onSegmentSelect(segmentIndex) {
     state = selectSegment(state, segmentIndex);
     render();
@@ -50,9 +53,12 @@ async function loadFromFile(file: File): Promise<void> {
     const model = await loadWorkbenchModelFromFile(file, token.controller.signal);
     if (!isActiveLoad(token)) return;
     setModel(model);
+    finishLoad(token);
     loadStatus.textContent = `Loaded ${file.name}`;
   } catch (error) {
-    if (isActiveLoad(token) && !isAbortError(error)) showLoadError(error);
+    if (!isActiveLoad(token)) return;
+    finishLoad(token);
+    if (!isAbortError(error)) showLoadError(error);
   }
 }
 
@@ -63,9 +69,12 @@ async function loadFromUrl(reportUrl: string): Promise<void> {
     const model = await loadWorkbenchModelFromUrl(reportUrl, token.controller.signal);
     if (!isActiveLoad(token)) return;
     setModel(model);
+    finishLoad(token);
     loadStatus.textContent = `Loaded ${reportUrl}`;
   } catch (error) {
-    if (isActiveLoad(token) && !isAbortError(error)) showLoadError(error);
+    if (!isActiveLoad(token)) return;
+    finishLoad(token);
+    if (!isAbortError(error)) showLoadError(error);
   }
 }
 
@@ -135,6 +144,10 @@ function beginLoad(): LoadToken {
 
 function isActiveLoad(token: LoadToken): boolean {
   return activeLoad?.id === token.id;
+}
+
+function finishLoad(token: LoadToken): void {
+  if (isActiveLoad(token)) activeLoad = null;
 }
 
 function isAbortError(error: unknown): boolean {

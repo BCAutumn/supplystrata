@@ -29,7 +29,7 @@ export function registerDbAndAdminCommands(program: Command): void {
     .description("load seed CSV files")
     .action(async () => {
       await withDatabase(async (pool) => {
-        const result = await seedFromCsv(pool);
+        const result = await seedFromCsv(pool, process.cwd());
         writeJson({ ok: true, ...result });
       });
     });

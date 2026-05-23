@@ -42,12 +42,13 @@ import type {
 
 export interface SourceWorkflowRuntime {
   adapterContextInput: CreateAdapterContextInput;
+  seedRootDir: string;
 }
 
 export async function previewSecEdgarSupplyChain(input: SecEdgarInput, runtime: SourceWorkflowRuntime): Promise<SupplyChainPreview> {
   const { raw, normalized, documentType, sourceDate } = await fetchAndParseSecEdgar(input, { adapterContextInput: runtime.adapterContextInput });
   const scorer = new DeterministicEvidenceScorer();
-  const resolver = await SeedEntityResolver.fromCsv();
+  const resolver = await SeedEntityResolver.fromCsv(runtime.seedRootDir);
   const candidates: SupplyChainPreviewCandidate[] = [];
 
   for (const extractor of ruleExtractors) {

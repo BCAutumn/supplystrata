@@ -1,6 +1,7 @@
 import type pg from "pg";
 import type { RiskMetricKind } from "@supplystrata/core";
 import type { DbClient, DbTxClient } from "./client.js";
+import { toIsoString } from "./time.js";
 
 interface RiskViewRow extends pg.QueryResultRow {
   risk_view_id: string;
@@ -167,8 +168,4 @@ function riskMetricRowToRecord(row: RiskMetricRow): RiskMetricRecord {
     provenance: row.provenance,
     attrs: row.attrs
   };
-}
-
-function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
 }

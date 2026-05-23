@@ -30,6 +30,17 @@ export interface ReviewStats {
   total: number;
 }
 
+type ReviewStatsCountKey = Exclude<keyof ReviewStats, "total">;
+
+const REVIEW_STATS_COUNT_KEYS: Record<ReviewCandidateStatus, ReviewStatsCountKey> = {
+  pending: "pending",
+  in_review: "in_review",
+  approved: "approved",
+  rejected: "rejected",
+  blocked: "blocked",
+  applied: "applied"
+};
+
 export type OfficialDisclosureSignalDispositionDecision =
   | "supports_existing_edge"
   | "needs_more_evidence"
@@ -97,12 +108,7 @@ export async function reviewStats(client: DbClient): Promise<ReviewStats> {
   const stats: ReviewStats = { pending: 0, in_review: 0, approved: 0, rejected: 0, blocked: 0, applied: 0, total: 0 };
   for (const row of result.rows) {
     const count = Number.parseInt(row.count, 10);
-    if (row.status === "pending") stats.pending = count;
-    if (row.status === "in_review") stats.in_review = count;
-    if (row.status === "approved") stats.approved = count;
-    if (row.status === "rejected") stats.rejected = count;
-    if (row.status === "blocked") stats.blocked = count;
-    if (row.status === "applied") stats.applied = count;
+    stats[REVIEW_STATS_COUNT_KEYS[row.status]] = count;
     stats.total += count;
   }
   return stats;

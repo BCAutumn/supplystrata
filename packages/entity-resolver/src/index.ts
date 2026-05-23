@@ -167,7 +167,7 @@ export class SeedEntityResolver implements EntityResolver {
     this.#matchesById = matchesById;
   }
 
-  static async fromCsv(rootDir = process.cwd()): Promise<SeedEntityResolver> {
+  static async fromCsv(rootDir: string): Promise<SeedEntityResolver> {
     const entities = await readCsv<SeedEntityRow>(resolve(rootDir, "seeds/entities.csv"));
     const aliases = await readCsv<SeedAliasRow>(resolve(rootDir, "seeds/aliases.csv"));
     const displayNameById = new Map<string, string>();

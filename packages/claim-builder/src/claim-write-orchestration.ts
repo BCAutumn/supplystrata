@@ -96,7 +96,7 @@ export interface ResolveClaimConflictReviewResult {
 export async function upsertSemanticChangeClaimDraft(
   client: DbTxClient,
   candidate: SemanticChangeReviewCandidate,
-  input: { generated_by?: string; reviewed_at?: string; caused_by?: string } = {}
+  input: { generated_by?: string; reviewed_at: string; caused_by?: string }
 ): Promise<SemanticChangeClaimDraftResult> {
   const draft = buildClaimDraftFromSemanticChangeReview(candidate, input);
   const resolvedScope = await resolveSemanticChangeScope(client, candidate);

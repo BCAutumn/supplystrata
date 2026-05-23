@@ -42,16 +42,16 @@
 [x] D2 Apple supplier-list PDF fetch 改用 runtime 的 format-agnostic `fetchOrLoadCachedSnapshot()`，metadata 写入 `source_fetch_status=fallback` / `source_fetch_error`，缓存回退不再被误认为 live success。
 [x] E1 `getLogger()` 默认返回 `noopLogger`，不再隐式 `loadEnv()`；worker 入口显式 `loadEnv()` 后 `setLogger(createLogger(env))`。
 [ ] E2 CLI pipeline preview/ingest 仍有示例公司入口；后续应继续收敛到 source connector / source-management catalog 驱动。
-[ ] K1/K2 clock / cwd 等隐式依赖需要逐步改为执行层显式注入，尤其是写入审计时间和批量任务。
+[ ] K1/K2 clock / cwd 等隐式依赖需要逐步改为执行层显式注入，尤其是写入审计时间和批量任务。K2 已局部收敛：`SeedEntityResolver.fromCsv()`、`seedFromCsv()` 不再默认读取 `process.cwd()`，由 CLI / test / workflow runtime 显式传入 seed root。K1 已局部收敛：semantic-change claim draft 不再默认 `new Date()`，必须使用 review lifecycle 的 `reviewed_at`；缺失该时间时 apply 会 block 候选。
 ```
 
 ## 第 3 批：契约边界、重复实现与硬编码
 
 ```text
 [ ] F1-F6 DB Row / DTO 边界继续收敛：`loadEvidenceCard()` 已改为显式 EvidenceCard DTO 映射，`db/query.ts` 的 evidence 查询已去掉 `ev.*`；workbench-export、chain-view-builder、documents/chunk 查询和其他 Row 暴露面仍需继续治理。
-[ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。
+[ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。G3/G7 已收敛：edge claim type / claim text 改为 relation 映射表，`reviewStats()` 用 status -> stats key 映射表替代并列状态分支。
 [ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。
-[ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。
+[ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。I5/I10 已收敛：CLI pipeline preview 复用 observability 的 `messageFromUnknown()`；db 内部 `toIsoString()` / date-only 转换集中到 `packages/db/src/time.ts`。
 ```
 
 ## 第 4 批：大文件拆分与 citation 共享
@@ -66,9 +66,9 @@
 
 ```text
 [ ] 多处 N+1 写入后续可改批量 SQL 或 unnest。
-[ ] source check due target 在 active job 存在时可能反复 enqueue 冲突，后续应减少空转。
+[x] source check due target 查询已排除存在 active `pending / in_progress / failed` job 的 target，避免 worker 循环反复 enqueue 冲突；已有 job 仍由独立 claim/backoff/lease 路径处理。
 [ ] preview-render 的中英文文案和 CSV 渲染应从 CLI 胖文件中拆出。
-[ ] research-preview loading generation guard 需要继续加固，避免旧 model click 干扰新 model。
+[x] research-preview loading generation guard 已加固：加载中 canvas segment click 会被忽略，成功/失败都会结束 active load token，避免旧 layout 在新模型加载期间反向改 selected segment。
 ```
 
 ## 当前验收记录
@@ -78,4 +78,13 @@
 - 已完成第 1 批中 A1 / A2 / A3 / A4 部分 / A6 / B1 / B4 / C4。
 - 已跑 targeted unit:
   pnpm -s vitest run tests/unit/db-intelligence-contract.test.ts tests/unit/review-store.test.ts
+- 继续完成 D1 / D2 / E1，补齐 source check job lease、research-pack 显式 prepare、claim-builder / workbench-export 局部拆分、graph-builder atomic upsert、entity-import / evidence trace / edge claim 事务边界。
+- 本轮继续收敛 source check active-job 空转、research-preview loading guard、K1/K2 局部显式注入、G3/G7 表驱动、I5/I10 重复实现。
+- 已跑完整门禁：
+  pnpm -s type-check
+  pnpm -s lint
+  pnpm -s dep-check
+  pnpm -s test:unit
+  pnpm -s format:check
+  pnpm -s build
 ```

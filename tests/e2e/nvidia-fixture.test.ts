@@ -23,7 +23,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
 
   beforeAll(async () => {
     await migrate(pool);
-    await seedFromCsv(pool);
+    await seedFromCsv(pool, process.cwd());
     await pool.transaction(cleanupFixtureRows);
   });
 

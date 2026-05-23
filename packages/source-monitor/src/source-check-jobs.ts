@@ -192,6 +192,12 @@ async function claimDueSourceCheckTargets(
        AND ($3::text[] IS NULL OR t.check_target_id = ANY($3::text[]))
        AND ($4::text[] IS NULL OR t.source_adapter_id = ANY($4::text[]))
        AND (COALESCE(t.next_check_at, p.next_check_at) IS NULL OR COALESCE(t.next_check_at, p.next_check_at) <= $1::timestamptz)
+       AND NOT EXISTS (
+         SELECT 1
+         FROM source_check_jobs active_jobs
+         WHERE active_jobs.check_target_id = t.check_target_id
+           AND active_jobs.status IN ('pending','in_progress','failed')
+       )
      ORDER BY p.priority, t.priority, COALESCE(t.next_check_at, p.next_check_at) NULLS FIRST, t.check_target_id
      LIMIT $2
      FOR UPDATE SKIP LOCKED`,

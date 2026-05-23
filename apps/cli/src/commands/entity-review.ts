@@ -258,6 +258,6 @@ function registerReviewCommands(program: Command): void {
     });
 }
 
-function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput> } {
-  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()) };
+function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput>; seedRootDir: string } {
+  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()), seedRootDir: process.cwd() };
 }

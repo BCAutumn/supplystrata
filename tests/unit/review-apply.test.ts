@@ -2,7 +2,7 @@ import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { applyApprovedReviewCandidate } from "@supplystrata/pipeline";
-import { buildClaimConflictReviewCandidate } from "@supplystrata/review-candidates";
+import { buildClaimConflictReviewCandidate, buildSemanticChangeReviewCandidate } from "@supplystrata/review-candidates";
 
 interface QueryCall {
   sql: string;
@@ -66,12 +66,27 @@ describe("review apply", () => {
     expect(store.calls.some((call) => call.sql.includes("UPDATE review_candidates") && call.sql.includes("status = 'blocked'"))).toBe(true);
     expect(store.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("CLAIM_CONFLICT_REVIEW_APPLIED"))).toBe(false);
   });
+
+  it("blocks semantic-change application when reviewed_at is missing", async () => {
+    const store = new ReviewApplyDbStore();
+
+    const result = await applyApprovedReviewCandidate(store, "REV-SEMANTIC-NO-REVIEWED", "analyst");
+
+    expect(result).toEqual({
+      status: "blocked",
+      review_id: "REV-SEMANTIC-NO-REVIEWED",
+      reason: "semantic change review candidate cannot be applied without reviewed_at"
+    });
+    expect(store.calls.some((call) => call.sql.includes("UPDATE review_candidates") && call.sql.includes("status = 'blocked'"))).toBe(true);
+    expect(store.calls.some((call) => call.sql.includes("INSERT INTO claims"))).toBe(false);
+  });
 });
 
 function rowsForReviewApply<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
   if (sql.includes("FROM review_candidates") || sql.includes("UPDATE review_candidates")) {
     const reviewId = String(params[0] ?? "REV-CLAIM-CONFLICT");
     if (reviewId === "REV-KIND-MISMATCH") return [reviewCandidateKindMismatchRow(reviewId)] as unknown as T[];
+    if (reviewId === "REV-SEMANTIC-NO-REVIEWED") return [semanticChangeReviewCandidateRowWithoutReviewedAt(reviewId)] as unknown as T[];
     return [reviewCandidateRow(reviewId)] as unknown as T[];
   }
   return [];
@@ -120,6 +135,41 @@ function reviewCandidateKindMismatchRow(reviewId: string): pg.QueryResultRow {
   return {
     ...reviewCandidateRow(reviewId),
     kind: "semantic_change"
+  };
+}
+
+function semanticChangeReviewCandidateRowWithoutReviewedAt(reviewId: string): pg.QueryResultRow {
+  const candidate = buildSemanticChangeReviewCandidate({
+    changeType: "PURCHASE_OBLIGATION_CHANGED",
+    sourceItemId: "SRCITEM-sec-edgar-nvidia",
+    sourceUrl: "https://www.sec.gov/Archives/fixture/nvidia-10q.htm",
+    snapshot: {
+      doc_id: "DOC-NVIDIA-10Q",
+      source_adapter_id: "sec-edgar",
+      relation: "BUYS_FROM",
+      semantic_relation_kind: "purchase_obligation",
+      subject_surface: "nvidia",
+      object_surface: "tsmc",
+      component_id: "COMP-WAFER",
+      component: "wafer",
+      component_specificity: "explicit",
+      cite_text: "We have purchase obligations with TSMC for wafer capacity.",
+      cite_locator: "Item 2",
+      fingerprint: "we have purchase obligations with tsmc for wafer capacity",
+      extractor_id: "rule.sec.official-supply-chain"
+    }
+  });
+
+  return {
+    review_id: reviewId,
+    candidate_key: candidate.candidate_key,
+    kind: candidate.kind,
+    status: "approved",
+    candidate,
+    reviewer: "analyst",
+    reviewed_at: null,
+    decision_reason: "approved without timestamp",
+    created_at: new Date("2026-05-20T00:00:00.000Z")
   };
 }
 

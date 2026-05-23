@@ -257,6 +257,24 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("j.status = 'in_progress'") && call.sql.includes("j.lease_expires_at <= now()"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("lease_expires_at = now() + ($4::int * interval '1 minute')"))).toBe(true);
     expect(client.calls.some((call) => call.params.includes(15))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("NOT EXISTS") && call.sql.includes("active_jobs.status IN ('pending','in_progress','failed')"))).toBe(
+      true
+    );
+  });
+
+  it("does not enqueue duplicate jobs for targets that already have an active job", async () => {
+    const client = new SourceCheckJobDbClient({ activeTargetAlreadyQueued: true });
+
+    const enqueued = await enqueueDueSourceCheckJobs(client, {
+      now: "2026-05-19T00:00:00.000Z",
+      limit: 10,
+      check_target_ids: ["sec-edgar:nvidia"],
+      source_adapter_ids: ["sec-edgar"]
+    });
+
+    expect(enqueued).toEqual({ due_targets: 0, enqueued_jobs: 0, skipped_active_jobs: 0 });
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO source_check_jobs"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("NOT EXISTS") && call.sql.includes("active_jobs.check_target_id = t.check_target_id"))).toBe(true);
   });
 
   it("enqueues and claims due source check jobs through one transactional repository call", async () => {
@@ -482,9 +500,11 @@ class SourceCheckJobDbClient implements DbTxClient {
   readonly [dbTxClientBrand]: true = true;
   readonly calls: QueryCall[] = [];
 
+  constructor(private readonly options: { activeTargetAlreadyQueued?: boolean } = {}) {}
+
   async query<T extends pg.QueryResultRow>(statement: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql: statement, params });
-    const rows = rowsForSourceCheckJobStatement<T>(statement);
+    const rows = rowsForSourceCheckJobStatement<T>(statement, this.options);
     return {
       command: statement.trimStart().startsWith("SELECT") ? "SELECT" : "MOCK",
       rowCount: statement.includes("INSERT INTO source_check_jobs") ? 1 : rows.length,
@@ -621,8 +641,9 @@ function rowsForStatement<T extends pg.QueryResultRow>(statement: string, failur
   return [];
 }
 
-function rowsForSourceCheckJobStatement<T extends pg.QueryResultRow>(statement: string): T[] {
+function rowsForSourceCheckJobStatement<T extends pg.QueryResultRow>(statement: string, options: { activeTargetAlreadyQueued?: boolean } = {}): T[] {
   if (statement.includes("FROM source_check_targets") && statement.includes("FOR UPDATE SKIP LOCKED")) {
+    if (options.activeTargetAlreadyQueued === true) return [];
     return [dueSourceCheckRow()] as unknown as T[];
   }
   if (statement.includes("UPDATE source_check_jobs jobs")) {

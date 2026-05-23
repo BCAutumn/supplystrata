@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { loadEnv } from "@supplystrata/config";
 import type { DatabaseStore } from "@supplystrata/db/write";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
+import { messageFromUnknown } from "@supplystrata/observability";
 import { runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@supplystrata/pipeline";
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
@@ -153,11 +154,6 @@ function graphOptions(graphSyncMode: GraphSyncMode): SecPipelineOptions {
   return { graphSyncMode, graphStore: createCliNeo4jGraphStore(), ...runtime };
 }
 
-function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput> } {
-  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()) };
-}
-
-function messageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
+function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput>; seedRootDir: string } {
+  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()), seedRootDir: process.cwd() };
 }

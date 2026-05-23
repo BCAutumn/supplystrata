@@ -8,6 +8,7 @@ import {
   type EdgeStrengthKind
 } from "@supplystrata/core";
 import type { DbClient, DbTxClient } from "./client.js";
+import { toIsoDateString, toIsoString } from "./time.js";
 
 interface EdgeStrengthEstimateRow extends pg.QueryResultRow {
   strength_id: string;
@@ -228,10 +229,6 @@ function freshnessRowToRecord(row: EdgeFreshnessRow): EdgeFreshnessRecord {
   };
 }
 
-function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
-}
-
 function toDateOnly(value: Date | string): string {
-  return toIsoString(value).slice(0, 10);
+  return toIsoDateString(value);
 }

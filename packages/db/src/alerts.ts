@@ -2,6 +2,7 @@ import type pg from "pg";
 import type { AlertKind } from "@supplystrata/core";
 import type { DbClient, DbTxClient } from "./client.js";
 import { recordSemanticChange } from "./changes.js";
+import { toIsoString } from "./time.js";
 
 export type AlertSeverity = "low" | "medium" | "high" | "critical";
 export type AlertStatus = "open" | "acknowledged" | "resolved" | "suppressed";
@@ -275,7 +276,7 @@ function alertCandidateRowToRecord(row: AlertCandidateRow): AlertCandidateRecord
     ...(row.change_id === null ? {} : { change_id: row.change_id }),
     ...(row.source_event_id === null ? {} : { source_event_id: row.source_event_id }),
     ...(row.source_adapter_id === null ? {} : { source_adapter_id: row.source_adapter_id }),
-    detected_at: row.detected_at instanceof Date ? row.detected_at.toISOString() : row.detected_at,
+    detected_at: toIsoString(row.detected_at),
     provenance: row.provenance,
     attrs: row.attrs
   };

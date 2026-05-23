@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type pg from "pg";
 import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
 import type { DbClient, DbTxClient } from "./client.js";
+import { toIsoString } from "./time.js";
 
 interface EdgeCalibrationLabelRow extends pg.QueryResultRow {
   label_id: string;
@@ -211,8 +212,4 @@ function deterministicEdgeCalibrationLabelId(input: UpsertEdgeCalibrationLabelIn
     .slice(0, 24)
     .toUpperCase();
   return `CAL-LABEL-${digest}`;
-}
-
-function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
 }
