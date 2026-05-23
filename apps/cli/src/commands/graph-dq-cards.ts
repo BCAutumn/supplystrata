@@ -121,10 +121,16 @@ export function registerGraphDqAndCardCommands(program: Command): void {
   const dq = program.command("dq").description("data quality commands");
   dq.command("run")
     .option("--format <format>", "markdown or json", "markdown")
+    .option("--unknown-company <entityId>", "company entity id that must have an open unknown map")
+    .option("--unknown-min <count>", "minimum open unknown-map items for --unknown-company", "1")
     .description("run MVP data quality checks against Postgres truth")
-    .action(async (options: { format: string }) => {
+    .action(async (options: { format: string; unknownCompany?: string; unknownMin: string }) => {
       await withDatabase(async (pool) => {
-        const summary = await runDataQualityChecks(pool.read);
+        const summary = await runDataQualityChecks(pool.read, {
+          ...(options.unknownCompany === undefined
+            ? {}
+            : { entity_unknown_map_targets: [{ scope_id: options.unknownCompany, minimum_open_items: parseLimit(options.unknownMin) }] })
+        });
         write(renderDataQuality(summary, parseFormat(options.format)));
       });
     });

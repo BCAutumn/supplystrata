@@ -7,10 +7,11 @@ import { runSupplyChainPipelineFromNormalized, type PipelineSummary } from "@sup
 import { recordSourceFailure } from "@supplystrata/source-monitor";
 import {
   fetchAndParseSecEdgar,
+  NVIDIA_SEC_10K_EXAMPLE_PROFILE,
   previewAppleSuppliers,
-  previewDefaultNvidiaSlice,
   previewNvidiaResearchReport,
   previewSecEdgarSupplyChain,
+  previewSecEdgarSupplyChainProfile,
   sourceWorkflowAdapterContextInput
 } from "@supplystrata/source-workflows";
 import {
@@ -32,7 +33,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
   ingest
     .command("sec-edgar")
     .requiredOption("--cik <cik>", "SEC CIK")
-    .option("--entity <entityId>", "primary entity id", "ENT-NVIDIA")
+    .requiredOption("--entity <entityId>", "primary entity id")
     .option("--types <types>", "comma separated filing types", "10-K")
     .option("--graph-sync <mode>", "GraphStore projection sync mode: defer or sync", "defer")
     .description("fetch latest matching SEC filing and run the vertical pipeline")
@@ -53,7 +54,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .action(async (options: { graphSync: string }) => {
       await withDatabase(async (pool) => {
         const graphSyncMode = parseGraphSyncMode(options.graphSync);
-        const summary = await runDefaultNvidiaSlice(pool, graphOptions(graphSyncMode));
+        const summary = await runSecEdgarPipeline(pool, NVIDIA_SEC_10K_EXAMPLE_PROFILE.input, graphOptions(graphSyncMode));
         writeJson(summary);
       });
     });
@@ -64,7 +65,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("preview NVIDIA SEC 10-K parsing without database")
     .action(async (options: { format: string }) => {
-      const result = await previewDefaultNvidiaSlice(sourceWorkflowRuntime());
+      const result = await previewSecEdgarSupplyChainProfile(NVIDIA_SEC_10K_EXAMPLE_PROFILE, sourceWorkflowRuntime());
       write(renderPreview(result, parseFormat(options.format)));
     });
 
@@ -92,7 +93,7 @@ export function registerPipelinePreviewCommands(program: Command): void {
   preview
     .command("sec-edgar")
     .requiredOption("--cik <cik>", "SEC CIK")
-    .option("--entity <entityId>", "primary entity id", "ENT-NVIDIA")
+    .requiredOption("--entity <entityId>", "primary entity id")
     .option("--types <types>", "comma separated filing types", "10-K")
     .option("--format <format>", "markdown or json", "markdown")
     .description("preview SEC EDGAR supply-chain parsing without database")
@@ -113,7 +114,7 @@ function parseFormTypes(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
 interface SecPipelineInput {
   cik: string;
   entityId: string;
-  formTypes: ("10-K" | "10-Q" | "20-F" | "8-K")[];
+  formTypes: readonly ("10-K" | "10-Q" | "20-F" | "8-K")[];
 }
 
 interface SecPipelineOptions {
@@ -142,10 +143,6 @@ async function runSecEdgarPipeline(store: DatabaseStore, input: SecPipelineInput
     ...(options.graphSyncMode === undefined ? {} : { graphSyncMode: options.graphSyncMode }),
     ...(options.graphStore === undefined ? {} : { graphStore: options.graphStore })
   });
-}
-
-function runDefaultNvidiaSlice(store: DatabaseStore, options: SecPipelineOptions): Promise<PipelineSummary> {
-  return runSecEdgarPipeline(store, { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, options);
 }
 
 function graphOptions(graphSyncMode: GraphSyncMode): SecPipelineOptions {

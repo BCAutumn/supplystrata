@@ -41,16 +41,16 @@
 [x] D1 scheduled source check 的完整 document observation store 已作为显式端口接入；worker 与 CLI `sources run-due/check` 注入 pipeline 的 `persistDocumentObservations()`，connector 仍只通过窄运行时上下文接收能力，避免 `source-workflows -> pipeline` 反向依赖。
 [x] D2 Apple supplier-list PDF fetch 改用 runtime 的 format-agnostic `fetchOrLoadCachedSnapshot()`，metadata 写入 `source_fetch_status=fallback` / `source_fetch_error`，缓存回退不再被误认为 live success。
 [x] E1 `getLogger()` 默认返回 `noopLogger`，不再隐式 `loadEnv()`；worker 入口显式 `loadEnv()` 后 `setLogger(createLogger(env))`。
-[ ] E2 CLI pipeline preview/ingest 仍有示例公司入口；后续应继续收敛到 source connector / source-management catalog 驱动。
+[ ] E2 CLI pipeline preview/ingest 仍有示例公司入口；后续应继续收敛到 source connector / source-management catalog 驱动。Generic `sec-edgar` ingest/preview 已不再默认 `ENT-NVIDIA`，调用方必须显式提供 `--entity`；NVIDIA 入口保留为 example profile alias。
 [ ] K1/K2 clock / cwd 等隐式依赖需要逐步改为执行层显式注入，尤其是写入审计时间和批量任务。K2 已局部收敛：`SeedEntityResolver.fromCsv()`、`seedFromCsv()` 不再默认读取 `process.cwd()`，由 CLI / test / workflow runtime 显式传入 seed root。K1 已局部收敛：semantic-change claim draft 不再默认 `new Date()`，必须使用 review lifecycle 的 `reviewed_at`；缺失该时间时 apply 会 block 候选。
 ```
 
 ## 第 3 批：契约边界、重复实现与硬编码
 
 ```text
-[ ] F1-F6 DB Row / DTO 边界继续收敛：`loadEvidenceCard()` 已改为显式 EvidenceCard DTO 映射，`db/query.ts` 的 evidence 查询已去掉 `ev.*`；workbench-export、chain-view-builder、documents/chunk 查询和其他 Row 暴露面仍需继续治理。
+[ ] F1-F6 DB Row / DTO 边界继续收敛：`loadEvidenceCard()` 已改为显式 EvidenceCard DTO 映射，`db/query.ts` 的 evidence 查询已去掉 `ev.*`；`WorkbenchModel.changes` 已改为本地 `WorkbenchChangeTimelineItem` DTO 并通过显式 mapper 从 db timeline 转换；chain-view-builder、documents/chunk 查询和其他 Row 暴露面仍需继续治理。
 [ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。G3/G7 已收敛：edge claim type / claim text 改为 relation 映射表，`reviewStats()` 用 status -> stats key 映射表替代并列状态分支。
-[ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。
+[ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。H1/H2 局部收敛：data-quality unknown-map 最小覆盖检查改为调用方传入 entity target，research-pack 对当前公司启用，不再固定 `ENT-NVIDIA`；NVIDIA SEC 10-K 预览已迁为 `NVIDIA_SEC_10K_EXAMPLE_PROFILE`，generic SEC preview/ingest 不再隐式指向 NVIDIA。
 [ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。I5/I10 已收敛：CLI pipeline preview 复用 observability 的 `messageFromUnknown()`；db 内部 `toIsoString()` / date-only 转换集中到 `packages/db/src/time.ts`。
 ```
 
@@ -80,6 +80,7 @@
   pnpm -s vitest run tests/unit/db-intelligence-contract.test.ts tests/unit/review-store.test.ts
 - 继续完成 D1 / D2 / E1，补齐 source check job lease、research-pack 显式 prepare、claim-builder / workbench-export 局部拆分、graph-builder atomic upsert、entity-import / evidence trace / edge claim 事务边界。
 - 本轮继续收敛 source check active-job 空转、research-preview loading guard、K1/K2 局部显式注入、G3/G7 表驱动、I5/I10 重复实现。
+- 本轮继续收敛 E2/H1/H2/F4：generic SEC preview/ingest 不再默认 NVIDIA，NVIDIA 只作为 example profile；data-quality unknown-map 检查改为调用方传入当前 entity target；Workbench changes 改为本地 DTO。
 - 已跑完整门禁：
   pnpm -s type-check
   pnpm -s lint

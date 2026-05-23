@@ -34,9 +34,19 @@ export interface DataQualityRule {
   check(client: DbClient): Promise<DataQualityIssue[]>;
 }
 
-export async function runDataQualityChecks(client: DbClient): Promise<DataQualitySummary> {
+export interface EntityUnknownMapTarget {
+  scope_id: string;
+  label?: string;
+  minimum_open_items: number;
+}
+
+export interface DataQualityCheckInput {
+  entity_unknown_map_targets?: readonly EntityUnknownMapTarget[];
+}
+
+export async function runDataQualityChecks(client: DbClient, input: DataQualityCheckInput = {}): Promise<DataQualitySummary> {
   const issues: DataQualityIssue[] = [];
-  for (const rule of DATA_QUALITY_RULES) {
+  for (const rule of dataQualityRules(input)) {
     issues.push(...(await rule.check(client)));
   }
 
@@ -62,11 +72,13 @@ export const GLOBAL_DATA_QUALITY_RULES: readonly DataQualityRule[] = [
   { rule_id: "document.parsed_without_chunks", scope: "global", check: checkParsedDocumentsHaveChunks }
 ];
 
-export const ENTITY_SPECIFIC_DATA_QUALITY_RULES: readonly DataQualityRule[] = [
-  { rule_id: "unknown_map.nvidia_minimum_items", scope: "entity_specific", check: checkNvidiaUnknownMap }
-];
+export const ENTITY_SPECIFIC_DATA_QUALITY_RULES: readonly DataQualityRule[] = [];
 
 export const DATA_QUALITY_RULES: readonly DataQualityRule[] = [...GLOBAL_DATA_QUALITY_RULES, ...ENTITY_SPECIFIC_DATA_QUALITY_RULES];
+
+export function dataQualityRules(input: DataQualityCheckInput = {}): readonly DataQualityRule[] {
+  return [...GLOBAL_DATA_QUALITY_RULES, ...unknownMapMinimumItemRules(input.entity_unknown_map_targets ?? [])];
+}
 
 async function checkCurrentEdgesHaveEvidence(client: DbClient): Promise<DataQualityIssue[]> {
   const result = await client.query<EdgeWithoutEvidenceRow>(
@@ -359,22 +371,32 @@ async function checkParsedDocumentsHaveChunks(client: DbClient): Promise<DataQua
   );
 }
 
-async function checkNvidiaUnknownMap(client: DbClient): Promise<DataQualityIssue[]> {
+function unknownMapMinimumItemRules(targets: readonly EntityUnknownMapTarget[]): DataQualityRule[] {
+  return targets.map((target) => ({
+    rule_id: `unknown_map.minimum_open_items.${target.scope_id}`,
+    scope: "entity_specific",
+    check: (client) => checkEntityUnknownMapMinimum(client, target)
+  }));
+}
+
+async function checkEntityUnknownMapMinimum(client: DbClient, target: EntityUnknownMapTarget): Promise<DataQualityIssue[]> {
   const result = await client.query<CountRow>(
     `SELECT count(*)::int AS count
      FROM unknown_items
-     WHERE scope_kind = 'company' AND scope_id = 'ENT-NVIDIA' AND status = 'open'`
+     WHERE scope_kind = 'company' AND scope_id = $1 AND status = 'open'`,
+    [target.scope_id]
   );
   const count = result.rows[0]?.count ?? 0;
-  if (count >= 5) return [];
+  if (count >= target.minimum_open_items) return [];
+  const label = target.label ?? target.scope_id;
   return [
     issue({
-      ruleId: "unknown_map.nvidia_minimum_items",
+      ruleId: `unknown_map.minimum_open_items.${target.scope_id}`,
       severity: "error",
       scopeKind: "company",
-      scopeId: "ENT-NVIDIA",
-      message: "NVIDIA unknown_map must keep at least 5 open items.",
-      detail: { open_items: count, required_minimum: 5 }
+      scopeId: target.scope_id,
+      message: `${label} unknown_map must keep at least ${target.minimum_open_items} open item(s).`,
+      detail: { open_items: count, required_minimum: target.minimum_open_items }
     })
   ];
 }

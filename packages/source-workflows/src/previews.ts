@@ -45,6 +45,18 @@ export interface SourceWorkflowRuntime {
   seedRootDir: string;
 }
 
+export interface SecEdgarSupplyChainPreviewProfile {
+  profile_id: string;
+  label: string;
+  input: SecEdgarInput;
+}
+
+export const NVIDIA_SEC_10K_EXAMPLE_PROFILE: SecEdgarSupplyChainPreviewProfile = {
+  profile_id: "example.nvidia.sec-10k",
+  label: "NVIDIA SEC 10-K example",
+  input: { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }
+};
+
 export async function previewSecEdgarSupplyChain(input: SecEdgarInput, runtime: SourceWorkflowRuntime): Promise<SupplyChainPreview> {
   const { raw, normalized, documentType, sourceDate } = await fetchAndParseSecEdgar(input, { adapterContextInput: runtime.adapterContextInput });
   const scorer = new DeterministicEvidenceScorer();
@@ -87,8 +99,11 @@ export async function previewSecEdgarSupplyChain(input: SecEdgarInput, runtime: 
   };
 }
 
-export async function previewDefaultNvidiaSlice(runtime: SourceWorkflowRuntime): Promise<SupplyChainPreview> {
-  return previewSecEdgarSupplyChain({ cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }, runtime);
+export async function previewSecEdgarSupplyChainProfile(
+  profile: SecEdgarSupplyChainPreviewProfile,
+  runtime: SourceWorkflowRuntime
+): Promise<SupplyChainPreview> {
+  return previewSecEdgarSupplyChain(profile.input, runtime);
 }
 
 export async function previewTsmcIr(runtime: SourceWorkflowRuntime, input: TsmcIrInput = { year: 2025, entityId: "ENT-TSMC" }): Promise<TsmcIrPreview> {
@@ -110,7 +125,7 @@ export async function previewTsmcIr(runtime: SourceWorkflowRuntime, input: TsmcI
 
 export async function previewNvidiaResearchReport(runtime: SourceWorkflowRuntime): Promise<NvidiaResearchReportPreview> {
   const [nvidia, tsmc, samsung, skhynix, asml] = await Promise.all([
-    previewDefaultNvidiaSlice(runtime),
+    previewSecEdgarSupplyChainProfile(NVIDIA_SEC_10K_EXAMPLE_PROFILE, runtime),
     previewTsmcIr(runtime),
     previewOptionalDisclosure("samsung-ir", () => previewSamsungIr(runtime)),
     previewOptionalDisclosure("skhynix-ir", () => previewSkHynixIr(runtime)),

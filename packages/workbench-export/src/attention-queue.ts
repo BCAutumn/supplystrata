@@ -1,12 +1,12 @@
-import type { AlertCandidateRecord, AlertSeverity, ChangeTimelineItem } from "@supplystrata/db/read";
-import type { WorkbenchAttentionItem, WorkbenchAttentionPriority, WorkbenchClaim, WorkbenchSourceHealth } from "./definitions.js";
+import type { AlertCandidateRecord, AlertSeverity } from "@supplystrata/db/read";
+import type { WorkbenchAttentionItem, WorkbenchAttentionPriority, WorkbenchChangeTimelineItem, WorkbenchClaim, WorkbenchSourceHealth } from "./definitions.js";
 
 export function buildWorkbenchAttentionQueue(input: {
   claims: readonly WorkbenchClaim[];
   draftClaims: readonly WorkbenchClaim[];
   alerts: readonly AlertCandidateRecord[];
   sources: readonly WorkbenchSourceHealth[];
-  changes: readonly ChangeTimelineItem[];
+  changes: readonly WorkbenchChangeTimelineItem[];
   limit?: number;
 }): WorkbenchAttentionItem[] {
   const items = [
@@ -120,7 +120,7 @@ function attentionItemsFromSourceHealth(source: WorkbenchSourceHealth): Workbenc
   ];
 }
 
-function attentionItemsFromChange(change: ChangeTimelineItem): WorkbenchAttentionItem[] {
+function attentionItemsFromChange(change: WorkbenchChangeTimelineItem): WorkbenchAttentionItem[] {
   if (!change.requires_attention) return [];
   const scope = changeAttentionScope(change);
   return [
@@ -140,7 +140,7 @@ function attentionItemsFromChange(change: ChangeTimelineItem): WorkbenchAttentio
   ];
 }
 
-function changeAttentionScope(change: ChangeTimelineItem): { kind: string; id: string } {
+function changeAttentionScope(change: WorkbenchChangeTimelineItem): { kind: string; id: string } {
   if (change.scope_kind !== undefined && change.scope_id !== undefined) return { kind: change.scope_kind, id: change.scope_id };
   if (change.source_adapter_id !== undefined) return { kind: "source", id: change.source_adapter_id };
   if (change.edge_id !== undefined) return { kind: "edge", id: change.edge_id };

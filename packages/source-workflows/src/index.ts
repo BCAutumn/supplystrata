@@ -21,15 +21,17 @@ export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, Entity
 export { buildGleifLeiSearchUrl, extractGleifLeiCandidates, gleifLeiAdapter, lookupGleifLeiRecords } from "./gleif-entity-source.js";
 export type { GleifLeiSearchInput } from "./gleif-entity-source.js";
 export {
+  NVIDIA_SEC_10K_EXAMPLE_PROFILE,
   previewAppleSuppliers,
   previewAsmlIr,
-  previewDefaultNvidiaSlice,
   previewNvidiaResearchReport,
   previewSamsungIr,
   previewSecEdgarSupplyChain,
+  previewSecEdgarSupplyChainProfile,
   previewSkHynixIr,
   previewTsmcIr
 } from "./previews.js";
+export type { SecEdgarSupplyChainPreviewProfile } from "./previews.js";
 export { checkSecCompanyFactsSource, checkSecEdgarSource } from "./sec-edgar.js";
 export {
   asmlAnnualReportUrl,

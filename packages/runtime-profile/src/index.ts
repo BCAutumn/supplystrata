@@ -42,7 +42,7 @@ export function runtimeModes(input: Pick<RuntimeProfileInput, "workbench_path" |
       status: "ready",
       docker_required: false,
       summary: "实时抓取/解析/规则抽取，不落库，不写 GraphStore。",
-      command: "pnpm --silent cli preview nvidia --format markdown",
+      command: "pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --format markdown",
       requires: ["Node.js", "pnpm", "network for live source fetches"]
     },
     {

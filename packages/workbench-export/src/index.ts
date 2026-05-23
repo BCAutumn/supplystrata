@@ -10,6 +10,7 @@ import {
   listEvidenceForEdges,
   listUnknownItems,
   resolveEntityId,
+  type ChangeTimelineItem,
   type DbClient
 } from "@supplystrata/db/read";
 import type { ChainViewModel, ChainViewSegmentModel } from "@supplystrata/chain-view";
@@ -32,6 +33,7 @@ export type {
   WorkbenchClaimLifecycleWarning,
   WorkbenchClaimStatus,
   WorkbenchClaimUnknownRef,
+  WorkbenchChangeTimelineItem,
   WorkbenchCompanyNode,
   WorkbenchEdge,
   WorkbenchEdgeFreshness,
@@ -50,6 +52,7 @@ export type {
 } from "./definitions.js";
 import type {
   WorkbenchClaim,
+  WorkbenchChangeTimelineItem,
   WorkbenchCompanyNode,
   WorkbenchEdge,
   WorkbenchEvidence,
@@ -96,11 +99,13 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
     sourceAdapterIds: reviewQueueSourceAdapterIds({ evidences, sourcePlan }),
     limit: input.reviewCandidateLimit ?? 50
   });
-  const changes = await listChangeTimeline(client, {
-    since: input.since ?? defaultSince(30),
-    limit: input.changeLimit ?? 50,
-    scope: { kind: "company", id: rootEntityId }
-  });
+  const changes = (
+    await listChangeTimeline(client, {
+      since: input.since ?? defaultSince(30),
+      limit: input.changeLimit ?? 50,
+      scope: { kind: "company", id: rootEntityId }
+    })
+  ).map(changeTimelineItemToDto);
   const attentionQueue = buildWorkbenchAttentionQueue({
     claims,
     draftClaims,
@@ -261,6 +266,51 @@ async function listUnknownsByIds(client: DbClient, unknownIds: readonly string[]
     [ids]
   );
   return result.rows;
+}
+
+function changeTimelineItemToDto(item: ChangeTimelineItem): WorkbenchChangeTimelineItem {
+  return {
+    event_id: item.event_id,
+    event_family: item.event_family,
+    event_type: item.event_type,
+    occurred_at: item.occurred_at,
+    caused_by: item.caused_by,
+    requires_attention: item.requires_attention,
+    ...(item.scope_kind === undefined ? {} : { scope_kind: item.scope_kind }),
+    ...(item.scope_id === undefined ? {} : { scope_id: item.scope_id }),
+    ...(item.source_adapter_id === undefined ? {} : { source_adapter_id: item.source_adapter_id }),
+    ...(item.source_item_id === undefined ? {} : { source_item_id: item.source_item_id }),
+    ...(item.doc_id === undefined ? {} : { doc_id: item.doc_id }),
+    ...(item.previous_doc_id === undefined ? {} : { previous_doc_id: item.previous_doc_id }),
+    ...(item.next_doc_id === undefined ? {} : { next_doc_id: item.next_doc_id }),
+    ...(item.edge_id === undefined ? {} : { edge_id: item.edge_id }),
+    ...(item.evidence_id === undefined ? {} : { evidence_id: item.evidence_id }),
+    ...(item.evidence_level === undefined ? {} : { evidence_level: item.evidence_level }),
+    ...(item.superseded_evidence_ids === undefined ? {} : { superseded_evidence_ids: item.superseded_evidence_ids }),
+    ...(item.superseded_by_evidence_id === undefined ? {} : { superseded_by_evidence_id: item.superseded_by_evidence_id }),
+    ...(item.subject_id === undefined ? {} : { subject_id: item.subject_id }),
+    ...(item.subject_name === undefined ? {} : { subject_name: item.subject_name }),
+    ...(item.object_id === undefined ? {} : { object_id: item.object_id }),
+    ...(item.object_name === undefined ? {} : { object_name: item.object_name }),
+    ...(item.relation === undefined ? {} : { relation: item.relation }),
+    ...(item.component === undefined ? {} : { component: item.component }),
+    ...(item.semantic_relation_kind === undefined ? {} : { semantic_relation_kind: item.semantic_relation_kind }),
+    ...(item.relation_subject_surface === undefined ? {} : { relation_subject_surface: item.relation_subject_surface }),
+    ...(item.relation_object_surface === undefined ? {} : { relation_object_surface: item.relation_object_surface }),
+    ...(item.relation_fingerprint === undefined ? {} : { relation_fingerprint: item.relation_fingerprint }),
+    ...(item.observation_scope_kind === undefined ? {} : { observation_scope_kind: item.observation_scope_kind }),
+    ...(item.observation_scope_id === undefined ? {} : { observation_scope_id: item.observation_scope_id }),
+    ...(item.metric_name === undefined ? {} : { metric_name: item.metric_name }),
+    ...(item.metric_value === undefined ? {} : { metric_value: item.metric_value }),
+    ...(item.metric_unit === undefined ? {} : { metric_unit: item.metric_unit }),
+    ...(item.baseline_method === undefined ? {} : { baseline_method: item.baseline_method }),
+    ...(item.baseline_value === undefined ? {} : { baseline_value: item.baseline_value }),
+    ...(item.change_percent === undefined ? {} : { change_percent: item.change_percent }),
+    ...(item.anomaly_severity === undefined ? {} : { anomaly_severity: item.anomaly_severity }),
+    ...(item.anomaly_direction === undefined ? {} : { anomaly_direction: item.anomaly_direction }),
+    ...(item.before === undefined ? {} : { before: item.before }),
+    ...(item.after === undefined ? {} : { after: item.after })
+  };
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
