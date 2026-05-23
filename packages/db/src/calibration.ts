@@ -35,7 +35,7 @@ export interface UpsertEdgeCalibrationLabelInput {
   label: EdgeCalibrationLabel;
   error_category?: EdgeCalibrationErrorCategory;
   reviewer: string;
-  reviewed_at?: string;
+  reviewed_at: string;
   rationale?: string;
   attrs?: Record<string, unknown>;
 }
@@ -92,7 +92,7 @@ export async function upsertEdgeCalibrationLabel(client: DbTxClient, input: Upse
       input.label,
       input.error_category ?? null,
       input.reviewer,
-      input.reviewed_at ?? new Date().toISOString(),
+      input.reviewed_at,
       input.rationale ?? null,
       JSON.stringify(input.attrs ?? {})
     ]

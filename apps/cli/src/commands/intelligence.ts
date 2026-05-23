@@ -56,6 +56,7 @@ export function registerIntelligenceCommands(program: Command): void {
         options: { label: string; reviewer: string; evidence?: string; errorCategory?: string; reviewedAt?: string; rationale?: string }
       ) => {
         await withDatabase(async (store) => {
+          const reviewedAt = options.reviewedAt === undefined ? new Date().toISOString() : parseSince(options.reviewedAt);
           const result = await store.transaction((client) =>
             recordEdgeCalibrationLabel(client, {
               edge_id: edgeId,
@@ -63,7 +64,7 @@ export function registerIntelligenceCommands(program: Command): void {
               label: parseCalibrationLabel(options.label),
               reviewer: options.reviewer,
               ...(options.errorCategory === undefined ? {} : { error_category: parseCalibrationErrorCategory(options.errorCategory) }),
-              ...(options.reviewedAt === undefined ? {} : { reviewed_at: parseSince(options.reviewedAt) }),
+              reviewed_at: reviewedAt,
               ...(options.rationale === undefined ? {} : { rationale: options.rationale })
             })
           );

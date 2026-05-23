@@ -11,7 +11,7 @@ export interface RecordEdgeCalibrationLabelInput {
   label: EdgeCalibrationLabel;
   error_category?: EdgeCalibrationErrorCategory;
   reviewer: string;
-  reviewed_at?: string;
+  reviewed_at: string;
   rationale?: string;
 }
 
@@ -63,7 +63,7 @@ export async function recordEdgeCalibrationLabel(client: DbTxClient, input: Reco
     label: input.label,
     ...(input.error_category === undefined ? {} : { error_category: input.error_category }),
     reviewer: input.reviewer,
-    ...(input.reviewed_at === undefined ? {} : { reviewed_at: input.reviewed_at }),
+    reviewed_at: input.reviewed_at,
     ...(input.rationale === undefined ? {} : { rationale: input.rationale }),
     attrs: { recorded_by: "evidence-maintenance.edge-calibration.v1" }
   });
