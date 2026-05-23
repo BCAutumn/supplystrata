@@ -144,7 +144,9 @@ export async function insertChainSegments(client: DbTxClient, inputs: readonly N
   const rows = inputs.map(chainSegmentInsertRow);
   await client.query(
     `WITH input_rows AS (
-       SELECT *
+       SELECT segment_id, chain_id, sequence_index, from_kind, from_id, to_kind, to_id,
+              semantic_layer, relation, component_id, edge_id, claim_id, observation_id,
+              lead_id, unknown_id, evidence_ids, confidence, attrs
        FROM jsonb_to_recordset($1::jsonb) AS row(
          segment_id text,
          chain_id text,

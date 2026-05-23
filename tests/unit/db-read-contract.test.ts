@@ -1,6 +1,7 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import { listCurrentEdges, loadDocument, type DbClient } from "@supplystrata/db/read";
+import { dbTxClientBrand, insertChainSegments, replaceRiskView, type DbTxClient } from "@supplystrata/db/write";
 
 describe("db read contracts", () => {
   it("loads documents through explicit column projections", async () => {
@@ -50,6 +51,57 @@ describe("db read contracts", () => {
     });
     expect(client.statements.every((statement) => !/\bSELECT\s+(?:\*|[a-z]+\.\*)\b/i.test(statement))).toBe(true);
   });
+
+  it("writes bulk risk metrics through explicit jsonb record projections", async () => {
+    const client = new ContractWriteClient();
+
+    await replaceRiskView(client, {
+      risk_view_id: "RSK-1",
+      scope_kind: "component",
+      scope_id: "COMP-HBM",
+      generated_at: "2026-05-23T00:00:00.000Z",
+      model_version: "unit-test",
+      inputs_fingerprint: "fingerprint",
+      summary: {},
+      metrics: [
+        {
+          metric_id: "RKM-1",
+          metric_kind: "single_source_exposure",
+          subject_kind: "component",
+          subject_id: "COMP-HBM",
+          confidence: 1,
+          provenance: {},
+          attrs: {}
+        }
+      ]
+    });
+
+    const bulkInsert = client.statements.find((statement) => statement.includes("jsonb_to_recordset($2::jsonb)"));
+    expect(bulkInsert).toBeDefined();
+    expect(bulkInsert).not.toMatch(/\bSELECT\s+\*/i);
+  });
+
+  it("writes bulk chain segments through explicit jsonb record projections", async () => {
+    const client = new ContractWriteClient();
+
+    await insertChainSegments(client, [
+      {
+        segment_id: "SEG-1",
+        chain_id: "CHAIN-1",
+        sequence_index: 0,
+        from_kind: "entity",
+        from_id: "ENT-NVIDIA",
+        to_kind: "entity",
+        to_id: "ENT-TSMC",
+        semantic_layer: "edge",
+        edge_id: "EDGE-1"
+      }
+    ]);
+
+    const bulkInsert = client.statements.find((statement) => statement.includes("jsonb_to_recordset($1::jsonb)"));
+    expect(bulkInsert).toBeDefined();
+    expect(bulkInsert).not.toMatch(/\bSELECT\s+\*/i);
+  });
 });
 
 class ContractReadClient implements DbClient {
@@ -61,6 +113,17 @@ class ContractReadClient implements DbClient {
     if (sql.includes("FROM document_chunks"))
       return queryResult<T>([chunkRow("DOC-1-CHK-0001", "First chunk", "part-1", 2), chunkRow("DOC-1-CHK-0002", "Second chunk", null, null)]);
     if (sql.includes("FROM edges e")) return queryResult<T>([edgeRow()]);
+    return queryResult<T>([]);
+  }
+}
+
+class ContractWriteClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
+  readonly statements: string[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string): Promise<pg.QueryResult<T>> {
+    this.statements.push(sql);
+    if (sql.includes("RETURNING risk_view_id")) return queryResult<T>([{ risk_view_id: "RSK-1" }]);
     return queryResult<T>([]);
   }
 }

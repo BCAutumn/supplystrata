@@ -96,7 +96,8 @@ export async function replaceRiskView(client: DbTxClient, input: ReplaceRiskView
   if (input.metrics.length > 0) {
     await client.query(
       `WITH metric_rows AS (
-         SELECT *
+         SELECT metric_id, metric_kind, subject_kind, subject_id, component_id,
+                value, confidence, provenance, attrs
          FROM jsonb_to_recordset($2::jsonb) AS metric(
            metric_id text,
            metric_kind text,
