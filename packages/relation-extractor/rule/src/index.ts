@@ -34,6 +34,39 @@ interface ComponentClassification {
   readonly specificity: CandidateRelation["component_specificity"];
 }
 
+interface FoundrySupplierRule {
+  readonly counterparty: CounterpartyPatternDefinition;
+  readonly requiresFoundryListContext: boolean;
+  readonly skipWhenMemoryContext: boolean;
+}
+
+const MANUFACTURING_CONTEXT_PATTERNS: readonly RegExp[] = [/(foundr|wafer|fabricat|manufactur|supplier|subcontractor|assembly|test)/i];
+
+const FOUNDRY_LIST_CONTEXT_PATTERNS: readonly RegExp[] = [
+  /(foundries?.{0,280}(tsmc|taiwan semiconductor manufacturing|samsung)|produce.{0,120}semiconductor wafers)/i
+];
+
+const MANUFACTURING_SERVICE_CONTEXT_PATTERNS: readonly RegExp[] = [/(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i];
+
+const FOUNDRY_SUPPLIER_RULES: readonly FoundrySupplierRule[] = [
+  {
+    counterparty: requireSupplierCounterpartyPattern("TSMC"),
+    requiresFoundryListContext: false,
+    skipWhenMemoryContext: false
+  },
+  {
+    counterparty: requireSupplierCounterpartyPattern("Samsung"),
+    requiresFoundryListContext: true,
+    skipWhenMemoryContext: true
+  }
+];
+
+const MEMORY_SUPPLIER_RULES: readonly CounterpartyPatternDefinition[] = [
+  requireSupplierCounterpartyPattern("SK hynix"),
+  requireSupplierCounterpartyPattern("Micron"),
+  requireSupplierCounterpartyPattern("Samsung")
+];
+
 export const secOfficialSupplyChainExtractor: RelationExtractor = {
   id: SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID,
   priority: 100,
@@ -65,8 +98,8 @@ export const ruleExtractors = [secOfficialSupplyChainExtractor] as const;
 
 export function extractFromSentence(sentence: string, locator: string, options: ExtractSentenceOptions): CandidateRelation[] {
   const candidates: CandidateRelation[] = [];
-  const manufacturingContext = /(foundr|wafer|fabricat|manufactur|supplier|subcontractor|assembly|test)/i.test(sentence);
-  const foundryListContext = /(foundries?.{0,280}(tsmc|taiwan semiconductor manufacturing|samsung)|produce.{0,120}semiconductor wafers)/i.test(sentence);
+  const manufacturingContext = matchesAnyPattern(sentence, MANUFACTURING_CONTEXT_PATTERNS);
+  const foundryListContext = matchesAnyPattern(sentence, FOUNDRY_LIST_CONTEXT_PATTERNS);
   const memoryComponent = classifyMemoryComponent(sentence);
   const memoryContext = memoryComponent !== undefined;
   const subjectSurface = options.subjectSurface;
@@ -75,17 +108,15 @@ export function extractFromSentence(sentence: string, locator: string, options: 
   const sourceLocation = options.sourceLocation;
   const sourceLocationInput = sourceLocation === undefined ? {} : { sourceLocation };
 
-  if (
-    (manufacturingContext || foundryListContext) &&
-    matchesAnyCounterparty(sentence, { surface: "TSMC", patterns: [/\b(?:tsmc|taiwan semiconductor manufacturing)\b/i] })
-  ) {
+  for (const rule of FOUNDRY_SUPPLIER_RULES) {
+    if (!matchesFoundrySupplierRule(sentence, rule, { manufacturingContext, foundryListContext, memoryContext })) continue;
     candidates.push(
       buildCandidate({
         subjectSurface,
         documentType,
         extractorId,
         relation: "USES_FOUNDRY",
-        objectSurface: "TSMC",
+        objectSurface: rule.counterparty.surface,
         citeText: sentence,
         locator,
         ...sourceLocationInput,
@@ -93,68 +124,26 @@ export function extractFromSentence(sentence: string, locator: string, options: 
       })
     );
   }
-  if (foundryListContext && /\bsamsung\b/i.test(sentence) && !memoryContext) {
-    candidates.push(
-      buildCandidate({
-        subjectSurface,
-        documentType,
-        extractorId,
-        relation: "USES_FOUNDRY",
-        objectSurface: "Samsung",
-        citeText: sentence,
-        locator,
-        ...sourceLocationInput,
-        component: componentFromDefinition(FOUNDRY_WAFER_COMPONENT)
-      })
-    );
-  }
-  if (memoryComponent !== undefined && /sk\s*hynix/i.test(sentence)) {
-    candidates.push(
-      buildCandidate({
-        subjectSurface,
-        documentType,
-        extractorId,
-        relation: "BUYS_FROM",
-        objectSurface: "SK hynix",
-        citeText: sentence,
-        locator,
-        ...sourceLocationInput,
-        component: memoryComponent
-      })
-    );
-  }
-  if (memoryComponent !== undefined && /\bmicron\b/i.test(sentence)) {
-    candidates.push(
-      buildCandidate({
-        subjectSurface,
-        documentType,
-        extractorId,
-        relation: "BUYS_FROM",
-        objectSurface: "Micron",
-        citeText: sentence,
-        locator,
-        ...sourceLocationInput,
-        component: memoryComponent
-      })
-    );
-  }
-  if (memoryComponent !== undefined && /\bsamsung\b/i.test(sentence)) {
-    candidates.push(
-      buildCandidate({
-        subjectSurface,
-        documentType,
-        extractorId,
-        relation: "BUYS_FROM",
-        objectSurface: "Samsung",
-        citeText: sentence,
-        locator,
-        ...sourceLocationInput,
-        component: memoryComponent
-      })
-    );
+  if (memoryComponent !== undefined) {
+    for (const counterparty of MEMORY_SUPPLIER_RULES) {
+      if (!matchesAnyCounterparty(sentence, counterparty)) continue;
+      candidates.push(
+        buildCandidate({
+          subjectSurface,
+          documentType,
+          extractorId,
+          relation: "BUYS_FROM",
+          objectSurface: counterparty.surface,
+          citeText: sentence,
+          locator,
+          ...sourceLocationInput,
+          component: memoryComponent
+        })
+      );
+    }
   }
   for (const supplier of MANUFACTURING_SERVICE_SUPPLIER_PATTERNS) {
-    if (matchesAnyCounterparty(sentence, supplier) && /(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i.test(sentence)) {
+    if (matchesAnyCounterparty(sentence, supplier) && matchesAnyPattern(sentence, MANUFACTURING_SERVICE_CONTEXT_PATTERNS)) {
       candidates.push(
         buildCandidate({
           subjectSurface,
@@ -230,6 +219,23 @@ export function extractFromSentence(sentence: string, locator: string, options: 
   return uniqueCandidates(candidates);
 }
 
+function requireSupplierCounterpartyPattern(surface: string): CounterpartyPatternDefinition {
+  const counterparty = SUPPLIER_COUNTERPARTY_PATTERNS.find((item) => item.surface === surface);
+  if (counterparty === undefined) throw new Error(`Missing supplier counterparty pattern: ${surface}`);
+  return counterparty;
+}
+
+function matchesFoundrySupplierRule(
+  sentence: string,
+  rule: FoundrySupplierRule,
+  context: { readonly manufacturingContext: boolean; readonly foundryListContext: boolean; readonly memoryContext: boolean }
+): boolean {
+  if (rule.skipWhenMemoryContext && context.memoryContext) return false;
+  if (rule.requiresFoundryListContext && !context.foundryListContext) return false;
+  if (!rule.requiresFoundryListContext && !context.manufacturingContext && !context.foundryListContext) return false;
+  return matchesAnyCounterparty(sentence, rule.counterparty);
+}
+
 function classifyMemoryComponent(sentence: string): ComponentClassification | undefined {
   return classifyComponent(sentence, MEMORY_COMPONENT_PATTERNS);
 }
@@ -264,6 +270,10 @@ function componentFromDefinition(definition: ComponentPatternDefinition): Compon
 
 function matchesAnyCounterparty(sentence: string, counterparty: CounterpartyPatternDefinition): boolean {
   return counterparty.patterns.some((pattern) => pattern.test(sentence));
+}
+
+function matchesAnyPattern(sentence: string, patterns: readonly RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(sentence));
 }
 
 function isNamedCustomerDisclosure(sentence: string): boolean {
