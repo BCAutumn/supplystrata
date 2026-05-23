@@ -273,7 +273,10 @@ async function applySupplierListReviewCandidate(
     if (facilityPreparation.status === "blocked") return facilityPreparation;
     const doc = await loadReviewDocument(client, item);
     if (doc.status === "blocked") return doc;
-    const reviewedAt = new Date().toISOString();
+    if (item.reviewed_at === undefined) {
+      return blockReviewCandidate(client, reviewId, "supplier list review candidate cannot be applied without reviewed_at");
+    }
+    const reviewedAt = item.reviewed_at;
     const scored = await scoreSupplierListRelations(supplierRelation, facilityPreparation.facilityRelation, doc.document, {
       reviewer,
       reviewed_at: reviewedAt
