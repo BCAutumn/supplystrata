@@ -57,7 +57,7 @@
 ## 第 4 批：大文件拆分与 citation 共享
 
 ```text
-[ ] `workbench-export/src/schema.ts`、`source-management/src/index.ts`、`apps/cli/src/commands/sources-changes.ts`、`source-monitor/src/index.ts` 等文件继续按 feature / definitions / functions / orchestration 拆分。
+[ ] `workbench-export/src/schema.ts`、`source-management/src/index.ts`、`apps/cli/src/commands/sources-changes.ts`、`source-monitor/src/index.ts` 等文件继续按 feature / definitions / functions / orchestration 拆分。`workbench-export/src/schema.ts` 已将 legacy JSON normalize 拆到 `schema-normalize.ts`，schema 文件从 639 行降到 533 行；后续继续拆 validator 群组。
 [ ] EDINET / DART / TWSE 这类 source workflow 后续应把 parsing/normalization 下沉到对应 source 或 parser 包，workflow 保持 connector 薄层。
 [ ] signal / observation / relation / pipeline citation locate 逻辑需要抽成共享 text-citation 能力，避免抽取器之间规则漂移。
 ```
@@ -81,6 +81,7 @@
 - 继续完成 D1 / D2 / E1，补齐 source check job lease、research-pack 显式 prepare、claim-builder / workbench-export 局部拆分、graph-builder atomic upsert、entity-import / evidence trace / edge claim 事务边界。
 - 本轮继续收敛 source check active-job 空转、research-preview loading guard、K1/K2 局部显式注入、G3/G7 表驱动、I5/I10 重复实现。
 - 本轮继续收敛 E2/H1/H2/F4：generic SEC preview/ingest 不再默认 NVIDIA，NVIDIA 只作为 example profile；data-quality unknown-map 检查改为调用方传入当前 entity target；Workbench changes 改为本地 DTO。
+- 本轮继续拆分 `workbench-export/src/schema.ts`：legacy Workbench JSON 兼容 normalize 与 schema validate 分离，降低单文件职责密度。
 - 已跑完整门禁：
   pnpm -s type-check
   pnpm -s lint
