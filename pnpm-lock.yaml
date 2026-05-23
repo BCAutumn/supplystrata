@@ -392,6 +392,9 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+      '@supplystrata/parsers-text':
+        specifier: workspace:*
+        version: link:../parsers/text
 
   packages/observation-store:
     dependencies:
@@ -464,6 +467,9 @@ importers:
       '@supplystrata/observation-store':
         specifier: workspace:*
         version: link:../observation-store
+      '@supplystrata/parsers-text':
+        specifier: workspace:*
+        version: link:../parsers/text
       '@supplystrata/relation-extractor-rule':
         specifier: workspace:*
         version: link:../relation-extractor/rule
@@ -566,7 +572,11 @@ importers:
 
   packages/runtime-profile: {}
 
-  packages/signal-extractor: {}
+  packages/signal-extractor:
+    dependencies:
+      '@supplystrata/parsers-text':
+        specifier: workspace:*
+        version: link:../parsers/text
 
   packages/source-adapter-runtime:
     dependencies:

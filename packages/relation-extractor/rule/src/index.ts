@@ -1,4 +1,4 @@
-import { sentenceWindows } from "@supplystrata/parsers-text";
+import { sentenceWindowsWithOffsets } from "@supplystrata/parsers-text";
 import type { CandidateRelation, NormalizedDocument, RelationType } from "@supplystrata/core";
 import {
   CUSTOMER_COUNTERPARTY_PATTERNS,
@@ -341,19 +341,6 @@ function buildCandidate(input: CandidateBuildInput): CandidateRelation {
     raw_evidence_level_hint: 5,
     raw_confidence_hint: input.confidenceHint ?? 0.92
   };
-}
-
-function sentenceWindowsWithOffsets(text: string): { sentence: string; start: number; end: number }[] {
-  const windows: { sentence: string; start: number; end: number }[] = [];
-  let cursor = 0;
-  for (const sentence of sentenceWindows(text)) {
-    const start = text.indexOf(sentence, cursor);
-    if (start < 0) continue;
-    const end = start + sentence.length;
-    windows.push({ sentence, start, end });
-    cursor = end;
-  }
-  return windows;
 }
 
 function isSecDisclosure(doc: NormalizedDocument): boolean {

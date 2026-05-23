@@ -1,3 +1,5 @@
+import { findNearbySnippet, findSentenceMatching } from "@supplystrata/parsers-text";
+
 export interface OfficialDisclosureSignal {
   title: string;
   cite_text: string;
@@ -71,25 +73,6 @@ function addExactSignal(signals: OfficialDisclosureSignal[], title: string, text
 }
 
 function findSentence(text: string, patterns: RegExp[]): string | undefined {
-  const sentences = text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length >= 40 && sentence.length <= 900);
-  const sentence = sentences.find((item) => patterns.every((pattern) => pattern.test(item)));
-  return sentence ?? findNearbySnippet(text, patterns);
-}
-
-function findNearbySnippet(text: string, patterns: RegExp[]): string | undefined {
-  const normalized = text.replace(/\s+/g, " ");
-  for (const pattern of patterns) {
-    const match = pattern.exec(normalized);
-    if (match === null) continue;
-    const start = Math.max(0, match.index - 260);
-    const end = Math.min(normalized.length, match.index + 520);
-    const snippet = normalized.slice(start, end).trim();
-    // signal 只是研究线索，仍然必须保留可回到原文的 cite_text。
-    if (snippet.length >= 40 && patterns.every((item) => item.test(snippet))) return snippet;
-  }
-  return undefined;
+  // signal 只是研究线索，仍然必须保留可回到原文的 cite_text。
+  return findSentenceMatching(text, patterns, { minLength: 40, maxLength: 900 }) ?? findNearbySnippet(text, patterns);
 }

@@ -1,4 +1,5 @@
 import type { DocumentType, NormalizedDocument, ObservationType } from "@supplystrata/core";
+import { candidateSentences } from "@supplystrata/parsers-text";
 
 export type DisclosureObservationScopeKind = "company" | "component";
 export type SemanticSectionKind = "inventory" | "backlog" | "capex" | "customer_concentration" | "procurement";
@@ -199,11 +200,7 @@ function toDraft(input: {
 }
 
 function splitCandidateSentences(text: string): string[] {
-  return text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length >= 40 && sentence.length <= 1200);
+  return candidateSentences(text, { minLength: 40, maxLength: 1200 });
 }
 
 function findSentence(sentences: readonly string[], pattern: DisclosureObservationPattern): string | undefined {

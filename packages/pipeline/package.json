@@ -21,6 +21,7 @@
     "@supplystrata/observation-extractor": "workspace:*",
     "@supplystrata/observation-store": "workspace:*",
     "@supplystrata/observability": "workspace:*",
+    "@supplystrata/parsers-text": "workspace:*",
     "@supplystrata/relation-extractor-rule": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",

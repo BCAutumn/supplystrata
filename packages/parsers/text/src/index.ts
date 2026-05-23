@@ -48,9 +48,85 @@ export function chunkText(text: string, docId: string, targetChars = 6000): Docu
 export function sentenceWindows(text: string): string[] {
   return normalizeText(text)
     .split(/\n{2,}/)
-    .flatMap((paragraph) => paragraph.split(/(?<=[.!?])\s+(?=[A-Z"“])/))
+    .flatMap((paragraph) => paragraph.split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/))
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length >= 30);
+}
+
+export interface SentenceWindow {
+  sentence: string;
+  start: number;
+  end: number;
+}
+
+export interface CandidateSentenceOptions {
+  minLength?: number;
+  maxLength?: number;
+}
+
+export interface NearbySnippetOptions {
+  beforeChars?: number;
+  afterChars?: number;
+  minLength?: number;
+}
+
+export function sentenceWindowsWithOffsets(text: string): SentenceWindow[] {
+  const windows: SentenceWindow[] = [];
+  let cursor = 0;
+  for (const sentence of sentenceWindows(text)) {
+    const start = text.indexOf(sentence, cursor);
+    if (start < 0) continue;
+    const end = start + sentence.length;
+    windows.push({ sentence, start, end });
+    cursor = end;
+  }
+  return windows;
+}
+
+export function candidateSentences(text: string, options: CandidateSentenceOptions = {}): string[] {
+  const minLength = options.minLength ?? 40;
+  const maxLength = options.maxLength ?? 1200;
+  return normalizeInlineText(text)
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= minLength && sentence.length <= maxLength);
+}
+
+export function findSentenceMatching(text: string, patterns: readonly RegExp[], options: CandidateSentenceOptions = {}): string | undefined {
+  return candidateSentences(text, options).find((sentence) => patterns.every((pattern) => pattern.test(sentence)));
+}
+
+export function findNearbySnippet(text: string, patterns: readonly RegExp[], options: NearbySnippetOptions = {}): string | undefined {
+  const normalized = normalizeInlineText(text);
+  const beforeChars = options.beforeChars ?? 260;
+  const afterChars = options.afterChars ?? 520;
+  const minLength = options.minLength ?? 40;
+  for (const pattern of patterns) {
+    const match = pattern.exec(normalized);
+    if (match === null) continue;
+    const start = Math.max(0, match.index - beforeChars);
+    const end = Math.min(normalized.length, match.index + afterChars);
+    const snippet = normalized.slice(start, end).trim();
+    if (snippet.length >= minLength && patterns.every((item) => item.test(snippet))) return snippet;
+  }
+  return undefined;
+}
+
+export function countExactOccurrences(haystack: string, needle: string): number {
+  if (needle.length === 0) return 0;
+  let count = 0;
+  let cursor = 0;
+  while (cursor < haystack.length) {
+    const index = haystack.indexOf(needle, cursor);
+    if (index === -1) return count;
+    count += 1;
+    cursor = index + needle.length;
+  }
+  return count;
+}
+
+function normalizeInlineText(input: string): string {
+  return input.replace(/\s+/g, " ").trim();
 }
 
 function buildChunk(docId: string, index: number, text: string): DocumentChunk {

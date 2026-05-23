@@ -1,4 +1,5 @@
 import type { CandidateRelation } from "@supplystrata/core";
+import { countExactOccurrences } from "@supplystrata/parsers-text";
 
 export interface SavedChunkRef {
   chunk_id: string;
@@ -77,17 +78,4 @@ function locateFromCandidateSourceLocation(chunks: readonly SavedChunkRef[], can
     };
   }
   return { status: "located", chunk_id: chunk.chunk_id, occurrence_count: 1 };
-}
-
-function countExactOccurrences(haystack: string, needle: string): number {
-  if (needle.length === 0) return 0;
-  let count = 0;
-  let cursor = 0;
-  while (cursor < haystack.length) {
-    const index = haystack.indexOf(needle, cursor);
-    if (index === -1) return count;
-    count += 1;
-    cursor = index + needle.length;
-  }
-  return count;
 }
