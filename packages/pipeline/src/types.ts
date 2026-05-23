@@ -24,4 +24,5 @@ export interface NormalizedPipelineInput {
   graphSyncMode?: GraphSyncMode;
   graphStore?: GraphStore;
   logger?: SupplyStrataLogger;
+  autoReviewedAt?: string;
 }

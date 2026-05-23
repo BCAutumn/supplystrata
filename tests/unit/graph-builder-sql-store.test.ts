@@ -49,6 +49,9 @@ describe("graph-builder SQL store", () => {
     const edgeWrite = client.calls.find((call) => call.sql.includes("INSERT INTO edges"));
     expect(edgeWrite?.sql).toContain("ON CONFLICT");
     expect(edgeWrite?.sql).toContain("WHERE edges.validity = 'current'");
+    const evidenceWrite = client.calls.find((call) => call.sql.includes("INSERT INTO evidence"));
+    expect(evidenceWrite?.params[20]).toBe("unit-test");
+    expect(evidenceWrite?.params[21]).toBe("2026-05-23T00:00:00.000Z");
     expect(client.calls.some((call) => call.sql.includes("pg_advisory_xact_lock"))).toBe(false);
     expect(client.calls.some((call) => call.sql.includes("SELECT edge_id, evidence_level, confidence, validity") && call.sql.includes("FROM edges"))).toBe(
       false

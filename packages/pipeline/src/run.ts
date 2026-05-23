@@ -13,6 +13,8 @@ import type { NormalizedPipelineInput, PipelineSummary } from "./types.js";
 export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore, input: NormalizedPipelineInput): Promise<PipelineSummary> {
   const normalized = input.normalized;
   const logger = input.logger ?? noopLogger;
+  // 自动通过的候选也必须携带审计时间；默认绑定到文档抓取时间，避免 graph-builder 在写库时隐式取当前时钟。
+  const autoReviewedAt = input.autoReviewedAt ?? normalized.fetched_at;
   const { savedDocument, observationResult } = await store.transaction(async (client) => {
     const documentRef = await saveNormalizedDocumentTx(client, normalized);
     const observations = await persistDocumentObservations(client, normalized, documentRef.doc_id);
@@ -61,7 +63,7 @@ export async function runSupplyChainPipelineFromNormalized(store: DatabaseStore,
         const approved: ApprovedCandidate = {
           candidate,
           scoring,
-          approved_by: "auto",
+          approved_by: { reviewer: "auto", reviewed_at: autoReviewedAt },
           doc_id: savedDocument.doc_id,
           chunk_id: citationLocation.chunk_id
         };

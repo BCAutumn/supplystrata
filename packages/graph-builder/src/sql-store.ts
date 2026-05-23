@@ -190,8 +190,8 @@ async function insertEvidence(
       inferExtractionMethod(input.approved.candidate.extractor_id),
       input.approved.candidate.extractor_id,
       input.approved.candidate.llm_meta ?? null,
-      input.approved.approved_by === "auto" ? "auto" : input.approved.approved_by.reviewer,
-      input.approved.approved_by === "auto" ? new Date().toISOString() : input.approved.approved_by.reviewed_at,
+      input.approved.approved_by.reviewer,
+      input.approved.approved_by.reviewed_at,
       input.approved.scoring.confidence_breakdown,
       input.approved.scoring.rationale
     ]

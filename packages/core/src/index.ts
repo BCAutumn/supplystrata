@@ -329,7 +329,7 @@ export interface ScoringResult {
 export interface ApprovedCandidate {
   candidate: CandidateRelation;
   scoring: ScoringResult;
-  approved_by: "auto" | { reviewer: string; reviewed_at: string };
+  approved_by: { reviewer: string; reviewed_at: string };
   doc_id: string;
   chunk_id?: string;
 }
