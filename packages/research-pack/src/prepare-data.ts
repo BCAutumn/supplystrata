@@ -41,13 +41,15 @@ export async function maybeBuildClaims(
 export async function maybeRefreshIntelligence(
   client: DatabaseStore,
   writeSteps: ResearchPackWriteSteps,
-  input: ResearchPackInput
+  input: ResearchPackInput,
+  computedAt: string
 ): Promise<EdgeIntelligenceRefreshSummary | null> {
   if (!writeSteps.refreshIntelligence) return null;
   return client.transaction((tx) =>
     refreshEdgeIntelligenceContext(tx, {
       min_evidence_level: input.minEvidenceLevel ?? 4,
       limit: input.intelligenceLimit ?? 1000,
+      computed_at: computedAt,
       generated_by: input.generatedBy ?? "research-pack.intelligence-refresh.v1"
     })
   );

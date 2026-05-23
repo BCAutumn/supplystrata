@@ -40,7 +40,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   const depth = input.depth ?? 3;
   const writeSteps = resolveResearchPackWriteSteps(input);
   const claimBuild = await maybeBuildClaims(client, writeSteps, input);
-  const intelligenceRefresh = await maybeRefreshIntelligence(client, writeSteps, input);
+  const intelligenceRefresh = await maybeRefreshIntelligence(client, writeSteps, input, generatedAt);
   const workbench = await buildWorkbenchModel(client.read, {
     company: input.company,
     depth,

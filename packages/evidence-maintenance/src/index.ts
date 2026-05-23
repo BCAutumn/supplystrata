@@ -29,7 +29,7 @@ export interface EvidenceTraceBackfillInput {
 export interface RefreshEdgeIntelligenceInput {
   min_evidence_level?: 4 | 5;
   limit?: number;
-  computed_at?: string;
+  computed_at: string;
   generated_by?: string;
   create_unknowns?: boolean;
 }
@@ -153,9 +153,9 @@ export async function backfillEvidenceTraceTransactionally(
   return { scanned, updated, offset_missing: offsetMissing };
 }
 
-export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: RefreshEdgeIntelligenceInput = {}): Promise<EdgeIntelligenceRefreshSummary> {
+export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: RefreshEdgeIntelligenceInput): Promise<EdgeIntelligenceRefreshSummary> {
   const generatedBy = input.generated_by ?? "evidence-maintenance.intelligence-refresh.v1";
-  const computedAt = input.computed_at ?? new Date().toISOString();
+  const computedAt = input.computed_at;
   const edges = await listRefreshableIntelligenceEdges(client, { minEvidenceLevel: input.min_evidence_level ?? 4, limit: input.limit ?? 1000 });
   const edgeIds = edges.map((edge) => edge.edge_id);
   const freshness = await refreshEdgeFreshness(client, { edgeIds, computedAt });
@@ -216,7 +216,7 @@ export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: 
 
 export async function refreshEdgeIntelligenceContextTransactionally(
   store: DatabaseStore,
-  input: RefreshEdgeIntelligenceInput = {}
+  input: RefreshEdgeIntelligenceInput
 ): Promise<EdgeIntelligenceRefreshSummary> {
   return store.transaction((client) => refreshEdgeIntelligenceContext(client, input));
 }

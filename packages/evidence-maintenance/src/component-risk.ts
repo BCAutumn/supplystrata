@@ -10,7 +10,7 @@ export type { ComponentRiskRefreshSummary, RefreshComponentRiskViewInput } from 
 export { listRefreshableComponentRiskComponentIds } from "./component-risk-repository.js";
 
 export async function refreshComponentRiskView(client: DbTxClient, input: RefreshComponentRiskViewInput): Promise<ComponentRiskRefreshSummary> {
-  const computedAt = input.computed_at ?? new Date().toISOString();
+  const computedAt = input.computed_at;
   const edges = await listComponentRiskEdges(client, input.component_id);
   const edgeIds = edges.map((edge) => edge.edge_id);
   const [strengths, freshness] = await Promise.all([listEdgeStrengthEstimates(client, edgeIds), listEdgeFreshness(client, { edgeIds, computedAt })]);

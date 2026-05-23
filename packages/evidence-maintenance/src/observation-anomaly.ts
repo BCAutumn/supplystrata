@@ -11,7 +11,7 @@ export interface RefreshObservationAnomalyViewsInput {
   history_periods?: number;
   min_history_points?: number;
   emit_semantic_changes?: boolean;
-  computed_at?: string;
+  computed_at: string;
   generated_by?: string;
 }
 
@@ -42,7 +42,7 @@ type StableJsonValue = null | string | number | boolean | StableJsonArray | Stab
 
 export async function refreshObservationAnomalyViews(
   client: DbTxClient,
-  input: RefreshObservationAnomalyViewsInput = {}
+  input: RefreshObservationAnomalyViewsInput
 ): Promise<ObservationAnomalyRefreshSummary> {
   const limit = input.limit ?? 1000;
   const thresholdPercent = input.threshold_percent ?? DEFAULT_THRESHOLD_PERCENT;
@@ -51,7 +51,7 @@ export async function refreshObservationAnomalyViews(
   const minHistoryPoints = input.min_history_points ?? DEFAULT_MIN_HISTORY_POINTS;
   validateRefreshInput({ limit, thresholdPercent, zThreshold, historyPeriods, minHistoryPoints });
 
-  const computedAt = input.computed_at ?? new Date().toISOString();
+  const computedAt = input.computed_at;
   const generatedBy = input.generated_by ?? "evidence-maintenance.observation-anomaly.v1";
   const rows = await listAnomalyCandidateObservations(client, limit);
   const explicitEvaluations = new Map<string, ObservationChangeEvaluation>();
@@ -149,7 +149,7 @@ export async function refreshObservationAnomalyViews(
 
 export async function refreshObservationAnomalyViewsTransactionally(
   store: DatabaseStore,
-  input: RefreshObservationAnomalyViewsInput = {}
+  input: RefreshObservationAnomalyViewsInput
 ): Promise<ObservationAnomalyRefreshSummary> {
   return store.transaction((client) => refreshObservationAnomalyViews(client, input));
 }

@@ -30,7 +30,7 @@ interface PeerScore {
 export interface RefreshFinancialMetricPeerComparisonInput {
   limit?: number;
   min_peer_count?: number;
-  computed_at?: string;
+  computed_at: string;
   generated_by?: string;
 }
 
@@ -50,13 +50,13 @@ const FINANCIAL_PEER_METRIC_KIND: RiskMetricKind = "financial_metric_peer_zscore
 
 export async function refreshFinancialMetricPeerComparisonViews(
   client: DbTxClient,
-  input: RefreshFinancialMetricPeerComparisonInput = {}
+  input: RefreshFinancialMetricPeerComparisonInput
 ): Promise<FinancialMetricPeerComparisonSummary> {
   const limit = input.limit ?? 1000;
   const minPeerCount = input.min_peer_count ?? 3;
   validateRefreshInput({ limit, minPeerCount });
 
-  const computedAt = input.computed_at ?? new Date().toISOString();
+  const computedAt = input.computed_at;
   const generatedBy = input.generated_by ?? "evidence-maintenance.financial-peer-comparison.v1";
   const observations = await listFinancialMetricObservations(client, limit);
   const groups = groupComparableObservations(observations);

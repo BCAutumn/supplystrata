@@ -100,11 +100,12 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("refresh deterministic edge strength, freshness, and strength-unknown context")
     .action(async (options: { minEvidenceLevel: string; limit: string; computedAt?: string; skipUnknowns?: boolean }) => {
       await withDatabase(async (store) => {
+        const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
         const summary = await store.transaction((client) =>
           refreshEdgeIntelligenceContext(client, {
             min_evidence_level: parseEvidenceLevel(options.minEvidenceLevel),
             limit: parseLimit(options.limit),
-            ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) }),
+            computed_at: computedAt,
             create_unknowns: options.skipUnknowns === true ? false : true
           })
         );
@@ -119,6 +120,7 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("refresh deterministic component risk baseline from fact edges, strength, and freshness")
     .action(async (options: { component: string; computedAt?: string }) => {
       await withDatabase(async (store) => {
+        const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
         const componentId = options.component.trim();
         const eligibleComponents = await listRefreshableComponentRiskComponentIds(store.read, [componentId]);
         if (!eligibleComponents.includes(componentId)) {
@@ -133,7 +135,7 @@ export function registerIntelligenceCommands(program: Command): void {
         const summary = await store.transaction((client) =>
           refreshComponentRiskView(client, {
             component_id: componentId,
-            ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) })
+            computed_at: computedAt
           })
         );
         writeJson({ ok: true, ...summary });
@@ -159,6 +161,7 @@ export function registerIntelligenceCommands(program: Command): void {
         computedAt?: string;
       }) => {
         await withDatabase(async (store) => {
+          const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
           const summary = await store.transaction((client) =>
             refreshObservationAnomalyViews(client, {
               limit: parseLimit(options.limit),
@@ -166,7 +169,7 @@ export function registerIntelligenceCommands(program: Command): void {
               z_threshold: parsePositiveNumber(options.zThreshold, "z threshold"),
               history_periods: parseLimit(options.historyPeriods),
               min_history_points: parseLimit(options.minHistoryPoints),
-              ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) })
+              computed_at: computedAt
             })
           );
           writeJson({ ok: true, ...summary });
@@ -182,11 +185,12 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("refresh deterministic same-period financial metric peer comparison views")
     .action(async (options: { limit: string; minPeerCount: string; computedAt?: string }) => {
       await withDatabase(async (store) => {
+        const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
         const summary = await store.transaction((client) =>
           refreshFinancialMetricPeerComparisonViews(client, {
             limit: parseLimit(options.limit),
             min_peer_count: parseLimit(options.minPeerCount),
-            ...(options.computedAt === undefined ? {} : { computed_at: parseSince(options.computedAt) })
+            computed_at: computedAt
           })
         );
         writeJson({ ok: true, ...summary });

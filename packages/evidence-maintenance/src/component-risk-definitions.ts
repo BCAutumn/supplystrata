@@ -2,7 +2,7 @@ export const COMPONENT_RISK_MODEL_VERSION = "component-risk-baseline.v1";
 
 export interface RefreshComponentRiskViewInput {
   component_id: string;
-  computed_at?: string;
+  computed_at: string;
   generated_by?: string;
 }
 
