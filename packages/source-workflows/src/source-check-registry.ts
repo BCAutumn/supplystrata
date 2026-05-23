@@ -9,29 +9,12 @@ import {
   type SourceCheckConnectorRunContext,
   type SourceCheckTargetRow
 } from "@supplystrata/source-connectors";
-import { appleSupplierListReviewSourceCheckConnector } from "./apple-suppliers.js";
-import { censusTradeSourceCheckConnector } from "./census-trade-checks.js";
-import { dartKrCompanyFilingsSourceCheckConnector } from "./dart-kr-checks.js";
-import { edinetDailyFilingsSourceCheckConnector } from "./edinet-checks.js";
-import { officialIrSourceCheckConnectors } from "./official-ir-checks.js";
-import { oshSourceCheckConnector } from "./osh-checks.js";
-import { secCompanyFactsSourceCheckConnector, secEdgarSourceCheckConnector } from "./sec-edgar.js";
-import { twseMopsElectronicDocumentsSourceCheckConnector } from "./twse-mops-checks.js";
-import { worldBankPinkSourceCheckConnector } from "./worldbank-pink-checks.js";
+import { SOURCE_CHECK_CATALOG } from "./source-check-catalog.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 
-export const SOURCE_CHECK_CONNECTORS: readonly SourceCheckConnector<DatabaseStore, SourceCheckSummary, SourceCheckTargetRow>[] = [
-  appleSupplierListReviewSourceCheckConnector,
-  dartKrCompanyFilingsSourceCheckConnector,
-  edinetDailyFilingsSourceCheckConnector,
-  twseMopsElectronicDocumentsSourceCheckConnector,
-  secEdgarSourceCheckConnector,
-  secCompanyFactsSourceCheckConnector,
-  ...officialIrSourceCheckConnectors,
-  censusTradeSourceCheckConnector,
-  oshSourceCheckConnector,
-  worldBankPinkSourceCheckConnector
-];
+export const SOURCE_CHECK_CONNECTORS: readonly SourceCheckConnector<DatabaseStore, SourceCheckSummary, SourceCheckTargetRow>[] = SOURCE_CHECK_CATALOG.map(
+  (entry) => entry.connector
+);
 
 export function runRegisteredSourceCheckConnector(
   store: DatabaseStore,
