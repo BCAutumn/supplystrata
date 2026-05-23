@@ -34,14 +34,19 @@ export async function loadChainCard(client: DbClient, query: string, input: { de
   return buildCompanyChainView(client, { query, depth: input.depth });
 }
 
-export async function loadCompanyCard(client: DbClient, query: string): Promise<CompanyCardModel> {
+export interface CardBuilderOptions {
+  computedAt?: string;
+}
+
+export async function loadCompanyCard(client: DbClient, query: string, options: CardBuilderOptions = {}): Promise<CompanyCardModel> {
   const entityId = await resolveEntityId(client, query);
   const header = await loadCompanyHeader(client, entityId);
   const upstreamEdges = await loadCompanyEdges(client, entityId, "upstream");
   const downstreamEdges = await loadCompanyEdges(client, entityId, "downstream");
   const intelligenceByEdgeId = await loadEdgeIntelligence(
     client,
-    [...upstreamEdges, ...downstreamEdges].map((edge) => edge.edge_id)
+    [...upstreamEdges, ...downstreamEdges].map((edge) => edge.edge_id),
+    options.computedAt
   );
   const unknownItems = await listUnknownItems(client, entityId);
   return {
@@ -55,12 +60,13 @@ export async function loadCompanyCard(client: DbClient, query: string): Promise<
   };
 }
 
-export async function loadComponentCard(client: DbClient, query: string): Promise<ComponentCardModel> {
+export async function loadComponentCard(client: DbClient, query: string, options: CardBuilderOptions = {}): Promise<ComponentCardModel> {
   const component = await resolveComponent(client, query);
   const edges = await loadComponentEdges(client, component);
   const intelligenceByEdgeId = await loadEdgeIntelligence(
     client,
-    edges.map((edge) => edge.edge_id)
+    edges.map((edge) => edge.edge_id),
+    options.computedAt
   );
   const evidenceEdges = edges.map((edge) => toComponentEvidenceEdge(edge, intelligenceByEdgeId));
   const riskView = await loadComponentRiskView(client, component.component_id);
@@ -190,14 +196,15 @@ async function loadComponentEdges(client: DbClient, component: ComponentHeaderRo
   return result.rows;
 }
 
-async function loadEdgeIntelligence(client: DbClient, edgeIds: readonly string[]): Promise<Map<string, EdgeIntelligenceSummary>> {
+async function loadEdgeIntelligence(client: DbClient, edgeIds: readonly string[], computedAt?: string): Promise<Map<string, EdgeIntelligenceSummary>> {
   const uniqueEdgeIds = [...new Set(edgeIds)].sort();
   const output = new Map<string, EdgeIntelligenceSummary>();
   if (uniqueEdgeIds.length === 0) return output;
 
+  const freshnessComputedAt = computedAt ?? new Date().toISOString();
   const [strengths, freshness] = await Promise.all([
     listEdgeStrengthEstimates(client, uniqueEdgeIds),
-    listEdgeFreshness(client, { edgeIds: uniqueEdgeIds, computedAt: new Date().toISOString() })
+    listEdgeFreshness(client, { edgeIds: uniqueEdgeIds, computedAt: freshnessComputedAt })
   ]);
   const strengthsByEdgeId = groupByEdgeId(strengths);
   const freshnessByEdgeId = new Map(freshness.map((item) => [item.edge_id, item]));
