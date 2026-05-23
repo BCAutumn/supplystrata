@@ -20,7 +20,12 @@ export async function runSourceCheckWorkerCycle(input: {
   logger: SupplyStrataLogger;
 }): Promise<DueSourceCheckRunResult> {
   const startedAt = new Date().toISOString();
-  const result = await runDueSourceChecks(input.store, { env: input.env, limit: input.limit, documentObservationStore: { persistDocumentObservations } });
+  const result = await runDueSourceChecks(input.store, {
+    env: input.env,
+    limit: input.limit,
+    now: startedAt,
+    documentObservationStore: { persistDocumentObservations }
+  });
   input.logger.info(
     {
       stage: "source-check-worker",

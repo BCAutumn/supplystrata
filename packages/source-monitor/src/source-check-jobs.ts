@@ -18,11 +18,11 @@ export interface SourceCheckJobEnqueueAndClaimResult extends SourceCheckJobEnque
 
 export async function enqueueAndClaimDueSourceCheckJobs(
   client: DbTxClient,
-  input: { now?: string; limit?: number; lease_minutes?: number } & SourceCheckTargetSelection = {}
+  input: { now: string; limit?: number; lease_minutes?: number } & SourceCheckTargetSelection
 ): Promise<SourceCheckJobEnqueueAndClaimResult> {
   const enqueue = await enqueueDueSourceCheckJobs(client, {
     limit: input.limit ?? 50,
-    ...(input.now === undefined ? {} : { now: input.now }),
+    now: input.now,
     ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
     ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
   });
@@ -37,11 +37,11 @@ export async function enqueueAndClaimDueSourceCheckJobs(
 
 export async function enqueueDueSourceCheckJobs(
   client: DbTxClient,
-  input: { now?: string; limit?: number } & SourceCheckTargetSelection = {}
+  input: { now: string; limit?: number } & SourceCheckTargetSelection
 ): Promise<SourceCheckJobEnqueueResult> {
   const dueTargets = await claimDueSourceCheckTargets(client, {
     limit: input.limit ?? 50,
-    ...(input.now === undefined ? {} : { now: input.now }),
+    now: input.now,
     ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
     ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
   });
@@ -62,7 +62,7 @@ export async function enqueueDueSourceCheckJobs(
         target.effective_max_attempts,
         target.effective_backoff_base_minutes,
         target.effective_backoff_max_minutes,
-        input.now ?? new Date().toISOString()
+        input.now
       ]
     );
     enqueuedJobs += result.rowCount ?? 0;
@@ -170,9 +170,9 @@ export async function markSourceCheckJobFailed(client: DbClient, input: { job_id
 
 async function claimDueSourceCheckTargets(
   client: DbTxClient,
-  input: { now?: string; limit: number } & SourceCheckTargetSelection
+  input: { now: string; limit: number } & SourceCheckTargetSelection
 ): Promise<DueSourceCheckRow[]> {
-  const now = input.now ?? new Date().toISOString();
+  const now = input.now;
   const filter = normalizeSourceCheckTargetSelection(input);
   const result = await client.query<DueSourceCheckRow>(
     `SELECT t.check_target_id, t.source_adapter_id, t.target_kind, t.subject_entity_id, t.target_config,

@@ -42,11 +42,8 @@ export type {
   SourcePolicyInput
 } from "./types.js";
 
-export async function listDueSourceChecks(
-  client: DbClient,
-  input: { now?: string; limit?: number } & SourceCheckTargetSelection = {}
-): Promise<DueSourceCheckRow[]> {
-  const now = input.now ?? new Date().toISOString();
+export async function listDueSourceChecks(client: DbClient, input: { now: string; limit?: number } & SourceCheckTargetSelection): Promise<DueSourceCheckRow[]> {
+  const now = input.now;
   const limit = input.limit ?? 50;
   const filter = normalizeSourceCheckTargetSelection(input);
   const result = await client.query<DueSourceCheckRow>(

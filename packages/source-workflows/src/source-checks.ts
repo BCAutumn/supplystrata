@@ -56,7 +56,7 @@ export interface SourceCheckRunOptions {
   documentObservationStore?: SourceDocumentObservationStore;
 }
 
-export type DueSourceCheckRunInput = { now?: string; limit?: number } & SourceCheckTargetSelection & SourceCheckRunOptions;
+export type DueSourceCheckRunInput = { now: string; limit?: number } & SourceCheckTargetSelection & SourceCheckRunOptions;
 
 export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput): Promise<DueSourceCheckRunResult> {
   const logger = input.logger ?? noopLogger;
@@ -64,7 +64,7 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
   const jobBatch = await store.transaction((client) =>
     enqueueAndClaimDueSourceCheckJobs(client, {
       limit: input.limit ?? 50,
-      ...(input.now === undefined ? {} : { now: input.now }),
+      now: input.now,
       ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
       ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
     })
