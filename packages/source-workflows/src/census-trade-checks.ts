@@ -48,6 +48,7 @@ export const censusTradeSourceCheckConnector: SourceCheckConnector<DatabaseStore
       checkTargetId: target.check_target_id,
       targetConfig: target.target_config,
       adapterContextInput: context.adapter_context_input,
+      checkedAt: context.checked_at,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -57,6 +58,7 @@ interface CensusTradeCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
   adapterContextInput: SourceCheckAdapterContextInput;
+  checkedAt: string;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -101,6 +103,7 @@ async function runCensusTradeSourceCheck(store: DatabaseStore, input: CensusTrad
         source_adapter_id: censusTradeAdapter.id,
         check_target_id: options.checkTargetId,
         error_message: messageFromUnknown(error),
+        failed_at: options.checkedAt,
         caused_by: "source-check.census-trade"
       });
     });

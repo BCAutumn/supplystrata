@@ -42,6 +42,7 @@ export const worldBankPinkSourceCheckConnector: SourceCheckConnector<DatabaseSto
       checkTargetId: target.check_target_id,
       targetConfig: target.target_config,
       adapterContextInput: context.adapter_context_input,
+      checkedAt: context.checked_at,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -51,6 +52,7 @@ interface WorldBankPinkCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
   adapterContextInput: SourceCheckAdapterContextInput;
+  checkedAt: string;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -95,6 +97,7 @@ async function runWorldBankPinkSourceCheck(store: DatabaseStore, input: WorldBan
         source_adapter_id: worldBankPinkAdapter.id,
         check_target_id: options.checkTargetId,
         error_message: messageFromUnknown(error),
+        failed_at: options.checkedAt,
         caused_by: "source-check.worldbank-pink"
       });
     });

@@ -31,6 +31,7 @@ import type { SourceDocumentObservationStore } from "./document-observation-port
 export interface SourceCheckOptions {
   checkTargetId?: string;
   adapterContextInput: SourceCheckAdapterContextInput;
+  checkedAt: string;
   documentObservationStore?: SourceDocumentObservationStore;
   logger?: SourceCheckConnectorLogger;
 }
@@ -50,6 +51,7 @@ export const secEdgarSourceCheckConnector: SourceCheckConnector<DatabaseStore, S
     return checkSecEdgarSource(store, secEdgarInputFromTargetConfig(target.target_config), {
       checkTargetId: target.check_target_id,
       adapterContextInput: context.adapter_context_input,
+      checkedAt: context.checked_at,
       ...documentObservationStoreOption(context),
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
@@ -77,6 +79,7 @@ export const secCompanyFactsSourceCheckConnector: SourceCheckConnector<DatabaseS
     return checkSecCompanyFactsSource(store, secCompanyFactsInputFromTargetConfig(target.target_config), {
       checkTargetId: target.check_target_id,
       adapterContextInput: context.adapter_context_input,
+      checkedAt: context.checked_at,
       ...documentObservationStoreOption(context),
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
@@ -143,6 +146,7 @@ export async function checkSecCompanyFactsSource(
         source_adapter_id: secCompanyFactsAdapter.id,
         ...(options.checkTargetId === undefined ? {} : { check_target_id: options.checkTargetId }),
         error_message: messageFromUnknown(error),
+        failed_at: options.checkedAt,
         caused_by: "source-check.sec-company-facts"
       });
     });

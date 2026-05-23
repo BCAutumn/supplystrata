@@ -41,6 +41,7 @@ export interface SourceCheckAdapterContextInput {
 
 export interface SourceCheckConnectorRunContext {
   adapter_context_input: SourceCheckAdapterContextInput;
+  checked_at: string;
   logger?: SourceCheckConnectorLogger;
 }
 

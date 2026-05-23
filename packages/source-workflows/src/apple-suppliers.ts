@@ -56,6 +56,7 @@ export const appleSupplierListReviewSourceCheckConnector: SourceCheckConnector<D
           source_adapter_id: "apple-suppliers",
           check_target_id: target.check_target_id,
           error_message: messageFromUnknown(error),
+          failed_at: context.checked_at,
           caused_by: "source-check.apple-suppliers"
         });
       });

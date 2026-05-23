@@ -198,7 +198,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
               ...(options.targetKind === undefined ? {} : { target_kind: options.targetKind }),
               target_config: targetConfig
             },
-            { env: loadEnv(), documentObservationStore: { persistDocumentObservations } }
+            { env: loadEnv(), checkedAt: new Date().toISOString(), documentObservationStore: { persistDocumentObservations } }
           );
           if (parseFormat(options.format) === "json") {
             writeJson({

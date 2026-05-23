@@ -45,6 +45,7 @@ export const oshSourceCheckConnector: SourceCheckConnector<DatabaseStore, Source
       checkTargetId: target.check_target_id,
       targetConfig: target.target_config,
       adapterContextInput: context.adapter_context_input,
+      checkedAt: context.checked_at,
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -54,6 +55,7 @@ interface OshCheckOptions {
   checkTargetId: string;
   targetConfig: Record<string, unknown>;
   adapterContextInput: SourceCheckAdapterContextInput;
+  checkedAt: string;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -106,6 +108,7 @@ async function runOshFacilitySearchCheck(store: DatabaseStore, input: OshFacilit
         source_adapter_id: oshAdapter.id,
         check_target_id: options.checkTargetId,
         error_message: messageFromUnknown(error),
+        failed_at: options.checkedAt,
         caused_by: "source-check.osh"
       });
     });

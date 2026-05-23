@@ -113,6 +113,7 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.dart-kr",
+        checkedAt: context.checked_at,
         ...documentObservationStoreOption(context),
         ...(context.logger === undefined ? {} : { logger: context.logger })
       }

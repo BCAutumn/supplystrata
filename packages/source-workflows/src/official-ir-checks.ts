@@ -31,6 +31,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.company-ir",
+          checkedAt: context.checked_at,
           ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
@@ -49,6 +50,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.tsmc-ir",
+          checkedAt: context.checked_at,
           ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
@@ -67,6 +69,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.samsung-ir",
+          checkedAt: context.checked_at,
           ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
@@ -85,6 +88,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.skhynix-ir",
+          checkedAt: context.checked_at,
           ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
@@ -103,6 +107,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.asml-ir",
+          checkedAt: context.checked_at,
           ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
@@ -121,6 +126,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.micron-ir",
+          checkedAt: context.checked_at,
           ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }

@@ -52,11 +52,12 @@ export interface ManualSourceCheckInput {
 
 export interface SourceCheckRunOptions {
   env: Env;
+  checkedAt: string;
   logger?: SourceCheckConnectorLogger;
   documentObservationStore?: SourceDocumentObservationStore;
 }
 
-export type DueSourceCheckRunInput = { now: string; limit?: number } & SourceCheckTargetSelection & SourceCheckRunOptions;
+export type DueSourceCheckRunInput = { now: string; limit?: number } & SourceCheckTargetSelection & Omit<SourceCheckRunOptions, "checkedAt">;
 
 export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput): Promise<DueSourceCheckRunResult> {
   const logger = input.logger ?? noopLogger;
@@ -71,7 +72,7 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
   );
   const items: DueSourceCheckRunItem[] = [];
   for (const job of jobBatch.claimed_jobs) {
-    items.push(await runDueSourceCheckJob(store, job, { env: input.env, logger, adapterContextInput }));
+    items.push(await runDueSourceCheckJob(store, job, { env: input.env, checkedAt: input.now, logger, adapterContextInput }));
   }
   return {
     due_targets: jobBatch.due_targets,
@@ -93,6 +94,7 @@ async function runDueSourceCheckTarget(
   const summaries = await runRegisteredSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
     adapter_context_input: options.adapterContextInput,
+    checked_at: options.checkedAt,
     ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })
   });
   return {
@@ -127,6 +129,7 @@ export async function runManualSourceCheck(store: DatabaseStore, input: ManualSo
   return runRegisteredSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
     adapter_context_input: sourceWorkflowAdapterContextInput(options.env),
+    checked_at: options.checkedAt,
     ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })
   });
 }

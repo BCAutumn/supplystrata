@@ -107,6 +107,7 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.edinet",
+        checkedAt: context.checked_at,
         ...documentObservationStoreOption(context),
         ...(context.logger === undefined ? {} : { logger: context.logger })
       }

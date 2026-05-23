@@ -54,14 +54,13 @@ export interface SourceTargetCoverageItem {
 
 export interface SourceTargetCoverageInput {
   expected_targets: readonly SourceCheckTargetInput[];
-  now?: string;
+  now: string;
 }
 
 export async function listSourceTargetCoverage(client: DbClient, input: SourceTargetCoverageInput): Promise<SourceTargetCoverageItem[]> {
-  const now = input.now ?? new Date().toISOString();
   const items: SourceTargetCoverageItem[] = [];
   for (const target of input.expected_targets) {
-    items.push(await loadSourceTargetCoverage(client, target, now));
+    items.push(await loadSourceTargetCoverage(client, target, input.now));
   }
   return items;
 }

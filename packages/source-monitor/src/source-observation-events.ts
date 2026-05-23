@@ -6,7 +6,7 @@ import type { NextCheckPolicyRow, SourceItemRow } from "./db-rows.js";
 import type { DocumentObservationInput, DocumentObservationResult, SourceDegradedInput, SourceDocumentChangeType, SourceFailureInput } from "./types.js";
 
 export async function recordDocumentObservation(client: DbTxClient, input: DocumentObservationInput): Promise<DocumentObservationResult> {
-  const observedAt = input.observed_at ?? new Date().toISOString();
+  const observedAt = input.observed_at;
   const itemKey = input.item_key ?? input.source_url;
   const sourceItemId = sourceItemIdFor(input.source_adapter_id, itemKey);
   const healthBeforeSuccess = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
@@ -131,7 +131,7 @@ export async function recordDocumentObservation(client: DbTxClient, input: Docum
 }
 
 export async function recordSourceFailure(client: DbTxClient, input: SourceFailureInput): Promise<{ event_id: string }> {
-  const failedAt = input.failed_at ?? new Date().toISOString();
+  const failedAt = input.failed_at;
   const healthBeforeFailure = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
   const eventId = `SEV-${randomUUID()}`;
   await client.query(
@@ -178,7 +178,7 @@ export async function recordSourceFailure(client: DbTxClient, input: SourceFailu
 }
 
 export async function recordSourceDegraded(client: DbTxClient, input: SourceDegradedInput): Promise<{ event_id: string }> {
-  const degradedAt = input.degraded_at ?? new Date().toISOString();
+  const degradedAt = input.degraded_at;
   const healthBeforeFailure = await ensureRegisteredSourceHealth(client, input.source_adapter_id);
   const eventId = `SEV-${randomUUID()}`;
   await client.query(

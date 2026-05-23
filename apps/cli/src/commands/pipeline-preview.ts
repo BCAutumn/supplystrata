@@ -158,6 +158,7 @@ async function runSecEdgarPipeline(store: DatabaseStore, input: SecPipelineInput
       await recordSourceFailure(client, {
         source_adapter_id: "sec-edgar",
         error_message: messageFromUnknown(error),
+        failed_at: new Date().toISOString(),
         caused_by: "pipeline.sec-edgar"
       });
     });

@@ -75,7 +75,7 @@ export interface DocumentObservationInput {
   doc_id: string;
   bytes_sha256: string;
   storage_key: string;
-  observed_at?: string;
+  observed_at: string;
   item_key?: string;
   check_target_id?: string;
   caused_by?: string;
@@ -84,7 +84,7 @@ export interface DocumentObservationInput {
 export interface SourceFailureInput {
   source_adapter_id: string;
   error_message: string;
-  failed_at?: string;
+  failed_at: string;
   task_id?: string;
   url?: string;
   check_target_id?: string;
@@ -94,7 +94,7 @@ export interface SourceFailureInput {
 export interface SourceDegradedInput {
   source_adapter_id: string;
   error_message: string;
-  degraded_at?: string;
+  degraded_at: string;
   task_id?: string;
   url?: string;
   check_target_id?: string;

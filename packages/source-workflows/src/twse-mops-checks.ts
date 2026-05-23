@@ -97,6 +97,7 @@ export const twseMopsElectronicDocumentsSourceCheckConnector: SourceCheckConnect
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.twse-mops",
+        checkedAt: context.checked_at,
         ...documentObservationStoreOption(context),
         ...(context.logger === undefined ? {} : { logger: context.logger })
       }

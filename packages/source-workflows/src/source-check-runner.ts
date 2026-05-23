@@ -24,6 +24,7 @@ export interface SourceCheckSummary {
 export interface SourceCheckOptions {
   checkTargetId?: string;
   failureCausedBy: string;
+  checkedAt: string;
   documentObservationStore?: SourceDocumentObservationStore;
   logger?: SourceCheckConnectorLogger;
 }
@@ -48,6 +49,7 @@ export async function runSourceAdapterCheck<TInput>(
           await recordSourceDegraded(client, {
             source_adapter_id: input.adapter.id,
             error_message: sourceFetchErrorMessage(raw),
+            degraded_at: input.options.checkedAt,
             task_id: task.task_id,
             url: task.url,
             ...(input.options.checkTargetId === undefined ? {} : { check_target_id: input.options.checkTargetId }),
@@ -84,6 +86,7 @@ export async function runSourceAdapterCheck<TInput>(
       await recordSourceFailure(client, {
         source_adapter_id: input.adapter.id,
         error_message: messageFromUnknown(error),
+        failed_at: input.options.checkedAt,
         ...(input.options.checkTargetId === undefined ? {} : { check_target_id: input.options.checkTargetId }),
         caused_by: input.options.failureCausedBy
       });

@@ -80,7 +80,7 @@ describe("source check registry", () => {
           source_adapter_id: "unknown-source",
           target_config: {}
         },
-        { env: envSchema.parse({}) }
+        { env: envSchema.parse({}), checkedAt: "2026-05-19T00:00:00.000Z" }
       )
     ).rejects.toThrow("Unsupported due source target: unknown-source/(unspecified)");
   });
