@@ -12,7 +12,7 @@ import {
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
 import type { SourceCheckConnectorLogger, SourceCheckTargetRow } from "@supplystrata/source-connectors";
 import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
-import { inferUniqueTargetKind, runRegisteredManualSourceCheckConnector, runRegisteredSourceCheckConnector } from "./source-check-registry.js";
+import { inferUniqueTargetKind, runRegisteredSourceCheckConnector } from "./source-check-registry.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import type { SourceDocumentObservationStore } from "./document-observation-port.js";
 
@@ -124,7 +124,7 @@ async function runDueSourceCheckJob(
 
 export async function runManualSourceCheck(store: DatabaseStore, input: ManualSourceCheckInput, options: SourceCheckRunOptions): Promise<SourceCheckSummary[]> {
   const target = manualSourceCheckTarget(input);
-  return runRegisteredManualSourceCheckConnector(store, target, {
+  return runRegisteredSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
     adapter_context_input: sourceWorkflowAdapterContextInput(options.env),
     ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })

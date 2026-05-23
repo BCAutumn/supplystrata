@@ -41,14 +41,6 @@ export function runRegisteredSourceCheckConnector(
   return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS, context);
 }
 
-export function runRegisteredManualSourceCheckConnector(
-  store: DatabaseStore,
-  target: SourceCheckTargetRow,
-  context: SourceCheckConnectorRunContext
-): Promise<SourceCheckSummary[]> {
-  return runSourceCheckConnector(store, target, SOURCE_CHECK_CONNECTORS, context);
-}
-
 export function listSourceCheckConnectorIds(): string[] {
   return SOURCE_CHECK_CONNECTORS.map((connector) => connectorKey(connector)).sort();
 }
