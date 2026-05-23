@@ -67,7 +67,7 @@
 ```text
 [ ] 多处 N+1 写入后续可改批量 SQL 或 unnest。
 [x] source check due target 查询已排除存在 active `pending / in_progress / failed` job 的 target，避免 worker 循环反复 enqueue 冲突；已有 job 仍由独立 claim/backoff/lease 路径处理。
-[ ] preview-render 的中英文文案和 CSV 渲染应从 CLI 胖文件中拆出。
+[x] preview-render 的 CSV review sheet 渲染已拆到 `apps/cli/src/preview-csv.ts`，中文研究报告文案/翻译表已拆到 `apps/cli/src/preview-report-zh.ts`；`preview-render.ts` 只保留预览入口和英文 markdown 组装。
 [x] research-preview loading generation guard 已加固：加载中 canvas segment click 会被忽略，成功/失败都会结束 active load token，避免旧 layout 在新模型加载期间反向改 selected segment。
 ```
 
