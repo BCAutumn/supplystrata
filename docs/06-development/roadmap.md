@@ -100,7 +100,7 @@ Phase 1 出场。
 - [x] `packages/graph-builder`：deprecate
 - [x] `apps/cli`：`company / component / chain / evidence / unknown-map / changes`
 - [ ] `apps/cli`：`search`
-- [x] `apps/cli`：`ingest sec-edgar / pipeline nvidia / graph rebuild`
+- [x] `apps/cli`：`ingest sec-edgar / examples nvidia ingest / graph rebuild`
 - [x] `apps/cli`：`graph check`
 - [ ] `apps/cli`：独立 `parse / extract / score / apply`
 - [x] `apps/cli`：通用 `review enqueue / stats / next / show / approve / reject / apply` 骨架（apply 遇到未解析实体会 blocked）

@@ -31,8 +31,8 @@ SEC/NVIDIA 规则切片不需要 LLM key，也不需要 source API key。GLEIF L
 如果只想确认 SEC 抓取、HTML normalize、规则抽取和 seed 消歧，先跑这个：
 
 ```bash
-pnpm --silent cli preview nvidia --format markdown
-pnpm --silent cli preview report nvidia --format markdown --lang zh
+pnpm --silent cli examples nvidia preview --format markdown
+pnpm --silent cli examples nvidia report --format markdown --lang zh
 ```
 
 这条路径不会落库，也不会写 Neo4j。它走的是 source adapter `plan/fetch/normalize` 契约，所以适合验证未来嵌入式调用方式。
@@ -80,7 +80,7 @@ pnpm smoke:research
 
 1. `pnpm db:migrate`
 2. `pnpm cli admin seed`
-3. `pnpm cli pipeline nvidia --graph-sync defer`
+3. `pnpm cli examples nvidia ingest --graph-sync defer`
 4. `pnpm cli claims build --format json`
 5. `pnpm cli workbench export --company nvidia --depth 3 --out reports/nvidia-workbench.json`
 
@@ -285,9 +285,9 @@ pnpm release:check --with-db
 如果只想快速看解析效果，可以用无数据库预览：
 
 ```bash
-pnpm --silent cli preview nvidia --format markdown
-pnpm --silent cli preview report nvidia --format markdown --lang zh
-pnpm --silent cli preview apple-suppliers --limit 10 --format markdown
+pnpm --silent cli examples nvidia preview --format markdown
+pnpm --silent cli examples nvidia report --format markdown --lang zh
+pnpm --silent cli preview apple-suppliers --entity ENT-APPLE --fiscal-year 2022 --limit 10 --format markdown
 pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --out reports/nvidia-research-snapshot
 pnpm --silent cli runtime doctor
 ```

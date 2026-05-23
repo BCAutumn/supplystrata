@@ -6,7 +6,7 @@
 
 | 模式                 | 需要 Postgres | 需要 GraphStore / Neo4j | 需要 Docker | 典型命令                                                                     | 用途                                                   |
 | -------------------- | ------------- | ----------------------- | ----------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `preview`            | 否            | 否                      | 否          | `pnpm cli preview nvidia --format markdown`                                  | 实时抓取、解析、规则抽取和 seed 消歧，不落库           |
+| `preview`            | 否            | 否                      | 否          | `pnpm cli examples nvidia preview --format markdown`                         | 实时抓取、解析、规则抽取和 seed 消歧，不落库           |
 | `workbench_snapshot` | 否            | 否                      | 否          | `pnpm cli research from-workbench --workbench reports/nvidia-workbench.json` | 从已有 Workbench JSON 生成静态研究包                   |
 | `truth_store`        | 是            | 否                      | 否          | `pnpm cli research run --company nvidia --out reports/nvidia-research-pack`  | 持久化证据、claims、observations、review/source health |
 | `graph_projection`   | 是            | 是                      | 否          | `pnpm cli graph rebuild && pnpm cli graph check`                             | 从 truth store 重建可插拔图投影                        |

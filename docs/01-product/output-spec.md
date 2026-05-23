@@ -257,7 +257,7 @@ supplystrata unknown-map <scope> <id>   [--format markdown|json]
 supplystrata changes --since <ISO_date> [--scope <id>]
 supplystrata edge <edge_id>
 supplystrata search <query>             # 简单全文搜索
-supplystrata preview nvidia             # 无数据库解析预览，适合嵌入式/桌面端
+supplystrata examples nvidia preview             # 无数据库解析预览，适合嵌入式/桌面端
 ```
 
 非 MVP 命令：

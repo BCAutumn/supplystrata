@@ -18,6 +18,7 @@ import {
   parseGraphSyncMode,
   parseLanguage,
   parseLimit,
+  parsePositiveInteger,
   parsePreviewFormat,
   withDatabase,
   write,
@@ -28,6 +29,7 @@ import { renderAppleSuppliersPreview, renderPreview, renderResearchReport } from
 import { sourceWorkflowRuntime, type CliSourceWorkflowRuntime } from "../source-workflow-runtime.js";
 
 export function registerPipelinePreviewCommands(program: Command): void {
+  registerExampleCommands(program);
   const ingest = program.command("ingest").description("ingestion commands");
   ingest
     .command("sec-edgar")
@@ -45,50 +47,18 @@ export function registerPipelinePreviewCommands(program: Command): void {
       });
     });
 
-  const pipeline = program.command("pipeline").description("pipeline shortcuts");
-  pipeline
-    .command("nvidia")
-    .option("--graph-sync <mode>", "GraphStore projection sync mode: defer or sync", "defer")
-    .description("run SEC/NVIDIA 10-K vertical slice")
-    .action(async (options: { graphSync: string }) => {
-      await withDatabase(async (pool) => {
-        const graphSyncMode = parseGraphSyncMode(options.graphSync);
-        const summary = await runSecEdgarPipeline(pool, NVIDIA_SEC_10K_EXAMPLE_PROFILE.input, graphOptions(graphSyncMode));
-        writeJson(summary);
-      });
-    });
-
   const preview = program.command("preview").description("database-free supply-chain parsing previews");
   preview
-    .command("nvidia")
-    .option("--format <format>", "markdown or json", "markdown")
-    .description("preview NVIDIA SEC 10-K parsing without database")
-    .action(async (options: { format: string }) => {
-      const result = await previewSecEdgarSupplyChainProfile(NVIDIA_SEC_10K_EXAMPLE_PROFILE, sourceWorkflowRuntime());
-      write(renderPreview(result, parseFormat(options.format)));
-    });
-
-  preview
     .command("apple-suppliers")
+    .requiredOption("--entity <entityId>", "buyer entity id; Apple Supplier List currently supports ENT-APPLE")
+    .requiredOption("--fiscal-year <year>", "Apple Supplier List fiscal year; currently supports 2022")
     .option("--format <format>", "markdown, json, or csv", "markdown")
     .option("--limit <count>", "max rows for markdown preview", "25")
-    .description("preview Apple Supplier List semi-auto candidates")
-    .action(async (options: { format: string; limit: string }) => {
-      const result = await previewAppleSuppliers(sourceWorkflowRuntime());
+    .description("preview supplier-list semi-auto candidates from the Apple Supplier List source")
+    .action(async (options: { entity: string; fiscalYear: string; format: string; limit: string }) => {
+      const result = await previewAppleSuppliers(sourceWorkflowRuntime(), appleSuppliersInputFromCli(options));
       write(renderAppleSuppliersPreview(result, parsePreviewFormat(options.format), parseLimit(options.limit)));
     });
-
-  const previewReport = preview.command("report").description("database-free research reports");
-  previewReport
-    .command("nvidia")
-    .option("--format <format>", "markdown or json", "markdown")
-    .option("--lang <lang>", "en or zh", "en")
-    .description("preview an NVIDIA supply-chain research memo")
-    .action(async (options: { format: string; lang: string }) => {
-      const result = await previewNvidiaResearchReport(sourceWorkflowRuntime());
-      write(renderResearchReport(result, parseFormat(options.format), parseLanguage(options.lang)));
-    });
-
   preview
     .command("sec-edgar")
     .requiredOption("--cik <cik>", "SEC CIK")
@@ -103,11 +73,68 @@ export function registerPipelinePreviewCommands(program: Command): void {
     });
 }
 
+function registerExampleCommands(program: Command): void {
+  const examples = program.command("examples").description("curated example profiles; not generic ingestion defaults");
+  const nvidia = examples.command("nvidia").description("NVIDIA SEC 10-K / AI memory example profile");
+  nvidia
+    .command("preview")
+    .option("--format <format>", "markdown or json", "markdown")
+    .description("preview the NVIDIA SEC 10-K example without database writes")
+    .action(runNvidiaExamplePreview);
+  nvidia
+    .command("ingest")
+    .option("--graph-sync <mode>", "GraphStore projection sync mode: defer or sync", "defer")
+    .description("run the NVIDIA SEC 10-K example through the vertical pipeline")
+    .action(runNvidiaExampleIngest);
+  nvidia
+    .command("report")
+    .option("--format <format>", "markdown or json", "markdown")
+    .option("--lang <lang>", "en or zh", "en")
+    .description("preview the NVIDIA research memo example")
+    .action(runNvidiaExampleReport);
+
+  const apple = examples.command("apple-suppliers").description("Apple Supplier List FY2022 semi-auto example");
+  apple
+    .command("preview")
+    .option("--format <format>", "markdown, json, or csv", "markdown")
+    .option("--limit <count>", "max rows for markdown preview", "25")
+    .description("preview the Apple Supplier List example with explicit source input")
+    .action(async (options: { format: string; limit: string }) => {
+      const result = await previewAppleSuppliers(sourceWorkflowRuntime(), { fiscalYear: 2022, entityId: "ENT-APPLE" });
+      write(renderAppleSuppliersPreview(result, parsePreviewFormat(options.format), parseLimit(options.limit)));
+    });
+}
+
+async function runNvidiaExamplePreview(options: { format: string }): Promise<void> {
+  const result = await previewSecEdgarSupplyChainProfile(NVIDIA_SEC_10K_EXAMPLE_PROFILE, sourceWorkflowRuntime());
+  write(renderPreview(result, parseFormat(options.format)));
+}
+
+async function runNvidiaExampleIngest(options: { graphSync: string }): Promise<void> {
+  await withDatabase(async (pool) => {
+    const graphSyncMode = parseGraphSyncMode(options.graphSync);
+    const summary = await runSecEdgarPipeline(pool, NVIDIA_SEC_10K_EXAMPLE_PROFILE.input, graphOptions(graphSyncMode));
+    writeJson(summary);
+  });
+}
+
+async function runNvidiaExampleReport(options: { format: string; lang: string }): Promise<void> {
+  const result = await previewNvidiaResearchReport(sourceWorkflowRuntime());
+  write(renderResearchReport(result, parseFormat(options.format), parseLanguage(options.lang)));
+}
+
 function parseFormTypes(value: string): ("10-K" | "10-Q" | "20-F" | "8-K")[] {
   return value
     .split(",")
     .map((item) => item.trim())
     .filter(isSupportedFormType);
+}
+
+function appleSuppliersInputFromCli(options: { entity: string; fiscalYear: string }): { fiscalYear: number; entityId: string } {
+  return {
+    fiscalYear: parsePositiveInteger(options.fiscalYear, "Apple Supplier List fiscal year"),
+    entityId: options.entity
+  };
 }
 
 interface SecPipelineInput {

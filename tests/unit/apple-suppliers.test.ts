@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { buildAppleOshCrossCheckLead, buildAppleOshSourceCheckTarget } from "@supplystrata/source-workflows";
-import { appleSupplierListUrl, extractAppleSupplierCandidatesFromText } from "@supplystrata/sources-apple-suppliers";
+import { appleSupplierListUrl, extractAppleSupplierCandidatesFromText, validateAppleSuppliersInput } from "@supplystrata/sources-apple-suppliers";
 
 describe("Apple Supplier List preview", () => {
   it("uses the official FY22 supplier list PDF URL", () => {
     expect(appleSupplierListUrl(2022)).toBe("https://www.apple.com.cn/supplier-responsibility/pdf/Apple-Supplier-List.pdf");
+  });
+
+  it("keeps Apple source limits in the adapter instead of CLI defaults", () => {
+    expect(() => validateAppleSuppliersInput({ fiscalYear: 2023, entityId: "ENT-APPLE" })).toThrow(/Unsupported Apple Supplier List fiscal year: 2023/);
+    expect(() => validateAppleSuppliersInput({ fiscalYear: 2022, entityId: "ENT-NVIDIA" })).toThrow(/entity_id must be ENT-APPLE/);
   });
 
   it("extracts supplier-location candidate rows from pdftotext layout output", () => {

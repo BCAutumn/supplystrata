@@ -38,12 +38,12 @@ pnpm smoke:local --with-db
 如果只想看供应链解析，不需要启动 Postgres / Neo4j：
 
 ```bash
-pnpm --silent cli preview nvidia --format markdown
+pnpm --silent cli examples nvidia preview --format markdown
 pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K --format json
-pnpm --silent cli preview report nvidia --format markdown --lang zh
-pnpm --silent cli preview apple-suppliers --format markdown
-pnpm --silent cli preview apple-suppliers --format csv > data/tmp/apple-supplier-review.csv
-pnpm cli review enqueue apple-suppliers
+pnpm --silent cli examples nvidia report --format markdown --lang zh
+pnpm --silent cli preview apple-suppliers --entity ENT-APPLE --fiscal-year 2022 --format markdown
+pnpm --silent cli preview apple-suppliers --entity ENT-APPLE --fiscal-year 2022 --format csv > data/tmp/apple-supplier-review.csv
+pnpm cli review enqueue apple-suppliers --entity ENT-APPLE --fiscal-year 2022
 pnpm cli review stats
 pnpm cli review next
 pnpm cli review approve <REV-id> --reviewer <name> --reason "..."
@@ -60,7 +60,7 @@ pnpm --silent cli entity lookup "3M" --source opencorporates --jurisdiction us_m
 
 这条路径只做 source adapter `plan/fetch/normalize`、规则抽取、seed 实体消歧和证据评分。它不会落库，也不会写 Neo4j，适合未来嵌入 TS 桌面端或 agent 产品。
 
-`preview report nvidia` 还会并行读取 TSMC / Samsung / SK hynix / Micron / ASML 的公开官方披露作为背景证据。单个公司官网临时不可用时，报告会在对应章节标注失败原因，不会拖垮 NVIDIA 主链路；已缓存过的原始 HTML 会优先作为降级输入。
+`examples nvidia report` 还会并行读取 TSMC / Samsung / SK hynix / Micron / ASML 的公开官方披露作为背景证据。单个公司官网临时不可用时，报告会在对应章节标注失败原因，不会拖垮 NVIDIA 主链路；已缓存过的原始 HTML 会优先作为降级输入。
 
 `preview apple-suppliers` 是半自动链路：只把 Apple Supplier List PDF 转成候选 CSV，所有行默认 `needs_review=true`。人工复核前，这些候选不会进入 Postgres / Neo4j。当前 Apple 官方静态 PDF 的元数据是 FY22，所以输出会标 `source_fiscal_year=2022`，不能把它当成 2025 或 2026 的最新供应商名单。
 
@@ -99,8 +99,8 @@ docker compose down -v             # 停 + 清数据（慎用）
 ### CLI
 
 ```bash
-pnpm --silent cli preview nvidia --format markdown
-pnpm cli pipeline nvidia --graph-sync defer
+pnpm --silent cli examples nvidia preview --format markdown
+pnpm cli examples nvidia ingest --graph-sync defer
 pnpm cli claims build --format json
 pnpm cli workbench export --company nvidia --depth 3 --out reports/nvidia-workbench.json
 pnpm cli graph rebuild
@@ -111,10 +111,10 @@ pnpm cli ingest sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K
 pnpm worker --once --limit 5
 ```
 
-`pipeline nvidia` 默认 `--graph-sync defer`，也就是只写 Postgres truth store，不等待 Neo4j。需要边写边同步 Neo4j 时再显式传：
+`examples nvidia ingest` 默认 `--graph-sync defer`，也就是只写 Postgres truth store，不等待 Neo4j。需要边写边同步 Neo4j 时再显式传：
 
 ```bash
-pnpm cli pipeline nvidia --graph-sync sync
+pnpm cli examples nvidia ingest --graph-sync sync
 ```
 
 这个设计是为了未来嵌入 TS 桌面端或 agent 产品：宿主只需要提供 `DatabaseStore`（内置实现是 Postgres，也可以由宿主包装自己的兼容 SQL truth store），即可跑研究链路和 workbench export；Neo4j 可以作为可选的图查询加速层。

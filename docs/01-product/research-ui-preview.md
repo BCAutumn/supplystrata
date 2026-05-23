@@ -5,7 +5,7 @@
 最初的静态预览由 `scripts/render-research-html.mjs` 从 `preview report` JSON 生成：
 
 ```bash
-pnpm --silent cli preview report nvidia --format json --lang zh > reports/latest-nvidia-research.json
+pnpm --silent cli examples nvidia report --format json --lang zh > reports/latest-nvidia-research.json
 node scripts/render-research-html.mjs reports/latest-nvidia-research.json reports/latest-nvidia-research.html
 ```
 

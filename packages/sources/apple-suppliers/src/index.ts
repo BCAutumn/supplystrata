@@ -13,8 +13,8 @@ import {
 import { extractFixedWidthSupplierListCandidates, type SupplierListCandidate, type SupplierListParseConfig } from "@supplystrata/supplier-list";
 
 export interface AppleSuppliersInput {
-  fiscalYear: 2022;
-  entityId: "ENT-APPLE";
+  fiscalYear: number;
+  entityId: string;
 }
 
 export type AppleSupplierCandidate = SupplierListCandidate;
@@ -33,6 +33,7 @@ const appleSuppliersAdapterBase: SourceAdapter<AppleSuppliersInput, Uint8Array> 
   tos_url: "https://www.apple.com/legal/",
   rate_limit: { requests: 1, per_seconds: 3 },
   async *plan(input) {
+    validateAppleSuppliersInput(input);
     yield {
       task_id: `apple-suppliers-fy${String(input.fiscalYear).slice(2)}`,
       url: appleSupplierListUrl(input.fiscalYear),
@@ -89,7 +90,7 @@ const appleSuppliersAdapterBase: SourceAdapter<AppleSuppliersInput, Uint8Array> 
 
 export const appleSuppliersAdapter = createRateLimitedSourceAdapter(appleSuppliersAdapterBase);
 
-export function appleSupplierListUrl(fiscalYear: 2022): string {
+export function appleSupplierListUrl(fiscalYear: number): string {
   if (fiscalYear !== 2022) throw new Error(`Unsupported Apple Supplier List fiscal year: ${fiscalYear}`);
   return "https://www.apple.com.cn/supplier-responsibility/pdf/Apple-Supplier-List.pdf";
 }
@@ -109,6 +110,11 @@ export function extractAppleSupplierCandidatesFromText(text: string, fiscalYear:
 function appleBrowserUserAgent(): string {
   // Apple 的静态 PDF 会拒绝非浏览器 UA；该 adapter 仍通过低频请求和官方 URL 保持半自动合规边界。
   return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+}
+
+export function validateAppleSuppliersInput(input: AppleSuppliersInput): void {
+  if (input.fiscalYear !== 2022) throw new Error(`Unsupported Apple Supplier List fiscal year: ${input.fiscalYear}`);
+  if (input.entityId !== "ENT-APPLE") throw new Error(`Apple Supplier List entity_id must be ENT-APPLE, got ${input.entityId}`);
 }
 
 function appleSupplierListParseConfig(fiscalYear: number): SupplierListParseConfig {

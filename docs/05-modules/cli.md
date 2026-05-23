@@ -106,11 +106,11 @@ CLI 必须显式先调用对应 loader 生成 card/view model，再调用纯 for
 无数据库预览路径，用来检查抓取、解析、抽取和评分，不写 Postgres / Neo4j：
 
 ```bash
-supplystrata preview nvidia --format markdown
+supplystrata examples nvidia preview --format markdown
 supplystrata preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K --format markdown
 supplystrata preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-Q --format markdown
 supplystrata preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 8-K --format markdown
-supplystrata preview apple-suppliers --format csv
+supplystrata preview apple-suppliers --entity ENT-APPLE --fiscal-year 2022 --format csv
 ```
 
 `--types` 支持逗号分隔的 `10-K,10-Q,20-F,8-K`。SEC adapter 内部也支持 `limit` 计划多份最近 8-K task，供后续 source monitor 调度层复用；当前 CLI preview 仍只消费第一个 task。
@@ -120,7 +120,7 @@ supplystrata preview apple-suppliers --format csv
 数据库研究路径，用来把候选关系写入 Postgres truth store：
 
 ```bash
-supplystrata pipeline nvidia --graph-sync defer
+supplystrata examples nvidia ingest --graph-sync defer
 supplystrata ingest sec-edgar --cik 0001045810 --entity ENT-NVIDIA --types 10-K --graph-sync defer
 ```
 
@@ -535,7 +535,7 @@ supplystrata sources run-due --source-plan reports/nvidia-research-pack/source-p
 人工 review 是所有不应自动入图候选的入口。当前已落地：
 
 ```
-supplystrata review enqueue apple-suppliers
+supplystrata review enqueue apple-suppliers --entity ENT-APPLE --fiscal-year 2022
 supplystrata review enqueue entity-source <query> [--source all|opencorporates|companies-house] [--jurisdiction] [--limit]
 supplystrata review stats
 supplystrata review next

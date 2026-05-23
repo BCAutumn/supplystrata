@@ -4,7 +4,16 @@ import { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "@su
 import { enqueueAppleSupplierReviewCandidates, enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "@supplystrata/source-workflows";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
 import { decideReviewCandidateTransactionally, getReviewCandidate, nextReviewCandidateTransactionally, reviewStats } from "@supplystrata/review-store";
-import { parseEntityLookupSource, parseFormat, parseLimit, parsePendingEntityStatus, withDatabase, write, writeJson } from "../cli-utils.js";
+import {
+  parseEntityLookupSource,
+  parseFormat,
+  parseLimit,
+  parsePendingEntityStatus,
+  parsePositiveInteger,
+  withDatabase,
+  write,
+  writeJson
+} from "../cli-utils.js";
 import { renderEntityLookup } from "../entity-render.js";
 import { renderReviewApplyBatch, renderReviewItemOrEmpty } from "../review-render.js";
 import { sourceWorkflowRuntime } from "../source-workflow-runtime.js";
@@ -222,10 +231,16 @@ function registerReviewCommands(program: Command): void {
   const reviewEnqueue = review.command("enqueue").description("enqueue review candidates from sources");
   reviewEnqueue
     .command("apple-suppliers")
-    .description("enqueue Apple Supplier List candidates for human review")
-    .action(async () => {
+    .requiredOption("--entity <entityId>", "buyer entity id; Apple Supplier List currently supports ENT-APPLE")
+    .requiredOption("--fiscal-year <year>", "Apple Supplier List fiscal year; currently supports 2022")
+    .description("enqueue Apple Supplier List candidates for human review using explicit source input")
+    .action(async (options: { entity: string; fiscalYear: string }) => {
       await withDatabase(async (pool) => {
-        const summary = await enqueueAppleSupplierReviewCandidates(pool, { fiscalYear: 2022, entityId: "ENT-APPLE" }, sourceWorkflowRuntime());
+        const summary = await enqueueAppleSupplierReviewCandidates(
+          pool,
+          { fiscalYear: parsePositiveInteger(options.fiscalYear, "Apple Supplier List fiscal year"), entityId: options.entity },
+          sourceWorkflowRuntime()
+        );
         writeJson({ ok: true, ...summary });
       });
     });
