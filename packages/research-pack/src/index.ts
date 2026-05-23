@@ -72,7 +72,10 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     loadCompanyCard(client.read, workbench.selected_company_id, { computedAt: generatedAt }),
     loadChainCard(client.read, workbench.selected_company_id, { depth }),
     loadComponentCards(client.read, components, generatedAt),
-    runDataQualityChecks(client.read, { entity_unknown_map_targets: [{ scope_id: workbench.selected_company_id, minimum_open_items: 1 }] })
+    runDataQualityChecks(client.read, {
+      checkedAt: generatedAt,
+      entity_unknown_map_targets: [{ scope_id: workbench.selected_company_id, minimum_open_items: 1 }]
+    })
   ]);
   const questionReadiness = buildQuestionReadinessMatrix({
     generated_at: generatedAt,

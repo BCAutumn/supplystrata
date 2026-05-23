@@ -5,7 +5,7 @@ import type { EdgeDeprecationSourceRef, EdgeDeprecationSourceKind } from "@suppl
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import { renderChainCard, renderCompanyCard, renderComponentCard, renderEvidenceCard, renderUnknownMapCard } from "@supplystrata/render";
-import { parseFormat, parseGraphSyncMode, parseLimit, withDatabase, write, writeJson } from "../cli-utils.js";
+import { parseFormat, parseGraphSyncMode, parseLimit, parseSince, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderDataQuality } from "../dq-render.js";
 import { createCliNeo4jGraphStore } from "../graph-store.js";
 import { renderGraphCheck } from "../graph-render.js";
@@ -123,10 +123,12 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .option("--unknown-company <entityId>", "company entity id that must have an open unknown map")
     .option("--unknown-min <count>", "minimum open unknown-map items for --unknown-company", "1")
+    .option("--checked-at <iso>", "override the data-quality checked_at timestamp")
     .description("run MVP data quality checks against Postgres truth")
-    .action(async (options: { format: string; unknownCompany?: string; unknownMin: string }) => {
+    .action(async (options: { format: string; unknownCompany?: string; unknownMin: string; checkedAt?: string }) => {
       await withDatabase(async (pool) => {
         const summary = await runDataQualityChecks(pool.read, {
+          ...(options.checkedAt === undefined ? {} : { checkedAt: parseSince(options.checkedAt) }),
           ...(options.unknownCompany === undefined
             ? {}
             : { entity_unknown_map_targets: [{ scope_id: options.unknownCompany, minimum_open_items: parseLimit(options.unknownMin) }] })

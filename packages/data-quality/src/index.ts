@@ -42,6 +42,7 @@ export interface EntityUnknownMapTarget {
 
 export interface DataQualityCheckInput {
   entity_unknown_map_targets?: readonly EntityUnknownMapTarget[];
+  checkedAt?: string;
 }
 
 export async function runDataQualityChecks(client: DbClient, input: DataQualityCheckInput = {}): Promise<DataQualitySummary> {
@@ -52,7 +53,7 @@ export async function runDataQualityChecks(client: DbClient, input: DataQualityC
 
   const counts = countIssues(issues);
   return {
-    checked_at: new Date().toISOString(),
+    checked_at: input.checkedAt ?? new Date().toISOString(),
     ok: counts.error === 0,
     counts,
     issues

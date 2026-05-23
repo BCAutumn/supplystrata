@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
-import { dataQualityRules } from "@supplystrata/data-quality";
+import { dataQualityRules, runDataQualityChecks } from "@supplystrata/data-quality";
 import type { DbClient } from "@supplystrata/db/read";
 
 interface QueryCall {
@@ -24,6 +24,15 @@ class DataQualityDbClient implements DbClient {
 }
 
 describe("data-quality rules", () => {
+  it("uses the explicit checkedAt timestamp for reproducible summaries", async () => {
+    const client = new DataQualityDbClient();
+
+    const summary = await runDataQualityChecks(client, { checkedAt: "2026-05-23T00:00:00.000Z" });
+
+    expect(summary.checked_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(summary.ok).toBe(true);
+  });
+
   it("does not register entity-specific unknown-map checks unless targets are provided", () => {
     expect(dataQualityRules().some((rule) => rule.scope === "entity_specific")).toBe(false);
   });
