@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
-import type { CandidateRelation, EdgeStrengthKind, EvidenceLevel, RelationType } from "@supplystrata/core";
+import type { CandidateRelation, EvidenceLevel, RelationType } from "@supplystrata/core";
 import { listEdgeStrengthEstimates, type DbClient } from "@supplystrata/db/read";
 import { refreshEdgeFreshness, upsertEdgeStrengthEstimate, upsertUnknownItem, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { EvidenceTraceBackfillRow, IntelligenceRefreshEdgeRow } from "./db-rows.js";
+import { inferEdgeStrengthDrafts } from "./edge-strength-rules.js";
+export { inferEdgeStrengthDrafts, type EdgeStrengthDraft } from "./edge-strength-rules.js";
 
 export * from "./alerts.js";
 export * from "./calibration.js";
@@ -42,16 +44,6 @@ export interface EdgeIntelligenceRefreshSummary {
   unknowns_resolved: number;
   generated_by: string;
   computed_at: string;
-}
-
-export interface EdgeStrengthDraft {
-  strength_kind: EdgeStrengthKind;
-  value?: string;
-  lower_bound?: string;
-  upper_bound?: string;
-  unit?: string;
-  method: string;
-  attrs: Record<string, unknown>;
 }
 
 export async function backfillEvidenceTrace(client: DbTxClient, input: EvidenceTraceBackfillInput = {}): Promise<EvidenceTraceBackfillSummary> {
@@ -229,46 +221,6 @@ export async function refreshEdgeIntelligenceContextTransactionally(
   return store.transaction((client) => refreshEdgeIntelligenceContext(client, input));
 }
 
-export function inferEdgeStrengthDrafts(edge: { cite_text: string; object_name: string }): EdgeStrengthDraft[] {
-  const text = normalizeWhitespace(edge.cite_text);
-  // 强度只能来自命名 counterparty 的原文证据；匿名 customer/supplier concentration 只能留下 unknown。
-  if (!mentionsCounterparty(text, edge.object_name)) return [];
-
-  const drafts: EdgeStrengthDraft[] = [];
-  const share = extractNamedShare(text);
-  if (share !== undefined) {
-    drafts.push({
-      strength_kind: "share",
-      value: share,
-      unit: "percent",
-      method: "intelligence-refresh.named-share-text.v1",
-      attrs: { source: "primary_evidence_cite_text", signal: "named_percentage_share" }
-    });
-  }
-
-  const dependency = dependencySignal(text);
-  if (dependency !== undefined) drafts.push(dependency);
-
-  if (
-    /\b(?:capacity reservations?|capacity commitments?|capacity reservation agreements?|take[-\s]?or[-\s]?pay|purchase obligations?|purchase commitments?|long[-\s]?term supply agreements?|wafer supply agreements?)\b/i.test(
-      text
-    )
-  ) {
-    drafts.push({
-      strength_kind: "capacity",
-      value: "1",
-      unit: "disclosed_commitment",
-      method: "intelligence-refresh.capacity-text.v1",
-      attrs: { source: "primary_evidence_cite_text", signal: "capacity_or_purchase_commitment" }
-    });
-  }
-
-  const qualitative = qualitativeSignal(text);
-  if (qualitative !== undefined) drafts.push(qualitative);
-
-  return dedupeStrengthDrafts(drafts);
-}
-
 async function listRefreshableIntelligenceEdges(client: DbClient, input: { minEvidenceLevel: 4 | 5; limit: number }): Promise<IntelligenceRefreshEdgeRow[]> {
   const result = await client.query<IntelligenceRefreshEdgeRow>(
     `SELECT e.edge_id, e.subject_id, s.display_name AS subject_name,
@@ -290,59 +242,6 @@ async function listRefreshableIntelligenceEdges(client: DbClient, input: { minEv
   return result.rows;
 }
 
-function extractNamedShare(text: string): string | undefined {
-  if (!/\b(?:accounted for|represented|comprised|made up|contributed)\b/i.test(text)) return undefined;
-  if (!/\b(?:revenue|sales|purchases?|spend|supply|capacity|cost|costs|obligations?)\b/i.test(text)) return undefined;
-  const match = /\b(\d{1,2}(?:\.\d+)?|100(?:\.0+)?)\s?%/u.exec(text);
-  if (match?.[1] === undefined) return undefined;
-  const value = Number.parseFloat(match[1]);
-  if (!Number.isFinite(value) || value <= 0 || value > 100) return undefined;
-  return value.toString();
-}
-
-function dependencySignal(text: string): EdgeStrengthDraft | undefined {
-  if (/\b(?:sole source|single source|single-source|sole supplier|single supplier)\b/i.test(text)) {
-    return {
-      strength_kind: "dependency",
-      value: "1",
-      unit: "dependency_index",
-      method: "intelligence-refresh.dependency-text.v1",
-      attrs: { source: "primary_evidence_cite_text", signal: "single_source_dependency", dependency_kind: "single_source" }
-    };
-  }
-  if (/\b(?:limited number of suppliers|limited suppliers|limited supplier base|few suppliers)\b/i.test(text)) {
-    return {
-      strength_kind: "dependency",
-      value: "0.7",
-      unit: "dependency_index",
-      method: "intelligence-refresh.dependency-text.v1",
-      attrs: { source: "primary_evidence_cite_text", signal: "limited_supplier_dependency", dependency_kind: "limited_supplier" }
-    };
-  }
-  return undefined;
-}
-
-function qualitativeSignal(text: string): EdgeStrengthDraft | undefined {
-  if (/\b(?:primary|principal|strategic|key|major|significant|main)\s+(?:supplier|customer|foundry|manufacturer|partner)\b/i.test(text)) {
-    return {
-      strength_kind: "qualitative",
-      value: "1",
-      unit: "qualitative_flag",
-      method: "intelligence-refresh.qualitative-text.v1",
-      attrs: { source: "primary_evidence_cite_text", signal: "explicit_strong_relationship_language" }
-    };
-  }
-  return undefined;
-}
-
-function dedupeStrengthDrafts(drafts: readonly EdgeStrengthDraft[]): EdgeStrengthDraft[] {
-  const byKind = new Map<EdgeStrengthKind, EdgeStrengthDraft>();
-  for (const draft of drafts) {
-    if (!byKind.has(draft.strength_kind)) byKind.set(draft.strength_kind, draft);
-  }
-  return [...byKind.values()];
-}
-
 function missingStrengthUnknown(edge: IntelligenceRefreshEdgeRow, createdBy: string) {
   const componentText = edge.component_id ?? edge.component ?? "the disclosed component or relationship scope";
   return {
@@ -361,27 +260,6 @@ function missingStrengthUnknown(edge: IntelligenceRefreshEdgeRow, createdBy: str
 function deterministicEdgeStrengthUnknownId(edgeId: string): string {
   const digest = createHash("sha256").update(`edge-strength:${edgeId}`).digest("hex").slice(0, 20).toUpperCase();
   return `UNK-EDGE-STRENGTH-${digest}`;
-}
-
-function mentionsCounterparty(text: string, objectName: string): boolean {
-  const textTokens = normalizeForMention(text);
-  const objectTokens = normalizeForMention(objectName);
-  if (objectTokens.length === 0) return false;
-  return textTokens.includes(objectTokens);
-}
-
-function normalizeForMention(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/\b(?:inc|incorporated|corp|corporation|co|company|ltd|limited|plc)\b\.?/gu, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim()
-    .replace(/\s+/gu, " ");
-}
-
-function normalizeWhitespace(value: string): string {
-  return value.normalize("NFKC").replace(/\s+/gu, " ").trim();
 }
 
 function toDateOnly(value: Date | string): string {

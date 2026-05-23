@@ -272,10 +272,24 @@ describe("evidence-maintenance intelligence refresh", () => {
 
     expect(
       inferEdgeStrengthDrafts({
+        object_name: "Samsung",
+        cite_text: "We rely on Samsung and a limited number of suppliers for high bandwidth memory."
+      })
+    ).toMatchObject([{ strength_kind: "dependency", value: "0.7" }]);
+
+    expect(
+      inferEdgeStrengthDrafts({
         object_name: "Microsoft",
         cite_text: "Sales to Microsoft accounted for 18% of our total revenue from GPU products during fiscal 2026."
       })
     ).toMatchObject([{ strength_kind: "share", value: "18", unit: "percent" }]);
+
+    expect(
+      inferEdgeStrengthDrafts({
+        object_name: "TSMC",
+        cite_text: "TSMC is our strategic foundry partner and accounted for 12% of purchase obligations."
+      }).map((draft) => draft.strength_kind)
+    ).toEqual(["share", "capacity", "qualitative"]);
 
     expect(
       inferEdgeStrengthDrafts({
