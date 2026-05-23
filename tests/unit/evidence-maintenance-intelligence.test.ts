@@ -1,6 +1,7 @@
 import type pg from "pg";
 import { describe, expect, it } from "vitest";
 import {
+  backfillEvidenceTrace,
   evaluateComponentRiskAlertPolicy,
   inferEdgeStrengthDrafts,
   listRefreshableComponentRiskComponentIds,
@@ -38,6 +39,23 @@ class IntelligenceDbClient implements DbTxClient {
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
     const rows = rowsForIntelligence<T>(sql, params);
+    return {
+      command: "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
+class EvidenceTraceBackfillDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    const rows = rowsForEvidenceTraceBackfill<T>(sql, params);
     return {
       command: "MOCK",
       rowCount: rows.length,
@@ -225,6 +243,18 @@ class EdgeCalibrationDbClient implements DbTxClient {
 }
 
 describe("evidence-maintenance intelligence refresh", () => {
+  it("backfills only active evidence trace fields inside a transaction client", async () => {
+    const client = new EvidenceTraceBackfillDbClient();
+
+    const summary = await backfillEvidenceTrace(client, { limit: 5 });
+
+    expect(summary).toEqual({ scanned: 1, updated: 1, offset_missing: 0 });
+    expect(client.calls[0]?.sql).toContain("ev.superseded_by IS NULL");
+    expect(client.calls[0]?.params).toEqual([5, true]);
+    expect(client.calls[1]?.sql).toContain("UPDATE evidence");
+    expect(client.calls[1]?.sql).toContain("WHERE evidence_id = $1");
+  });
+
   it("infers only explicit, named relationship strength from cite text", () => {
     expect(
       inferEdgeStrengthDrafts({
@@ -278,6 +308,8 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edge_freshness"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edge_strength_estimates"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("UPDATE unknown_items"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("UNKNOWN_RESOLVED"))).toBe(false);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -909,6 +941,32 @@ function rowsForIntelligence<T extends pg.QueryResultRow>(sql: string, params: r
       }
     ] as unknown as T[];
   }
+  return [];
+}
+
+function rowsForEvidenceTraceBackfill<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("FROM evidence ev") && sql.includes("ev.superseded_by IS NULL")) {
+    return [
+      {
+        evidence_id: "EV-BACKFILL",
+        cite_text: "NVIDIA buys advanced packaging capacity from TSMC.",
+        extractor_id: "unit-test",
+        llm_meta: null,
+        doc_id: "DOC-BACKFILL",
+        chunk_id: null,
+        bytes_sha256: "abc123",
+        metadata: {},
+        chunk_text: null,
+        subject_id: "ENT-NVIDIA",
+        object_id: "ENT-TSMC",
+        relation: "BUYS_FROM",
+        component: "advanced packaging",
+        component_id: "COMP-ADVANCED-PACKAGING",
+        component_specificity: "component"
+      }
+    ] as unknown as T[];
+  }
+  if (sql.includes("UPDATE evidence") && params[0] === "EV-BACKFILL") return [] as T[];
   return [];
 }
 

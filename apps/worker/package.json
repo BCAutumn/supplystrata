@@ -10,6 +10,7 @@
     "@supplystrata/config": "workspace:*",
     "@supplystrata/db": "workspace:*",
     "@supplystrata/observability": "workspace:*",
+    "@supplystrata/pipeline": "workspace:*",
     "@supplystrata/source-workflows": "workspace:*"
   },
   "main": "./dist/main.js",

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
 import { loadEnv } from "@supplystrata/config";
 import { listChangeTimeline } from "@supplystrata/db/read";
+import { persistDocumentObservations } from "@supplystrata/pipeline";
 import {
   listRegisteredSourceCheckConnectorCapabilities,
   listSourceCheckConnectorIds,
@@ -130,7 +131,12 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .action(async (options: { limit: string; checkTargetId?: string; source?: string; sourcePlan?: string; namespace?: string; format: string }) => {
       await withDatabase(async (pool) => {
         const selection = await buildSourceCheckSelectionOptions(options);
-        const result = await runDueSourceChecks(pool, { env: loadEnv(), limit: parseLimit(options.limit), ...selection });
+        const result = await runDueSourceChecks(pool, {
+          env: loadEnv(),
+          limit: parseLimit(options.limit),
+          documentObservationStore: { persistDocumentObservations },
+          ...selection
+        });
         if (parseFormat(options.format) === "json") {
           writeJson({ schema_version: "1.0.0", ...result });
           return;
@@ -175,7 +181,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
               ...(options.targetKind === undefined ? {} : { target_kind: options.targetKind }),
               target_config: targetConfig
             },
-            { env: loadEnv() }
+            { env: loadEnv(), documentObservationStore: { persistDocumentObservations } }
           );
           if (parseFormat(options.format) === "json") {
             writeJson({

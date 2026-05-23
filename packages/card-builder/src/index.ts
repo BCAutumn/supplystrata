@@ -82,9 +82,31 @@ export async function loadEvidenceCard(client: DbClient, evidenceId: string): Pr
   const evidence = await getEvidence(client, evidenceId);
   if (evidence === undefined) throw new Error(`Evidence not found: ${evidenceId}`);
   return {
-    ...evidence,
+    evidence_id: evidence.evidence_id,
+    edge_id: evidence.edge_id,
+    superseded_by: evidence.superseded_by,
+    cite_text: evidence.cite_text,
+    cite_locator: evidence.cite_locator,
+    cite_start_char: evidence.cite_start_char,
+    cite_end_char: evidence.cite_end_char,
+    cite_text_sha256: evidence.cite_text_sha256,
+    normalized_cite_text_sha256: evidence.normalized_cite_text_sha256,
+    source_snapshot_sha256: evidence.source_snapshot_sha256,
+    parser_version: evidence.parser_version,
+    extractor_version: evidence.extractor_version,
+    relation_candidate_hash: evidence.relation_candidate_hash,
+    evidence_level: evidence.evidence_level,
+    confidence: evidence.confidence,
+    is_inferred: evidence.is_inferred,
+    extraction_method: evidence.extraction_method,
+    source_url: evidence.source_url,
     source_date: evidence.source_date === null ? null : evidence.source_date.toISOString(),
-    fetched_at: evidence.fetched_at.toISOString()
+    fetched_at: evidence.fetched_at.toISOString(),
+    source_adapter_id: evidence.source_adapter_id,
+    document_type: evidence.document_type,
+    subject_name: evidence.subject_name,
+    object_name: evidence.object_name,
+    relation: evidence.relation
   };
 }
 

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { migrate, seedFromCsv } from "@supplystrata/db/admin";
-import { backfillEvidenceTrace } from "@supplystrata/evidence-maintenance";
+import { backfillEvidenceTraceTransactionally } from "@supplystrata/evidence-maintenance";
 import { parseLimit, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerDbAndAdminCommands(program: Command): void {
@@ -18,7 +18,7 @@ export function registerDbAndAdminCommands(program: Command): void {
     .description("backfill evidence citation offsets and fingerprints")
     .action(async (options: { limit: string }) => {
       await withDatabase(async (pool) => {
-        const summary = await pool.transaction((client) => backfillEvidenceTrace(client, { limit: parseLimit(options.limit) }));
+        const summary = await backfillEvidenceTraceTransactionally(pool, { limit: parseLimit(options.limit) });
         writeJson({ ok: true, ...summary });
       });
     });

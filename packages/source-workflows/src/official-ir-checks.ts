@@ -16,6 +16,7 @@ import {
   type TsmcIrInput
 } from "./official-ir-adapters.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
+import { documentObservationStoreOption } from "./document-observation-context.js";
 
 export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<DatabaseStore, SourceCheckSummary>[] = [
   {
@@ -30,6 +31,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.company-ir",
+          ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
       });
@@ -47,6 +49,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.tsmc-ir",
+          ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
       });
@@ -64,6 +67,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.samsung-ir",
+          ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
       });
@@ -81,6 +85,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.skhynix-ir",
+          ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
       });
@@ -98,6 +103,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.asml-ir",
+          ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
       });
@@ -115,6 +121,7 @@ export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<Data
         options: {
           checkTargetId: target.check_target_id,
           failureCausedBy: "source-check.micron-ir",
+          ...documentObservationStoreOption(context),
           ...(context.logger === undefined ? {} : { logger: context.logger })
         }
       });

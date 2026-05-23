@@ -7,10 +7,12 @@ export {
   insertClaim,
   linkClaimEvidence,
   linkClaimUnknown,
+  markClaimHumanEdited,
   upsertClaim,
   type ClaimEvidenceRole,
   type ClaimStatus,
   type ClaimUnknownRole,
+  type MarkClaimHumanEditedInput,
   type NewClaimInput
 } from "./claims.js";
 export { saveNormalizedDocument, saveNormalizedDocumentTx, type SavedDocumentRef } from "./documents.js";

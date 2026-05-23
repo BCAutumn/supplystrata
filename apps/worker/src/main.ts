@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 import { createDatabaseStore } from "@supplystrata/db/write";
 import { loadEnv } from "@supplystrata/config";
-import { getLogger, messageFromUnknown } from "@supplystrata/observability";
+import { createLogger, messageFromUnknown, setLogger, type SupplyStrataLogger } from "@supplystrata/observability";
 import { parseSourceCheckWorkerOptions, shouldShowSourceCheckWorkerHelp, sourceCheckWorkerHelp } from "./options.js";
 import { runSourceCheckWorkerLoop } from "./source-check-worker.js";
 
-const logger = getLogger();
 const args = process.argv.slice(2);
 
 if (shouldShowSourceCheckWorkerHelp(args)) {
@@ -13,8 +12,9 @@ if (shouldShowSourceCheckWorkerHelp(args)) {
   process.exitCode = 0;
 } else {
   const controller = new AbortController();
-  installShutdownHandlers(controller);
   const env = loadEnv();
+  const logger = setLogger(createLogger(env));
+  installShutdownHandlers(controller, logger);
   const store = createDatabaseStore({ connectionString: env.POSTGRES_URL });
   try {
     const options = parseSourceCheckWorkerOptions(args, process.env);
@@ -29,7 +29,7 @@ if (shouldShowSourceCheckWorkerHelp(args)) {
   }
 }
 
-function installShutdownHandlers(controller: AbortController): void {
+function installShutdownHandlers(controller: AbortController, logger: SupplyStrataLogger): void {
   const stop = (signalName: string): void => {
     logger.info({ stage: "source-check-worker", signal: signalName }, "source check worker shutdown requested");
     controller.abort();

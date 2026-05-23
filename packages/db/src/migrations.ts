@@ -24,6 +24,7 @@ import { sql as migration0022FinancialPeerMetricKindSql } from "./migration-sql/
 import { sql as migration0023SourceEventCheckTargetSql } from "./migration-sql/0023_source_event_check_target.js";
 import { sql as migration0024SourceEventCheckTargetLooseRefSql } from "./migration-sql/0024_source_event_check_target_loose_ref.js";
 import { sql as migration0025SourceCheckJobLeaseSql } from "./migration-sql/0025_source_check_job_lease.js";
+import { sql as migration0026ClaimHumanEditGuardSql } from "./migration-sql/0026_claim_human_edit_guard.js";
 
 export interface Migration {
   readonly id: string;
@@ -156,6 +157,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0025_source_check_job_lease",
     description: "Add source check job leases so crashed workers cannot block targets forever.",
     sql: migration0025SourceCheckJobLeaseSql
+  },
+  {
+    id: "0026_claim_human_edit_guard",
+    description: "Track human-edited claims so derived refreshes cannot overwrite reviewer-maintained content.",
+    sql: migration0026ClaimHumanEditGuardSql
   }
 ];
 

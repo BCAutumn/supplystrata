@@ -14,6 +14,7 @@ import type { SourceCheckConnectorLogger, SourceCheckTargetRow } from "@supplyst
 import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import { inferUniqueTargetKind, runRegisteredManualSourceCheckConnector, runRegisteredSourceCheckConnector } from "./source-check-registry.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
+import type { SourceDocumentObservationStore } from "./document-observation-port.js";
 
 export { listRegisteredSourceCheckConnectorCapabilities, listSourceCheckConnectorIds } from "./source-check-registry.js";
 
@@ -52,6 +53,7 @@ export interface ManualSourceCheckInput {
 export interface SourceCheckRunOptions {
   env: Env;
   logger?: SourceCheckConnectorLogger;
+  documentObservationStore?: SourceDocumentObservationStore;
 }
 
 export type DueSourceCheckRunInput = { now?: string; limit?: number } & SourceCheckTargetSelection & SourceCheckRunOptions;
@@ -90,7 +92,8 @@ async function runDueSourceCheckTarget(
 ): Promise<DueSourceCheckRunItem> {
   const summaries = await runRegisteredSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
-    adapter_context_input: options.adapterContextInput
+    adapter_context_input: options.adapterContextInput,
+    ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })
   });
   return {
     check_target_id: target.check_target_id,
@@ -123,7 +126,8 @@ export async function runManualSourceCheck(store: DatabaseStore, input: ManualSo
   const target = manualSourceCheckTarget(input);
   return runRegisteredManualSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
-    adapter_context_input: sourceWorkflowAdapterContextInput(options.env)
+    adapter_context_input: sourceWorkflowAdapterContextInput(options.env),
+    ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })
   });
 }
 

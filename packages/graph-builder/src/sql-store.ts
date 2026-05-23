@@ -4,8 +4,7 @@ import {
   type ApplyResult,
   type ApprovedCandidate,
   type CandidateRelation,
-  type ComponentSpecificity,
-  type EvidenceLevel
+  type ComponentSpecificity
 } from "@supplystrata/core";
 import { recordSemanticChange, type DbClient, type DbRow, type DbTxClient } from "@supplystrata/db/write";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
@@ -19,35 +18,7 @@ export interface ApplyApprovedCandidateSqlInput {
 
 export async function applyApprovedCandidateToSql(client: DbTxClient, input: ApplyApprovedCandidateSqlInput): Promise<Omit<ApplyResult, "graph_sync">> {
   const component = await resolveComponentReference(client, input.approved.candidate);
-  await lockEdgeIdentity(client, {
-    subject_id: input.subject_id,
-    object_id: input.object_id,
-    relation: input.approved.candidate.relation,
-    component
-  });
-  const existing = await client.query<EdgeIdentityRow>(
-    `SELECT edge_id, evidence_level, confidence, validity
-     FROM edges
-     WHERE subject_id = $1 AND object_id = $2 AND relation = $3
-       AND (
-         ($4::text IS NOT NULL AND (component_id = $4 OR (component_id IS NULL AND lower(component) = lower($5))))
-         OR ($4::text IS NULL AND component_id IS NULL AND COALESCE(component, '') = COALESCE($5, ''))
-       )
-       AND COALESCE(effective_from, DATE '1900-01-01') = DATE '1900-01-01'
-       AND COALESCE(effective_to, DATE '2999-12-31') = DATE '2999-12-31'
-     ORDER BY CASE WHEN validity = 'current' THEN 0 ELSE 1 END
-     LIMIT 1`,
-    [input.subject_id, input.object_id, input.approved.candidate.relation, component.component_id, component.component]
-  );
-  if (existing.rows[0] !== undefined && existing.rows[0].validity !== "current") {
-    throw new Error(`Cannot append reviewed evidence to deprecated edge: ${existing.rows[0].edge_id}`);
-  }
-
-  const edgeId = existing.rows[0]?.edge_id ?? createId("EDGE");
   const evidenceId = createId("EV");
-  const isNewEdge = existing.rows[0] === undefined;
-  const edgeLevel = maxLevel(existing.rows[0]?.evidence_level, input.approved.scoring.evidence_level);
-  const edgeConfidence = Math.min(0.97, Math.max(existing.rows[0]?.confidence ?? 0, input.approved.scoring.confidence));
   const traceInput = await loadEvidenceTraceInput(client, input.approved);
   const trace = buildEvidenceTrace({
     cite_text: input.approved.candidate.cite_text,
@@ -72,88 +43,78 @@ export async function applyApprovedCandidateToSql(client: DbTxClient, input: App
         })
   });
 
-  if (isNewEdge) {
-    await insertEdge(client, {
-      edgeId,
-      subjectId: input.subject_id,
-      objectId: input.object_id,
-      approved: input.approved,
-      component,
-      edgeLevel,
-      edgeConfidence
-    });
-  } else {
-    await updateEdge(client, {
-      edgeId,
-      approved: input.approved,
-      component,
-      edgeLevel,
-      edgeConfidence
-    });
-  }
+  const edge = await upsertCurrentEdge(client, {
+    edgeId: createId("EDGE"),
+    subjectId: input.subject_id,
+    objectId: input.object_id,
+    approved: input.approved,
+    component
+  });
+  if (edge.validity !== "current") throw new Error(`Cannot append reviewed evidence to deprecated edge: ${edge.edge_id}`);
 
   await insertEvidence(client, {
-    edgeId,
+    edgeId: edge.edge_id,
     evidenceId,
     approved: input.approved,
     trace
   });
   await supersedeOlderEvidence(client, {
-    edgeId,
+    edgeId: edge.edge_id,
     evidenceId,
     approved: input.approved
   });
-  await updatePrimaryEvidence(client, edgeId);
+  await updatePrimaryEvidence(client, edge.edge_id);
   const change = await recordSemanticChange(client, {
     scope_kind: "edge",
-    scope_id: edgeId,
-    change_type: isNewEdge ? "new_edge" : "edge_evidence_added",
-    after: { edge_id: edgeId },
+    scope_id: edge.edge_id,
+    change_type: edge.inserted ? "new_edge" : "edge_evidence_added",
+    after: { edge_id: edge.edge_id },
     evidence_ids: [evidenceId],
     caused_by: "review"
   });
-  return { edge_id: edgeId, evidence_id: evidenceId, change_id: change.change_id, is_new_edge: isNewEdge };
-}
-
-async function lockEdgeIdentity(
-  client: DbTxClient,
-  input: {
-    subject_id: string;
-    object_id: string;
-    relation: CandidateRelation["relation"];
-    component: ComponentReference;
-  }
-): Promise<void> {
-  const lockKey = [
-    input.subject_id,
-    input.object_id,
-    input.relation,
-    input.component.component_id ?? "",
-    input.component.component?.toLowerCase() ?? "",
-    "1900-01-01",
-    "2999-12-31"
-  ].join("\u001f");
-  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [lockKey]);
+  return { edge_id: edge.edge_id, evidence_id: evidenceId, change_id: change.change_id, is_new_edge: edge.inserted };
 }
 
 interface InsertOrUpdateEdgeInput {
   edgeId: string;
   approved: ApprovedCandidate;
   component: ComponentReference;
-  edgeLevel: EvidenceLevel;
-  edgeConfidence: number;
 }
 
-async function insertEdge(
+interface EdgeUpsertRow extends EdgeIdentityRow {
+  inserted: boolean;
+}
+
+async function upsertCurrentEdge(
   client: DbTxClient,
   input: InsertOrUpdateEdgeInput & {
     subjectId: string;
     objectId: string;
   }
-): Promise<void> {
-  await client.query(
+): Promise<EdgeUpsertRow> {
+  const result = await client.query<EdgeUpsertRow>(
     `INSERT INTO edges (edge_id, subject_id, object_id, relation, component, component_id, component_specificity, evidence_level, confidence, is_inferred, validity)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'current')`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'current')
+     ON CONFLICT (
+       subject_id,
+       object_id,
+       relation,
+       COALESCE(component_id, ''),
+       COALESCE(component, ''),
+       COALESCE(effective_from, DATE '1900-01-01'),
+       COALESCE(effective_to, DATE '2999-12-31')
+     )
+     DO UPDATE SET
+       component = EXCLUDED.component,
+       component_id = EXCLUDED.component_id,
+       component_specificity = COALESCE(edges.component_specificity, EXCLUDED.component_specificity),
+       evidence_level = GREATEST(edges.evidence_level, EXCLUDED.evidence_level),
+       confidence = LEAST(0.97, GREATEST(edges.confidence, EXCLUDED.confidence)),
+       is_inferred = EXCLUDED.is_inferred,
+       last_verified_at = now(),
+       updated_at = now()
+     WHERE edges.validity = 'current'
+     RETURNING edge_id, evidence_level, confidence, validity, (xmax = 0) AS inserted`,
     [
       input.edgeId,
       input.subjectId,
@@ -162,41 +123,38 @@ async function insertEdge(
       input.component.component,
       input.component.component_id,
       input.component.component_specificity,
-      input.edgeLevel,
-      input.edgeConfidence,
+      input.approved.scoring.evidence_level,
+      input.approved.scoring.confidence,
       input.approved.scoring.is_inferred
     ]
   );
+  const row = result.rows[0];
+  if (row !== undefined) return row;
+  return blockedEdgeIdentity(client, input);
 }
 
-interface EdgeUpdateRow extends DbRow {
-  edge_id: string;
-}
-
-async function updateEdge(client: DbTxClient, input: InsertOrUpdateEdgeInput): Promise<void> {
-  const result = await client.query<EdgeUpdateRow>(
-    `UPDATE edges
-     SET component = $2,
-         component_id = $3,
-         component_specificity = COALESCE(component_specificity, $4),
-         evidence_level = $5,
-         confidence = $6,
-         is_inferred = $7,
-         last_verified_at = now(),
-         updated_at = now()
-     WHERE edge_id = $1 AND validity = 'current'
-     RETURNING edge_id`,
-    [
-      input.edgeId,
-      input.component.component,
-      input.component.component_id,
-      input.component.component_specificity,
-      input.edgeLevel,
-      input.edgeConfidence,
-      input.approved.scoring.is_inferred
-    ]
+async function blockedEdgeIdentity(
+  client: DbTxClient,
+  input: InsertOrUpdateEdgeInput & {
+    subjectId: string;
+    objectId: string;
+  }
+): Promise<EdgeUpsertRow> {
+  const blocked = await client.query<EdgeUpsertRow>(
+    `SELECT edge_id, evidence_level, confidence, validity, false AS inserted
+     FROM edges
+     WHERE subject_id = $1 AND object_id = $2 AND relation = $3
+       AND COALESCE(component_id, '') = COALESCE($4, '')
+       AND COALESCE(component, '') = COALESCE($5, '')
+       AND COALESCE(effective_from, DATE '1900-01-01') = DATE '1900-01-01'
+       AND COALESCE(effective_to, DATE '2999-12-31') = DATE '2999-12-31'
+     ORDER BY updated_at DESC, edge_id
+     LIMIT 1`,
+    [input.subjectId, input.objectId, input.approved.candidate.relation, input.component.component_id, input.component.component]
   );
-  if (result.rows[0] === undefined) throw new Error(`Current edge not found while applying reviewed evidence: ${input.edgeId}`);
+  const row = blocked.rows[0];
+  if (row === undefined) throw new Error(`Edge upsert did not return a row for reviewed candidate: ${input.subjectId} -> ${input.objectId}`);
+  return row;
 }
 
 async function insertEvidence(
@@ -344,8 +302,4 @@ async function loadEvidenceTraceInput(client: DbClient, approved: ApprovedCandid
     document_metadata: doc.metadata,
     ...(chunkText === undefined ? {} : { chunk_text: chunkText })
   };
-}
-
-function maxLevel(left: EvidenceLevel | undefined, right: EvidenceLevel): EvidenceLevel {
-  return Math.max(left ?? 1, right) as EvidenceLevel;
 }

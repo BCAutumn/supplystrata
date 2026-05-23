@@ -26,21 +26,21 @@
 [x] B1 graph-builder 写入 reviewed evidence 时拒绝追加到 deprecated edge；edge update / primary evidence update 只作用于 `validity = 'current'`。
 [x] B4 Neo4j 投影遇到非 current edge 时删除图库边并跳过 upsert，Postgres truth store 中 deprecated edge 不再重新出现在 graph projection。
 [x] C4 graph-builder 内部写 helper 与 db alert status helper 收紧到 `DbTxClient`。
-[ ] A5 graph-builder edge identity 当前依赖事务级 advisory lock + SELECT/INSERT/UPDATE。后续可继续评估是否迁到原子 upsert；迁移前需要确认 deprecated identity 与唯一索引的历史语义。
-[ ] B2 edge intelligence refresh 自动 resolve generated unknown 的权限边界仍需调整：应改为 review/disposition 候选，或区分 `auto_suggested` 与 `human_confirmed`。
-[ ] B3 derived claim refresh 对 active claim 的人工修订保护仍需更细：可引入 generated/human edit guard，或限定 derived refresh 只改派生子集。
-[ ] C1 entity import review apply 仍需继续核对多表写入是否完全只接受 `DbTxClient`。
-[ ] C2 evidence trace backfill 仍需分批事务与 active evidence 过滤策略。
+[x] A5 graph-builder edge identity 已迁到 `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING (xmax=0)`；冲突更新仅允许 `validity='current'`，命中 deprecated/historical identity 时回读 blocked edge 并拒绝追加 evidence。
+[x] B2 edge intelligence refresh 不再自动 resolve generated strength unknown；refresh 只写 strength / freshness / explicit unknown，unknown 关闭必须走人工或显式 resolution/disposition。
+[x] B3 derived claim refresh 增加 claim human-edit guard：`claims.last_human_edit_at / last_human_editor` 标记人工维护，`upsertClaim()` 在 SQL 层保留人工 claim 的文案、范围、置信度、验证时间和 `generated_by`，并提供显式 `markClaimHumanEdited()` 写入口。
+[x] C1 entity import / supplier-list facility import / pending entity resolution 多表写入口收紧到 `DbTxClient`，并补 `applyEntitySourceReviewCandidateTransactionally()` 包装入口。
+[x] C2 evidence trace backfill 写入口收紧到 `DbTxClient`，默认只补 active evidence（`superseded_by IS NULL`），并提供 `backfillEvidenceTraceTransactionally()` 分批事务包装。
 [x] C3 evidence-maintenance 的 edge intelligence / observation anomaly / alert candidates / component risk refresh 系列新增 `*Transactionally(store, input)` 入口，调用方可以统一通过 store 进入事务边界。
-[ ] C5 edge claim refresh 大批量事务仍需分批提交或 cursor 方案。
+[x] C5 edge claim refresh 的 transactionally 包装改为先读取待处理 edge，再按 `batch_size` 分批进入事务；单批保持原子，避免默认 500 条全部压进一个长事务。
 ```
 
 ## 第 2 批：编排分叉与隐式依赖
 
 ```text
-[ ] D1 scheduled source check 默认 document observation store 当前仍偏轻；需要把完整 document observation / relation semantic change / review enqueue 作为显式可注入端口，而不是让不同入口产生不同深度的数据。
-[ ] D2 Apple supplier-list cache fallback 语义需要复用 runtime 的 fallback/degraded 口径，缓存回退不能被误认为成功抓取。
-[ ] E1 observability 默认 logger 需要继续核对：库层默认应保持 noop，app/CLI/worker 显式注入 env logger。
+[x] D1 scheduled source check 的完整 document observation store 已作为显式端口接入；worker 与 CLI `sources run-due/check` 注入 pipeline 的 `persistDocumentObservations()`，connector 仍只通过窄运行时上下文接收能力，避免 `source-workflows -> pipeline` 反向依赖。
+[x] D2 Apple supplier-list PDF fetch 改用 runtime 的 format-agnostic `fetchOrLoadCachedSnapshot()`，metadata 写入 `source_fetch_status=fallback` / `source_fetch_error`，缓存回退不再被误认为 live success。
+[x] E1 `getLogger()` 默认返回 `noopLogger`，不再隐式 `loadEnv()`；worker 入口显式 `loadEnv()` 后 `setLogger(createLogger(env))`。
 [ ] E2 CLI pipeline preview/ingest 仍有示例公司入口；后续应继续收敛到 source connector / source-management catalog 驱动。
 [ ] K1/K2 clock / cwd 等隐式依赖需要逐步改为执行层显式注入，尤其是写入审计时间和批量任务。
 ```
@@ -48,7 +48,7 @@
 ## 第 3 批：契约边界、重复实现与硬编码
 
 ```text
-[ ] F1-F6 DB Row / DTO 边界继续收敛：card-builder、workbench-export、chain-view-builder 不能把 Row spread 成公共 DTO。
+[ ] F1-F6 DB Row / DTO 边界继续收敛：`loadEvidenceCard()` 已改为显式 EvidenceCard DTO 映射，`db/query.ts` 的 evidence 查询已去掉 `ev.*`；workbench-export、chain-view-builder、documents/chunk 查询和其他 Row 暴露面仍需继续治理。
 [ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。
 [ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。
 [ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。

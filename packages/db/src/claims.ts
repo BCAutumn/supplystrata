@@ -27,6 +27,8 @@ export interface ClaimRow extends pg.QueryResultRow {
   is_inferred: boolean;
   generated_by: string;
   last_verified_at: Date;
+  last_human_edit_at: Date | null;
+  last_human_editor: string | null;
   created_at: Date;
   updated_at: Date;
   edge_validity: EdgeValidity | null;
@@ -74,6 +76,14 @@ export interface UpsertClaimResult {
   inserted: boolean;
 }
 
+export interface MarkClaimHumanEditedInput {
+  claim_id: string;
+  reviewer: string;
+  claim_text?: string;
+  confidence?: number;
+  last_human_edit_at?: string;
+}
+
 export async function insertClaim(client: DbTxClient, input: NewClaimInput): Promise<{ claim_id: string }> {
   const claimId = input.claim_id ?? createId("CLM");
   await client.query(
@@ -111,20 +121,20 @@ export async function upsertClaim(client: DbTxClient, input: NewClaimInput): Pro
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE($14::timestamptz, now()))
      ON CONFLICT (claim_id) DO UPDATE SET
-       claim_type = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.claim_type ELSE EXCLUDED.claim_type END,
-       claim_text = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.claim_text ELSE EXCLUDED.claim_text END,
-       subject_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.subject_id ELSE EXCLUDED.subject_id END,
-       object_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.object_id ELSE EXCLUDED.object_id END,
-       component_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.component_id ELSE EXCLUDED.component_id END,
-       edge_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.edge_id ELSE EXCLUDED.edge_id END,
-       review_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.review_id ELSE EXCLUDED.review_id END,
+       claim_type = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.claim_type ELSE EXCLUDED.claim_type END,
+       claim_text = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.claim_text ELSE EXCLUDED.claim_text END,
+       subject_id = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.subject_id ELSE EXCLUDED.subject_id END,
+       object_id = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.object_id ELSE EXCLUDED.object_id END,
+       component_id = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.component_id ELSE EXCLUDED.component_id END,
+       edge_id = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.edge_id ELSE EXCLUDED.edge_id END,
+       review_id = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.review_id ELSE EXCLUDED.review_id END,
        status = claims.status,
-       evidence_level = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.evidence_level ELSE EXCLUDED.evidence_level END,
-       confidence = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.confidence ELSE EXCLUDED.confidence END,
-       is_inferred = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.is_inferred ELSE EXCLUDED.is_inferred END,
-       generated_by = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.generated_by ELSE EXCLUDED.generated_by END,
-       last_verified_at = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.last_verified_at ELSE EXCLUDED.last_verified_at END,
-       updated_at = now()
+       evidence_level = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.evidence_level ELSE EXCLUDED.evidence_level END,
+       confidence = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.confidence ELSE EXCLUDED.confidence END,
+       is_inferred = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.is_inferred ELSE EXCLUDED.is_inferred END,
+       generated_by = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.generated_by ELSE EXCLUDED.generated_by END,
+       last_verified_at = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.last_verified_at ELSE EXCLUDED.last_verified_at END,
+       updated_at = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.updated_at ELSE now() END
      RETURNING claim_id, (xmax = 0) AS inserted`,
     [
       claimId,
@@ -146,6 +156,29 @@ export async function upsertClaim(client: DbTxClient, input: NewClaimInput): Pro
   const row = result.rows[0];
   if (row === undefined) throw new Error(`Claim upsert did not return a row: ${claimId}`);
   return { claim_id: row.claim_id, inserted: row.inserted };
+}
+
+export async function markClaimHumanEdited(client: DbTxClient, input: MarkClaimHumanEditedInput): Promise<ClaimRow> {
+  const result = await client.query<ClaimRow>(
+    `UPDATE claims
+     SET claim_text = COALESCE($2::text, claim_text),
+         confidence = COALESCE($3::real, confidence),
+         last_human_edit_at = COALESCE($5::timestamptz, now()),
+         last_human_editor = $4,
+         updated_at = now()
+     WHERE claim_id = $1
+       AND status NOT IN ('superseded','rejected')
+     RETURNING claim_id, claim_type, claim_text, subject_id, object_id, component_id, edge_id, review_id,
+               status, evidence_level, confidence, is_inferred, generated_by, last_verified_at,
+               last_human_edit_at, last_human_editor, created_at, updated_at,
+               NULL::text AS edge_validity,
+               NULL::text AS edge_deprecated_reason,
+               NULL::text AS edge_superseded_by_edge_id`,
+    [input.claim_id, input.claim_text ?? null, input.confidence ?? null, input.reviewer, input.last_human_edit_at ?? null]
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Claim is not editable or does not exist: ${input.claim_id}`);
+  return row;
 }
 
 export async function linkClaimEvidence(client: DbTxClient, input: { claim_id: string; evidence_id: string; role: ClaimEvidenceRole }): Promise<void> {
@@ -199,7 +232,8 @@ export async function listClaimUnknownLinks(client: DbClient, claimId: string): 
 export async function getClaim(client: DbClient, claimId: string): Promise<ClaimRow | undefined> {
   const result = await client.query<ClaimRow>(
     `SELECT c.claim_id, c.claim_type, c.claim_text, c.subject_id, c.object_id, c.component_id, c.edge_id, c.review_id,
-            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at, c.created_at, c.updated_at,
+            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at,
+            c.last_human_edit_at, c.last_human_editor, c.created_at, c.updated_at,
             e.validity AS edge_validity,
             e.deprecated_reason AS edge_deprecated_reason,
             e.superseded_by_edge_id AS edge_superseded_by_edge_id
@@ -218,7 +252,8 @@ export async function listClaimsByScope(client: DbClient, input: { scope: ClaimS
   const statusPredicate = input.includeInactive === true ? "true" : "c.status = 'active'";
   const result = await client.query<ClaimRow>(
     `SELECT c.claim_id, c.claim_type, c.claim_text, c.subject_id, c.object_id, c.component_id, c.edge_id, c.review_id,
-            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at, c.created_at, c.updated_at,
+            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at,
+            c.last_human_edit_at, c.last_human_editor, c.created_at, c.updated_at,
             e.validity AS edge_validity,
             e.deprecated_reason AS edge_deprecated_reason,
             e.superseded_by_edge_id AS edge_superseded_by_edge_id
@@ -238,7 +273,8 @@ export async function listDraftClaims(client: DbClient, input: { scope?: ClaimSc
   const params = input.scope === undefined ? [limit] : [input.scope.id, limit];
   const result = await client.query<ClaimRow>(
     `SELECT c.claim_id, c.claim_type, c.claim_text, c.subject_id, c.object_id, c.component_id, c.edge_id, c.review_id,
-            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at, c.created_at, c.updated_at,
+            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at,
+            c.last_human_edit_at, c.last_human_editor, c.created_at, c.updated_at,
             e.validity AS edge_validity,
             e.deprecated_reason AS edge_deprecated_reason,
             e.superseded_by_edge_id AS edge_superseded_by_edge_id
@@ -257,7 +293,8 @@ export async function listActiveClaimsOnInactiveEdges(client: DbClient, input: {
   const limit = input.limit ?? 50;
   const result = await client.query<ClaimRow>(
     `SELECT c.claim_id, c.claim_type, c.claim_text, c.subject_id, c.object_id, c.component_id, c.edge_id, c.review_id,
-            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at, c.created_at, c.updated_at,
+            c.status, c.evidence_level, c.confidence, c.is_inferred, c.generated_by, c.last_verified_at,
+            c.last_human_edit_at, c.last_human_editor, c.created_at, c.updated_at,
             e.validity AS edge_validity,
             e.deprecated_reason AS edge_deprecated_reason,
             e.superseded_by_edge_id AS edge_superseded_by_edge_id

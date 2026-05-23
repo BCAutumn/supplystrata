@@ -20,9 +20,13 @@ export function createLoggerFromEnv(): SupplyStrataLogger {
 
 let defaultLogger: SupplyStrataLogger | undefined;
 
+export function setLogger(logger: SupplyStrataLogger): SupplyStrataLogger {
+  defaultLogger = logger;
+  return logger;
+}
+
 export function getLogger(): SupplyStrataLogger {
-  defaultLogger ??= createLoggerFromEnv();
-  return defaultLogger;
+  return defaultLogger ?? noopLogger;
 }
 
 export function messageFromUnknown(error: unknown): string {

@@ -1,6 +1,7 @@
 import type { DatabaseStore } from "@supplystrata/db/write";
 import type { Env } from "@supplystrata/config";
 import type { SupplyStrataLogger } from "@supplystrata/observability";
+import { persistDocumentObservations } from "@supplystrata/pipeline";
 import { runDueSourceChecks, type DueSourceCheckRunResult } from "@supplystrata/source-workflows";
 import type { SourceCheckWorkerOptions } from "./options.js";
 
@@ -19,7 +20,7 @@ export async function runSourceCheckWorkerCycle(input: {
   logger: SupplyStrataLogger;
 }): Promise<DueSourceCheckRunResult> {
   const startedAt = new Date().toISOString();
-  const result = await runDueSourceChecks(input.store, { env: input.env, limit: input.limit });
+  const result = await runDueSourceChecks(input.store, { env: input.env, limit: input.limit, documentObservationStore: { persistDocumentObservations } });
   input.logger.info(
     {
       stage: "source-check-worker",

@@ -3,13 +3,12 @@ import { parsePdf } from "@supplystrata/parsers-pdf";
 import {
   createAdapterContext as createRuntimeAdapterContext,
   createRateLimitedSourceAdapter,
-  fetchBytesWithTimeout,
+  fetchOrLoadCachedSnapshot,
   persistRawDocumentSnapshot,
   requireSnapshotStore,
   type AdapterContext,
   type CreateAdapterContextInput,
-  type SourceAdapter,
-  type SourceSnapshotStore
+  type SourceAdapter
 } from "@supplystrata/source-adapter-runtime";
 import { extractFixedWidthSupplierListCandidates, type SupplierListCandidate, type SupplierListParseConfig } from "@supplystrata/supplier-list";
 
@@ -44,18 +43,33 @@ const appleSuppliersAdapterBase: SourceAdapter<AppleSuppliersInput, Uint8Array> 
   async fetch(task, ctx) {
     const fiscalYear = task.hint?.period?.slice(0, 4) ?? "unknown";
     const snapshotStore = requireSnapshotStore(ctx, "apple-suppliers");
-    const bytes = await fetchOrLoadCached(task.url, fiscalYear, snapshotStore);
+    const snapshot = await fetchOrLoadCachedSnapshot({
+      url: task.url,
+      userAgent: appleBrowserUserAgent(),
+      timeoutMs: 20_000,
+      sourceLabel: "Apple Supplier List",
+      storagePrefix: "apple-suppliers",
+      partition: fiscalYear,
+      extension: "pdf",
+      snapshotStore,
+      headers: {
+        Accept: "application/pdf,text/html,*/*",
+        Referer: "https://www.apple.com/supply-chain/"
+      }
+    });
     return persistRawDocumentSnapshot({
       ctx,
       sourceAdapterId: "apple-suppliers",
       url: task.url,
-      body: bytes,
+      body: snapshot.bytes,
       metadata: {
         task_id: task.task_id,
         document_type: "supplier_list",
         primary_entity_id: task.hint?.entity_id,
         source_date: task.hint?.period,
-        extraction_mode: "semi_auto"
+        extraction_mode: "semi_auto",
+        source_fetch_status: snapshot.source_fetch_status,
+        ...(snapshot.source_fetch_error === undefined ? {} : { source_fetch_error: snapshot.source_fetch_error })
       },
       storageKeyForSha256: (sha256) => `apple-suppliers/${fiscalYear}/${sha256}.pdf`
     });
@@ -90,24 +104,6 @@ export function extractAppleSupplierCandidates(normalized: NormalizedDocument, f
 
 export function extractAppleSupplierCandidatesFromText(text: string, fiscalYear: number): AppleSupplierCandidate[] {
   return extractFixedWidthSupplierListCandidates(text, appleSupplierListParseConfig(fiscalYear));
-}
-
-async function fetchOrLoadCached(url: string, fiscalYear: string, snapshotStore: SourceSnapshotStore): Promise<Uint8Array> {
-  try {
-    return await fetchBytesWithTimeout(url, {
-      userAgent: appleBrowserUserAgent(),
-      timeoutMs: 20_000,
-      sourceLabel: "Apple Supplier List",
-      headers: {
-        Accept: "application/pdf,text/html,*/*",
-        Referer: "https://www.apple.com/supply-chain/"
-      }
-    });
-  } catch (error) {
-    const cached = await snapshotStore.readLatest({ storagePrefix: "apple-suppliers", partition: fiscalYear, extension: "pdf" });
-    if (cached !== undefined) return cached;
-    throw error;
-  }
 }
 
 function appleBrowserUserAgent(): string {

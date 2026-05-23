@@ -6,6 +6,7 @@ import {
   credentialQueryParamUrl,
   createRateLimitedSourceAdapter,
   defineHtmlSnapshotAdapter,
+  fetchOrLoadCachedSnapshot,
   requireAdapterCredential,
   SourceRateLimiter,
   urlWithCredentialQueryParam,
@@ -161,6 +162,32 @@ describe("source adapter rate limiter", () => {
     expect(writes).toHaveLength(1);
     expect(writes[0]?.key).toBe(raw.storage_key);
     expect(new TextDecoder().decode(writes[0]?.body)).toContain("<body>ok</body>");
+  });
+
+  it("returns fallback snapshot status when a non-HTML cached source falls back to stored bytes", async () => {
+    vi.stubGlobal("fetch", async () => new Response("blocked", { status: 403, statusText: "Forbidden" }));
+    const cached = new TextEncoder().encode("cached pdf bytes");
+    const snapshot = await fetchOrLoadCachedSnapshot({
+      url: "https://example.com/apple.pdf",
+      userAgent: "browser",
+      timeoutMs: 1000,
+      sourceLabel: "Apple Supplier List",
+      storagePrefix: "apple-suppliers",
+      partition: "2022",
+      extension: "pdf",
+      snapshotStore: {
+        async put() {},
+        async readLatest(input) {
+          expect(input).toEqual({ storagePrefix: "apple-suppliers", partition: "2022", extension: "pdf" });
+          return cached;
+        }
+      },
+      headers: { Accept: "application/pdf" }
+    });
+
+    expect(new TextDecoder().decode(snapshot.bytes)).toBe("cached pdf bytes");
+    expect(snapshot.source_fetch_status).toBe("fallback");
+    expect(snapshot.source_fetch_error).toContain("403 Forbidden");
   });
 
   it("builds credential transport values from explicit adapter context", () => {

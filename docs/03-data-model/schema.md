@@ -489,6 +489,7 @@ chain_segments
 
 - `claims` 只能引用 `edges` / `evidence` / `unknown_items` / `review_candidates`，不能自己成为新事实来源。
 - `@supplystrata/claim-builder` 第一版只扫描 `current`、非 inferred、`evidence_level >= 4` 且有 `primary_evidence_id` 的事实边，并用确定性 `claim_id` 幂等 upsert；它不做抽取、不提高证据等级、不写 Neo4j。
+- `claims.last_human_edit_at / last_human_editor` 用于标记人工维护过的 claim。派生 refresh 的 `upsertClaim()` 必须保留这些 claim 的文案、范围、置信度、验证时间和 `generated_by`，避免后台重跑覆盖 reviewer 判断；人工修改必须走显式生命周期/编辑入口。
 - `claim_evidence.role` 记录 claim 与 evidence 的关系：`primary` / `supporting` / `contradicting` / `context`。反证只能让 claim 进入冲突边界，不能自动删除或改写事实边。
 - `claim_unknowns.role` 记录 claim 与 unknown 的关系：`boundary` / `blocking` / `context`。`CONFLICTING_EVIDENCE` 类 unknown 必须通过这里挂到 claim，不能只散落在 Markdown 说明里。
 - `status='draft'` 只用于已确认的语义变化草稿，例如 `semantic_change` review apply 生成的 `CLM-REVIEW-*`；draft 不进入 active claim 查询，也不能被前端画成事实边。

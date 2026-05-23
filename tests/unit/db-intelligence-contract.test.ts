@@ -20,6 +20,7 @@ import { sql as migration0019RiskMetricKindContractSql } from "../../packages/db
 import { sql as migration0020WeightedNodeKnockoutMetricSql } from "../../packages/db/src/migration-sql/0020_weighted_node_knockout_metric.js";
 import { sql as migration0021FinancialMetricObservationTypeSql } from "../../packages/db/src/migration-sql/0021_financial_metric_observation_type.js";
 import { sql as migration0022FinancialPeerMetricKindSql } from "../../packages/db/src/migration-sql/0022_financial_peer_metric_kind.js";
+import { sql as migration0026ClaimHumanEditGuardSql } from "../../packages/db/src/migration-sql/0026_claim_human_edit_guard.js";
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
@@ -31,6 +32,7 @@ import {
   insertChainSegments,
   insertChainView,
   insertClaim,
+  markClaimHumanEdited,
   insertLeadObservation,
   insertObservation,
   correctObservationMeasurement,
@@ -108,6 +110,40 @@ class ResolvedUnknownUpsertDbClient extends RecordingDbClient {
           scope_kind: "company",
           scope_id: "ENT-NVIDIA",
           question: "Original resolved question"
+        }
+      ] as unknown as T[]);
+    }
+    return queryResult([]);
+  }
+}
+
+class ClaimHumanEditDbClient extends RecordingDbClient {
+  override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    if (sql.includes("UPDATE claims") && sql.includes("last_human_edit_at")) {
+      return queryResult([
+        {
+          claim_id: params[0],
+          claim_type: "SUPPLY_RELATION_CLAIM",
+          claim_text: params[1],
+          subject_id: "ENT-NVIDIA",
+          object_id: "ENT-TSMC",
+          component_id: "COMP-WAFER",
+          edge_id: "EDGE-TEST",
+          review_id: null,
+          status: "active",
+          evidence_level: 5,
+          confidence: params[2],
+          is_inferred: false,
+          generated_by: "claim-builder.edge-fact.v1",
+          last_verified_at: new Date("2026-05-22T00:00:00.000Z"),
+          last_human_edit_at: new Date(String(params[4])),
+          last_human_editor: params[3],
+          created_at: new Date("2026-05-22T00:00:00.000Z"),
+          updated_at: new Date(String(params[4])),
+          edge_validity: null,
+          edge_deprecated_reason: null,
+          edge_superseded_by_edge_id: null
         }
       ] as unknown as T[]);
     }
@@ -202,6 +238,11 @@ describe("db intelligence-network repositories", () => {
     for (const category of EDGE_CALIBRATION_ERROR_CATEGORIES) {
       expect(migration0018EdgeCalibrationSql).toContain(`'${category}'`);
     }
+  });
+
+  it("tracks human edited claims for derived refresh guards", () => {
+    expect(migration0026ClaimHumanEditGuardSql).toContain("ADD COLUMN IF NOT EXISTS last_human_edit_at");
+    expect(migration0026ClaimHumanEditGuardSql).toContain("ADD COLUMN IF NOT EXISTS last_human_editor");
   });
 
   it("inserts claims and links evidence/unknowns without business inference", async () => {
@@ -304,12 +345,35 @@ describe("db intelligence-network repositories", () => {
     });
 
     expect(client.calls[0]?.sql).toContain(
-      "claim_text = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.claim_text ELSE EXCLUDED.claim_text END"
+      "claim_text = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.claim_text ELSE EXCLUDED.claim_text END"
     );
-    expect(client.calls[0]?.sql).toContain("edge_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.edge_id ELSE EXCLUDED.edge_id END");
     expect(client.calls[0]?.sql).toContain(
-      "last_verified_at = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.last_verified_at ELSE EXCLUDED.last_verified_at END"
+      "edge_id = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.edge_id ELSE EXCLUDED.edge_id END"
     );
+    expect(client.calls[0]?.sql).toContain(
+      "last_verified_at = CASE WHEN claims.status IN ('superseded','rejected') OR claims.last_human_edit_at IS NOT NULL THEN claims.last_verified_at ELSE EXCLUDED.last_verified_at END"
+    );
+  });
+
+  it("marks active claims as human edited through an explicit lifecycle write", async () => {
+    const client = new ClaimHumanEditDbClient();
+
+    const claim = await markClaimHumanEdited(client, {
+      claim_id: "CLM-EDGE-TEST",
+      reviewer: "analyst",
+      claim_text: "Reviewer-maintained claim text.",
+      confidence: 0.81,
+      last_human_edit_at: "2026-05-23T00:00:00.000Z"
+    });
+
+    expect(claim).toMatchObject({
+      claim_id: "CLM-EDGE-TEST",
+      claim_text: "Reviewer-maintained claim text.",
+      confidence: 0.81,
+      last_human_editor: "analyst"
+    });
+    expect(client.calls[0]?.sql).toContain("last_human_edit_at = COALESCE");
+    expect(client.calls[0]?.sql).toContain("AND status NOT IN ('superseded','rejected')");
   });
 
   it("inserts observations and leads as non-edge records", async () => {

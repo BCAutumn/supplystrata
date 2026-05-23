@@ -62,7 +62,11 @@ export interface EvidenceDetailRow extends pg.QueryResultRow {
 
 export async function getEvidence(client: DbClient, evidenceId: string): Promise<EvidenceDetailRow | undefined> {
   const result = await client.query<EvidenceDetailRow>(
-    `SELECT ev.*, d.source_url, d.source_date, d.fetched_at, d.source_adapter_id, d.document_type,
+    `SELECT ev.evidence_id, ev.edge_id, ev.superseded_by, ev.cite_text, ev.cite_locator,
+            ev.cite_start_char, ev.cite_end_char, ev.cite_text_sha256, ev.normalized_cite_text_sha256,
+            ev.source_snapshot_sha256, ev.parser_version, ev.extractor_version, ev.relation_candidate_hash,
+            ev.evidence_level, ev.confidence, ev.is_inferred, ev.extraction_method,
+            d.source_url, d.source_date, d.fetched_at, d.source_adapter_id, d.document_type,
             s.display_name AS subject_name, o.display_name AS object_name, ed.relation
      FROM evidence ev
      JOIN documents d ON d.doc_id = ev.doc_id
@@ -78,7 +82,11 @@ export async function getEvidence(client: DbClient, evidenceId: string): Promise
 export async function listEvidenceForEdges(client: DbClient, edgeIds: readonly string[]): Promise<EvidenceDetailRow[]> {
   if (edgeIds.length === 0) return [];
   const result = await client.query<EvidenceDetailRow>(
-    `SELECT ev.*, d.source_url, d.source_date, d.fetched_at, d.source_adapter_id, d.document_type,
+    `SELECT ev.evidence_id, ev.edge_id, ev.superseded_by, ev.cite_text, ev.cite_locator,
+            ev.cite_start_char, ev.cite_end_char, ev.cite_text_sha256, ev.normalized_cite_text_sha256,
+            ev.source_snapshot_sha256, ev.parser_version, ev.extractor_version, ev.relation_candidate_hash,
+            ev.evidence_level, ev.confidence, ev.is_inferred, ev.extraction_method,
+            d.source_url, d.source_date, d.fetched_at, d.source_adapter_id, d.document_type,
             s.display_name AS subject_name, o.display_name AS object_name, ed.relation
      FROM evidence ev
      JOIN documents d ON d.doc_id = ev.doc_id

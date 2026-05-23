@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createId, normalizeAlias } from "@supplystrata/core";
-import type { DbClient } from "@supplystrata/db/write";
+import type { DatabaseStore, DbClient, DbTxClient } from "@supplystrata/db/write";
 import {
   supplierListFacilityDisplayName,
   supplierListFacilityEntityId,
@@ -18,7 +18,7 @@ export type FacilityImportResult =
   | { status: "blocked"; reason: string };
 
 export async function applyEntitySourceReviewCandidate(
-  client: DbClient,
+  client: DbTxClient,
   candidate: EntitySourceReviewCandidate,
   reviewer: string
 ): Promise<EntityImportResult> {
@@ -107,8 +107,16 @@ export async function applyEntitySourceReviewCandidate(
   };
 }
 
+export async function applyEntitySourceReviewCandidateTransactionally(
+  store: DatabaseStore,
+  candidate: EntitySourceReviewCandidate,
+  reviewer: string
+): Promise<EntityImportResult> {
+  return store.transaction((client) => applyEntitySourceReviewCandidate(client, candidate, reviewer));
+}
+
 export async function ensureSupplierListFacilityEntity(
-  client: DbClient,
+  client: DbTxClient,
   candidate: SupplierListReviewCandidate,
   reviewer: string
 ): Promise<FacilityImportResult> {
@@ -233,7 +241,7 @@ export async function countResolvablePendingEntities(client: DbClient): Promise<
   return Number.parseInt(result.rows[0]?.count ?? "0", 10);
 }
 
-export async function resolvePendingEntitySurface(client: DbClient, input: { surface: string; entityId: string; reviewer: string }): Promise<number> {
+export async function resolvePendingEntitySurface(client: DbTxClient, input: { surface: string; entityId: string; reviewer: string }): Promise<number> {
   // 种子实体或人工导入实体被解析后，同步关闭相同 surface 的待处理项。
   const result = await client.query(
     `UPDATE pending_entities

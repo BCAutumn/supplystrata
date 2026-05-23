@@ -125,7 +125,8 @@ export function defineHtmlSnapshotAdapter<TFetchInput>(definition: HtmlSnapshotA
       const snapshot = await fetchOrLoadCachedSnapshot({
         url: task.url,
         userAgent: ctx.userAgent,
-        year,
+        partition: year,
+        extension: "html",
         storagePrefix: definition.storagePrefix,
         sourceLabel: definition.sourceLabel,
         timeoutMs: definition.timeoutMs ?? 12_000,
@@ -267,34 +268,37 @@ function defaultSleepMs(milliseconds: number): Promise<void> {
   });
 }
 
-interface CachedSnapshotInput {
+export interface CachedSourceSnapshotInput {
   url: string;
   userAgent: string;
-  year: string;
+  partition: string;
+  extension: string;
   storagePrefix: string;
   sourceLabel: string;
   timeoutMs: number;
   snapshotStore: SourceSnapshotStore;
+  headers?: Record<string, string>;
 }
 
-interface CachedSnapshotResult {
+export interface CachedSourceSnapshotResult {
   bytes: Uint8Array;
   source_fetch_status: "live" | "fallback";
   source_fetch_error?: string;
 }
 
-async function fetchOrLoadCachedSnapshot(input: CachedSnapshotInput): Promise<CachedSnapshotResult> {
+export async function fetchOrLoadCachedSnapshot(input: CachedSourceSnapshotInput): Promise<CachedSourceSnapshotResult> {
   try {
     return {
       bytes: await fetchBytesWithTimeout(input.url, {
         userAgent: input.userAgent,
         timeoutMs: input.timeoutMs,
-        sourceLabel: input.sourceLabel
+        sourceLabel: input.sourceLabel,
+        ...(input.headers === undefined ? {} : { headers: input.headers })
       }),
       source_fetch_status: "live"
     };
   } catch (error) {
-    const cached = await input.snapshotStore.readLatest({ storagePrefix: input.storagePrefix, partition: input.year, extension: "html" });
+    const cached = await input.snapshotStore.readLatest({ storagePrefix: input.storagePrefix, partition: input.partition, extension: input.extension });
     if (cached !== undefined) {
       return {
         bytes: cached,

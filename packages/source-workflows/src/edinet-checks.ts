@@ -20,6 +20,7 @@ import {
   type SourceCheckConnector
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
+import { documentObservationStoreOption } from "./document-observation-context.js";
 import { EDINET_CREDENTIALS } from "./source-check-credentials.js";
 import type { DatabaseStore } from "@supplystrata/db/write";
 
@@ -133,6 +134,7 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.edinet",
+        ...documentObservationStoreOption(context),
         ...(context.logger === undefined ? {} : { logger: context.logger })
       }
     });

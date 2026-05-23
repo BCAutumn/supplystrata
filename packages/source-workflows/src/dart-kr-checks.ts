@@ -20,6 +20,7 @@ import {
   type SourceCheckConnector
 } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
+import { documentObservationStoreOption } from "./document-observation-context.js";
 import { OPENDART_CREDENTIALS } from "./source-check-credentials.js";
 import type { DatabaseStore } from "@supplystrata/db/write";
 
@@ -132,6 +133,7 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.dart-kr",
+        ...documentObservationStoreOption(context),
         ...(context.logger === undefined ? {} : { logger: context.logger })
       }
     });

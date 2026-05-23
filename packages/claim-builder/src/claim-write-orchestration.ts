@@ -39,6 +39,7 @@ export interface SemanticChangeClaimDraftResult {
 export interface BuildEdgeClaimsInput {
   min_evidence_level?: 4 | 5;
   limit?: number;
+  batch_size?: number;
   generated_by?: string;
 }
 
@@ -227,6 +228,10 @@ async function listActiveClaimsForSemanticChange(
 export async function buildEdgeClaimsFromCurrentEdges(client: DbTxClient, input: BuildEdgeClaimsInput = {}): Promise<BuildEdgeClaimsSummary> {
   const generatedBy = input.generated_by ?? "claim-builder.edge-fact.v1";
   const edges = await listClaimableFactEdges(client, { min_evidence_level: input.min_evidence_level ?? 4, limit: input.limit ?? 500 });
+  return buildEdgeClaimsForEdges(client, edges, generatedBy);
+}
+
+async function buildEdgeClaimsForEdges(client: DbTxClient, edges: readonly ClaimableFactEdgeRow[], generatedBy: string): Promise<BuildEdgeClaimsSummary> {
   let inserted = 0;
   let updated = 0;
 
@@ -297,7 +302,22 @@ export async function buildEdgeClaimsFromCurrentEdges(client: DbTxClient, input:
 }
 
 export async function buildEdgeClaimsFromCurrentEdgesTransactionally(store: DatabaseStore, input: BuildEdgeClaimsInput = {}): Promise<BuildEdgeClaimsSummary> {
-  return store.transaction((client) => buildEdgeClaimsFromCurrentEdges(client, input));
+  const generatedBy = input.generated_by ?? "claim-builder.edge-fact.v1";
+  const limit = input.limit ?? 500;
+  const batchSize = input.batch_size ?? Math.min(limit, 50);
+  if (!Number.isInteger(limit) || limit <= 0) throw new Error(`Claim build limit must be a positive integer: ${limit}`);
+  if (!Number.isInteger(batchSize) || batchSize <= 0) throw new Error(`Claim build batch_size must be a positive integer: ${batchSize}`);
+
+  const edges = await listClaimableFactEdges(store.read, { min_evidence_level: input.min_evidence_level ?? 4, limit });
+  let inserted = 0;
+  let updated = 0;
+  for (let index = 0; index < edges.length; index += batchSize) {
+    const batch = edges.slice(index, index + batchSize);
+    const summary = await store.transaction((client) => buildEdgeClaimsForEdges(client, batch, generatedBy));
+    inserted += summary.inserted;
+    updated += summary.updated;
+  }
+  return { scanned: edges.length, inserted, updated, generated_by: generatedBy };
 }
 
 export async function linkContradictingEvidenceToClaim(client: DbTxClient, input: LinkContradictingEvidenceInput): Promise<LinkContradictingEvidenceResult> {

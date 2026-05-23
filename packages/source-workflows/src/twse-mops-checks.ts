@@ -12,6 +12,7 @@ import {
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
+import { documentObservationStoreOption } from "./document-observation-context.js";
 import type { DatabaseStore } from "@supplystrata/db/write";
 
 const TWSE_MOPS_DOCUMENT_KINDS = ["F", "A", "K"] as const;
@@ -104,6 +105,7 @@ export const twseMopsElectronicDocumentsSourceCheckConnector: SourceCheckConnect
       options: {
         checkTargetId: target.check_target_id,
         failureCausedBy: "source-check.twse-mops",
+        ...documentObservationStoreOption(context),
         ...(context.logger === undefined ? {} : { logger: context.logger })
       }
     });

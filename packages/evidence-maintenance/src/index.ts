@@ -1,14 +1,7 @@
 import { createHash } from "node:crypto";
 import type { CandidateRelation, EdgeStrengthKind, EvidenceLevel, RelationType } from "@supplystrata/core";
-import { listEdgeStrengthEstimates, type DbClient, type DbRow } from "@supplystrata/db/read";
-import {
-  recordSemanticChange,
-  refreshEdgeFreshness,
-  upsertEdgeStrengthEstimate,
-  upsertUnknownItem,
-  type DatabaseStore,
-  type DbTxClient
-} from "@supplystrata/db/write";
+import { listEdgeStrengthEstimates, type DbClient } from "@supplystrata/db/read";
+import { refreshEdgeFreshness, upsertEdgeStrengthEstimate, upsertUnknownItem, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { EvidenceTraceBackfillRow, IntelligenceRefreshEdgeRow } from "./db-rows.js";
 
@@ -23,6 +16,12 @@ export interface EvidenceTraceBackfillSummary {
   scanned: number;
   updated: number;
   offset_missing: number;
+}
+
+export interface EvidenceTraceBackfillInput {
+  limit?: number;
+  batch_size?: number;
+  active_only?: boolean;
 }
 
 export interface RefreshEdgeIntelligenceInput {
@@ -55,8 +54,9 @@ export interface EdgeStrengthDraft {
   attrs: Record<string, unknown>;
 }
 
-export async function backfillEvidenceTrace(client: DbClient, input: { limit?: number } = {}): Promise<EvidenceTraceBackfillSummary> {
+export async function backfillEvidenceTrace(client: DbTxClient, input: EvidenceTraceBackfillInput = {}): Promise<EvidenceTraceBackfillSummary> {
   const limit = input.limit ?? 1000;
+  const activeOnly = input.active_only !== false;
   const rows = await client.query<EvidenceTraceBackfillRow>(
     `SELECT ev.evidence_id, ev.cite_text, ev.extractor_id, ev.llm_meta, ev.doc_id, ev.chunk_id,
             d.bytes_sha256, d.metadata, c.text AS chunk_text,
@@ -65,16 +65,19 @@ export async function backfillEvidenceTrace(client: DbClient, input: { limit?: n
      JOIN documents d ON d.doc_id = ev.doc_id
      LEFT JOIN document_chunks c ON c.chunk_id = ev.chunk_id
      LEFT JOIN edges e ON e.edge_id = ev.edge_id
-     WHERE ev.cite_text_sha256 IS NULL
-        OR ev.normalized_cite_text_sha256 IS NULL
-        OR ev.source_snapshot_sha256 IS NULL
-        OR ev.parser_version IS NULL
-        OR ev.extractor_version IS NULL
-        OR ev.relation_candidate_hash IS NULL
-        OR (ev.chunk_id IS NOT NULL AND (ev.cite_start_char IS NULL OR ev.cite_end_char IS NULL))
+     WHERE ($2::boolean = false OR ev.superseded_by IS NULL)
+       AND (
+         ev.cite_text_sha256 IS NULL
+         OR ev.normalized_cite_text_sha256 IS NULL
+         OR ev.source_snapshot_sha256 IS NULL
+         OR ev.parser_version IS NULL
+         OR ev.extractor_version IS NULL
+         OR ev.relation_candidate_hash IS NULL
+         OR (ev.chunk_id IS NOT NULL AND (ev.cite_start_char IS NULL OR ev.cite_end_char IS NULL))
+       )
      ORDER BY ev.created_at, ev.evidence_id
      LIMIT $1`,
-    [limit]
+    [limit, activeOnly]
   );
 
   let updated = 0;
@@ -130,6 +133,34 @@ export async function backfillEvidenceTrace(client: DbClient, input: { limit?: n
   return { scanned: rows.rowCount ?? rows.rows.length, updated, offset_missing: offsetMissing };
 }
 
+export async function backfillEvidenceTraceTransactionally(
+  store: DatabaseStore,
+  input: EvidenceTraceBackfillInput = {}
+): Promise<EvidenceTraceBackfillSummary> {
+  const limit = input.limit ?? 1000;
+  const batchSize = input.batch_size ?? Math.min(limit, 100);
+  if (!Number.isInteger(limit) || limit <= 0) throw new Error(`Evidence trace backfill limit must be a positive integer: ${limit}`);
+  if (!Number.isInteger(batchSize) || batchSize <= 0) throw new Error(`Evidence trace backfill batch_size must be a positive integer: ${batchSize}`);
+
+  let scanned = 0;
+  let updated = 0;
+  let offsetMissing = 0;
+  while (scanned < limit) {
+    const nextLimit = Math.min(batchSize, limit - scanned);
+    const batch = await store.transaction((client) =>
+      backfillEvidenceTrace(client, {
+        limit: nextLimit,
+        ...(input.active_only === undefined ? {} : { active_only: input.active_only })
+      })
+    );
+    scanned += batch.scanned;
+    updated += batch.updated;
+    offsetMissing += batch.offset_missing;
+    if (batch.scanned < nextLimit) break;
+  }
+  return { scanned, updated, offset_missing: offsetMissing };
+}
+
 export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: RefreshEdgeIntelligenceInput = {}): Promise<EdgeIntelligenceRefreshSummary> {
   const generatedBy = input.generated_by ?? "evidence-maintenance.intelligence-refresh.v1";
   const computedAt = input.computed_at ?? new Date().toISOString();
@@ -143,7 +174,6 @@ export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: 
   let edgesWithStrength = 0;
   let unknownsInserted = 0;
   let unknownsUpdated = 0;
-  let unknownsResolved = 0;
 
   for (const edge of edges) {
     const drafts = inferEdgeStrengthDrafts(edge);
@@ -166,11 +196,6 @@ export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: 
     const hasStrength = drafts.length > 0 || existingStrengthEdgeIds.has(edge.edge_id);
     if (hasStrength) {
       edgesWithStrength += 1;
-      unknownsResolved += await resolveGeneratedStrengthUnknownIfOpen(client, {
-        edge,
-        evidenceId: edge.primary_evidence_id,
-        reviewer: generatedBy
-      });
       continue;
     }
 
@@ -191,7 +216,7 @@ export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: 
     edges_with_strength: edgesWithStrength,
     unknowns_inserted: unknownsInserted,
     unknowns_updated: unknownsUpdated,
-    unknowns_resolved: unknownsResolved,
+    unknowns_resolved: 0,
     generated_by: generatedBy,
     computed_at: computedAt
   };
@@ -331,33 +356,6 @@ function missingStrengthUnknown(edge: IntelligenceRefreshEdgeRow, createdBy: str
     proxies: ["purchase obligation observations", "supplier capex commentary", "component trade or material observations"],
     created_by: createdBy
   };
-}
-
-async function resolveGeneratedStrengthUnknownIfOpen(
-  client: DbTxClient,
-  input: { edge: IntelligenceRefreshEdgeRow; evidenceId: string; reviewer: string }
-): Promise<number> {
-  const unknownId = deterministicEdgeStrengthUnknownId(input.edge.edge_id);
-  const result = await client.query<{ unknown_id: string } & DbRow>(
-    `UPDATE unknown_items
-     SET status = 'resolved',
-         resolved_at = now(),
-         resolved_evidence_ids = $2
-     WHERE unknown_id = $1 AND status = 'open'
-     RETURNING unknown_id`,
-    [unknownId, [input.evidenceId]]
-  );
-  const row = result.rows[0];
-  if (row === undefined) return 0;
-  await recordSemanticChange(client, {
-    scope_kind: "unknown",
-    scope_id: row.unknown_id,
-    change_type: "UNKNOWN_RESOLVED",
-    after: { resolved_by: "edge_strength_estimate", edge_id: input.edge.edge_id },
-    evidence_ids: [input.evidenceId],
-    caused_by: input.reviewer
-  });
-  return 1;
 }
 
 function deterministicEdgeStrengthUnknownId(edgeId: string): string {

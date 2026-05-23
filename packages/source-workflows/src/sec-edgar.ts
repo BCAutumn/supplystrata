@@ -25,10 +25,13 @@ import {
 } from "@supplystrata/sources-sec-edgar";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { recordSavedDocumentObservation } from "./saved-document-observation.js";
+import { documentObservationStoreOption } from "./document-observation-context.js";
+import type { SourceDocumentObservationStore } from "./document-observation-port.js";
 
 export interface SourceCheckOptions {
   checkTargetId?: string;
   adapterContextInput: SourceCheckAdapterContextInput;
+  documentObservationStore?: SourceDocumentObservationStore;
   logger?: SourceCheckConnectorLogger;
 }
 
@@ -47,6 +50,7 @@ export const secEdgarSourceCheckConnector: SourceCheckConnector<DatabaseStore, S
     return checkSecEdgarSource(store, secEdgarInputFromTargetConfig(target.target_config), {
       checkTargetId: target.check_target_id,
       adapterContextInput: context.adapter_context_input,
+      ...documentObservationStoreOption(context),
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
@@ -73,6 +77,7 @@ export const secCompanyFactsSourceCheckConnector: SourceCheckConnector<DatabaseS
     return checkSecCompanyFactsSource(store, secCompanyFactsInputFromTargetConfig(target.target_config), {
       checkTargetId: target.check_target_id,
       adapterContextInput: context.adapter_context_input,
+      ...documentObservationStoreOption(context),
       ...(context.logger === undefined ? {} : { logger: context.logger })
     });
   }
