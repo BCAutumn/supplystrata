@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCliError } from "../../apps/cli/src/cli-utils.js";
+import { formatCliError, parseJsonObject, parseTradeDirections } from "../../apps/cli/src/cli-utils.js";
 
 describe("CLI error formatting", () => {
   it("turns nested connection refusal into an actionable message", () => {
@@ -21,5 +21,15 @@ describe("CLI error formatting", () => {
 
   it("preserves ordinary error messages", () => {
     expect(formatCliError(new Error("bad input"))).toBe("bad input");
+  });
+});
+
+describe("CLI option parsing", () => {
+  it("parses trade directions through one shared parser", () => {
+    expect(parseTradeDirections("imports,exports,imports")).toEqual(["exports", "imports"]);
+  });
+
+  it("rejects non-object JSON config without type assertions", () => {
+    expect(() => parseJsonObject("[]", "--config")).toThrow("--config must be a JSON object");
   });
 });

@@ -3,7 +3,7 @@ import type { SourceManagementCatalog, SourcePlanTargetPreviewReport } from "@su
 import type { DueSourceCheckRow, SourceHealthRow } from "@supplystrata/source-monitor";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { SourceRegistryEntry } from "@supplystrata/source-registry";
-import type { SourcePlanSmokeReport } from "@supplystrata/source-workflows";
+import type { DueSourceCheckRunResult, SourceCheckSummary, SourcePlanSmokeReport } from "@supplystrata/source-workflows";
 
 export function renderSourcesList(sources: SourceRegistryEntry[], format: OutputFormat): string {
   if (format === "json") return JSON.stringify({ schema_version: "1.0.0", sources }, null, 2);
@@ -159,6 +159,49 @@ export function renderDueSources(sources: DueSourceCheckRow[], format: OutputFor
       `  Priority: ${source.policy_priority}/${source.target_priority}; cadence: ${formatMinutes(source.check_cadence_minutes)}; next: ${formatDate(source.next_check_at)}`
     );
     lines.push(`  Config: ${source.target_config_source}${source.target_notes === null ? "" : `; notes: ${source.target_notes}`}`);
+  }
+  return lines.join("\n");
+}
+
+export function renderSourceCheckSummary(sourceAdapterId: string, summaries: readonly SourceCheckSummary[]): string {
+  const lines = [`# Source Check: ${sourceAdapterId}`, "", `Documents checked: ${summaries.length}`];
+  for (const item of summaries) {
+    lines.push("", `- ${item.change_type} ${item.doc_id}`);
+    lines.push(`  Task: ${item.task_id}`);
+    lines.push(`  Source item: ${item.source_item_id}`);
+    lines.push(`  Event: ${item.source_event_id}`);
+    lines.push(`  Observations: ${item.observations}`);
+    lines.push(`  Review candidates: ${item.review_candidates ?? 0}`);
+    lines.push(`  Semantic changes: ${item.semantic_changes}`);
+    lines.push(`  Relation changes: ${item.relation_changes}`);
+    lines.push(`  URL: ${item.source_url}`);
+  }
+  return lines.join("\n");
+}
+
+export function renderDueSourceCheckRun(result: DueSourceCheckRunResult): string {
+  const lines = [
+    "# Due Source Check Run",
+    "",
+    `Due targets: ${result.due_targets}`,
+    `Enqueued jobs: ${result.enqueued_jobs}`,
+    `Skipped active jobs: ${result.skipped_active_jobs}`,
+    `Claimed jobs: ${result.claimed_jobs}`,
+    `Checked targets: ${result.checked_targets}`,
+    `Failed targets: ${result.failed_targets}`,
+    `Dead jobs: ${result.dead_jobs}`
+  ];
+  for (const item of result.items) {
+    lines.push("", `- ${item.check_target_id} (${item.source_adapter_id})`);
+    lines.push(`  Kind: ${item.target_kind}; subject: ${item.subject_entity_id ?? "n/a"}; status: ${item.status}`);
+    if (item.job_id !== undefined) lines.push(`  Job: ${item.job_id}`);
+    if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
+    lines.push(`  Documents checked: ${item.checked_documents}`);
+    for (const summary of item.summaries) {
+      lines.push(
+        `  - ${summary.change_type} ${summary.doc_id} (${summary.observations} observations, ${summary.review_candidates ?? 0} review candidates, ${summary.semantic_changes} semantic changes, ${summary.relation_changes} relation changes)`
+      );
+    }
   }
   return lines.join("\n");
 }

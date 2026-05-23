@@ -32,6 +32,48 @@ export function parseLimit(value: string): number {
   return parsed;
 }
 
+export function parseCommaSeparated(value: string): string[] {
+  const items = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (items.length === 0) throw new Error("comma-separated value must include at least one item");
+  return [...new Set(items)];
+}
+
+export function parseTradeDirections(value: string): ("imports" | "exports")[] {
+  const unique: ("imports" | "exports")[] = [];
+  for (const direction of parseCommaSeparated(value)) {
+    if (direction !== "imports" && direction !== "exports") throw new Error(`Unsupported trade direction: ${direction}`);
+    unique.push(direction);
+  }
+  return unique.sort();
+}
+
+export function parsePositiveInteger(value: string, label: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${label} must be a positive integer`);
+  return parsed;
+}
+
+export function parseNonNegativeInteger(value: string, label: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} must be a non-negative integer`);
+  return parsed;
+}
+
+export function parseIsoDateTime(value: string, label: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`${label} must be an ISO date/time string`);
+  return parsed.toISOString();
+}
+
+export function parseJsonObject(text: string, label: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(text);
+  if (!isRecord(parsed)) throw new Error(`${label} must be a JSON object`);
+  return parsed;
+}
+
 export function parseLanguage(value: string): "en" | "zh" {
   if (value === "en" || value === "zh") return value;
   throw new Error(`Unsupported language: ${value}`);
@@ -67,4 +109,8 @@ export function parseChangeScope(value: string | undefined): ChangeTimelineScope
 
 export function isSupportedFormType(value: string): value is SecFormType {
   return isSecFormType(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

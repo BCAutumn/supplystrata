@@ -10,7 +10,7 @@ import {
   type ResearchTargetProfileOption
 } from "@supplystrata/research-pack";
 import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
-import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
+import { parseCommaSeparated, parseLimit, parseSince, parseTradeDirections, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerResearchCommands(program: Command): void {
   const research = program.command("research").description("research package commands");
@@ -116,7 +116,7 @@ export function registerResearchCommands(program: Command): void {
         const workbench = parseWorkbenchModel(await readFile(options.workbench, "utf8"));
         const pack = buildResearchPackFromWorkbench({
           workbench,
-          ...(options.component === undefined ? {} : { components: parseCsv(options.component) }),
+          ...(options.component === undefined ? {} : { components: parseCommaSeparated(options.component) }),
           ...(options.depth === undefined ? {} : { depth: parseLimit(options.depth) }),
           ...(options.tradeMonth === undefined
             ? {}
@@ -172,7 +172,7 @@ async function researchPackInputFromOptions(options: {
   return {
     company: options.company,
     depth: parseLimit(options.depth),
-    ...(options.component === undefined ? {} : { components: parseCsv(options.component) }),
+    ...(options.component === undefined ? {} : { components: parseCommaSeparated(options.component) }),
     ...(options.since === undefined ? {} : { since: parseSince(options.since) }),
     changeLimit: parseLimit(options.changeLimit),
     sourceLimit: parseLimit(options.sourceLimit),
@@ -218,20 +218,4 @@ function shouldRunWriteStep(input: { prepareData: boolean | undefined; explicit:
 function parseResearchTargetProfileOption(value: string): ResearchTargetProfileOption {
   if (value === "ai-compute-memory.v0" || value === "none") return value;
   throw new Error(`Unsupported research target profile: ${value}`);
-}
-
-function parseCsv(value: string): string[] {
-  const items = value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  if (items.length === 0) throw new Error("Comma-separated option must include at least one value");
-  return items;
-}
-
-function parseTradeDirections(value: string): ("imports" | "exports")[] {
-  return parseCsv(value).map((item) => {
-    if (item === "imports" || item === "exports") return item;
-    throw new Error(`Unsupported trade direction: ${item}`);
-  });
 }

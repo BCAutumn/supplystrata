@@ -8,16 +8,12 @@ import {
   listSourceCheckConnectorIds,
   runDueSourceChecks,
   runManualSourceCheck,
-  runSourcePlanConnectivitySmoke,
-  type DueSourceCheckRunResult,
-  type SourceCheckSummary
+  runSourcePlanConnectivitySmoke
 } from "@supplystrata/source-workflows";
 import {
   assertValidSourceManagementConfig,
-  buildSourceCheckTargetIdsFromPlan,
   buildSourceManagementCatalog,
   buildSourcePolicyConfigFromPlanTargets,
-  parseManagedSourcePlanDocument,
   previewSourceCheckTargetsFromPlan
 } from "@supplystrata/source-management";
 import { renderChangeTimelineItems } from "@supplystrata/render";
@@ -32,9 +28,29 @@ import {
 } from "@supplystrata/source-monitor";
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listSources, sourceStatusSummary } from "@supplystrata/source-registry";
-import { defaultSince, parseChangeScope, parseFormat, parseLimit, parseSince, withDatabase, write, writeJson } from "../cli-utils.js";
 import {
+  defaultSince,
+  parseChangeScope,
+  parseCommaSeparated,
+  parseFormat,
+  parseLimit,
+  parseSince,
+  parseTradeDirections,
+  withDatabase,
+  write,
+  writeJson
+} from "../cli-utils.js";
+import {
+  buildManualSourceCheckConfig,
+  buildSourceCheckTargetIdsFromSourcePlanFile,
+  buildSourceCheckSelectionOptions,
+  parseSourceCheckScheduleOptions,
+  readSourcePlanDocument
+} from "../source-check-options.js";
+import {
+  renderDueSourceCheckRun,
   renderDueSources,
+  renderSourceCheckSummary,
   renderSourceHealth,
   renderSourceManagementCatalog,
   renderSourcePlan,
@@ -285,24 +301,13 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         backoffMaxMinutes?: string;
         format: string;
       }) => {
-        const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
+        const sourcePlanDocument = await readSourcePlanDocument(options.sourcePlan);
         const report = previewSourceCheckTargetsFromPlan({
           source_plan: sourcePlanDocument.source_plan,
           namespace: options.namespace,
           enabled: options.enable,
           connector_capabilities: listRegisteredSourceCheckConnectorCapabilities(),
-          ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
-          ...(options.checkCadenceMinutes === undefined
-            ? {}
-            : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
-          ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
-          ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
-          ...(options.backoffBaseMinutes === undefined
-            ? {}
-            : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
-          ...(options.backoffMaxMinutes === undefined
-            ? {}
-            : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") })
+          ...parseSourceCheckScheduleOptions(options)
         });
         write(renderSourcePlanTargetPreview(report, parseFormat(options.format)));
       }
@@ -316,7 +321,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .option("--format <format>", "markdown or json", "markdown")
     .description("run source-plan target plan/fetch/normalize smoke tests without writing Postgres")
     .action(async (options: { sourcePlan: string; namespace: string; source?: string; limit?: string; format: string }) => {
-      const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
+      const sourcePlanDocument = await readSourcePlanDocument(options.sourcePlan);
       const preview = previewSourceCheckTargetsFromPlan({
         source_plan: sourcePlanDocument.source_plan,
         namespace: options.namespace,
@@ -355,23 +360,12 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         backoffBaseMinutes?: string;
         backoffMaxMinutes?: string;
       }) => {
-        const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
+        const sourcePlanDocument = await readSourcePlanDocument(options.sourcePlan);
         const config = buildSourcePolicyConfigFromPlanTargets({
           source_plan: sourcePlanDocument.source_plan,
           namespace: options.namespace,
           enabled: options.enable,
-          ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
-          ...(options.checkCadenceMinutes === undefined
-            ? {}
-            : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
-          ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
-          ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
-          ...(options.backoffBaseMinutes === undefined
-            ? {}
-            : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
-          ...(options.backoffMaxMinutes === undefined
-            ? {}
-            : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") })
+          ...parseSourceCheckScheduleOptions(options)
         });
         await withDatabase(async (pool) => {
           const validation = assertValidSourceManagementConfig(config, {
@@ -418,9 +412,8 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         backoffMaxMinutes?: string;
         notes?: string;
       }) => {
-        const sourcePlanDocument = parseManagedSourcePlanDocument(await readFile(options.sourcePlan, "utf8"));
-        const checkTargetIds = buildSourceCheckTargetIdsFromPlan({
-          source_plan: sourcePlanDocument.source_plan,
+        const checkTargetIds = await buildSourceCheckTargetIdsFromSourcePlanFile({
+          sourcePlan: options.sourcePlan,
           namespace: options.namespace
         });
         await withDatabase(async (pool) => {
@@ -428,18 +421,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
             enableSourceCheckTargets(client, {
               check_target_ids: checkTargetIds,
               config_source: options.sourcePlan,
-              ...(options.nextCheckAt === undefined ? {} : { next_check_at: parseIsoDateTime(options.nextCheckAt, "--next-check-at") }),
-              ...(options.checkCadenceMinutes === undefined
-                ? {}
-                : { check_cadence_minutes: parseOptionalPositiveInteger(options.checkCadenceMinutes, "--check-cadence-minutes") }),
-              ...(options.jitterMinutes === undefined ? {} : { jitter_minutes: parseOptionalNonNegativeInteger(options.jitterMinutes, "--jitter-minutes") }),
-              ...(options.maxAttempts === undefined ? {} : { max_attempts: parseOptionalPositiveInteger(options.maxAttempts, "--max-attempts") }),
-              ...(options.backoffBaseMinutes === undefined
-                ? {}
-                : { backoff_base_minutes: parseOptionalPositiveInteger(options.backoffBaseMinutes, "--backoff-base-minutes") }),
-              ...(options.backoffMaxMinutes === undefined
-                ? {}
-                : { backoff_max_minutes: parseOptionalPositiveInteger(options.backoffMaxMinutes, "--backoff-max-minutes") }),
+              ...parseSourceCheckScheduleOptions(options),
               ...(options.notes === undefined ? {} : { notes: options.notes })
             })
           );
@@ -482,149 +464,4 @@ function parseComponentIds(value: string): string[] {
     .filter((item) => item.length > 0);
   if (ids.length === 0) throw new Error("--component must include at least one component id");
   return [...new Set(ids)].sort();
-}
-
-function parseTradeDirections(value: string): ("imports" | "exports")[] {
-  const directions = value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  if (directions.length === 0) throw new Error("--trade-directions must include imports or exports");
-  const unique: ("imports" | "exports")[] = [];
-  for (const direction of [...new Set(directions)]) {
-    if (direction !== "imports" && direction !== "exports") throw new Error(`Unsupported --trade-directions value: ${direction}`);
-    unique.push(direction);
-  }
-  return unique.sort();
-}
-
-async function buildSourceCheckSelectionOptions(options: {
-  checkTargetId?: string;
-  source?: string;
-  sourcePlan?: string;
-  namespace?: string;
-}): Promise<{ check_target_ids?: string[]; source_adapter_ids?: string[] }> {
-  const directCheckTargetIds = options.checkTargetId === undefined ? [] : parseCommaSeparated(options.checkTargetId);
-  const planCheckTargetIds =
-    options.sourcePlan === undefined
-      ? []
-      : buildSourceCheckTargetIdsFromPlan({
-          source_plan: await readSourcePlanDocument(options.sourcePlan),
-          namespace: requireNamespace(options)
-        });
-  const checkTargetIds = [...new Set([...directCheckTargetIds, ...planCheckTargetIds])].sort();
-  const sourceAdapterIds = options.source === undefined ? [] : parseCommaSeparated(options.source).sort();
-  if (options.sourcePlan === undefined && options.namespace !== undefined) throw new Error("--namespace requires --source-plan");
-  return {
-    ...(checkTargetIds.length === 0 ? {} : { check_target_ids: checkTargetIds }),
-    ...(sourceAdapterIds.length === 0 ? {} : { source_adapter_ids: sourceAdapterIds })
-  };
-}
-
-async function readSourcePlanDocument(sourcePlanPath: string): Promise<ReturnType<typeof parseManagedSourcePlanDocument>["source_plan"]> {
-  return parseManagedSourcePlanDocument(await readFile(sourcePlanPath, "utf8")).source_plan;
-}
-
-function requireNamespace(options: { namespace?: string }): string {
-  if (options.namespace === undefined) throw new Error("--source-plan requires --namespace");
-  return options.namespace;
-}
-
-function renderSourceCheckSummary(sourceAdapterId: string, summaries: readonly SourceCheckSummary[]): string {
-  const lines = [`# Source Check: ${sourceAdapterId}`, "", `Documents checked: ${summaries.length}`];
-  for (const item of summaries) {
-    lines.push("", `- ${item.change_type} ${item.doc_id}`);
-    lines.push(`  Task: ${item.task_id}`);
-    lines.push(`  Source item: ${item.source_item_id}`);
-    lines.push(`  Event: ${item.source_event_id}`);
-    lines.push(`  Observations: ${item.observations}`);
-    lines.push(`  Review candidates: ${item.review_candidates ?? 0}`);
-    lines.push(`  Semantic changes: ${item.semantic_changes}`);
-    lines.push(`  Relation changes: ${item.relation_changes}`);
-    lines.push(`  URL: ${item.source_url}`);
-  }
-  return lines.join("\n");
-}
-
-async function buildManualSourceCheckConfig(options: {
-  config?: string;
-  configFile?: string;
-  cik?: string;
-  entity?: string;
-  forms?: string;
-  year?: string;
-  query?: string;
-  limit?: string;
-}): Promise<Record<string, unknown>> {
-  const config = {
-    ...(options.configFile === undefined ? {} : parseJsonObject(await readFile(options.configFile, "utf8"), "--config-file")),
-    ...(options.config === undefined ? {} : parseJsonObject(options.config, "--config"))
-  };
-  if (options.cik !== undefined) config["cik"] = options.cik;
-  if (options.entity !== undefined) config["entity_id"] = options.entity;
-  if (options.forms !== undefined) config["form_types"] = parseCommaSeparated(options.forms);
-  if (options.year !== undefined) config["year"] = parseLimit(options.year);
-  if (options.query !== undefined) config["query"] = options.query;
-  if (options.limit !== undefined) config["limit"] = parseLimit(options.limit);
-  return config;
-}
-
-function parseJsonObject(text: string, label: string): Record<string, unknown> {
-  const parsed: unknown = JSON.parse(text);
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(`${label} must be a JSON object`);
-  return parsed as Record<string, unknown>;
-}
-
-function parseCommaSeparated(value: string): string[] {
-  const items = value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  if (items.length === 0) throw new Error("comma-separated value must include at least one item");
-  return [...new Set(items)];
-}
-
-function parseOptionalPositiveInteger(value: string, label: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${label} must be a positive integer`);
-  return parsed;
-}
-
-function parseOptionalNonNegativeInteger(value: string, label: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} must be a non-negative integer`);
-  return parsed;
-}
-
-function parseIsoDateTime(value: string, label: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) throw new Error(`${label} must be an ISO date/time string`);
-  return parsed.toISOString();
-}
-
-function renderDueSourceCheckRun(result: DueSourceCheckRunResult): string {
-  const lines = [
-    "# Due Source Check Run",
-    "",
-    `Due targets: ${result.due_targets}`,
-    `Enqueued jobs: ${result.enqueued_jobs}`,
-    `Skipped active jobs: ${result.skipped_active_jobs}`,
-    `Claimed jobs: ${result.claimed_jobs}`,
-    `Checked targets: ${result.checked_targets}`,
-    `Failed targets: ${result.failed_targets}`,
-    `Dead jobs: ${result.dead_jobs}`
-  ];
-  for (const item of result.items) {
-    lines.push("", `- ${item.check_target_id} (${item.source_adapter_id})`);
-    lines.push(`  Kind: ${item.target_kind}; subject: ${item.subject_entity_id ?? "n/a"}; status: ${item.status}`);
-    if (item.job_id !== undefined) lines.push(`  Job: ${item.job_id}`);
-    if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
-    lines.push(`  Documents checked: ${item.checked_documents}`);
-    for (const summary of item.summaries) {
-      lines.push(
-        `  - ${summary.change_type} ${summary.doc_id} (${summary.observations} observations, ${summary.review_candidates ?? 0} review candidates, ${summary.semantic_changes} semantic changes, ${summary.relation_changes} relation changes)`
-      );
-    }
-  }
-  return lines.join("\n");
 }

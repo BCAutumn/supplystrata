@@ -51,13 +51,13 @@
 [ ] F1-F6 DB Row / DTO 边界继续收敛：`loadEvidenceCard()` 已改为显式 EvidenceCard DTO 映射，`db/query.ts` 的 evidence 查询已去掉 `ev.*`；`WorkbenchModel.changes` 已改为本地 `WorkbenchChangeTimelineItem` DTO 并通过显式 mapper 从 db timeline 转换；chain-view-builder、documents/chunk 查询和其他 Row 暴露面仍需继续治理。
 [ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。G2/G3/G7 局部收敛：relation sentence extractor 不再默认 `ENT-NVIDIA`，调用方必须显式传 subject；edge claim type / claim text 改为 relation 映射表，`reviewStats()` 用 status -> stats key 映射表替代并列状态分支。
 [ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。H1/H2 局部收敛：relation extractor 和 data-quality unknown-map 最小覆盖检查不再固定 `ENT-NVIDIA`；research-pack 对当前公司启用 unknown-map 检查；NVIDIA SEC 10-K 预览已迁为 `NVIDIA_SEC_10K_EXAMPLE_PROFILE`，generic SEC preview/ingest 不再隐式指向 NVIDIA。
-[ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。I5/I10 已收敛：CLI pipeline preview 复用 observability 的 `messageFromUnknown()`；db 内部 `toIsoString()` / date-only 转换集中到 `packages/db/src/time.ts`。
+[ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。I4/I5/I10 已局部收敛：CLI `research` 与 `sources plan` 复用同一 trade direction parser；CLI pipeline preview 复用 observability 的 `messageFromUnknown()`；db 内部 `toIsoString()` / date-only 转换集中到 `packages/db/src/time.ts`。
 ```
 
 ## 第 4 批：大文件拆分与 citation 共享
 
 ```text
-[ ] `workbench-export/src/schema.ts`、`source-management/src/index.ts`、`apps/cli/src/commands/sources-changes.ts`、`source-monitor/src/index.ts` 等文件继续按 feature / definitions / functions / orchestration 拆分。`workbench-export/src/schema.ts` 已将 legacy JSON normalize 拆到 `schema-normalize.ts`，schema 文件从 639 行降到 533 行；`source-management/src/index.ts` 已将 definitions、source-plan parser、target generation 拆出，index 从 636 行降到 267 行；后续继续拆 Workbench validator 群组和 CLI sources-changes。
+[ ] `workbench-export/src/schema.ts`、`source-management/src/index.ts`、`apps/cli/src/commands/sources-changes.ts`、`source-monitor/src/index.ts` 等文件继续按 feature / definitions / functions / orchestration 拆分。`workbench-export/src/schema.ts` 已将 legacy JSON normalize 拆到 `schema-normalize.ts`，schema 文件从 639 行降到 533 行；`source-management/src/index.ts` 已将 definitions、source-plan parser、target generation 拆出，index 从 636 行降到 267 行；`apps/cli/src/commands/sources-changes.ts` 已将 source-check 输入拼装拆到 `source-check-options.ts`，source-check run 渲染拆到 `source-render.ts`，命令文件从 630 行降到 456 行；后续继续拆 Workbench validator 群组和 source-monitor。
 [ ] EDINET / DART / TWSE 这类 source workflow 后续应把 parsing/normalization 下沉到对应 source 或 parser 包，workflow 保持 connector 薄层。
 [ ] signal / observation / relation / pipeline citation locate 逻辑需要抽成共享 text-citation 能力，避免抽取器之间规则漂移。
 ```
@@ -83,6 +83,7 @@
 - 本轮继续收敛 E2/H1/H2/F4：generic SEC preview/ingest 不再默认 NVIDIA，NVIDIA 只作为 example profile；data-quality unknown-map 检查改为调用方传入当前 entity target；Workbench changes 改为本地 DTO。
 - 本轮继续拆分 `workbench-export/src/schema.ts`：legacy Workbench JSON 兼容 normalize 与 schema validate 分离，降低单文件职责密度。
 - 本轮继续拆分 `source-management/src/index.ts`：公共契约进入 `definitions.ts`，source-plan JSON 解析进入 `source-plan-parser.ts`，source-plan target 生成进入 `source-plan-targets.ts`。
+- 本轮继续拆分 CLI source/change 入口：source-check 选择、手动 check config、target schedule option 进入 `source-check-options.ts`；due/check run markdown 渲染进入 `source-render.ts`；`research` 与 `sources plan` 共享 trade direction parser。
 - 已跑完整门禁：
   pnpm -s type-check
   pnpm -s lint
