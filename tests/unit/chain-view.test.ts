@@ -4,7 +4,7 @@ import {
   segmentFromLead,
   segmentFromObservation,
   segmentFromUnknown,
-  segmentsFromFactRow
+  segmentsFromFact
 } from "@supplystrata/chain-view-builder";
 import type { ChainViewRoot } from "@supplystrata/chain-view";
 import { listComponentUpstreamLeads } from "@supplystrata/component-context";
@@ -28,9 +28,9 @@ describe("chain-view", () => {
       primary_evidence_id: "EV-1",
       claim_id: "CLM-1",
       claim_text: "NVIDIA publicly discloses that it buys memory from SK hynix."
-    } satisfies Parameters<typeof segmentsFromFactRow>[0];
+    } satisfies Parameters<typeof segmentsFromFact>[0];
 
-    const segments = segmentsFromFactRow(row, 0);
+    const segments = segmentsFromFact(row, 0);
 
     expect(segments).toHaveLength(2);
     expect(segments[0]?.semantic_layer).toBe("edge");
@@ -58,9 +58,9 @@ describe("chain-view", () => {
       primary_evidence_id: "EV-2",
       claim_id: null,
       claim_text: null
-    } satisfies Parameters<typeof segmentsFromFactRow>[0];
+    } satisfies Parameters<typeof segmentsFromFact>[0];
 
-    const segments = segmentsFromFactRow(row, 3);
+    const segments = segmentsFromFact(row, 3);
 
     expect(segments).toHaveLength(1);
     expect(segments[0]?.sequence_index).toBe(6);
@@ -73,59 +73,28 @@ describe("chain-view", () => {
       {
         observation_id: "OBS-1",
         observation_type: "INVENTORY_OBSERVATION",
-        source_adapter_id: "fixture-observation",
-        source_item_id: null,
-        doc_id: null,
-        scope_kind: "component",
-        scope_id: "COMP-MEMORY",
-        geography_kind: null,
-        geography_id: null,
         component_id: "COMP-MEMORY",
         metric_name: "inventory_days",
         metric_value: "42",
         metric_unit: "days",
-        time_window_start: null,
-        time_window_end: null,
-        baseline_value: null,
-        change_value: null,
-        change_percent: null,
-        confidence: 0.7,
-        provenance: {},
-        attrs: {},
-        created_at: new Date("2026-01-01T00:00:00.000Z")
+        confidence: 0.7
       },
       { root, sequence_index: 10 }
     );
     const lead = segmentFromLead(
       {
         lead_id: "LEAD-1",
-        lead_type: "PROCUREMENT_SIGNAL",
-        source_adapter_id: "fixture-lead",
-        doc_id: null,
-        scope_kind: "company",
-        scope_id: "ENT-NVIDIA",
         title: "Potential procurement signal",
         summary: "Needs corroboration.",
-        cite_text: null,
-        source_url: null,
-        status: "open",
-        review_id: null,
-        attrs: {},
-        created_at: new Date("2026-01-01T00:00:00.000Z"),
-        updated_at: new Date("2026-01-01T00:00:00.000Z")
+        status: "open"
       },
       { root, sequence_index: 11 }
     );
     const unknown = segmentFromUnknown(
       {
         unknown_id: "UNK-1",
-        scope_kind: "company",
-        scope_id: "ENT-NVIDIA",
         question: "Exact HBM allocation",
-        why_unknown: "Private contracts are not public.",
-        blocking_data_sources: [],
-        proxies: [],
-        status: "open"
+        why_unknown: "Private contracts are not public."
       },
       { root, sequence_index: 12 }
     );
@@ -157,11 +126,11 @@ describe("chain-view", () => {
       primary_evidence_id: "EV-3",
       claim_id: null,
       claim_text: null
-    } satisfies Parameters<typeof segmentsFromFactRow>[0];
+    } satisfies Parameters<typeof segmentsFromFact>[0];
     const lead = listComponentUpstreamLeads("COMP-WAFER", 1).find((item) => item.target_id === "COMP-EUV-LITHOGRAPHY");
     if (lead === undefined) throw new Error("expected EUV component lead fixture");
 
-    const segment = segmentFromComponentUpstreamLead(lead, { row, sequence_index: 20 });
+    const segment = segmentFromComponentUpstreamLead(lead, { fact: row, sequence_index: 20 });
 
     expect(segment.semantic_layer).toBe("lead");
     expect(segment.evidence_level).toBeUndefined();

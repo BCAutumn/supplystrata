@@ -1,17 +1,17 @@
 import { type ComponentUpstreamLead } from "@supplystrata/component-context";
-import type { LeadObservationRow, ObservationRow, UnknownItemRow } from "@supplystrata/db/read";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import { type ChainViewEndpoint, type ChainViewRoot, type ChainViewSegmentModel, type ChainViewSourceHint } from "@supplystrata/chain-view";
-import type { ChainFactRow } from "./db-rows.js";
+import type { ChainFact, ChainLead, ChainObservation, ChainUnknown } from "./definitions.js";
 
-export function segmentsFromFactRow(row: ChainFactRow, rowIndex: number): ChainViewSegmentModel[] {
-  const factSegment = edgeSegmentFromFactRow(row, rowIndex * 2);
-  if (row.claim_id === null || row.claim_text === null) return [factSegment];
-  return [factSegment, claimSegmentFromFactRow(row, rowIndex * 2 + 1)];
+export function segmentsFromFact(fact: ChainFact, rowIndex: number): ChainViewSegmentModel[] {
+  const factSegment = edgeSegmentFromFact(fact, rowIndex * 2);
+  if (fact.claim_id === null || fact.claim_text === null) return [factSegment];
+  return [factSegment, claimSegmentFromFact(fact, rowIndex * 2 + 1)];
 }
 
-export function segmentFromObservation(row: ObservationRow, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
-  const target: ChainViewEndpoint = row.component_id === null ? input.root : { kind: "component", id: row.component_id, name: row.component_id };
+export function segmentFromObservation(observation: ChainObservation, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
+  const target: ChainViewEndpoint =
+    observation.component_id === null ? input.root : { kind: "component", id: observation.component_id, name: observation.component_id };
   return {
     sequence_index: input.sequence_index,
     depth: 0,
@@ -20,15 +20,15 @@ export function segmentFromObservation(row: ObservationRow, input: { root: Chain
     to: target,
     relation: "OBSERVES",
     component: null,
-    component_id: row.component_id,
-    observation_id: row.observation_id,
+    component_id: observation.component_id,
+    observation_id: observation.observation_id,
     evidence_ids: [],
-    confidence: row.confidence,
-    label: observationLabel(row)
+    confidence: observation.confidence,
+    label: observationLabel(observation)
   };
 }
 
-export function segmentFromLead(row: LeadObservationRow, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
+export function segmentFromLead(lead: ChainLead, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
   return {
     sequence_index: input.sequence_index,
     depth: 0,
@@ -38,36 +38,36 @@ export function segmentFromLead(row: LeadObservationRow, input: { root: ChainVie
     relation: "LEADS_TO",
     component: null,
     component_id: null,
-    lead_id: row.lead_id,
+    lead_id: lead.lead_id,
     evidence_ids: [],
-    confidence: leadConfidence(row),
-    label: `${row.title}: ${row.summary}`
+    confidence: leadConfidence(lead),
+    label: `${lead.title}: ${lead.summary}`
   };
 }
 
 export function segmentFromComponentUpstreamLead(
   lead: ComponentUpstreamLead,
-  input: { row: ChainFactRow; sequence_index: number; sourceHints?: readonly ChainViewSourceHint[] }
+  input: { fact: ChainFact; sequence_index: number; sourceHints?: readonly ChainViewSourceHint[] }
 ): ChainViewSegmentModel {
   return {
     sequence_index: input.sequence_index,
-    depth: input.row.depth + lead.tier_depth,
+    depth: input.fact.depth + lead.tier_depth,
     semantic_layer: "lead",
-    from: { kind: "company", id: input.row.upstream_id, name: input.row.upstream_name },
+    from: { kind: "company", id: input.fact.upstream_id, name: input.fact.upstream_name },
     to: { kind: lead.target_kind, id: lead.target_id, name: lead.target_name },
     relation: "LEADS_TO",
     component: lead.target_name,
-    component_id: lead.target_kind === "component" ? lead.target_id : input.row.component_id,
+    component_id: lead.target_kind === "component" ? lead.target_id : input.fact.component_id,
     lead_id: lead.dependency_id,
     evidence_ids: [],
     confidence: lead.confidence,
-    label: componentLeadLabel(lead, input.row),
+    label: componentLeadLabel(lead, input.fact),
     // 二/三级 lead 必须带上“下一步查什么源”，但这些 hint 仍然只是研究计划，不会升级成事实边。
     source_hints: [...(input.sourceHints ?? [])]
   };
 }
 
-export function segmentFromUnknown(row: UnknownItemRow, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
+export function segmentFromUnknown(unknown: ChainUnknown, input: { root: ChainViewRoot; sequence_index: number }): ChainViewSegmentModel {
   return {
     sequence_index: input.sequence_index,
     depth: 0,
@@ -77,10 +77,10 @@ export function segmentFromUnknown(row: UnknownItemRow, input: { root: ChainView
     relation: "UNKNOWN_BOUNDARY",
     component: null,
     component_id: null,
-    unknown_id: row.unknown_id,
+    unknown_id: unknown.unknown_id,
     evidence_ids: [],
     confidence: 0,
-    label: `${row.question} — ${row.why_unknown}`
+    label: `${unknown.question} — ${unknown.why_unknown}`
   };
 }
 
@@ -96,40 +96,40 @@ export function sourceHintFromPlanItem(item: SourcePlanItem): ChainViewSourceHin
   };
 }
 
-function edgeSegmentFromFactRow(row: ChainFactRow, sequenceIndex: number): ChainViewSegmentModel {
+function edgeSegmentFromFact(fact: ChainFact, sequenceIndex: number): ChainViewSegmentModel {
   return {
     sequence_index: sequenceIndex,
-    depth: row.depth,
+    depth: fact.depth,
     semantic_layer: "edge",
-    from: { kind: "company", id: row.subject_id, name: row.subject_name },
-    to: { kind: "company", id: row.object_id, name: row.object_name },
-    relation: row.relation,
-    component: row.component,
-    component_id: row.component_id,
-    edge_id: row.edge_id,
-    evidence_ids: row.primary_evidence_id === null ? [] : [row.primary_evidence_id],
-    evidence_level: row.evidence_level,
-    confidence: row.confidence,
-    label: `${row.subject_name} -${row.relation}-> ${row.object_name}`
+    from: { kind: "company", id: fact.subject_id, name: fact.subject_name },
+    to: { kind: "company", id: fact.object_id, name: fact.object_name },
+    relation: fact.relation,
+    component: fact.component,
+    component_id: fact.component_id,
+    edge_id: fact.edge_id,
+    evidence_ids: fact.primary_evidence_id === null ? [] : [fact.primary_evidence_id],
+    evidence_level: fact.evidence_level,
+    confidence: fact.confidence,
+    label: `${fact.subject_name} -${fact.relation}-> ${fact.object_name}`
   };
 }
 
-function claimSegmentFromFactRow(row: ChainFactRow, sequenceIndex: number): ChainViewSegmentModel {
-  const claimId = requirePresent(row.claim_id, "claim_id");
-  const claimText = requirePresent(row.claim_text, "claim_text");
+function claimSegmentFromFact(fact: ChainFact, sequenceIndex: number): ChainViewSegmentModel {
+  const claimId = requirePresent(fact.claim_id, "claim_id");
+  const claimText = requirePresent(fact.claim_text, "claim_text");
   return {
     sequence_index: sequenceIndex,
-    depth: row.depth,
+    depth: fact.depth,
     semantic_layer: "claim",
-    from: { kind: "company", id: row.subject_id, name: row.subject_name },
-    to: { kind: "company", id: row.object_id, name: row.object_name },
+    from: { kind: "company", id: fact.subject_id, name: fact.subject_name },
+    to: { kind: "company", id: fact.object_id, name: fact.object_name },
     relation: "CLAIMS",
-    component: row.component,
-    component_id: row.component_id,
+    component: fact.component,
+    component_id: fact.component_id,
     claim_id: claimId,
-    evidence_ids: row.primary_evidence_id === null ? [] : [row.primary_evidence_id],
-    evidence_level: row.evidence_level,
-    confidence: row.confidence,
+    evidence_ids: fact.primary_evidence_id === null ? [] : [fact.primary_evidence_id],
+    evidence_level: fact.evidence_level,
+    confidence: fact.confidence,
     label: claimText
   };
 }
@@ -139,19 +139,20 @@ function requirePresent(value: string | null, field: string): string {
   return value;
 }
 
-function observationLabel(row: ObservationRow): string {
-  const value = row.metric_value === null ? "" : ` = ${row.metric_value}${row.metric_unit === null ? "" : ` ${row.metric_unit}`}`;
-  return `${row.observation_type}: ${row.metric_name}${value}`;
+function observationLabel(observation: ChainObservation): string {
+  const value =
+    observation.metric_value === null ? "" : ` = ${observation.metric_value}${observation.metric_unit === null ? "" : ` ${observation.metric_unit}`}`;
+  return `${observation.observation_type}: ${observation.metric_name}${value}`;
 }
 
-function leadConfidence(row: LeadObservationRow): number {
-  if (row.status === "promoted") return 0.8;
-  if (row.status === "in_review") return 0.5;
-  if (row.status === "open") return 0.25;
+function leadConfidence(lead: ChainLead): number {
+  if (lead.status === "promoted") return 0.8;
+  if (lead.status === "in_review") return 0.5;
+  if (lead.status === "open") return 0.25;
   return 0;
 }
 
-function componentLeadLabel(lead: ComponentUpstreamLead, row: ChainFactRow): string {
+function componentLeadLabel(lead: ComponentUpstreamLead, fact: ChainFact): string {
   const unknowns = lead.unknowns.length === 0 ? "" : ` Unknowns: ${lead.unknowns.join("; ")}.`;
-  return `${lead.title}. Trigger: ${row.upstream_name} is linked by ${row.relation} (${row.component ?? row.component_id ?? "component"}). ${lead.summary}${unknowns}`;
+  return `${lead.title}. Trigger: ${fact.upstream_name} is linked by ${fact.relation} (${fact.component ?? fact.component_id ?? "component"}). ${lead.summary}${unknowns}`;
 }

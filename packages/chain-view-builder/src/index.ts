@@ -6,36 +6,30 @@ import {
   type ChainViewSegmentModel,
   type ChainViewSourceHint
 } from "@supplystrata/chain-view";
-import {
-  listLeadObservationsByScope,
-  listObservationsByScope,
-  listUnknownItems,
-  resolveEntityId,
-  type DbClient,
-  type ObservationRow,
-  type UnknownItemRow
-} from "@supplystrata/db/read";
+import { listLeadObservationsByScope, listObservationsByScope, listUnknownItems, resolveEntityId, type DbClient } from "@supplystrata/db/read";
 import { planSourcesForComponentLead } from "@supplystrata/source-plan";
 import type { ChainFactRow, EntityHeaderRow } from "./db-rows.js";
+import type { ChainFact, ChainObservation, ChainUnknown } from "./definitions.js";
+import { chainFactFromRow, chainLeadFromRow, chainObservationFromRow, chainUnknownFromRow } from "./dto-mappers.js";
 import {
   segmentFromComponentUpstreamLead as mapComponentUpstreamLeadSegment,
   segmentFromLead,
   segmentFromObservation,
   segmentFromUnknown,
-  segmentsFromFactRow,
+  segmentsFromFact,
   sourceHintFromPlanItem
 } from "./segment-mappers.js";
 
-export type { ChainFactRow } from "./db-rows.js";
-export { segmentFromLead, segmentFromObservation, segmentFromUnknown, segmentsFromFactRow } from "./segment-mappers.js";
+export type { ChainFact, ChainLead, ChainObservation, ChainUnknown } from "./definitions.js";
+export { segmentFromLead, segmentFromObservation, segmentFromUnknown, segmentsFromFact } from "./segment-mappers.js";
 
 export function segmentFromComponentUpstreamLead(
   lead: ComponentUpstreamLead,
-  input: { row: ChainFactRow; sequence_index: number; sourceHints?: readonly ChainViewSourceHint[] }
+  input: { fact: ChainFact; sequence_index: number; sourceHints?: readonly ChainViewSourceHint[] }
 ): ChainViewSegmentModel {
   return mapComponentUpstreamLeadSegment(lead, {
     ...input,
-    sourceHints: input.sourceHints ?? sourceHintsForComponentLead(lead, input.row)
+    sourceHints: input.sourceHints ?? sourceHintsForComponentLead(lead, input.fact)
   });
 }
 
@@ -51,8 +45,9 @@ export async function buildCompanyChainView(client: DbClient, input: BuildCompan
   const rootModel: ChainViewRoot = { kind: "company", id: root.entity_id, name: root.display_name };
   const maxDepth = clampDepth(input.depth ?? 2);
   const rows = await loadChainFactRows(client, rootEntityId, maxDepth);
-  const factSegments = rows.flatMap((row, index) => segmentsFromFactRow(row, index));
-  const contextSegments = await loadContextSegments(client, { root: rootModel, rows, maxDepth, sequenceStart: factSegments.length });
+  const facts = rows.map(chainFactFromRow);
+  const factSegments = facts.flatMap((fact, index) => segmentsFromFact(fact, index));
+  const contextSegments = await loadContextSegments(client, { root: rootModel, facts, maxDepth, sequenceStart: factSegments.length });
   const segments = [...factSegments, ...contextSegments];
   return {
     schema_version: "1.0.0",
@@ -147,17 +142,17 @@ async function loadChainFactRows(client: DbClient, rootEntityId: string, maxDept
 
 async function loadContextSegments(
   client: DbClient,
-  input: { root: ChainViewRoot; rows: readonly ChainFactRow[]; maxDepth: number; sequenceStart: number }
+  input: { root: ChainViewRoot; facts: readonly ChainFact[]; maxDepth: number; sequenceStart: number }
 ): Promise<ChainViewSegmentModel[]> {
   const rootObservations = await listObservationsByScope(client, { scope_kind: "company", scope_id: input.root.id, limit: 10 });
-  const componentObservations = await loadComponentObservations(client, input.rows);
-  const componentLeads = componentUpstreamLeadSegments(input.rows, input.maxDepth);
+  const componentObservations = await loadComponentObservations(client, input.facts);
+  const componentLeads = componentUpstreamLeadSegments(input.facts, input.maxDepth);
   const leads = await listLeadObservationsByScope(client, { scope_kind: "company", scope_id: input.root.id, status: "open", limit: 10 });
   const unknowns = await listUnknownItems(client, input.root.id);
-  const edgeUnknowns = await loadEdgeUnknowns(client, input.rows);
+  const edgeUnknowns = await loadEdgeUnknowns(client, input.facts);
   const segments: ChainViewSegmentModel[] = [];
   let sequenceIndex = input.sequenceStart;
-  for (const observation of [...rootObservations, ...componentObservations]) {
+  for (const observation of [...rootObservations.map(chainObservationFromRow), ...componentObservations]) {
     segments.push(segmentFromObservation(observation, { root: input.root, sequence_index: sequenceIndex }));
     sequenceIndex += 1;
   }
@@ -166,11 +161,11 @@ async function loadContextSegments(
     sequenceIndex += 1;
   }
   for (const lead of leads) {
-    segments.push(segmentFromLead(lead, { root: input.root, sequence_index: sequenceIndex }));
+    segments.push(segmentFromLead(chainLeadFromRow(lead), { root: input.root, sequence_index: sequenceIndex }));
     sequenceIndex += 1;
   }
   for (const unknown of unknowns) {
-    segments.push(segmentFromUnknown(unknown, { root: input.root, sequence_index: sequenceIndex }));
+    segments.push(segmentFromUnknown(chainUnknownFromRow(unknown), { root: input.root, sequence_index: sequenceIndex }));
     sequenceIndex += 1;
   }
   for (const unknown of edgeUnknowns) {
@@ -180,29 +175,29 @@ async function loadContextSegments(
   return segments;
 }
 
-async function loadEdgeUnknowns(client: DbClient, rows: readonly ChainFactRow[]): Promise<UnknownItemRow[]> {
-  const byUnknownId = new Map<string, UnknownItemRow>();
-  for (const edgeId of [...new Set(rows.map((row) => row.edge_id))].sort()) {
+async function loadEdgeUnknowns(client: DbClient, facts: readonly ChainFact[]): Promise<ChainUnknown[]> {
+  const byUnknownId = new Map<string, ChainUnknown>();
+  for (const edgeId of [...new Set(facts.map((fact) => fact.edge_id))].sort()) {
     for (const unknown of await listUnknownItems(client, edgeId)) {
-      byUnknownId.set(unknown.unknown_id, unknown);
+      byUnknownId.set(unknown.unknown_id, chainUnknownFromRow(unknown));
     }
   }
   return [...byUnknownId.values()];
 }
 
-function componentUpstreamLeadSegments(rows: readonly ChainFactRow[], maxDepth: number): ChainViewSegmentModel[] {
+function componentUpstreamLeadSegments(facts: readonly ChainFact[], maxDepth: number): ChainViewSegmentModel[] {
   const segments: ChainViewSegmentModel[] = [];
   let sequenceIndex = 0;
-  for (const row of rows) {
-    if (row.component_id === null) continue;
-    const remainingDepth = maxDepth - row.depth;
+  for (const fact of facts) {
+    if (fact.component_id === null) continue;
+    const remainingDepth = maxDepth - fact.depth;
     if (remainingDepth < 1) continue;
-    for (const lead of listComponentUpstreamLeads(row.component_id, remainingDepth)) {
+    for (const lead of listComponentUpstreamLeads(fact.component_id, remainingDepth)) {
       segments.push(
         segmentFromComponentUpstreamLead(lead, {
-          row,
+          fact,
           sequence_index: sequenceIndex,
-          sourceHints: sourceHintsForComponentLead(lead, row)
+          sourceHints: sourceHintsForComponentLead(lead, fact)
         })
       );
       sequenceIndex += 1;
@@ -223,11 +218,11 @@ function dedupeComponentLeadSegments(segments: readonly ChainViewSegmentModel[])
   return output;
 }
 
-async function loadComponentObservations(client: DbClient, rows: readonly ChainFactRow[]): Promise<ObservationRow[]> {
-  const componentIds = [...new Set(rows.flatMap((row) => (row.component_id === null ? [] : [row.component_id])))].sort();
-  const observations: ObservationRow[] = [];
+async function loadComponentObservations(client: DbClient, facts: readonly ChainFact[]): Promise<ChainObservation[]> {
+  const componentIds = [...new Set(facts.flatMap((fact) => (fact.component_id === null ? [] : [fact.component_id])))].sort();
+  const observations: ChainObservation[] = [];
   for (const componentId of componentIds) {
-    observations.push(...(await listObservationsByScope(client, { scope_kind: "component", scope_id: componentId, limit: 5 })));
+    observations.push(...(await listObservationsByScope(client, { scope_kind: "component", scope_id: componentId, limit: 5 })).map(chainObservationFromRow));
   }
   return observations;
 }
@@ -237,10 +232,10 @@ function clampDepth(value: number): number {
   return Math.min(Math.max(value, 1), 5);
 }
 
-function sourceHintsForComponentLead(lead: ComponentUpstreamLead, row: ChainFactRow): ChainViewSourceHint[] {
-  return planSourcesForComponentLead(lead, uniqueEntityIdsForLead(row)).map(sourceHintFromPlanItem).slice(0, 6);
+function sourceHintsForComponentLead(lead: ComponentUpstreamLead, fact: ChainFact): ChainViewSourceHint[] {
+  return planSourcesForComponentLead(lead, uniqueEntityIdsForLead(fact)).map(sourceHintFromPlanItem).slice(0, 6);
 }
 
-function uniqueEntityIdsForLead(row: ChainFactRow): string[] {
-  return [...new Set([row.subject_id, row.object_id, row.upstream_id])].sort();
+function uniqueEntityIdsForLead(fact: ChainFact): string[] {
+  return [...new Set([fact.subject_id, fact.object_id, fact.upstream_id])].sort();
 }
