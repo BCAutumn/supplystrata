@@ -74,6 +74,20 @@ interface SemanticReference {
   unknown_id?: string;
 }
 
+interface ChainSegmentInsertRow extends Required<Pick<NewChainSegmentInput, "chain_id" | "sequence_index" | "from_kind" | "from_id" | "to_kind" | "to_id" | "semantic_layer">> {
+  segment_id: string;
+  relation: string | null;
+  component_id: string | null;
+  edge_id: string | null;
+  claim_id: string | null;
+  observation_id: string | null;
+  lead_id: string | null;
+  unknown_id: string | null;
+  evidence_ids: string[];
+  confidence: number | null;
+  attrs: Record<string, unknown>;
+}
+
 export interface NewChainSegmentInput extends SemanticReference {
   segment_id?: string;
   chain_id: string;
@@ -125,9 +139,45 @@ export async function insertChainSegment(client: DbTxClient, input: NewChainSegm
 }
 
 export async function insertChainSegments(client: DbTxClient, inputs: readonly NewChainSegmentInput[]): Promise<{ inserted: number }> {
-  for (const input of inputs) {
-    await insertChainSegment(client, input);
-  }
+  if (inputs.length === 0) return { inserted: 0 };
+  const rows = inputs.map(chainSegmentInsertRow);
+  await client.query(
+    `WITH input_rows AS (
+       SELECT *
+       FROM jsonb_to_recordset($1::jsonb) AS row(
+         segment_id text,
+         chain_id text,
+         sequence_index integer,
+         from_kind text,
+         from_id text,
+         to_kind text,
+         to_id text,
+         semantic_layer text,
+         relation text,
+         component_id text,
+         edge_id text,
+         claim_id text,
+         observation_id text,
+         lead_id text,
+         unknown_id text,
+         evidence_ids jsonb,
+         confidence double precision,
+         attrs jsonb
+       )
+     )
+     INSERT INTO chain_segments (
+       segment_id, chain_id, sequence_index, from_kind, from_id, to_kind, to_id, semantic_layer,
+       relation, component_id, edge_id, claim_id, observation_id, lead_id, unknown_id,
+       evidence_ids, confidence, attrs
+     )
+     SELECT segment_id, chain_id, sequence_index, from_kind, from_id, to_kind, to_id, semantic_layer,
+            relation, component_id, edge_id, claim_id, observation_id, lead_id, unknown_id,
+            COALESCE(ARRAY(SELECT jsonb_array_elements_text(evidence_ids)), ARRAY[]::text[]),
+            confidence,
+            COALESCE(attrs, '{}'::jsonb)
+     FROM input_rows`,
+    [JSON.stringify(rows)]
+  );
   return { inserted: inputs.length };
 }
 
@@ -151,6 +201,30 @@ function semanticReferenceFor(input: NewChainSegmentInput): SemanticReference {
   if (input.semantic_layer === "observation") return { observation_id: requireReference(input.observation_id, "observation_id", input.semantic_layer) };
   if (input.semantic_layer === "lead") return { lead_id: requireReference(input.lead_id, "lead_id", input.semantic_layer) };
   return { unknown_id: requireReference(input.unknown_id, "unknown_id", input.semantic_layer) };
+}
+
+function chainSegmentInsertRow(input: NewChainSegmentInput): ChainSegmentInsertRow {
+  const references = semanticReferenceFor(input);
+  return {
+    segment_id: input.segment_id ?? createId("SEG"),
+    chain_id: input.chain_id,
+    sequence_index: input.sequence_index,
+    from_kind: input.from_kind,
+    from_id: input.from_id,
+    to_kind: input.to_kind,
+    to_id: input.to_id,
+    semantic_layer: input.semantic_layer,
+    relation: input.relation ?? null,
+    component_id: input.component_id ?? null,
+    edge_id: references.edge_id ?? null,
+    claim_id: references.claim_id ?? null,
+    observation_id: references.observation_id ?? null,
+    lead_id: references.lead_id ?? null,
+    unknown_id: references.unknown_id ?? null,
+    evidence_ids: input.evidence_ids ?? [],
+    confidence: input.confidence ?? null,
+    attrs: input.attrs ?? {}
+  };
 }
 
 function requireReference(value: string | undefined, field: string, semanticLayer: SemanticLayer): string {
