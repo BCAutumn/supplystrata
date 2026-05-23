@@ -1,18 +1,13 @@
 import type { Command } from "commander";
-import { loadEnv } from "@supplystrata/config";
 import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@supplystrata/db/read";
 import { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "@supplystrata/pipeline";
-import {
-  enqueueAppleSupplierReviewCandidates,
-  enqueueEntitySourceReviewCandidates,
-  lookupEntitySourceCandidates,
-  sourceWorkflowAdapterContextInput
-} from "@supplystrata/source-workflows";
+import { enqueueAppleSupplierReviewCandidates, enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "@supplystrata/source-workflows";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
 import { decideReviewCandidateTransactionally, getReviewCandidate, nextReviewCandidateTransactionally, reviewStats } from "@supplystrata/review-store";
 import { parseEntityLookupSource, parseFormat, parseLimit, parsePendingEntityStatus, withDatabase, write, writeJson } from "../cli-utils.js";
 import { renderEntityLookup } from "../entity-render.js";
 import { renderReviewApplyBatch, renderReviewItemOrEmpty } from "../review-render.js";
+import { sourceWorkflowRuntime } from "../source-workflow-runtime.js";
 
 export function registerEntityAndReviewCommands(program: Command): void {
   registerEntityCommands(program);
@@ -256,8 +251,4 @@ function registerReviewCommands(program: Command): void {
         writeJson({ ok: summary.errors.length === 0, ...summary });
       });
     });
-}
-
-function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput>; seedRootDir: string } {
-  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()), seedRootDir: process.cwd() };
 }

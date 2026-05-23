@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import { loadEnv } from "@supplystrata/config";
 import type { DatabaseStore } from "@supplystrata/db/write";
 import type { GraphSyncMode } from "@supplystrata/graph-builder";
 import { messageFromUnknown } from "@supplystrata/observability";
@@ -11,8 +10,7 @@ import {
   previewAppleSuppliers,
   previewNvidiaResearchReport,
   previewSecEdgarSupplyChain,
-  previewSecEdgarSupplyChainProfile,
-  sourceWorkflowAdapterContextInput
+  previewSecEdgarSupplyChainProfile
 } from "@supplystrata/source-workflows";
 import {
   isSupportedFormType,
@@ -27,6 +25,7 @@ import {
 } from "../cli-utils.js";
 import { createCliNeo4jGraphStore } from "../graph-store.js";
 import { renderAppleSuppliersPreview, renderPreview, renderResearchReport } from "../preview-render.js";
+import { sourceWorkflowRuntime, type CliSourceWorkflowRuntime } from "../source-workflow-runtime.js";
 
 export function registerPipelinePreviewCommands(program: Command): void {
   const ingest = program.command("ingest").description("ingestion commands");
@@ -118,7 +117,7 @@ interface SecPipelineInput {
 }
 
 interface SecPipelineOptions {
-  adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput>;
+  adapterContextInput: CliSourceWorkflowRuntime["adapterContextInput"];
   graphSyncMode?: GraphSyncMode;
   graphStore?: ReturnType<typeof createCliNeo4jGraphStore>;
 }
@@ -149,8 +148,4 @@ function graphOptions(graphSyncMode: GraphSyncMode): SecPipelineOptions {
   const runtime = sourceWorkflowRuntime();
   if (graphSyncMode === "defer") return { graphSyncMode, ...runtime };
   return { graphSyncMode, graphStore: createCliNeo4jGraphStore(), ...runtime };
-}
-
-function sourceWorkflowRuntime(): { adapterContextInput: ReturnType<typeof sourceWorkflowAdapterContextInput>; seedRootDir: string } {
-  return { adapterContextInput: sourceWorkflowAdapterContextInput(loadEnv()), seedRootDir: process.cwd() };
 }
