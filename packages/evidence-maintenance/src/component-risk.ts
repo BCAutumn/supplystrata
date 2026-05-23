@@ -1,6 +1,6 @@
 import type { EdgeStrengthEstimateRecord } from "@supplystrata/core";
 import { getLatestRiskViewByScope, listEdgeFreshness, listEdgeStrengthEstimates, listRiskMetricsForView, type DbClient } from "@supplystrata/db/read";
-import { replaceRiskView, type DbTxClient } from "@supplystrata/db/write";
+import { replaceRiskView, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import { COMPONENT_RISK_MODEL_VERSION, type ComponentRiskRefreshSummary, type RefreshComponentRiskViewInput } from "./component-risk-definitions.js";
 import { recordComponentRiskMetricChanges } from "./component-risk-changes.js";
 import { buildComponentRiskMetrics, deterministicRiskViewId, riskInputsFingerprint } from "./component-risk-metrics.js";
@@ -70,6 +70,13 @@ export async function refreshComponentRiskView(client: DbTxClient, input: Refres
     model_version: COMPONENT_RISK_MODEL_VERSION,
     inputs_fingerprint: fingerprint
   };
+}
+
+export async function refreshComponentRiskViewTransactionally(
+  store: DatabaseStore,
+  input: RefreshComponentRiskViewInput
+): Promise<ComponentRiskRefreshSummary> {
+  return store.transaction((client) => refreshComponentRiskView(client, input));
 }
 
 function groupByEdgeId<T extends EdgeStrengthEstimateRecord>(items: readonly T[]): Map<string, T[]> {

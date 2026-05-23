@@ -88,10 +88,7 @@ class SemanticConflictDbClient extends EmptyDbClient {
     if (sql.includes("FROM claims c") && sql.includes("JOIN edges e")) {
       return mockResult([{ claim_id: "CLM-ACTIVE-TSMC", edge_id: "EDGE-TSMC" }] as unknown as T[]);
     }
-    if (sql.includes("SELECT unknown_id FROM unknown_items")) {
-      return mockResult([]);
-    }
-    if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
+    if (sql.includes("RETURNING unknown_id, (xmax = 0) AS inserted, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
       return mockResult(unknownUpsertRows<T>(params));
     }
     return mockResult([]);
@@ -122,10 +119,7 @@ class ClaimConflictMaintenanceDbClient extends EmptyDbClient {
         }
       ] as unknown as T[]);
     }
-    if (sql.includes("SELECT unknown_id FROM unknown_items")) {
-      return mockResult([]);
-    }
-    if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
+    if (sql.includes("RETURNING unknown_id, (xmax = 0) AS inserted, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
       return mockResult(unknownUpsertRows<T>(params));
     }
     if (sql.includes("FROM claim_unknowns")) {
@@ -829,7 +823,7 @@ function rowsForClaimBuilder<T extends pg.QueryResultRow>(sql: string, params: r
   if (sql.includes("RETURNING claim_id, (xmax = 0) AS inserted") && typeof params[0] === "string") {
     return [{ claim_id: params[0], inserted: true }] as unknown as T[];
   }
-  if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
+  if (sql.includes("RETURNING unknown_id, (xmax = 0) AS inserted, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
     return unknownUpsertRows(params);
   }
   return [];
@@ -839,6 +833,7 @@ function unknownUpsertRows<T extends pg.QueryResultRow>(params: readonly unknown
   return [
     {
       unknown_id: params[0],
+      inserted: true,
       status: "open",
       scope_kind: params[1],
       scope_id: params[2],

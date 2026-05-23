@@ -118,10 +118,7 @@ export async function upsertClaim(client: DbTxClient, input: NewClaimInput): Pro
        component_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.component_id ELSE EXCLUDED.component_id END,
        edge_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.edge_id ELSE EXCLUDED.edge_id END,
        review_id = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.review_id ELSE EXCLUDED.review_id END,
-       status = CASE
-         WHEN claims.status IN ('superseded','rejected') THEN claims.status
-         ELSE EXCLUDED.status
-       END,
+       status = claims.status,
        evidence_level = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.evidence_level ELSE EXCLUDED.evidence_level END,
        confidence = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.confidence ELSE EXCLUDED.confidence END,
        is_inferred = CASE WHEN claims.status IN ('superseded','rejected') THEN claims.is_inferred ELSE EXCLUDED.is_inferred END,

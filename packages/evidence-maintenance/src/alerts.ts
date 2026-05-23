@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
 import type { AlertSeverity, DbClient } from "@supplystrata/db/read";
-import { upsertAlertCandidate, type DbTxClient, type UpsertAlertCandidateInput } from "@supplystrata/db/write";
+import { upsertAlertCandidate, type DatabaseStore, type DbTxClient, type UpsertAlertCandidateInput } from "@supplystrata/db/write";
 import type { ComponentRiskMetricAlertRow, ObservationAnomalyChangeRow, SourceFailureEventRow } from "./db-rows.js";
 
 export interface ComponentRiskAlertPolicyInput {
@@ -149,6 +149,13 @@ export async function refreshAlertCandidates(client: DbTxClient, input: RefreshA
     generated_by: generatedBy,
     since
   };
+}
+
+export async function refreshAlertCandidatesTransactionally(
+  store: DatabaseStore,
+  input: RefreshAlertCandidatesInput = {}
+): Promise<AlertCandidateRefreshSummary> {
+  return store.transaction((client) => refreshAlertCandidates(client, input));
 }
 
 async function observationAnomalyAlertDrafts(

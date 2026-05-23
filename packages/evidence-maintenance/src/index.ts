@@ -1,7 +1,14 @@
 import { createHash } from "node:crypto";
 import type { CandidateRelation, EdgeStrengthKind, EvidenceLevel, RelationType } from "@supplystrata/core";
 import { listEdgeStrengthEstimates, type DbClient, type DbRow } from "@supplystrata/db/read";
-import { recordSemanticChange, refreshEdgeFreshness, upsertEdgeStrengthEstimate, upsertUnknownItem, type DbTxClient } from "@supplystrata/db/write";
+import {
+  recordSemanticChange,
+  refreshEdgeFreshness,
+  upsertEdgeStrengthEstimate,
+  upsertUnknownItem,
+  type DatabaseStore,
+  type DbTxClient
+} from "@supplystrata/db/write";
 import { buildEvidenceTrace } from "@supplystrata/evidence-trace";
 import type { EvidenceTraceBackfillRow, IntelligenceRefreshEdgeRow } from "./db-rows.js";
 
@@ -188,6 +195,13 @@ export async function refreshEdgeIntelligenceContext(client: DbTxClient, input: 
     generated_by: generatedBy,
     computed_at: computedAt
   };
+}
+
+export async function refreshEdgeIntelligenceContextTransactionally(
+  store: DatabaseStore,
+  input: RefreshEdgeIntelligenceInput = {}
+): Promise<EdgeIntelligenceRefreshSummary> {
+  return store.transaction((client) => refreshEdgeIntelligenceContext(client, input));
 }
 
 export function inferEdgeStrengthDrafts(edge: { cite_text: string; object_name: string }): EdgeStrengthDraft[] {

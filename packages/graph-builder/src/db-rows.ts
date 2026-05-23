@@ -5,6 +5,7 @@ export interface EdgeIdentityRow extends pg.QueryResultRow {
   edge_id: string;
   evidence_level: EvidenceLevel;
   confidence: number;
+  validity: EdgeValidity;
 }
 
 export interface ComponentLookupRow extends pg.QueryResultRow {

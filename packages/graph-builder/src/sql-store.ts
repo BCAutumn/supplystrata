@@ -26,7 +26,7 @@ export async function applyApprovedCandidateToSql(client: DbTxClient, input: App
     component
   });
   const existing = await client.query<EdgeIdentityRow>(
-    `SELECT edge_id, evidence_level, confidence
+    `SELECT edge_id, evidence_level, confidence, validity
      FROM edges
      WHERE subject_id = $1 AND object_id = $2 AND relation = $3
        AND (
@@ -35,9 +35,13 @@ export async function applyApprovedCandidateToSql(client: DbTxClient, input: App
        )
        AND COALESCE(effective_from, DATE '1900-01-01') = DATE '1900-01-01'
        AND COALESCE(effective_to, DATE '2999-12-31') = DATE '2999-12-31'
+     ORDER BY CASE WHEN validity = 'current' THEN 0 ELSE 1 END
      LIMIT 1`,
     [input.subject_id, input.object_id, input.approved.candidate.relation, component.component_id, component.component]
   );
+  if (existing.rows[0] !== undefined && existing.rows[0].validity !== "current") {
+    throw new Error(`Cannot append reviewed evidence to deprecated edge: ${existing.rows[0].edge_id}`);
+  }
 
   const edgeId = existing.rows[0]?.edge_id ?? createId("EDGE");
   const evidenceId = createId("EV");
@@ -112,7 +116,7 @@ export async function applyApprovedCandidateToSql(client: DbTxClient, input: App
 }
 
 async function lockEdgeIdentity(
-  client: DbClient,
+  client: DbTxClient,
   input: {
     subject_id: string;
     object_id: string;
@@ -141,7 +145,7 @@ interface InsertOrUpdateEdgeInput {
 }
 
 async function insertEdge(
-  client: DbClient,
+  client: DbTxClient,
   input: InsertOrUpdateEdgeInput & {
     subjectId: string;
     objectId: string;
@@ -165,8 +169,12 @@ async function insertEdge(
   );
 }
 
-async function updateEdge(client: DbClient, input: InsertOrUpdateEdgeInput): Promise<void> {
-  await client.query(
+interface EdgeUpdateRow extends DbRow {
+  edge_id: string;
+}
+
+async function updateEdge(client: DbTxClient, input: InsertOrUpdateEdgeInput): Promise<void> {
+  const result = await client.query<EdgeUpdateRow>(
     `UPDATE edges
      SET component = $2,
          component_id = $3,
@@ -176,7 +184,8 @@ async function updateEdge(client: DbClient, input: InsertOrUpdateEdgeInput): Pro
          is_inferred = $7,
          last_verified_at = now(),
          updated_at = now()
-     WHERE edge_id = $1`,
+     WHERE edge_id = $1 AND validity = 'current'
+     RETURNING edge_id`,
     [
       input.edgeId,
       input.component.component,
@@ -187,10 +196,11 @@ async function updateEdge(client: DbClient, input: InsertOrUpdateEdgeInput): Pro
       input.approved.scoring.is_inferred
     ]
   );
+  if (result.rows[0] === undefined) throw new Error(`Current edge not found while applying reviewed evidence: ${input.edgeId}`);
 }
 
 async function insertEvidence(
-  client: DbClient,
+  client: DbTxClient,
   input: { edgeId: string; evidenceId: string; approved: ApprovedCandidate; trace: ReturnType<typeof buildEvidenceTrace> }
 ): Promise<void> {
   await client.query(
@@ -258,7 +268,7 @@ async function supersedeOlderEvidence(client: DbTxClient, input: { edgeId: strin
   });
 }
 
-async function updatePrimaryEvidence(client: DbClient, edgeId: string): Promise<void> {
+async function updatePrimaryEvidence(client: DbTxClient, edgeId: string): Promise<void> {
   await client.query(
     `WITH best_evidence AS (
        SELECT evidence_id
@@ -270,7 +280,7 @@ async function updatePrimaryEvidence(client: DbClient, edgeId: string): Promise<
      UPDATE edges
      SET primary_evidence_id = best_evidence.evidence_id, updated_at = now()
      FROM best_evidence
-     WHERE edges.edge_id = $1`,
+     WHERE edges.edge_id = $1 AND edges.validity = 'current'`,
     [edgeId]
   );
 }

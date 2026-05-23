@@ -37,6 +37,7 @@ interface UnknownIdRow extends pg.QueryResultRow {
 
 interface UpsertUnknownItemRow extends pg.QueryResultRow {
   unknown_id: string;
+  inserted: boolean;
   status: UnknownItemStatus;
   scope_kind: string;
   scope_id: string;
@@ -45,7 +46,6 @@ interface UpsertUnknownItemRow extends pg.QueryResultRow {
 
 export async function upsertUnknownItem(client: DbTxClient, input: NewUnknownItemInput): Promise<{ unknown_id: string; inserted: boolean }> {
   const unknownId = input.unknown_id ?? createId("UNK");
-  const existing = await client.query<UnknownIdRow>("SELECT unknown_id FROM unknown_items WHERE unknown_id = $1", [unknownId]);
   const upserted = await client.query<UpsertUnknownItemRow>(
     `INSERT INTO unknown_items (
        unknown_id, scope_kind, scope_id, question, why_unknown, blocking_data_sources, proxies, status, created_by
@@ -59,7 +59,7 @@ export async function upsertUnknownItem(client: DbTxClient, input: NewUnknownIte
        blocking_data_sources = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.blocking_data_sources ELSE EXCLUDED.blocking_data_sources END,
        proxies = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.proxies ELSE EXCLUDED.proxies END,
        status = CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.status ELSE 'open' END
-     RETURNING unknown_id, status, scope_kind, scope_id, question`,
+     RETURNING unknown_id, (xmax = 0) AS inserted, status, scope_kind, scope_id, question`,
     [
       unknownId,
       input.scope_kind,
@@ -73,11 +73,10 @@ export async function upsertUnknownItem(client: DbTxClient, input: NewUnknownIte
   );
   const row = upserted.rows[0];
   if (row === undefined) throw new Error(`Unknown item upsert did not return a row: ${unknownId}`);
-  const inserted = existing.rows[0] === undefined;
   await recordSemanticChange(client, {
     scope_kind: "unknown",
     scope_id: row.unknown_id,
-    change_type: unknownChangeType(inserted, row.status),
+    change_type: unknownChangeType(row.inserted, row.status),
     after: {
       scope_kind: row.scope_kind,
       scope_id: row.scope_id,
@@ -86,7 +85,7 @@ export async function upsertUnknownItem(client: DbTxClient, input: NewUnknownIte
     },
     caused_by: input.created_by
   });
-  return { unknown_id: row.unknown_id, inserted };
+  return { unknown_id: row.unknown_id, inserted: row.inserted };
 }
 
 function unknownChangeType(inserted: boolean, status: UnknownItemStatus): "UNKNOWN_ADDED" | "UNKNOWN_UPDATED" | "UNKNOWN_REASSERTED_RESOLVED" {

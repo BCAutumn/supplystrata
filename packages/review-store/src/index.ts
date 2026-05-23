@@ -253,12 +253,12 @@ export async function markReviewCandidateBlocked(client: DbTxClient, input: { re
   const result = await client.query<ReviewCandidateRow>(
     `UPDATE review_candidates
      SET status = 'blocked', decision_reason = $2, updated_at = now()
-     WHERE review_id = $1 AND status <> 'applied'
+     WHERE review_id = $1 AND status IN ('pending','in_review','approved','blocked')
      RETURNING review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at`,
     [input.reviewId, input.reason]
   );
   const item = rowToReviewItem(result.rows[0]);
-  if (item === undefined) throw new Error(`Review candidate not found or already applied: ${input.reviewId}`);
+  if (item === undefined) throw new Error(`Review candidate not found or not blockable: ${input.reviewId}`);
   await recordSemanticChange(client, {
     scope_kind: "review",
     scope_id: item.review_id,
@@ -276,7 +276,7 @@ export async function recordOfficialDisclosureSignalDisposition(
   client: DbTxClient,
   input: OfficialDisclosureSignalDispositionInput
 ): Promise<OfficialDisclosureSignalDispositionRecord> {
-  const item = await getReviewCandidate(client, input.reviewId);
+  const item = await getReviewCandidateForUpdate(client, input.reviewId);
   if (item === undefined) throw new Error(`Official disclosure signal review candidate not found: ${input.reviewId}`);
   if (item.kind !== "official_disclosure_signal" || !isOfficialDisclosureSignalReviewCandidate(item.candidate))
     throw new Error(`Review candidate is not an official disclosure signal: ${input.reviewId}`);
@@ -319,6 +319,17 @@ export async function recordOfficialDisclosureSignalDisposition(
     caused_by: input.reviewer,
     detected_at: new Date(recordedAt)
   });
+}
+
+async function getReviewCandidateForUpdate(client: DbTxClient, reviewId: string): Promise<ReviewQueueItem | undefined> {
+  const result = await client.query<ReviewCandidateRow>(
+    `SELECT review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at
+     FROM review_candidates
+     WHERE review_id = $1
+     FOR UPDATE`,
+    [reviewId]
+  );
+  return rowToReviewItem(result.rows[0]);
 }
 
 export async function listOfficialDisclosureSignalDispositions(

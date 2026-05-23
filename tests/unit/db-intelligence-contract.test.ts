@@ -99,13 +99,11 @@ class UnknownResolveDbClient extends RecordingDbClient {
 class ResolvedUnknownUpsertDbClient extends RecordingDbClient {
   override async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
-    if (sql.includes("SELECT unknown_id FROM unknown_items")) {
-      return queryResult([{ unknown_id: "UNK-TEST" }] as unknown as T[]);
-    }
-    if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question")) {
+    if (sql.includes("RETURNING unknown_id, (xmax = 0) AS inserted, status, scope_kind, scope_id, question")) {
       return queryResult([
         {
           unknown_id: "UNK-TEST",
+          inserted: false,
           status: "resolved",
           scope_kind: "company",
           scope_id: "ENT-NVIDIA",
@@ -285,7 +283,7 @@ describe("db intelligence-network repositories", () => {
       generated_by: "unit-test"
     });
 
-    expect(client.calls[0]?.sql).toContain("WHEN claims.status IN ('superseded','rejected') THEN claims.status");
+    expect(client.calls[0]?.sql).toContain("status = claims.status");
   });
 
   it("does not overwrite rejected or superseded claim content through generated upserts", async () => {
@@ -550,6 +548,7 @@ describe("db intelligence-network repositories", () => {
 
     expect(unknown).toEqual({ unknown_id: "UNK-TEST", inserted: false });
     const upsertCall = client.calls.find((call) => call.sql.includes("INSERT INTO unknown_items"));
+    expect(upsertCall?.sql).toContain("RETURNING unknown_id, (xmax = 0) AS inserted");
     expect(upsertCall?.sql).toContain("CASE WHEN unknown_items.status = 'resolved' THEN unknown_items.question ELSE EXCLUDED.question END");
     const changeCall = client.calls.find((call) => call.sql.includes("INSERT INTO change_records"));
     expect(changeCall?.params[3]).toBe("UNKNOWN_REASSERTED_RESOLVED");
@@ -735,6 +734,7 @@ describe("db intelligence-network repositories", () => {
     expect(result).toEqual({ alert_id: "ALT-TEST", inserted: true });
     expect(client.calls[0]?.sql).toContain("INSERT INTO alert_candidates");
     expect(client.calls[0]?.sql).toContain("ON CONFLICT (dedupe_key)");
+    expect(client.calls[0]?.sql).toContain("WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.severity");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -842,10 +842,11 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
   if (sql.includes("RETURNING observation_id") && sql.includes("UPDATE observations") && typeof params[0] === "string") {
     return [{ observation_id: params[0] }] as unknown as T[];
   }
-  if (sql.includes("RETURNING unknown_id, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
+  if (sql.includes("RETURNING unknown_id, (xmax = 0) AS inserted, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
     return [
       {
         unknown_id: params[0],
+        inserted: true,
         status: "open",
         scope_kind: params[1],
         scope_id: params[2],

@@ -92,6 +92,10 @@ export async function syncGraphEdge(store: DatabaseStore, graph: GraphStore, edg
   const edge = result.rows[0];
   if (edge === undefined) throw new Error(`Edge not found after apply: ${edgeId}`);
   await graph.ensureSchema();
+  if (edge.validity !== "current") {
+    await graph.removeEdge(edge.edge_id);
+    return;
+  }
   const endpoints = await store.read.query<EntityRow>(
     `SELECT entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs
      FROM entity_master

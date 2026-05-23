@@ -100,19 +100,40 @@ export async function upsertAlertCandidate(client: DbTxClient, input: UpsertAler
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb)
      ON CONFLICT (dedupe_key) DO UPDATE SET
-       severity = EXCLUDED.severity,
-       title = EXCLUDED.title,
-       summary = EXCLUDED.summary,
-       observation_id = COALESCE(EXCLUDED.observation_id, alert_candidates.observation_id),
-       risk_view_id = COALESCE(EXCLUDED.risk_view_id, alert_candidates.risk_view_id),
-       risk_metric_id = COALESCE(EXCLUDED.risk_metric_id, alert_candidates.risk_metric_id),
-       change_id = COALESCE(EXCLUDED.change_id, alert_candidates.change_id),
-       source_event_id = COALESCE(EXCLUDED.source_event_id, alert_candidates.source_event_id),
-       source_adapter_id = COALESCE(EXCLUDED.source_adapter_id, alert_candidates.source_adapter_id),
-       detected_at = GREATEST(alert_candidates.detected_at, EXCLUDED.detected_at),
-       provenance = alert_candidates.provenance || EXCLUDED.provenance,
-       attrs = alert_candidates.attrs || EXCLUDED.attrs,
-       updated_at = now()
+       severity = CASE WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.severity ELSE EXCLUDED.severity END,
+       title = CASE WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.title ELSE EXCLUDED.title END,
+       summary = CASE WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.summary ELSE EXCLUDED.summary END,
+       observation_id = CASE
+         WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.observation_id
+         ELSE COALESCE(EXCLUDED.observation_id, alert_candidates.observation_id)
+       END,
+       risk_view_id = CASE
+         WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.risk_view_id
+         ELSE COALESCE(EXCLUDED.risk_view_id, alert_candidates.risk_view_id)
+       END,
+       risk_metric_id = CASE
+         WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.risk_metric_id
+         ELSE COALESCE(EXCLUDED.risk_metric_id, alert_candidates.risk_metric_id)
+       END,
+       change_id = CASE
+         WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.change_id
+         ELSE COALESCE(EXCLUDED.change_id, alert_candidates.change_id)
+       END,
+       source_event_id = CASE
+         WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.source_event_id
+         ELSE COALESCE(EXCLUDED.source_event_id, alert_candidates.source_event_id)
+       END,
+       source_adapter_id = CASE
+         WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.source_adapter_id
+         ELSE COALESCE(EXCLUDED.source_adapter_id, alert_candidates.source_adapter_id)
+       END,
+       detected_at = CASE
+         WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.detected_at
+         ELSE GREATEST(alert_candidates.detected_at, EXCLUDED.detected_at)
+       END,
+       provenance = CASE WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.provenance ELSE alert_candidates.provenance || EXCLUDED.provenance END,
+       attrs = CASE WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.attrs ELSE alert_candidates.attrs || EXCLUDED.attrs END,
+       updated_at = CASE WHEN alert_candidates.status IN ('resolved','suppressed') THEN alert_candidates.updated_at ELSE now() END
      RETURNING alert_id, (xmax = 0) AS inserted`,
     [
       input.alert_id,
@@ -209,7 +230,7 @@ const selectAlertCandidateFields = `SELECT alert_id, alert_kind, severity, statu
        observation_id, risk_view_id, risk_metric_id, change_id, source_event_id, source_adapter_id,
        detected_at, provenance, attrs`;
 
-async function getAlertCandidateForUpdate(client: DbClient, alertId: string): Promise<AlertCandidateRow | undefined> {
+async function getAlertCandidateForUpdate(client: DbTxClient, alertId: string): Promise<AlertCandidateRow | undefined> {
   const result = await client.query<AlertCandidateRow>(
     `${selectAlertCandidateFields}
      FROM alert_candidates

@@ -71,6 +71,7 @@ describe("review-store semantic changes", () => {
 
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("REVIEW_APPLIED"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("REVIEW_BLOCKED"))).toBe(true);
+    expect(client.calls.find((call) => call.sql.includes("status = 'blocked'"))?.sql).toContain("status IN ('pending','in_review','approved','blocked')");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 

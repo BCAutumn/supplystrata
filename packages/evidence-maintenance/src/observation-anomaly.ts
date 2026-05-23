@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ObservationType, RiskMetricKind } from "@supplystrata/core";
 import type { DbClient, RiskMetricRecord } from "@supplystrata/db/read";
-import { recordSemanticChange, replaceRiskView, type DbTxClient } from "@supplystrata/db/write";
+import { recordSemanticChange, replaceRiskView, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
 import type { ExistingSemanticChangeRow, ObservationAnomalyHistoryRow, ObservationAnomalyRow } from "./db-rows.js";
 
 export interface RefreshObservationAnomalyViewsInput {
@@ -147,6 +147,13 @@ export async function refreshObservationAnomalyViews(
   };
 }
 
+export async function refreshObservationAnomalyViewsTransactionally(
+  store: DatabaseStore,
+  input: RefreshObservationAnomalyViewsInput = {}
+): Promise<ObservationAnomalyRefreshSummary> {
+  return store.transaction((client) => refreshObservationAnomalyViews(client, input));
+}
+
 function validateRefreshInput(input: { limit: number; thresholdPercent: number; zThreshold: number; historyPeriods: number; minHistoryPoints: number }): void {
   if (!Number.isInteger(input.limit) || input.limit <= 0) throw new Error(`Observation anomaly limit must be a positive integer: ${input.limit}`);
   if (!Number.isFinite(input.thresholdPercent) || input.thresholdPercent <= 0) {
@@ -281,6 +288,8 @@ async function recordObservationAnomalyChangeIfMissing(
     generatedBy: string;
   }
 ): Promise<boolean> {
+  // 同一个 observation + risk view 的异常语义事件必须在事务内串行化，否则并发 refresh 会先后读到空结果并重复写 change record。
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`observation-anomaly:${input.row.observation_id}:${input.riskViewId}`]);
   const existing = await client.query<ExistingSemanticChangeRow>(
     `SELECT change_id
      FROM change_records
