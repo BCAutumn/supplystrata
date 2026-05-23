@@ -93,24 +93,44 @@ export async function replaceRiskView(client: DbTxClient, input: ReplaceRiskView
   if (row === undefined) throw new Error(`Failed to upsert risk view ${input.risk_view_id}`);
 
   await client.query("DELETE FROM risk_metrics WHERE risk_view_id = $1", [row.risk_view_id]);
-  for (const metric of input.metrics) {
+  if (input.metrics.length > 0) {
     await client.query(
-      `INSERT INTO risk_metrics (
+      `WITH metric_rows AS (
+         SELECT *
+         FROM jsonb_to_recordset($2::jsonb) AS metric(
+           metric_id text,
+           metric_kind text,
+           subject_kind text,
+           subject_id text,
+           component_id text,
+           value text,
+           confidence double precision,
+           provenance jsonb,
+           attrs jsonb
+         )
+       )
+       INSERT INTO risk_metrics (
          metric_id, risk_view_id, metric_kind, subject_kind, subject_id, component_id,
          value, confidence, provenance, attrs
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb)`,
+       SELECT metric_id, $1, metric_kind, subject_kind, subject_id, component_id,
+              value, confidence, COALESCE(provenance, '{}'::jsonb), COALESCE(attrs, '{}'::jsonb)
+       FROM metric_rows`,
       [
-        metric.metric_id,
         row.risk_view_id,
-        metric.metric_kind,
-        metric.subject_kind,
-        metric.subject_id,
-        metric.component_id ?? null,
-        metric.value ?? null,
-        metric.confidence,
-        JSON.stringify(metric.provenance),
-        JSON.stringify(metric.attrs)
+        JSON.stringify(
+          input.metrics.map((metric) => ({
+            metric_id: metric.metric_id,
+            metric_kind: metric.metric_kind,
+            subject_kind: metric.subject_kind,
+            subject_id: metric.subject_id,
+            component_id: metric.component_id ?? null,
+            value: metric.value ?? null,
+            confidence: metric.confidence,
+            provenance: metric.provenance,
+            attrs: metric.attrs
+          }))
+        )
       ]
     );
   }

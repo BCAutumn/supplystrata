@@ -25,6 +25,18 @@ interface QueryCall {
   params: readonly unknown[];
 }
 
+interface RiskMetricInsertParam {
+  metric_id: string;
+  metric_kind: string;
+  subject_kind: string;
+  subject_id: string;
+  component_id: string | null;
+  value: string | null;
+  confidence: number;
+  provenance: Record<string, unknown>;
+  attrs: Record<string, unknown>;
+}
+
 interface TestOfficialSignalDispositionChange {
   change_id: string;
   review_id: string;
@@ -483,13 +495,13 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(firstSummary.risk_view_id).toBe(secondSummary.risk_view_id);
     expect(firstSummary.inputs_fingerprint).toBe(secondSummary.inputs_fingerprint);
 
-    const riskMetricInserts = firstClient.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
-    expect(riskMetricInserts).toHaveLength(9);
-    expect(riskMetricInserts.some((call) => call.params[2] === "supplier_concentration_hhi" && call.params[6] === null)).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[2] === "single_source_exposure" && call.params[6] === "1")).toBe(true);
-    const pathRedundancyInsert = riskMetricInserts.find((call) => call.params[2] === "path_redundancy");
-    expect(pathRedundancyInsert?.params[6]).toBe("1");
-    const pathRedundancyAttrs = jsonObjectFromParam(pathRedundancyInsert?.params[9]);
+    const riskMetrics = riskMetricRowsFromCalls(firstClient.calls);
+    expect(riskMetrics).toHaveLength(9);
+    expect(riskMetrics.some((metric) => metric.metric_kind === "supplier_concentration_hhi" && metric.value === null)).toBe(true);
+    expect(riskMetrics.some((metric) => metric.metric_kind === "single_source_exposure" && metric.value === "1")).toBe(true);
+    const pathRedundancyMetric = riskMetrics.find((metric) => metric.metric_kind === "path_redundancy");
+    expect(pathRedundancyMetric?.value).toBe("1");
+    const pathRedundancyAttrs = pathRedundancyMetric?.attrs ?? {};
     expect(pathRedundancyAttrs).toMatchObject({
       direct_supplier_count: 2,
       direct_alternate_supplier_count: 1,
@@ -499,14 +511,14 @@ describe("evidence-maintenance intelligence refresh", () => {
       weighted_path_missing: false,
       redundancy_scope: "terminal_consumer_simple_paths"
     });
-    expect(riskMetricInserts.filter((call) => call.params[2] === "node_knockout_reach" && call.params[6] === "1")).toHaveLength(2);
+    expect(riskMetrics.filter((metric) => metric.metric_kind === "node_knockout_reach" && metric.value === "1")).toHaveLength(2);
     expect(
-      riskMetricInserts.some((call) => call.params[2] === "node_knockout_weighted_impact" && call.params[4] === "ENT-SKHYNIX" && call.params[6] === "0.200000")
+      riskMetrics.some((metric) => metric.metric_kind === "node_knockout_weighted_impact" && metric.subject_id === "ENT-SKHYNIX" && metric.value === "0.200000")
     ).toBe(true);
     expect(
-      riskMetricInserts.some((call) => call.params[2] === "node_knockout_weighted_impact" && call.params[4] === "ENT-MICRON" && call.params[6] === "0.250000")
+      riskMetrics.some((metric) => metric.metric_kind === "node_knockout_weighted_impact" && metric.subject_id === "ENT-MICRON" && metric.value === "0.250000")
     ).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[2] === "freshness_adjusted_exposure" && call.params[6] === "0.250000")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.metric_kind === "freshness_adjusted_exposure" && metric.value === "0.250000")).toBe(true);
     expect(firstClient.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -525,10 +537,9 @@ describe("evidence-maintenance intelligence refresh", () => {
       supplier_count: 2,
       share_unknown: false
     });
-    const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
-    const hhiInsert = riskMetricInserts.find((call) => call.params[2] === "supplier_concentration_hhi");
-    expect(hhiInsert?.params[6]).toBe("0.260000");
-    const attrs = jsonObjectFromParam(hhiInsert?.params[9]);
+    const hhiMetric = riskMetricRowsFromCalls(client.calls).find((metric) => metric.metric_kind === "supplier_concentration_hhi");
+    expect(hhiMetric?.value).toBe("0.260000");
+    const attrs = hhiMetric?.attrs ?? {};
     expect(attrs["raw_hhi"]).toBe(0.5);
     expect(attrs["freshness_adjustment"]).toBe("share_weighted_by_edge_freshness_score");
     expect(attrs["freshness_missing"]).toBe(false);
@@ -555,11 +566,10 @@ describe("evidence-maintenance intelligence refresh", () => {
       supplier_count: 2,
       share_unknown: false
     });
-    const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
-    const hhiInsert = riskMetricInserts.find((call) => call.params[2] === "supplier_concentration_hhi");
-    expect(hhiInsert?.params[6]).toBeNull();
-    expect(hhiInsert?.params[7]).toBe(0);
-    const attrs = jsonObjectFromParam(hhiInsert?.params[9]);
+    const hhiMetric = riskMetricRowsFromCalls(client.calls).find((metric) => metric.metric_kind === "supplier_concentration_hhi");
+    expect(hhiMetric?.value).toBeNull();
+    expect(hhiMetric?.confidence).toBe(0);
+    const attrs = hhiMetric?.attrs ?? {};
     expect(attrs["share_unknown"]).toBe(false);
     expect(attrs["freshness_missing"]).toBe(true);
     expect(attrs["raw_hhi"]).toBe(0.5);
@@ -587,11 +597,11 @@ describe("evidence-maintenance intelligence refresh", () => {
       edge_count: 2,
       supplier_count: 2
     });
-    const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
-    expect(riskMetricInserts).toHaveLength(10);
-    const pathRedundancyInsert = riskMetricInserts.find((call) => call.params[2] === "path_redundancy");
-    expect(pathRedundancyInsert?.params[6]).toBe("0");
-    const pathRedundancyAttrs = jsonObjectFromParam(pathRedundancyInsert?.params[9]);
+    const riskMetrics = riskMetricRowsFromCalls(client.calls);
+    expect(riskMetrics).toHaveLength(10);
+    const pathRedundancyMetric = riskMetrics.find((metric) => metric.metric_kind === "path_redundancy");
+    expect(pathRedundancyMetric?.value).toBe("0");
+    const pathRedundancyAttrs = pathRedundancyMetric?.attrs ?? {};
     expect(pathRedundancyAttrs).toMatchObject({
       direct_supplier_count: 2,
       direct_alternate_supplier_count: 1,
@@ -609,15 +619,15 @@ describe("evidence-maintenance intelligence refresh", () => {
         source_entity_ids: ["ENT-TSMC"]
       })
     ]);
-    expect(riskMetricInserts.some((call) => call.params[2] === "node_knockout_reach" && call.params[4] === "ENT-TSMC" && call.params[6] === "2")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.metric_kind === "node_knockout_reach" && metric.subject_id === "ENT-TSMC" && metric.value === "2")).toBe(true);
     expect(
-      riskMetricInserts.some((call) => call.params[2] === "node_knockout_weighted_impact" && call.params[4] === "ENT-TSMC" && call.params[6] === "1.440000")
+      riskMetrics.some((metric) => metric.metric_kind === "node_knockout_weighted_impact" && metric.subject_id === "ENT-TSMC" && metric.value === "1.440000")
     ).toBe(true);
     expect(
-      riskMetricInserts.some((call) => call.params[2] === "betweenness_centrality" && call.params[4] === "ENT-OSAT" && call.params[6] === "0.500000")
+      riskMetrics.some((metric) => metric.metric_kind === "betweenness_centrality" && metric.subject_id === "ENT-OSAT" && metric.value === "0.500000")
     ).toBe(true);
-    const betweennessInsert = riskMetricInserts.find((call) => call.params[2] === "betweenness_centrality" && call.params[4] === "ENT-OSAT");
-    const betweennessAttrs = jsonObjectFromParam(betweennessInsert?.params[9]);
+    const betweennessMetric = riskMetrics.find((metric) => metric.metric_kind === "betweenness_centrality" && metric.subject_id === "ENT-OSAT");
+    const betweennessAttrs = betweennessMetric?.attrs ?? {};
     expect(betweennessAttrs).toMatchObject({
       weighted_path_centrality_raw_score: 0.64,
       weighted_path_centrality_score: 1,
@@ -625,7 +635,7 @@ describe("evidence-maintenance intelligence refresh", () => {
       weighted_missing_weight_edge_ids: [],
       weighted_centrality_scope: "terminal_consumer_strength_freshness_simple_paths"
     });
-    expect(riskMetricInserts.every((call) => call.params[2] !== "betweenness_centrality" || call.params[7] === 0.85)).toBe(true);
+    expect(riskMetrics.every((metric) => metric.metric_kind !== "betweenness_centrality" || metric.confidence === 0.85)).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -673,12 +683,12 @@ describe("evidence-maintenance intelligence refresh", () => {
       generated_by: "unit-test"
     });
 
-    const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
-    expect(riskMetricInserts).toHaveLength(3);
-    expect(riskMetricInserts.every((call) => call.params[2] === "observation_anomaly")).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[4] === "OBS-ANOMALY" && call.params[6] === "42.000000")).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[4] === "OBS-NORMAL" && call.params[6] === "5.000000")).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[4] === "OBS-SPIKE" && call.params[6] === "8.000000")).toBe(true);
+    const riskMetrics = riskMetricRowsFromCalls(client.calls);
+    expect(riskMetrics).toHaveLength(3);
+    expect(riskMetrics.every((metric) => metric.metric_kind === "observation_anomaly")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.subject_id === "OBS-ANOMALY" && metric.value === "42.000000")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.subject_id === "OBS-NORMAL" && metric.value === "5.000000")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.subject_id === "OBS-SPIKE" && metric.value === "8.000000")).toBe(true);
     const semanticChangeInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO change_records"));
     expect(semanticChangeInserts).toHaveLength(2);
     expect(semanticChangeInserts.every((call) => call.params[3] === "OBSERVATION_ANOMALY")).toBe(true);
@@ -706,12 +716,12 @@ describe("evidence-maintenance intelligence refresh", () => {
       generated_by: "unit-test"
     });
 
-    const riskMetricInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics"));
-    expect(riskMetricInserts).toHaveLength(4);
-    expect(riskMetricInserts.every((call) => call.params[2] === "financial_metric_peer_zscore")).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[4] === "ENT-NVIDIA" && call.params[6] === "0.447214")).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[4] === "ENT-AMD" && call.params[6] === "-1.341641")).toBe(true);
-    expect(riskMetricInserts.some((call) => call.params[4] === "ENT-INTEL" && call.params[6] === "1.341641")).toBe(true);
+    const riskMetrics = riskMetricRowsFromCalls(client.calls);
+    expect(riskMetrics).toHaveLength(4);
+    expect(riskMetrics.every((metric) => metric.metric_kind === "financial_metric_peer_zscore")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.subject_id === "ENT-NVIDIA" && metric.value === "0.447214")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.subject_id === "ENT-AMD" && metric.value === "-1.341641")).toBe(true);
+    expect(riskMetrics.some((metric) => metric.subject_id === "ENT-INTEL" && metric.value === "1.341641")).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -1868,6 +1878,46 @@ function jsonObjectFromParam(value: unknown): Record<string, unknown> {
   const parsed: unknown = JSON.parse(value);
   if (!isRecord(parsed)) throw new Error("Expected parsed JSON param to be an object");
   return parsed;
+}
+
+function riskMetricRowsFromCalls(calls: readonly QueryCall[]): RiskMetricInsertParam[] {
+  return calls.filter((call) => call.sql.includes("INSERT INTO risk_metrics")).flatMap((call) => riskMetricRowsFromParam(call.params[1]));
+}
+
+function riskMetricRowsFromParam(value: unknown): RiskMetricInsertParam[] {
+  if (typeof value !== "string") throw new Error(`Expected risk metric JSON string param, got ${typeof value}`);
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) throw new Error("Expected risk metric param to be an array");
+  return parsed.map((item) => {
+    if (!isRecord(item)) throw new Error("Expected risk metric row to be an object");
+    const metricId = item["metric_id"];
+    const metricKind = item["metric_kind"];
+    const subjectKind = item["subject_kind"];
+    const subjectId = item["subject_id"];
+    const componentId = item["component_id"];
+    const metricValue = item["value"];
+    const confidence = item["confidence"];
+    const provenance = item["provenance"];
+    const attrs = item["attrs"];
+    if (typeof metricId !== "string" || typeof metricKind !== "string" || typeof subjectKind !== "string" || typeof subjectId !== "string") {
+      throw new Error("Expected risk metric identity fields to be strings");
+    }
+    if (componentId !== null && typeof componentId !== "string") throw new Error("Expected component_id to be string or null");
+    if (metricValue !== null && typeof metricValue !== "string") throw new Error("Expected value to be string or null");
+    if (typeof confidence !== "number") throw new Error("Expected confidence to be numeric");
+    if (!isRecord(provenance) || !isRecord(attrs)) throw new Error("Expected provenance and attrs to be objects");
+    return {
+      metric_id: metricId,
+      metric_kind: metricKind,
+      subject_kind: subjectKind,
+      subject_id: subjectId,
+      component_id: componentId,
+      value: metricValue,
+      confidence,
+      provenance,
+      attrs
+    };
+  });
 }
 
 function arrayFromRecordField(record: Record<string, unknown>, field: string): unknown[] {
