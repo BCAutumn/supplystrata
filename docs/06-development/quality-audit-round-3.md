@@ -49,8 +49,8 @@
 
 ```text
 [ ] F1-F6 DB Row / DTO 边界继续收敛：`loadEvidenceCard()` 已改为显式 EvidenceCard DTO 映射，`db/query.ts` 的 evidence 查询已去掉 `ev.*`；`WorkbenchModel.changes` 已改为本地 `WorkbenchChangeTimelineItem` DTO 并通过显式 mapper 从 db timeline 转换；chain-view-builder、documents/chunk 查询和其他 Row 暴露面仍需继续治理。
-[ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。G3/G7 已收敛：edge claim type / claim text 改为 relation 映射表，`reviewStats()` 用 status -> stats key 映射表替代并列状态分支。
-[ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。H1/H2 局部收敛：data-quality unknown-map 最小覆盖检查改为调用方传入 entity target，research-pack 对当前公司启用，不再固定 `ENT-NVIDIA`；NVIDIA SEC 10-K 预览已迁为 `NVIDIA_SEC_10K_EXAMPLE_PROFILE`，generic SEC preview/ingest 不再隐式指向 NVIDIA。
+[ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。G2/G3/G7 局部收敛：relation sentence extractor 不再默认 `ENT-NVIDIA`，调用方必须显式传 subject；edge claim type / claim text 改为 relation 映射表，`reviewStats()` 用 status -> stats key 映射表替代并列状态分支。
+[ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。H1/H2 局部收敛：relation extractor 和 data-quality unknown-map 最小覆盖检查不再固定 `ENT-NVIDIA`；research-pack 对当前公司启用 unknown-map 检查；NVIDIA SEC 10-K 预览已迁为 `NVIDIA_SEC_10K_EXAMPLE_PROFILE`，generic SEC preview/ingest 不再隐式指向 NVIDIA。
 [ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。I5/I10 已收敛：CLI pipeline preview 复用 observability 的 `messageFromUnknown()`；db 内部 `toIsoString()` / date-only 转换集中到 `packages/db/src/time.ts`。
 ```
 

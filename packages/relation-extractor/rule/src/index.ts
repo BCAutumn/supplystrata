@@ -22,7 +22,7 @@ export interface RelationExtractor {
 const SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID = "rule.sec.official-supply-chain";
 
 interface ExtractSentenceOptions {
-  readonly subjectSurface?: string;
+  readonly subjectSurface: string;
   readonly documentType?: NormalizedDocument["document_type"];
   readonly extractorId?: string;
   readonly sourceLocation?: CandidateRelation["source_location"];
@@ -63,13 +63,13 @@ export const secOfficialSupplyChainExtractor: RelationExtractor = {
 
 export const ruleExtractors = [secOfficialSupplyChainExtractor] as const;
 
-export function extractFromSentence(sentence: string, locator: string, options: ExtractSentenceOptions = {}): CandidateRelation[] {
+export function extractFromSentence(sentence: string, locator: string, options: ExtractSentenceOptions): CandidateRelation[] {
   const candidates: CandidateRelation[] = [];
   const manufacturingContext = /(foundr|wafer|fabricat|manufactur|supplier|subcontractor|assembly|test)/i.test(sentence);
   const foundryListContext = /(foundries?.{0,280}(tsmc|taiwan semiconductor manufacturing|samsung)|produce.{0,120}semiconductor wafers)/i.test(sentence);
   const memoryComponent = classifyMemoryComponent(sentence);
   const memoryContext = memoryComponent !== undefined;
-  const subjectSurface = options.subjectSurface ?? "ENT-NVIDIA";
+  const subjectSurface = options.subjectSurface;
   const documentType = options.documentType ?? "10-K";
   const extractorId = options.extractorId ?? SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID;
   const sourceLocation = options.sourceLocation;
