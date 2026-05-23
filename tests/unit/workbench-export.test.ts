@@ -147,6 +147,16 @@ describe("workbench-export", () => {
     expect(client.calls.some((call) => call.sql.includes("WHERE c.status = 'draft'"))).toBe(true);
   });
 
+  it("uses explicit generatedAt for repeatable export timestamps and default change windows", async () => {
+    const client = new WorkbenchDbClient(true);
+
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, generatedAt: "2026-05-23T00:00:00.000Z" });
+
+    expect(model.generated_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(model.intelligence.edge_freshness[0]?.computed_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(client.calls.find((call) => call.sql.includes("FROM change_records cr"))?.params[0]).toBe("2026-04-23T00:00:00.000Z");
+  });
+
   it("normalizes legacy workbench snapshots without mutating caller-owned objects", async () => {
     const model = await buildWorkbenchModel(new WorkbenchDbClient(), { company: "nvidia", depth: 1 });
     const legacy = JSON.parse(JSON.stringify(model)) as {

@@ -65,7 +65,7 @@ import { compareWorkbenchEvidence, edgeFreshnessToDto, edgeStrengthToDto, eviden
 import { loadWorkbenchReviewQueue, reviewQueueSourceAdapterIds } from "./review-queue.js";
 
 export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExportInput): Promise<WorkbenchModel> {
-  const generatedAt = new Date().toISOString();
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
   const rootEntityId = await resolveEntityId(client, input.company);
   const chain = await buildCompanyChainView(client, { query: rootEntityId, depth: input.depth ?? 2, generated_by: "workbench-export.v1" });
   const edgeSegments = chain.segments.filter(isEdgeSegment);
@@ -101,7 +101,7 @@ export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExpo
   });
   const changes = (
     await listChangeTimeline(client, {
-      since: input.since ?? defaultSince(30),
+      since: input.since ?? defaultSince(generatedAt, 30),
       limit: input.changeLimit ?? 50,
       scope: { kind: "company", id: rootEntityId }
     })
@@ -321,6 +321,8 @@ function componentIdsFromSegments(segments: readonly ChainViewSegmentModel[]): s
   return uniqueStrings(segments.flatMap((segment) => (segment.component_id === null ? [] : [segment.component_id])));
 }
 
-function defaultSince(daysBack: number): string {
-  return new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
+function defaultSince(generatedAt: string, daysBack: number): string {
+  const generatedAtMs = Date.parse(generatedAt);
+  if (Number.isNaN(generatedAtMs)) throw new Error(`Invalid workbench generatedAt timestamp: ${generatedAt}`);
+  return new Date(generatedAtMs - daysBack * 24 * 60 * 60 * 1000).toISOString();
 }
