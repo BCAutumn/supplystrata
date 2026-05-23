@@ -196,7 +196,8 @@ async function listComparableHistoryByCandidateId(
 
   const result = await client.query<ObservationAnomalyHistoryRow>(
     `WITH candidates AS (
-       SELECT *
+       SELECT observation_id, observation_type, scope_kind, scope_id, metric_name,
+              metric_unit, geography_kind, geography_id, component_id, anchor_at
        FROM jsonb_to_recordset($1::jsonb) AS candidate(
          observation_id text,
          observation_type text,
