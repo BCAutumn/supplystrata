@@ -15,7 +15,7 @@ import {
 } from "@supplystrata/evidence-maintenance";
 import { listAlertCandidates, type AlertStatus } from "@supplystrata/db/read";
 import { updateAlertCandidateStatus } from "@supplystrata/db/write";
-import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
+import { defaultSince, parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerIntelligenceCommands(program: Command): void {
   const intelligence = program.command("intelligence").description("derived intelligence context commands");
@@ -81,11 +81,12 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("compute deterministic edge precision and reliability buckets from human calibration labels")
     .action(async (options: { minEvidenceLevel: string; limit: string; generatedAt?: string }) => {
       await withDatabase(async (store) => {
+        const generatedAt = options.generatedAt === undefined ? new Date().toISOString() : parseSince(options.generatedAt);
         const summary = await store.transaction((client) =>
           refreshEdgeCalibrationRun(client, {
             min_evidence_level: parseCalibrationEvidenceLevel(options.minEvidenceLevel),
             limit: parseLimit(options.limit),
-            ...(options.generatedAt === undefined ? {} : { generated_at: parseSince(options.generatedAt) })
+            generated_at: generatedAt
           })
         );
         writeJson({ ok: true, ...summary });
@@ -205,10 +206,11 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("refresh deterministic alert candidates from changes, source failures, and risk metrics")
     .action(async (options: { since?: string; limit: string }) => {
       await withDatabase(async (store) => {
+        const since = options.since === undefined ? defaultSince(7) : parseSince(options.since);
         const summary = await store.transaction((client) =>
           refreshAlertCandidates(client, {
             limit: parseLimit(options.limit),
-            ...(options.since === undefined ? {} : { since: parseSince(options.since) })
+            since
           })
         );
         writeJson({ ok: true, ...summary });

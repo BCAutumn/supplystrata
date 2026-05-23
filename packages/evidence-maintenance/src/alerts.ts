@@ -52,7 +52,7 @@ export interface ComponentRiskAlertPolicySummary {
 }
 
 export interface RefreshAlertCandidatesInput {
-  since?: string;
+  since: string;
   limit?: number;
   generated_by?: string;
 }
@@ -69,7 +69,6 @@ export interface AlertCandidateRefreshSummary {
   since: string;
 }
 
-const DEFAULT_ALERT_LOOKBACK_DAYS = 7;
 const COMPONENT_RISK_ALERT_RULE_VERSION = "alert-rules.component-risk.threshold-policy.v1";
 const COMPONENT_RISK_ALERT_METRIC_KINDS: readonly RiskMetricKind[] = [
   "single_source_exposure",
@@ -117,8 +116,8 @@ export function summarizeComponentRiskAlertPolicy(samples: readonly ComponentRis
   };
 }
 
-export async function refreshAlertCandidates(client: DbTxClient, input: RefreshAlertCandidatesInput = {}): Promise<AlertCandidateRefreshSummary> {
-  const since = input.since ?? new Date(Date.now() - DEFAULT_ALERT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+export async function refreshAlertCandidates(client: DbTxClient, input: RefreshAlertCandidatesInput): Promise<AlertCandidateRefreshSummary> {
+  const since = input.since;
   const limit = input.limit ?? 1000;
   if (!Number.isInteger(limit) || limit <= 0) throw new Error(`Alert refresh limit must be a positive integer: ${limit}`);
   const generatedBy = input.generated_by ?? "evidence-maintenance.alert-rules.v1";
@@ -153,7 +152,7 @@ export async function refreshAlertCandidates(client: DbTxClient, input: RefreshA
 
 export async function refreshAlertCandidatesTransactionally(
   store: DatabaseStore,
-  input: RefreshAlertCandidatesInput = {}
+  input: RefreshAlertCandidatesInput
 ): Promise<AlertCandidateRefreshSummary> {
   return store.transaction((client) => refreshAlertCandidates(client, input));
 }

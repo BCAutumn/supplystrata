@@ -18,7 +18,7 @@ export interface RecordEdgeCalibrationLabelInput {
 export interface RefreshEdgeCalibrationRunInput {
   min_evidence_level?: EvidenceLevel;
   limit?: number;
-  generated_at?: string;
+  generated_at: string;
   generated_by?: string;
 }
 
@@ -69,11 +69,11 @@ export async function recordEdgeCalibrationLabel(client: DbTxClient, input: Reco
   });
 }
 
-export async function refreshEdgeCalibrationRun(client: DbTxClient, input: RefreshEdgeCalibrationRunInput = {}): Promise<EdgeCalibrationRunSummary> {
+export async function refreshEdgeCalibrationRun(client: DbTxClient, input: RefreshEdgeCalibrationRunInput): Promise<EdgeCalibrationRunSummary> {
   const minEvidenceLevel = input.min_evidence_level ?? 4;
   const limit = input.limit ?? 1000;
   validateRefreshInput({ minEvidenceLevel, limit });
-  const generatedAt = input.generated_at ?? new Date().toISOString();
+  const generatedAt = input.generated_at;
   const generatedBy = input.generated_by ?? "evidence-maintenance.edge-calibration.v1";
   const rows = await listCalibrationSamples(client, { minEvidenceLevel, limit });
   const counts = calibrationCounts(rows);
