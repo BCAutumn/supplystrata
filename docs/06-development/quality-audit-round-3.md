@@ -49,7 +49,7 @@
 
 ```text
 [ ] F1-F6 DB Row / DTO 边界继续收敛：`loadEvidenceCard()` 已改为显式 EvidenceCard DTO 映射，`db/query.ts` 的 evidence 查询已去掉 `ev.*`；`WorkbenchModel.changes` 已改为本地 `WorkbenchChangeTimelineItem` DTO 并通过显式 mapper 从 db timeline 转换；chain-view-builder、documents/chunk 查询和其他 Row 暴露面仍需继续治理。
-[ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。G2/G3/G7 局部收敛：relation sentence extractor 不再默认 `ENT-NVIDIA`，调用方必须显式传 subject；edge claim type / claim text 改为 relation 映射表，`reviewStats()` 用 status -> stats key 映射表替代并列状态分支。
+[ ] G1-G8 长 if 链继续按 facts+rules / registry / table-driven 模式收敛，优先参考 `claim-conflict` 的规则表。G1/G2/G3/G7 局部收敛：official disclosure signal extractor 用 source adapter registry 替代并列 source 分支；relation sentence extractor 不再默认 `ENT-NVIDIA`，调用方必须显式传 subject；edge claim type / claim text 改为 relation 映射表，`reviewStats()` 用 status -> stats key 映射表替代并列状态分支。
 [ ] H1-H5 NVIDIA / Apple / TSMC 等示例公司硬编码继续迁出通用流程，保留为 seed/profile/fixture，而不是 library 默认行为。H1/H2 局部收敛：relation extractor 和 data-quality unknown-map 最小覆盖检查不再固定 `ENT-NVIDIA`；research-pack 对当前公司启用 unknown-map 检查；NVIDIA SEC 10-K 预览已迁为 `NVIDIA_SEC_10K_EXAMPLE_PROFILE`，generic SEC preview/ingest 不再隐式指向 NVIDIA。
 [ ] I1-I11 registry、时间工具、policy 字面量、source runtime helper、Workbench 冗余字段继续去重。I1/I2/I4/I5/I7/I10 已局部收敛：source-check runtime connector 与 source-plan smoke runner 共享 `source-check-catalog.ts` 的只读目录，避免新增源时维护两套清单；手动 source check 不再保留等价 alias，直接复用运行态 connector 分发；Workbench schema validator 会校验 `chain.segments / chain_segments / edges / upstream_edges / downstream_edges` 这些兼容派生视图的一致性，避免重复字段静默漂移；CLI `research` 与 `sources plan` 复用同一 trade direction parser；CLI pipeline preview 复用 observability 的 `messageFromUnknown()`；db 内部 `toIsoString()` / date-only 转换集中到 `packages/db/src/time.ts`。
 ```
@@ -86,7 +86,7 @@
 - 本轮继续拆分 CLI source/change 入口：source-check 选择、手动 check config、target schedule option 进入 `source-check-options.ts`；due/check run markdown 渲染进入 `source-render.ts`；`research` 与 `sources plan` 共享 trade direction parser。
 - 本轮继续拆分 Workbench schema：`schema.ts` 只保留 `parseWorkbenchModel()` 对外入口，运行时契约校验集中在 `schema-validator.ts`。
 - 本轮继续拆分 `source-monitor/src/index.ts`：source policy 同步、target enable、source health list、target ensure 进入 `source-policy-management.ts`；document observation / source failure / source degraded 事件写入和 next-check 推进进入 `source-observation-events.ts`；入口文件只保留 public facade 与 due list 查询。
-- 本轮继续收敛 citation / sentence 切分：`signal-extractor`、`observation-extractor`、`relation-extractor`、`pipeline` 复用 `@supplystrata/parsers-text` 的候选句、带 offset 句窗、nearby snippet 和精确 citation 计数，避免跨 extractor 规则漂移。
+- 本轮继续收敛 citation / sentence 切分和 source 分发：`signal-extractor`、`observation-extractor`、`relation-extractor`、`pipeline` 复用 `@supplystrata/parsers-text` 的候选句、带 offset 句窗、nearby snippet 和精确 citation 计数，避免跨 extractor 规则漂移；official disclosure signal source 分发改为 registry，新增 source 时不再堆并列 `if`。
 - 本轮继续拆分 EDINET / DART / TWSE source workflow：官方披露目录的 URL/校验/解析/格式化/normalize 进入 source-specific 模块，source-check 文件只保留调度入口和 target config 解析。
 - 已跑完整门禁：
   pnpm -s type-check

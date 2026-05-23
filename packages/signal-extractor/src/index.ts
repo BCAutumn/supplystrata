@@ -7,13 +7,23 @@ export interface OfficialDisclosureSignal {
   confidence: number;
 }
 
+type OfficialDisclosureSignalExtractor = (text: string) => OfficialDisclosureSignal[];
+
+const OFFICIAL_DISCLOSURE_SIGNAL_EXTRACTORS: Readonly<Record<string, OfficialDisclosureSignalExtractor>> = {
+  "tsmc-ir": extractTsmcIrSignalsFromText,
+  "skhynix-ir": extractSkHynixSignalsFromText,
+  "samsung-ir": extractSamsungSignalsFromText,
+  "asml-ir": extractAsmlSignalsFromText,
+  "micron-ir": extractMicronSignalsFromText
+};
+
 export function extractOfficialDisclosureSignalsForSource(sourceAdapterId: string, text: string): OfficialDisclosureSignal[] {
-  if (sourceAdapterId === "tsmc-ir") return extractTsmcIrSignalsFromText(text);
-  if (sourceAdapterId === "skhynix-ir") return extractSkHynixSignalsFromText(text);
-  if (sourceAdapterId === "samsung-ir") return extractSamsungSignalsFromText(text);
-  if (sourceAdapterId === "asml-ir") return extractAsmlSignalsFromText(text);
-  if (sourceAdapterId === "micron-ir") return extractMicronSignalsFromText(text);
-  return [];
+  const extractor = OFFICIAL_DISCLOSURE_SIGNAL_EXTRACTORS[sourceAdapterId];
+  return extractor === undefined ? [] : extractor(text);
+}
+
+export function listOfficialDisclosureSignalSourceAdapterIds(): string[] {
+  return Object.keys(OFFICIAL_DISCLOSURE_SIGNAL_EXTRACTORS);
 }
 
 export function extractTsmcIrSignalsFromText(text: string): OfficialDisclosureSignal[] {

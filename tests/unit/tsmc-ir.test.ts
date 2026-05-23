@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { extractAsmlSignalsFromText, extractSkHynixSignalsFromText, extractTsmcIrSignalsFromText } from "@supplystrata/signal-extractor";
+import {
+  extractAsmlSignalsFromText,
+  extractOfficialDisclosureSignalsForSource,
+  extractSkHynixSignalsFromText,
+  extractTsmcIrSignalsFromText,
+  listOfficialDisclosureSignalSourceAdapterIds
+} from "@supplystrata/signal-extractor";
 import { companyIrExplicitUrlAdapter, micronAnnualReportUrl, tsmcAnnualReportUrl, tsmcIrAdapter } from "@supplystrata/source-workflows";
 
 describe("TSMC IR preview", () => {
@@ -81,6 +87,18 @@ describe("TSMC IR preview", () => {
       "TSMC links demand to AI and HPC",
       "TSMC highlights advanced packaging capacity"
     ]);
+  });
+
+  it("routes official disclosure signal extraction through the source registry", () => {
+    expect(listOfficialDisclosureSignalSourceAdapterIds().sort()).toEqual(["asml-ir", "micron-ir", "samsung-ir", "skhynix-ir", "tsmc-ir"]);
+
+    const signals = extractOfficialDisclosureSignalsForSource(
+      "tsmc-ir",
+      "TSMC is a pure-play foundry serving leading-edge customers in smartphone, AI and HPC applications."
+    );
+
+    expect(signals.map((signal) => signal.title)).toEqual(["TSMC describes itself as a dedicated foundry", "TSMC links demand to AI and HPC"]);
+    expect(extractOfficialDisclosureSignalsForSource("unknown-source", "TSMC is a pure-play foundry.")).toEqual([]);
   });
 
   it("extracts SK hynix memory-side signals", () => {
