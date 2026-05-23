@@ -74,7 +74,8 @@ interface SemanticReference {
   unknown_id?: string;
 }
 
-interface ChainSegmentInsertRow extends Required<Pick<NewChainSegmentInput, "chain_id" | "sequence_index" | "from_kind" | "from_id" | "to_kind" | "to_id" | "semantic_layer">> {
+interface ChainSegmentInsertRow
+  extends Required<Pick<NewChainSegmentInput, "chain_id" | "sequence_index" | "from_kind" | "from_id" | "to_kind" | "to_id" | "semantic_layer">> {
   segment_id: string;
   relation: string | null;
   component_id: string | null;

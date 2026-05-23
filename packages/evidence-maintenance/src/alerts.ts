@@ -150,10 +150,7 @@ export async function refreshAlertCandidates(client: DbTxClient, input: RefreshA
   };
 }
 
-export async function refreshAlertCandidatesTransactionally(
-  store: DatabaseStore,
-  input: RefreshAlertCandidatesInput
-): Promise<AlertCandidateRefreshSummary> {
+export async function refreshAlertCandidatesTransactionally(store: DatabaseStore, input: RefreshAlertCandidatesInput): Promise<AlertCandidateRefreshSummary> {
   return store.transaction((client) => refreshAlertCandidates(client, input));
 }
 
