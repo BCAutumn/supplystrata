@@ -183,6 +183,7 @@ export function renderCompanyCard(card: CompanyCardModel, format: OutputFormat):
   lines.push("## Unknown map", "");
   for (const item of card.unknown_map) {
     lines.push(`- ${item.question}`);
+    lines.push(`  Scope: ${item.scope_kind}:${item.scope_id}`);
     lines.push(`  Why unknown: ${item.why_unknown}`);
   }
   return lines.join("\n");

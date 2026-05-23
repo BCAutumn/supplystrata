@@ -26,6 +26,7 @@ describe("ComponentCard renderer", () => {
     expect(output).toContain("supplier_concentration_hhi: unknown");
     expect(output).toContain("Share unknown: yes");
     expect(output).toContain("Exact allocation by HBM generation");
+    expect(output).toContain("Scope: component:COMP-MEMORY");
   });
 
   it("renders a stable JSON envelope", () => {
@@ -38,6 +39,7 @@ describe("ComponentCard renderer", () => {
       related_observations: Array<{ anomaly: { is_anomaly: boolean } | null }>;
       linked_company_observations: Array<{ entity_id: string; observations: unknown[] }>;
       risk_view: { risk_view_id: string; metrics: unknown[] } | null;
+      unknown_map: Array<{ scope_kind: string; scope_id: string }>;
     };
 
     expect(parsed.schema_version).toBe("1.0.0");
@@ -51,6 +53,7 @@ describe("ComponentCard renderer", () => {
     expect(parsed.linked_company_observations[0]?.entity_id).toBe("ENT-MICRON");
     expect(parsed.linked_company_observations[0]?.observations).toHaveLength(1);
     expect(parsed.risk_view?.metrics).toHaveLength(1);
+    expect(parsed.unknown_map[0]).toMatchObject({ scope_kind: "component", scope_id: "COMP-MEMORY" });
   });
 });
 
@@ -253,6 +256,8 @@ function componentCardFixture(): ComponentCardModel {
     unknown_map: [
       {
         unknown_id: "UNK-1",
+        scope_kind: "component",
+        scope_id: "COMP-MEMORY",
         question: "Exact allocation by HBM generation",
         why_unknown: "The official disclosure says memory, not generation-specific allocation.",
         blocking_data_sources: ["private contracts"],

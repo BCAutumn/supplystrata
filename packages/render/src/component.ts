@@ -182,6 +182,7 @@ export function renderComponentCard(card: ComponentCardModel, format: OutputForm
   } else {
     for (const item of card.unknown_map) {
       lines.push(`- ${item.question}`);
+      lines.push(`  Scope: ${item.scope_kind}:${item.scope_id}`);
       lines.push(`  Why unknown: ${item.why_unknown}`);
     }
   }

@@ -40,6 +40,8 @@ export function toComponentEvidenceEdge(row: ComponentEdgeRow, intelligenceByEdg
 export function unknownMapItemFromRow(row: UnknownItemRow): UnknownMapItem {
   return {
     unknown_id: row.unknown_id,
+    scope_kind: row.scope_kind,
+    scope_id: row.scope_id,
     question: row.question,
     why_unknown: row.why_unknown,
     blocking_data_sources: row.blocking_data_sources,
