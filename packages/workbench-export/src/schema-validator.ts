@@ -18,9 +18,9 @@ import {
   EDGE_VALIDITIES,
   SEMANTIC_LAYERS
 } from "@supplystrata/core";
+import { REVIEW_CANDIDATE_STATUSES } from "@supplystrata/review-candidates";
 import { PLANNED_OUTPUT_LAYERS, SOURCE_RELATION_POLICIES } from "@supplystrata/source-plan";
 
-const REVIEW_CANDIDATE_STATUSES = ["pending", "in_review", "approved", "rejected", "blocked", "applied"] as const;
 const OFFICIAL_SIGNAL_DISPOSITION_DECISIONS = [
   "supports_existing_edge",
   "needs_more_evidence",

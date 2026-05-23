@@ -860,6 +860,9 @@ importers:
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../db
+      '@supplystrata/review-candidates':
+        specifier: workspace:*
+        version: link:../review-candidates
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor

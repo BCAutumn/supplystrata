@@ -2,7 +2,8 @@ import type { CandidateRelation, ClaimEvidenceRole, ClaimUnknownRole, RelationTy
 import type { EntitySourceCandidate } from "@supplystrata/entity-source";
 
 export type ReviewCandidateKind = ReviewCandidate["kind"];
-export type ReviewCandidateStatus = "pending" | "in_review" | "approved" | "rejected" | "blocked" | "applied";
+export const REVIEW_CANDIDATE_STATUSES = ["pending", "in_review", "approved", "rejected", "blocked", "applied"] as const;
+export type ReviewCandidateStatus = (typeof REVIEW_CANDIDATE_STATUSES)[number];
 
 export interface ReviewEvidenceContext {
   doc_id?: string;

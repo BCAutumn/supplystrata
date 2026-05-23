@@ -20,6 +20,7 @@
     "@supplystrata/claim-builder": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
+    "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/source-plan": "workspace:*"
   },
