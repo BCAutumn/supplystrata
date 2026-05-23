@@ -1,4 +1,5 @@
 import { WORKBENCH_ATTENTION_KINDS, WORKBENCH_ATTENTION_PRIORITIES, WORKBENCH_ATTENTION_STATUSES, type WorkbenchModel } from "./definitions.js";
+import { validateDerivedWorkbenchViews } from "./schema-derived-views.js";
 import {
   CLAIM_EVIDENCE_ROLES,
   CLAIM_STATUSES,
@@ -68,6 +69,7 @@ function validateWorkbenchModel(value: unknown, path: string, errors: string[]):
   validateArrayField(value, "attention_queue", path, errors, validateAttentionItem);
   validateArrayField(value, "review_queue", path, errors, validateReviewCandidate);
   validateIntelligenceContext(value["intelligence"], `${path}.intelligence`, errors);
+  validateDerivedWorkbenchViews(value, path, errors);
 }
 
 function validateCompany(value: unknown, path: string, errors: string[]): void {

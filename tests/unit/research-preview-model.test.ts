@@ -18,6 +18,18 @@ describe("research-preview workbench model parser", () => {
     model["intelligence"] = { edge_strengths: [], edge_freshness: [{ edge_id: "EDGE-1", freshness_score: "fresh" }] };
     expect(() => parseWorkbenchModel(JSON.stringify(model))).toThrow(/intelligence\.edge_freshness\[0\]/);
   });
+
+  it("rejects duplicated chain segment views that drift from the canonical chain", () => {
+    const model = validWorkbenchModel();
+    model["chain_segments"] = [];
+    expect(() => parseWorkbenchModel(JSON.stringify(model))).toThrow(/chain_segments must match \$\.chain\.segments/);
+  });
+
+  it("rejects duplicated edge views that drift from the edge list", () => {
+    const model = validWorkbenchModel();
+    model["upstream_edges"] = [];
+    expect(() => parseWorkbenchModel(JSON.stringify(model))).toThrow(/upstream_edges must match \$\.edges/);
+  });
 });
 
 function validWorkbenchModel(): Record<string, unknown> & { evidences: Record<string, unknown>[] } {
