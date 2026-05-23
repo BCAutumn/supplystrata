@@ -1,6 +1,14 @@
 import { WORKBENCH_ATTENTION_KINDS, WORKBENCH_ATTENTION_PRIORITIES, WORKBENCH_ATTENTION_STATUSES, type WorkbenchModel } from "./definitions.js";
 import { validateDerivedWorkbenchViews } from "./schema-derived-views.js";
 import {
+  CLAIM_CONFLICT_ADJUDICATION_SEVERITIES,
+  CLAIM_CONFLICT_ADJUDICATION_STATES,
+  CLAIM_CONFLICT_RECOMMENDED_ACTIONS,
+  CLAIM_CONFLICT_REVIEW_QUEUE_KINDS,
+  CLAIM_CONFLICT_REVIEW_STEPS,
+  CLAIM_CONFLICT_SAFE_WRITE_STATUSES
+} from "@supplystrata/claim-builder";
+import {
   CLAIM_EVIDENCE_ROLES,
   CLAIM_STATUSES,
   CLAIM_TYPES,
@@ -12,25 +20,6 @@ import {
 } from "@supplystrata/core";
 import { PLANNED_OUTPUT_LAYERS, SOURCE_RELATION_POLICIES } from "@supplystrata/source-plan";
 
-const CLAIM_CONFLICT_STATES = ["none", "open_conflict", "contradicting_evidence", "resolved_conflict"] as const;
-const CLAIM_CONFLICT_SEVERITIES = ["none", "low", "medium", "high"] as const;
-const CLAIM_CONFLICT_RECOMMENDED_ACTIONS = [
-  "none",
-  "review_claim",
-  "review_edge_for_deprecation",
-  "collect_resolution_evidence",
-  "keep_resolved_context"
-] as const;
-const CLAIM_CONFLICT_REVIEW_QUEUE_KINDS = ["none", "claim_conflict_review"] as const;
-const CLAIM_CONFLICT_SAFE_WRITE_STATUSES = ["none", "blocked_pending_review", "resolved_context_only"] as const;
-const CLAIM_CONFLICT_REVIEW_STEPS = [
-  "inspect_supporting_evidence",
-  "inspect_contradicting_evidence",
-  "resolve_conflict_unknown",
-  "review_claim_scope",
-  "review_fact_edge_for_deprecation",
-  "record_resolution_context"
-] as const;
 const REVIEW_CANDIDATE_STATUSES = ["pending", "in_review", "approved", "rejected", "blocked", "applied"] as const;
 const OFFICIAL_SIGNAL_DISPOSITION_DECISIONS = [
   "supports_existing_edge",
@@ -178,7 +167,7 @@ function validateClaim(value: unknown, path: string, errors: string[]): void {
   expectString(value, "updated_at", path, errors);
   validateArrayField(value, "evidence_refs", path, errors, validateClaimEvidenceRef);
   validateArrayField(value, "unknown_refs", path, errors, validateClaimUnknownRef);
-  expectEnum(value, "conflict_state", CLAIM_CONFLICT_STATES, path, errors);
+  expectEnum(value, "conflict_state", CLAIM_CONFLICT_ADJUDICATION_STATES, path, errors);
   validateClaimConflictAdjudication(value["conflict_adjudication"], `${path}.conflict_adjudication`, errors);
   validateClaimConflictReview(value["conflict_review"], `${path}.conflict_review`, errors);
   validateArrayField(value, "lifecycle_warnings", path, errors, validateClaimLifecycleWarning);
@@ -206,8 +195,8 @@ function validateClaimUnknownRef(value: unknown, path: string, errors: string[])
 
 function validateClaimConflictAdjudication(value: unknown, path: string, errors: string[]): void {
   if (!isRecordAt(value, path, errors)) return;
-  expectEnum(value, "state", CLAIM_CONFLICT_STATES, path, errors);
-  expectEnum(value, "severity", CLAIM_CONFLICT_SEVERITIES, path, errors);
+  expectEnum(value, "state", CLAIM_CONFLICT_ADJUDICATION_STATES, path, errors);
+  expectEnum(value, "severity", CLAIM_CONFLICT_ADJUDICATION_SEVERITIES, path, errors);
   expectEnum(value, "recommended_action", CLAIM_CONFLICT_RECOMMENDED_ACTIONS, path, errors);
   expectBoolean(value, "edge_review_required", path, errors);
   expectLiteral(value, "allowed_edge_mutation", "none", path, errors);
@@ -218,8 +207,8 @@ function validateClaimConflictReview(value: unknown, path: string, errors: strin
   if (!isRecordAt(value, path, errors)) return;
   expectString(value, "claim_id", path, errors);
   expectString(value, "claim_text", path, errors);
-  expectEnum(value, "conflict_state", CLAIM_CONFLICT_STATES, path, errors);
-  expectEnum(value, "severity", CLAIM_CONFLICT_SEVERITIES, path, errors);
+  expectEnum(value, "conflict_state", CLAIM_CONFLICT_ADJUDICATION_STATES, path, errors);
+  expectEnum(value, "severity", CLAIM_CONFLICT_ADJUDICATION_SEVERITIES, path, errors);
   expectEnum(value, "recommended_action", CLAIM_CONFLICT_RECOMMENDED_ACTIONS, path, errors);
   expectEnum(value, "review_queue_kind", CLAIM_CONFLICT_REVIEW_QUEUE_KINDS, path, errors);
   expectEnum(value, "safe_write_status", CLAIM_CONFLICT_SAFE_WRITE_STATUSES, path, errors);

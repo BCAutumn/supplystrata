@@ -1,8 +1,18 @@
 import type { ClaimEvidenceRole, ClaimStatus, ClaimUnknownRole } from "@supplystrata/core";
 
-export type ClaimConflictAdjudicationState = "none" | "open_conflict" | "contradicting_evidence" | "resolved_conflict";
-export type ClaimConflictAdjudicationSeverity = "none" | "low" | "medium" | "high";
-export type ClaimConflictRecommendedAction = "none" | "review_claim" | "review_edge_for_deprecation" | "collect_resolution_evidence" | "keep_resolved_context";
+export const CLAIM_CONFLICT_ADJUDICATION_STATES = ["none", "open_conflict", "contradicting_evidence", "resolved_conflict"] as const;
+export const CLAIM_CONFLICT_ADJUDICATION_SEVERITIES = ["none", "low", "medium", "high"] as const;
+export const CLAIM_CONFLICT_RECOMMENDED_ACTIONS = [
+  "none",
+  "review_claim",
+  "review_edge_for_deprecation",
+  "collect_resolution_evidence",
+  "keep_resolved_context"
+] as const;
+
+export type ClaimConflictAdjudicationState = (typeof CLAIM_CONFLICT_ADJUDICATION_STATES)[number];
+export type ClaimConflictAdjudicationSeverity = (typeof CLAIM_CONFLICT_ADJUDICATION_SEVERITIES)[number];
+export type ClaimConflictRecommendedAction = (typeof CLAIM_CONFLICT_RECOMMENDED_ACTIONS)[number];
 
 export interface ClaimConflictAdjudicationEvidenceRef {
   evidence_id: string;
@@ -31,15 +41,20 @@ export interface ClaimConflictAdjudication {
   reason_codes: string[];
 }
 
-export type ClaimConflictReviewQueueKind = "none" | "claim_conflict_review";
-export type ClaimConflictSafeWriteStatus = "none" | "blocked_pending_review" | "resolved_context_only";
-export type ClaimConflictReviewStep =
-  | "inspect_supporting_evidence"
-  | "inspect_contradicting_evidence"
-  | "resolve_conflict_unknown"
-  | "review_claim_scope"
-  | "review_fact_edge_for_deprecation"
-  | "record_resolution_context";
+export const CLAIM_CONFLICT_REVIEW_QUEUE_KINDS = ["none", "claim_conflict_review"] as const;
+export const CLAIM_CONFLICT_SAFE_WRITE_STATUSES = ["none", "blocked_pending_review", "resolved_context_only"] as const;
+export const CLAIM_CONFLICT_REVIEW_STEPS = [
+  "inspect_supporting_evidence",
+  "inspect_contradicting_evidence",
+  "resolve_conflict_unknown",
+  "review_claim_scope",
+  "review_fact_edge_for_deprecation",
+  "record_resolution_context"
+] as const;
+
+export type ClaimConflictReviewQueueKind = (typeof CLAIM_CONFLICT_REVIEW_QUEUE_KINDS)[number];
+export type ClaimConflictSafeWriteStatus = (typeof CLAIM_CONFLICT_SAFE_WRITE_STATUSES)[number];
+export type ClaimConflictReviewStep = (typeof CLAIM_CONFLICT_REVIEW_STEPS)[number];
 
 export interface ClaimConflictFactWritePolicy {
   automatic_fact_mutation_allowed: false;
