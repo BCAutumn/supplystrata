@@ -3,11 +3,64 @@ import type {
   OfficialDisclosureCorroborationDisposition,
   OfficialDisclosureCorroborationQueueItem,
   OfficialDisclosureProposedUnknown,
+  OfficialDisclosureNodeCoverageState,
   OfficialDisclosureReadinessEdge,
   OfficialDisclosureReadinessNode,
   OfficialDisclosureReadinessSourceTarget
 } from "./official-disclosure-readiness-definitions.js";
 import { actionForOfficialTargets, uniqueSourceTargets } from "./official-disclosure-source-targets.js";
+
+type CorroborationPriority = OfficialDisclosureCorroborationQueueItem["priority"];
+
+const DISPOSITION_REASONS = {
+  needs_traceability_backfill: "This Level 4/5 edge has no active official evidence visible in the pack.",
+  needs_counterparty_check: "A non-edge official source path exists for one of the counterparties/components and should be checked before disposition.",
+  needs_counterparty_source_target:
+    "The target profile names candidate official sources, but this edge does not yet have a concrete counterparty source target.",
+  single_source_disposition_recorded:
+    "A linked explicit unknown records that no profile-backed second-source path is currently visible; keep it reviewable instead of treating silence as corroboration.",
+  needs_explicit_single_source_disposition:
+    "No profile-backed second-source path is visible; silence must be captured as an explicit single-source disposition or unknown."
+} as const satisfies Record<OfficialDisclosureCorroborationDisposition, string>;
+
+const DISPOSITION_ACTIONS = {
+  needs_traceability_backfill: () => "Backfill active official evidence and trace context before attempting corroboration.",
+  needs_counterparty_check: (input) =>
+    `${actionForOfficialTargets(input.sourceTargets)} If the counterparty source confirms the relation, add it through evidence review; if not, keep an explicit single-source disposition.`,
+  needs_counterparty_source_target: () =>
+    "Create node-specific source-plan targets for the candidate official sources, then run them before changing corroboration state.",
+  single_source_disposition_recorded: () =>
+    "Review the linked single-source disposition unknown during research updates; do not count it as cross-source corroboration.",
+  needs_explicit_single_source_disposition: (input) => {
+    const suffix = input.proposedUnknown === null ? "" : ` Proposed unknown: ${input.proposedUnknown.unknown_id}.`;
+    return `Record an explicit single-source unknown/disposition so the edge is not silently treated as corroborated.${suffix}`;
+  }
+} as const satisfies Record<
+  OfficialDisclosureCorroborationDisposition,
+  (input: { sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[]; proposedUnknown: OfficialDisclosureProposedUnknown | null }) => string
+>;
+
+const NODE_COVERAGE_ORDER = {
+  missing: 0,
+  official_source_planned: 1,
+  official_target_runnable: 2,
+  official_target_synced: 3,
+  official_target_with_observation: 4,
+  covered_fact: 5
+} as const satisfies Record<OfficialDisclosureNodeCoverageState, number>;
+
+const CORROBORATION_DISPOSITION_ORDER = {
+  needs_traceability_backfill: 0,
+  needs_counterparty_check: 1,
+  needs_counterparty_source_target: 2,
+  needs_explicit_single_source_disposition: 3,
+  single_source_disposition_recorded: 4
+} as const satisfies Record<OfficialDisclosureCorroborationDisposition, number>;
+
+const CORROBORATION_PRIORITY_ORDER = {
+  P1: 1,
+  P2: 2
+} as const satisfies Record<CorroborationPriority, number>;
 
 export function buildCorroborationQueue(input: {
   edges: readonly OfficialDisclosureReadinessEdge[];
@@ -105,14 +158,8 @@ function corroborationReason(
   candidateSourceIds: readonly string[],
   sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[]
 ): string {
-  if (edge.corroboration_state === "missing_evidence") return "This Level 4/5 edge has no active official evidence visible in the pack.";
-  if (sourceTargets.length > 0)
-    return "A non-edge official source path exists for one of the counterparties/components and should be checked before disposition.";
-  if (candidateSourceIds.length > 0)
-    return "The target profile names candidate official sources, but this edge does not yet have a concrete counterparty source target.";
-  if (edge.single_source_disposition_unknown_ids.length > 0)
-    return "A linked explicit unknown records that no profile-backed second-source path is currently visible; keep it reviewable instead of treating silence as corroboration.";
-  return "No profile-backed second-source path is visible; silence must be captured as an explicit single-source disposition or unknown.";
+  const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets });
+  return DISPOSITION_REASONS[disposition];
 }
 
 function corroborationAction(
@@ -120,15 +167,7 @@ function corroborationAction(
   sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[],
   proposedUnknown: OfficialDisclosureProposedUnknown | null
 ): string {
-  if (disposition === "needs_traceability_backfill") return "Backfill active official evidence and trace context before attempting corroboration.";
-  if (disposition === "needs_counterparty_check")
-    return `${actionForOfficialTargets(sourceTargets)} If the counterparty source confirms the relation, add it through evidence review; if not, keep an explicit single-source disposition.`;
-  if (disposition === "needs_counterparty_source_target")
-    return "Create node-specific source-plan targets for the candidate official sources, then run them before changing corroboration state.";
-  if (disposition === "single_source_disposition_recorded")
-    return "Review the linked single-source disposition unknown during research updates; do not count it as cross-source corroboration.";
-  const suffix = proposedUnknown === null ? "" : ` Proposed unknown: ${proposedUnknown.unknown_id}.`;
-  return `Record an explicit single-source unknown/disposition so the edge is not silently treated as corroborated.${suffix}`;
+  return DISPOSITION_ACTIONS[disposition]({ sourceTargets, proposedUnknown });
 }
 
 function proposedSingleSourceDispositionUnknown(edge: OfficialDisclosureReadinessEdge): OfficialDisclosureProposedUnknown {
@@ -168,26 +207,15 @@ function compareNodes(left: OfficialDisclosureReadinessNode, right: OfficialDisc
 }
 
 function nodeCoverageOrder(state: OfficialDisclosureReadinessNode["coverage_state"]): number {
-  if (state === "missing") return 0;
-  if (state === "official_source_planned") return 1;
-  if (state === "official_target_runnable") return 2;
-  if (state === "official_target_synced") return 3;
-  if (state === "official_target_with_observation") return 4;
-  return 5;
+  return NODE_COVERAGE_ORDER[state];
 }
 
 function corroborationDispositionOrder(disposition: OfficialDisclosureCorroborationDisposition): number {
-  if (disposition === "needs_traceability_backfill") return 0;
-  if (disposition === "needs_counterparty_check") return 1;
-  if (disposition === "needs_counterparty_source_target") return 2;
-  if (disposition === "needs_explicit_single_source_disposition") return 3;
-  return 4;
+  return CORROBORATION_DISPOSITION_ORDER[disposition];
 }
 
-function priorityOrder(priority: "P0" | "P1" | "P2"): number {
-  if (priority === "P0") return 0;
-  if (priority === "P1") return 1;
-  return 2;
+function priorityOrder(priority: CorroborationPriority): number {
+  return CORROBORATION_PRIORITY_ORDER[priority];
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
