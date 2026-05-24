@@ -156,7 +156,7 @@ export function renderDueSources(sources: DueSourceCheckRow[], format: OutputFor
     lines.push(`- ${source.check_target_id} (${source.source_adapter_id})`);
     lines.push(`  Kind: ${source.target_kind}; subject: ${source.subject_entity_id ?? "n/a"}`);
     lines.push(
-      `  Priority: ${source.policy_priority}/${source.target_priority}; cadence: ${formatMinutes(source.check_cadence_minutes)}; next: ${formatDate(source.next_check_at)}`
+      `  Priority: ${source.policy_priority}/${source.target_priority}; cadence: ${formatMinutes(source.effective_check_cadence_minutes)}; next: ${formatDate(source.next_check_at)}`
     );
     lines.push(`  Config: ${source.target_config_source}${source.target_notes === null ? "" : `; notes: ${source.target_notes}`}`);
   }

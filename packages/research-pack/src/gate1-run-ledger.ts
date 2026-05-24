@@ -5,6 +5,8 @@ import type {
   Gate1CompanySwitchingLedger,
   Gate1DataProgressLedger,
   Gate1MainlinePhase,
+  Gate1MonitoringBatch,
+  Gate1MonitoringConfigLedger,
   Gate1RunAction,
   Gate1RunLedger,
   Gate1RunScorecard,
@@ -38,6 +40,7 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
   const sourcePathProgress = gate1SourcePathProgress(input.official_disclosure_readiness);
   const mainlinePhase = gate1MainlinePhase({ readiness: input.official_disclosure_readiness, dataProgress, sourcePathProgress });
   const companySwitching = gate1CompanySwitching(input);
+  const monitoringConfig = gate1MonitoringConfig({ input, dataProgress, sourcePathProgress });
   const actionQueue = gate1RunActions({ input, dataProgress, sourcePathProgress, companySwitching });
   return {
     schema_version: "1.0.0",
@@ -48,6 +51,7 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
     scorecard,
     data_progress: dataProgress,
     source_path_progress: sourcePathProgress,
+    monitoring_config: monitoringConfig,
     action_queue: actionQueue,
     review_workbench: gate1ReviewWorkbench({ input, actionQueue, companySwitching }),
     company_switching: companySwitching,
@@ -57,6 +61,128 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
       "Single-source silence must become an explicit disposition or unknown; it is not corroboration.",
       "Frontier company switching uses the same generic research run path; do not add company-specific supplier workflows."
     ]
+  };
+}
+
+const GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS = {
+  enabled_on_sync: false,
+  enable_after_review: true,
+  check_cadence_minutes: 10_080,
+  jitter_minutes: 120,
+  max_attempts: 3,
+  backoff_base_minutes: 2,
+  backoff_max_minutes: 120,
+  next_check_at: null
+} as const;
+
+function gate1MonitoringConfig(input: {
+  input: Gate1RunLedgerInput;
+  dataProgress: Gate1DataProgressLedger;
+  sourcePathProgress: Gate1SourcePathProgressLedger;
+}): Gate1MonitoringConfigLedger {
+  const namespace = input.input.research_input.sourceTargetNamespace ?? defaultNamespace(input.input.company_id);
+  return {
+    config_surface: "source_policy_config",
+    namespace,
+    target_schedule_defaults: GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS,
+    configurable_fields: [
+      monitoringField("check_cadence_minutes", "Check cadence", "minutes", 1, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.check_cadence_minutes, "number_input"),
+      monitoringField("jitter_minutes", "Jitter", "minutes", 0, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.jitter_minutes, "number_input"),
+      monitoringField("max_attempts", "Retry attempts", "count", 1, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.max_attempts, "number_input"),
+      monitoringField(
+        "backoff_base_minutes",
+        "Retry backoff base",
+        "minutes",
+        1,
+        GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_base_minutes,
+        "number_input"
+      ),
+      monitoringField("backoff_max_minutes", "Retry backoff max", "minutes", 1, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_max_minutes, "number_input"),
+      monitoringField("next_check_at", "Initial next check", "iso_datetime_or_null", null, null, "datetime_input")
+    ],
+    batches: monitoringBatches({
+      namespace,
+      sourcePathProgress: input.sourcePathProgress,
+      dataProgress: input.dataProgress
+    }),
+    guardrails: [
+      "Syncing a target writes source_check_targets only; it does not fetch documents.",
+      "Enabling a target starts scheduled monitoring only after review; it does not create fact edges.",
+      "Smoke runs stay no-database and should happen before syncing or enabling uncertain corroboration targets.",
+      "Cadence, jitter, retry, backoff, and next_check_at are configuration fields for source policy/target state, not research conclusions."
+    ]
+  };
+}
+
+function monitoringField(
+  field: Gate1MonitoringConfigLedger["configurable_fields"][number]["field"],
+  label: string,
+  unit: Gate1MonitoringConfigLedger["configurable_fields"][number]["unit"],
+  min: number | null,
+  recommended: number | null,
+  frontendControl: Gate1MonitoringConfigLedger["configurable_fields"][number]["frontend_control"]
+): Gate1MonitoringConfigLedger["configurable_fields"][number] {
+  return { field, label, unit, min, recommended, frontend_control: frontendControl };
+}
+
+function monitoringBatches(input: {
+  namespace: string;
+  sourcePathProgress: Gate1SourcePathProgressLedger;
+  dataProgress: Gate1DataProgressLedger;
+}): Gate1MonitoringBatch[] {
+  return [
+    monitoringBatch({
+      batch_id: "official_source_path",
+      source_plan_ref: "source-plan.json",
+      target_count: input.sourcePathProgress.runnable_targets,
+      current_state:
+        input.sourcePathProgress.synced_targets === 0
+          ? "not_synced"
+          : input.sourcePathProgress.due_targets > 0
+            ? "due"
+            : input.sourcePathProgress.targets_with_observations > 0
+              ? "observing"
+              : "synced",
+      recommended_next_decision: input.sourcePathProgress.synced_targets === 0 ? "approve_sync" : "approve_run_due",
+      namespace: input.namespace
+    }),
+    monitoringBatch({
+      batch_id: "edge_corroboration",
+      source_plan_ref:
+        input.dataProgress.corroboration_queue_with_runnable_targets > 0 ? "corroboration-source-plan-smoke.json" : "corroboration-source-plan.json",
+      target_count: input.dataProgress.corroboration_queue_with_runnable_targets,
+      current_state: input.dataProgress.corroboration_queue_with_runnable_targets > 0 ? "smoke_first" : "not_synced",
+      recommended_next_decision: "approve_smoke",
+      namespace: input.namespace
+    })
+  ];
+}
+
+function monitoringBatch(input: {
+  batch_id: Gate1MonitoringBatch["batch_id"];
+  source_plan_ref: string;
+  target_count: number;
+  current_state: Gate1MonitoringBatch["current_state"];
+  recommended_next_decision: Gate1MonitoringBatch["recommended_next_decision"];
+  namespace: string;
+}): Gate1MonitoringBatch {
+  const scheduleFlags = [
+    `--check-cadence-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.check_cadence_minutes)}`,
+    `--jitter-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.jitter_minutes)}`,
+    `--max-attempts ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.max_attempts)}`,
+    `--backoff-base-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_base_minutes)}`,
+    `--backoff-max-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_max_minutes)}`
+  ].join(" ");
+  return {
+    batch_id: input.batch_id,
+    source_plan_ref: input.source_plan_ref,
+    target_count: input.target_count,
+    current_state: input.current_state,
+    recommended_next_decision: input.recommended_next_decision,
+    preview_command_hint: `supplystrata sources policy preview-plan-targets --source-plan ${input.source_plan_ref} --namespace ${input.namespace} ${scheduleFlags}`,
+    sync_command_hint: `supplystrata sources policy sync-plan-targets --source-plan ${input.source_plan_ref} --namespace ${input.namespace} ${scheduleFlags}`,
+    enable_command_hint: `supplystrata sources policy enable-plan-targets --source-plan ${input.source_plan_ref} --namespace ${input.namespace} ${scheduleFlags}`,
+    run_due_command_hint: `supplystrata sources run-due --source-plan ${input.source_plan_ref} --namespace ${input.namespace}`
   };
 }
 

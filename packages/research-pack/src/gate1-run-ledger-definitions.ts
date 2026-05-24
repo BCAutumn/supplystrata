@@ -26,6 +26,7 @@ export interface Gate1RunLedger {
   scorecard: Gate1RunScorecard;
   data_progress: Gate1DataProgressLedger;
   source_path_progress: Gate1SourcePathProgressLedger;
+  monitoring_config: Gate1MonitoringConfigLedger;
   action_queue: Gate1RunAction[];
   review_workbench: Gate1ReviewWorkbench;
   company_switching: Gate1CompanySwitchingLedger;
@@ -79,6 +80,47 @@ export interface Gate1RunAction {
   rationale: string;
   command_hint: string | null;
   refs: string[];
+}
+
+export interface Gate1MonitoringConfigLedger {
+  config_surface: "source_policy_config";
+  namespace: string;
+  target_schedule_defaults: Gate1MonitoringTargetScheduleDefaults;
+  configurable_fields: Gate1MonitoringConfigField[];
+  batches: Gate1MonitoringBatch[];
+  guardrails: string[];
+}
+
+export interface Gate1MonitoringTargetScheduleDefaults {
+  enabled_on_sync: false;
+  enable_after_review: true;
+  check_cadence_minutes: number;
+  jitter_minutes: number;
+  max_attempts: number;
+  backoff_base_minutes: number;
+  backoff_max_minutes: number;
+  next_check_at: null;
+}
+
+export interface Gate1MonitoringConfigField {
+  field: keyof Omit<Gate1MonitoringTargetScheduleDefaults, "enabled_on_sync" | "enable_after_review">;
+  label: string;
+  unit: "minutes" | "count" | "iso_datetime_or_null";
+  min: number | null;
+  recommended: number | null;
+  frontend_control: "number_input" | "datetime_input";
+}
+
+export interface Gate1MonitoringBatch {
+  batch_id: "official_source_path" | "edge_corroboration";
+  source_plan_ref: string;
+  target_count: number;
+  current_state: "not_synced" | "smoke_first" | "synced" | "due" | "observing";
+  recommended_next_decision: Gate1ReviewDecision;
+  preview_command_hint: string;
+  sync_command_hint: string;
+  enable_command_hint: string;
+  run_due_command_hint: string;
 }
 
 export type Gate1ReviewItemKind = "source_target_batch" | "edge_corroboration" | "official_signal_disposition" | "frontier_company_research";

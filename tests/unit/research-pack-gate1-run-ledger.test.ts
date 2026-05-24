@@ -19,6 +19,41 @@ describe("Gate 1 run ledger", () => {
     });
 
     expect(ledger.review_workbench.summary.total_items).toBe(5);
+    expect(ledger.monitoring_config.namespace).toBe("gate1-review-test");
+    expect(ledger.monitoring_config.target_schedule_defaults).toEqual({
+      enabled_on_sync: false,
+      enable_after_review: true,
+      check_cadence_minutes: 10080,
+      jitter_minutes: 120,
+      max_attempts: 3,
+      backoff_base_minutes: 2,
+      backoff_max_minutes: 120,
+      next_check_at: null
+    });
+    expect(ledger.monitoring_config.configurable_fields.map((field) => field.field)).toEqual([
+      "check_cadence_minutes",
+      "jitter_minutes",
+      "max_attempts",
+      "backoff_base_minutes",
+      "backoff_max_minutes",
+      "next_check_at"
+    ]);
+    expect(ledger.monitoring_config.batches).toEqual([
+      expect.objectContaining({
+        batch_id: "official_source_path",
+        source_plan_ref: "source-plan.json",
+        target_count: 8,
+        current_state: "not_synced",
+        recommended_next_decision: "approve_sync"
+      }),
+      expect.objectContaining({
+        batch_id: "edge_corroboration",
+        source_plan_ref: "corroboration-source-plan-smoke.json",
+        target_count: 1,
+        current_state: "smoke_first",
+        recommended_next_decision: "approve_smoke"
+      })
+    ]);
     expect(ledger.review_workbench.summary.human_approval_required_items).toBe(4);
     expect(ledger.review_workbench.items.every((item) => item.policy.automatic_fact_mutation_allowed === false)).toBe(true);
     expect(ledger.review_workbench.items.every((item) => item.policy.allowed_edge_mutation === "none")).toBe(true);
@@ -44,6 +79,7 @@ describe("Gate 1 run ledger", () => {
       )
     ).toBe(true);
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Review Workbench");
+    expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Monitoring Config");
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("fact mutation: false");
   });
 });

@@ -37,9 +37,21 @@ export function renderGate1RunLedgerMarkdown(ledger: Gate1RunLedger): string {
     `- Targets with observations: ${ledger.source_path_progress.targets_with_observations}`,
     `- Next focus: ${ledger.source_path_progress.next_focus}`,
     "",
-    "## Action Queue",
+    "## Monitoring Config",
+    "",
+    `- Config surface: ${ledger.monitoring_config.config_surface}`,
+    `- Namespace: ${ledger.monitoring_config.namespace}`,
+    `- Default cadence: ${ledger.monitoring_config.target_schedule_defaults.check_cadence_minutes} minutes`,
+    `- Default jitter: ${ledger.monitoring_config.target_schedule_defaults.jitter_minutes} minutes`,
+    `- Retry: ${ledger.monitoring_config.target_schedule_defaults.max_attempts} attempts`,
     ""
   ];
+  for (const batch of ledger.monitoring_config.batches) {
+    lines.push(`- ${batch.batch_id}: ${batch.target_count} targets, state=${batch.current_state}, next=${batch.recommended_next_decision}`);
+    lines.push(`  Source plan: ${batch.source_plan_ref}`);
+    lines.push(`  Sync: \`${batch.sync_command_hint}\``);
+  }
+  lines.push("", "## Action Queue", "");
   if (ledger.action_queue.length === 0) {
     lines.push("No Gate 1 action is currently open.");
   } else {
