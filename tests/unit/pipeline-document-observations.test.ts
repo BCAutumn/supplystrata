@@ -47,9 +47,7 @@ describe("pipeline document observations", () => {
     const result = await persistDocumentObservations(client, normalizedIrFixture(text), "DOC-SKHYNIX-1");
 
     expect(result).toMatchObject({ review_candidates: 3, change_type: "DOCUMENT_NEW" });
-    expect(
-      client.calls.filter((call) => call.sql.includes("INSERT INTO review_candidates") && call.params.includes("official_disclosure_signal"))
-    ).toHaveLength(3);
+    expect(client.calls.flatMap(reviewCandidateBatchKinds).filter((kind) => kind === "official_disclosure_signal")).toHaveLength(3);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
@@ -112,7 +110,7 @@ describe("pipeline document observations", () => {
 
     expect(result).toMatchObject({ stored_observations: 1, semantic_changes: 1, relation_changes: 1, change_type: "DOCUMENT_CHANGED" });
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("PURCHASE_OBLIGATION_CHANGED"))).toBe(true);
-    expect(client.calls.some((call) => call.sql.includes("INSERT INTO review_candidates") && call.params.includes("semantic_change"))).toBe(true);
+    expect(client.calls.some((call) => reviewCandidateBatchKinds(call).includes("semantic_change"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("SUPPLIER_RELATION_CHANGED"))).toBe(false);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
@@ -207,9 +205,29 @@ function mockRowsForAtomicUpsert<T extends pg.QueryResultRow>(sql: string, param
     return [{ observation_id: params[0], inserted: true }] as unknown as T[];
   }
   if (sql.includes("INSERT INTO review_candidates") && typeof params[0] === "string") {
-    return [{ review_id: params[0] }] as unknown as T[];
+    const rows = reviewCandidateBatchRows(params[0]);
+    return [{ inserted: String(rows.length), total: String(rows.length) }] as unknown as T[];
   }
   return [];
+}
+
+function reviewCandidateBatchRows(value: string): Array<{ kind?: string }> {
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) throw new Error("Expected review candidate batch payload");
+  return parsed.map((item) => {
+    if (!isRecord(item)) return {};
+    const kind = item["kind"];
+    return typeof kind === "string" ? { kind } : {};
+  });
+}
+
+function reviewCandidateBatchKinds(call: QueryCall): string[] {
+  if (!call.sql.includes("INSERT INTO review_candidates") || typeof call.params[0] !== "string") return [];
+  return reviewCandidateBatchRows(call.params[0]).flatMap((row) => (row.kind === undefined ? [] : [row.kind]));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function rowsForChangedDocument<T extends pg.QueryResultRow>(sql: string, input: { oldText: string; oldSourceUrl: string }): T[] {

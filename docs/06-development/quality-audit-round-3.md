@@ -65,7 +65,7 @@
 ## 第 5 批：性能与体验收尾
 
 ```text
-[ ] 多处 N+1 写入后续可改批量 SQL 或 unnest。`replaceRiskView()` 已将 `risk_metrics` 写入从逐条 insert 改为单次 `jsonb_to_recordset` 批量插入，component risk / anomaly / financial peer refresh 不再按 metric 数量放大写入语句数；`insertChainSegments()` 已改为单次 `jsonb_to_recordset` 批量插入，避免 chain view materialization 按 segment 数放大写入语句数。
+[ ] 多处 N+1 写入后续可改批量 SQL 或 unnest。`replaceRiskView()` 已将 `risk_metrics` 写入从逐条 insert 改为单次 `jsonb_to_recordset` 批量插入，component risk / anomaly / financial peer refresh 不再按 metric 数量放大写入语句数；`insertChainSegments()` 已改为单次 `jsonb_to_recordset` 批量插入，避免 chain view materialization 按 segment 数放大写入语句数；`enqueueReviewCandidates()` 已改为单次 `jsonb_to_recordset` 批量幂等入队，official disclosure signal / semantic change / claim conflict review 批量生成时不再按 candidate 数放大 SQL roundtrip。
 [x] source check due target 查询已排除存在 active `pending / in_progress / failed` job 的 target，避免 worker 循环反复 enqueue 冲突；已有 job 仍由独立 claim/backoff/lease 路径处理。
 [x] preview-render 的 CSV review sheet 渲染已拆到 `apps/cli/src/preview-csv.ts`，中文研究报告文案/翻译表已拆到 `apps/cli/src/preview-report-zh.ts`；`preview-render.ts` 只保留预览入口和英文 markdown 组装。
 [x] research-preview loading generation guard 已加固：加载中 canvas segment click 会被忽略，成功/失败都会结束 active load token，避免旧 layout 在新模型加载期间反向改 selected segment。

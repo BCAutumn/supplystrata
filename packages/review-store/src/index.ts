@@ -11,6 +11,20 @@ import {
 } from "@supplystrata/review-candidates";
 import type { OfficialDisclosureSignalDispositionRow, ReviewCandidateRow, ReviewStatsRow } from "./db-rows.js";
 
+interface ReviewCandidateEnqueueInputRow {
+  review_id: string;
+  candidate_key: string;
+  kind: ReviewCandidateKind;
+  candidate: ReviewCandidate;
+  doc_id: string | null;
+  source_adapter_id: string;
+}
+
+interface ReviewCandidateEnqueueResultRow {
+  inserted: string;
+  total: string;
+}
+
 export interface ReviewQueueItem {
   review_id: string;
   candidate_key: string;
@@ -81,19 +95,45 @@ export interface OfficialDisclosureSignalDispositionRecord {
 }
 
 export async function enqueueReviewCandidates(client: DbTxClient, candidates: readonly ReviewCandidate[]): Promise<{ inserted: number; skipped: number }> {
-  let inserted = 0;
-  let skipped = 0;
-  for (const candidate of candidates) {
-    const result = await client.query(
-      `INSERT INTO review_candidates (review_id, candidate_key, kind, status, candidate, doc_id, source_adapter_id)
-       VALUES ($1,$2,$3,'pending',$4,$5,$6)
-       ON CONFLICT (candidate_key) WHERE candidate_key IS NOT NULL DO NOTHING`,
-      [candidate.review_id, candidate.candidate_key, candidate.kind, candidate, candidate.evidence.doc_id ?? null, candidate.evidence.source_adapter_id]
-    );
-    if (result.rowCount === 1) inserted += 1;
-    else skipped += 1;
-  }
-  return { inserted, skipped };
+  if (candidates.length === 0) return { inserted: 0, skipped: 0 };
+  const rows: ReviewCandidateEnqueueInputRow[] = candidates.map((candidate) => ({
+    review_id: candidate.review_id,
+    candidate_key: candidate.candidate_key,
+    kind: candidate.kind,
+    candidate,
+    doc_id: candidate.evidence.doc_id ?? null,
+    source_adapter_id: candidate.evidence.source_adapter_id
+  }));
+  const result = await client.query<ReviewCandidateEnqueueResultRow>(
+    `WITH input AS (
+       SELECT *
+       FROM jsonb_to_recordset($1::jsonb) AS row(
+         review_id text,
+         candidate_key text,
+         kind text,
+         candidate jsonb,
+         doc_id text,
+         source_adapter_id text
+       )
+     ),
+     inserted AS (
+       INSERT INTO review_candidates (review_id, candidate_key, kind, status, candidate, doc_id, source_adapter_id)
+       SELECT review_id, candidate_key, kind, 'pending', candidate, doc_id, source_adapter_id
+       FROM input
+       ON CONFLICT (candidate_key) WHERE candidate_key IS NOT NULL DO NOTHING
+       RETURNING 1
+     )
+     SELECT
+       (SELECT count(*)::text FROM inserted) AS inserted,
+       (SELECT count(*)::text FROM input) AS total`,
+    [JSON.stringify(rows)]
+  );
+  const summary = result.rows[0];
+  if (summary === undefined) throw new Error("Review candidate enqueue did not return a summary row");
+  const inserted = Number.parseInt(summary.inserted, 10);
+  const total = Number.parseInt(summary.total, 10);
+  if (!Number.isFinite(inserted) || !Number.isFinite(total)) throw new Error("Review candidate enqueue returned invalid counts");
+  return { inserted, skipped: total - inserted };
 }
 
 export async function enqueueReviewCandidatesTransactionally(

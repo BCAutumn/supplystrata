@@ -31,6 +31,13 @@ interface QueryCall {
   params: readonly unknown[];
 }
 
+interface ReviewCandidateBatchTestRow {
+  kind: string;
+  doc_id: string | null;
+  source_adapter_id: string;
+  candidate: unknown;
+}
+
 class EmptyDbClient implements DbTxClient {
   readonly [dbTxClientBrand]: true = true;
   readonly calls: QueryCall[] = [];
@@ -155,7 +162,7 @@ class ClaimConflictReviewQueueDbClient extends EmptyDbClient {
       return mockResult([{ claim_id: "CLM-ACTIVE-TSMC", unknown_id: "UNK-CONFLICT", role: "blocking", status: "open" }] as unknown as T[]);
     }
     if (sql.includes("INSERT INTO review_candidates")) {
-      return { command: "INSERT", rowCount: 1, oid: 0, fields: [], rows: [] };
+      return mockResult([{ inserted: "1", total: "1" }] as unknown as T[]);
     }
     return mockResult([]);
   }
@@ -383,10 +390,11 @@ describe("claim-builder", () => {
 
     expect(summary).toEqual({ scanned: 1, enqueued: 1, skipped: 0 });
     const enqueueCall = client.calls.find((call) => call.sql.includes("INSERT INTO review_candidates"));
-    expect(enqueueCall?.params[2]).toBe("claim_conflict_review");
-    expect(enqueueCall?.params[4]).toBeNull();
-    expect(enqueueCall?.params[5]).toBe("claim-builder");
-    expect(enqueueCall?.params[3]).toMatchObject({
+    const [candidate] = reviewCandidateBatchRows(enqueueCall);
+    expect(candidate?.kind).toBe("claim_conflict_review");
+    expect(candidate?.doc_id).toBeNull();
+    expect(candidate?.source_adapter_id).toBe("claim-builder");
+    expect(candidate?.candidate).toMatchObject({
       kind: "claim_conflict_review",
       payload: {
         claim_id: "CLM-ACTIVE-TSMC",
@@ -840,6 +848,28 @@ function unknownUpsertRows<T extends pg.QueryResultRow>(params: readonly unknown
       question: params[3]
     }
   ] as unknown as T[];
+}
+
+function reviewCandidateBatchRows(call: QueryCall | undefined): ReviewCandidateBatchTestRow[] {
+  if (call === undefined || typeof call.params[0] !== "string") return [];
+  const parsed: unknown = JSON.parse(call.params[0]);
+  if (!Array.isArray(parsed)) throw new Error("Expected review candidate batch payload");
+  return parsed.map(reviewCandidateBatchRow);
+}
+
+function reviewCandidateBatchRow(value: unknown): ReviewCandidateBatchTestRow {
+  if (!isRecord(value)) throw new Error("Expected review candidate batch row object");
+  const kind = value["kind"];
+  const docId = value["doc_id"];
+  const sourceAdapterId = value["source_adapter_id"];
+  if (typeof kind !== "string") throw new Error("Expected review candidate batch row kind");
+  if (docId !== null && typeof docId !== "string") throw new Error("Expected review candidate batch row doc_id");
+  if (typeof sourceAdapterId !== "string") throw new Error("Expected review candidate batch row source_adapter_id");
+  return { kind, doc_id: docId, source_adapter_id: sourceAdapterId, candidate: value["candidate"] };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function semanticChangeCandidate(input: { changeType?: string } = {}) {

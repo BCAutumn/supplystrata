@@ -4,12 +4,14 @@ import { dbTxClientBrand, type DbClient, type DbTxClient } from "@supplystrata/d
 import {
   claimApprovedReviewCandidates,
   decideReviewCandidate,
+  enqueueReviewCandidates,
   listOfficialDisclosureSignalDispositions,
   markReviewCandidateApplied,
   markReviewCandidateBlocked,
   nextReviewCandidate,
   recordOfficialDisclosureSignalDisposition
 } from "@supplystrata/review-store";
+import type { ReviewCandidate } from "@supplystrata/review-candidates";
 
 interface QueryCall {
   sql: string;
@@ -51,7 +53,36 @@ class OfficialSignalDispositionDbClient implements DbTxClient {
   }
 }
 
+class ReviewCandidateEnqueueDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    const payload = typeof params[0] === "string" ? parseJsonArray(params[0]) : [];
+    return {
+      command: "MOCK",
+      rowCount: 1,
+      oid: 0,
+      fields: [],
+      rows: [{ inserted: "1", total: String(payload.length) }] as unknown as T[]
+    };
+  }
+}
+
 describe("review-store semantic changes", () => {
+  it("enqueues review candidates in one idempotent batch", async () => {
+    const client = new ReviewCandidateEnqueueDbClient();
+    const candidates = [officialSignalReviewCandidate("REV-BATCH-1"), officialSignalReviewCandidate("REV-BATCH-2")];
+
+    const summary = await enqueueReviewCandidates(client, candidates);
+
+    expect(summary).toEqual({ inserted: 1, skipped: 1 });
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0]?.sql).toContain("jsonb_to_recordset");
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (candidate_key)");
+  });
+
   it("records approve and reject decisions as review-scoped semantic changes", async () => {
     const client = new ReviewChangeTxClient();
 
@@ -211,43 +242,53 @@ function officialSignalReviewRow(reviewId: string): pg.QueryResultRow {
     candidate_key: `${reviewId}-key`,
     kind: "official_disclosure_signal",
     status: "approved",
-    candidate: {
-      review_id: reviewId,
-      candidate_key: `${reviewId}-key`,
-      kind: "official_disclosure_signal",
-      title: "Official disclosure signal: TSMC links demand to AI and HPC",
-      payload: {
-        source_item_id: "SRC-ITEM-TSMC",
-        doc_id: "DOC-TSMC-IR",
-        source_adapter_id: "tsmc-ir",
-        signal_title: "TSMC links demand to AI and HPC",
-        cite_text: "TSMC observed AI and HPC demand across customer products.",
-        cite_locator: "page 4",
-        evidence_level_hint: 4,
-        fact_write_policy: {
-          automatic_fact_mutation_allowed: false,
-          allowed_edge_mutation: "none",
-          requires_human_review: true,
-          reason_codes: ["review_only_official_signal"]
-        }
-      },
-      evidence: {
-        doc_id: "DOC-TSMC-IR",
-        source_url: "https://investor.tsmc.com/fixture",
-        source_adapter_id: "tsmc-ir",
-        source_locator: "page 4",
-        source_row_text: "TSMC observed AI and HPC demand across customer products.",
-        normalized_record_text: "TSMC links demand to AI and HPC | evidence_level=4 | TSMC observed AI and HPC demand across customer products."
-      },
-      confidence: 0.84,
-      needs_review: true,
-      review_reason: "fixture official signal"
-    },
+    candidate: officialSignalReviewCandidate(reviewId),
     reviewer: "unit-test",
     reviewed_at: new Date("2026-05-21T00:00:00.000Z"),
     decision_reason: "fixture decision",
     created_at: new Date("2026-05-21T00:00:00.000Z")
   };
+}
+
+function officialSignalReviewCandidate(reviewId: string): ReviewCandidate {
+  return {
+    review_id: reviewId,
+    candidate_key: `${reviewId}-key`,
+    kind: "official_disclosure_signal",
+    title: "Official disclosure signal: TSMC links demand to AI and HPC",
+    payload: {
+      source_item_id: "SRC-ITEM-TSMC",
+      doc_id: "DOC-TSMC-IR",
+      source_adapter_id: "tsmc-ir",
+      signal_title: "TSMC links demand to AI and HPC",
+      cite_text: "TSMC observed AI and HPC demand across customer products.",
+      cite_locator: "page 4",
+      evidence_level_hint: 4,
+      fact_write_policy: {
+        automatic_fact_mutation_allowed: false,
+        allowed_edge_mutation: "none",
+        requires_human_review: true,
+        reason_codes: ["review_only_official_signal"]
+      }
+    },
+    evidence: {
+      doc_id: "DOC-TSMC-IR",
+      source_url: "https://investor.tsmc.com/fixture",
+      source_adapter_id: "tsmc-ir",
+      source_locator: "page 4",
+      source_row_text: "TSMC observed AI and HPC demand across customer products.",
+      normalized_record_text: "TSMC links demand to AI and HPC | evidence_level=4 | TSMC observed AI and HPC demand across customer products."
+    },
+    confidence: 0.84,
+    needs_review: true,
+    review_reason: "fixture official signal"
+  };
+}
+
+function parseJsonArray(value: string): unknown[] {
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) throw new Error("Expected JSON array");
+  return parsed;
 }
 
 function officialSignalDispositionRow(): pg.QueryResultRow {
