@@ -1,13 +1,27 @@
-import type { UnknownItemRow } from "@supplystrata/db/read";
 import type { CompanyCardEdge, CompanyCardEntity, ComponentEvidenceEdge, ComponentHeader, EdgeIntelligenceSummary, UnknownMapItem } from "@supplystrata/render";
-import type { CompanyEdgeRow, CompanyHeaderRow, ComponentEdgeRow, ComponentHeaderRow } from "./db-rows.js";
+import type { CardUnknownRow, CompanyEdgeRow, CompanyHeaderRow, ComponentEdgeRow, ComponentHeaderRow } from "./db-rows.js";
 
 export function companyEntityFromRow(row: CompanyHeaderRow): CompanyCardEntity {
   return { entity_id: row.entity_id, canonical_name: row.canonical_name, display_name: row.display_name };
 }
 
 export function companyEdgeFromRow(row: CompanyEdgeRow, intelligenceByEdgeId: ReadonlyMap<string, EdgeIntelligenceSummary>): CompanyCardEdge {
-  const base = { ...row, source_date: row.source_date === null ? null : row.source_date.toISOString() };
+  const base = {
+    edge_id: row.edge_id,
+    relation: row.relation,
+    component: row.component,
+    component_id: row.component_id,
+    component_specificity: row.component_specificity,
+    counterparty_id: row.counterparty_id,
+    counterparty_name: row.counterparty_name,
+    evidence_level: row.evidence_level,
+    confidence: row.confidence,
+    is_inferred: row.is_inferred,
+    primary_evidence_id: row.primary_evidence_id,
+    cite_text: row.cite_text,
+    source_url: row.source_url,
+    source_date: row.source_date === null ? null : row.source_date.toISOString()
+  };
   const intelligence = intelligenceByEdgeId.get(row.edge_id);
   return intelligence === undefined ? base : { ...base, intelligence };
 }
@@ -37,7 +51,7 @@ export function toComponentEvidenceEdge(row: ComponentEdgeRow, intelligenceByEdg
   return intelligence === undefined ? base : { ...base, intelligence };
 }
 
-export function unknownMapItemFromRow(row: UnknownItemRow): UnknownMapItem {
+export function unknownMapItemFromRow(row: CardUnknownRow): UnknownMapItem {
   return {
     unknown_id: row.unknown_id,
     scope_kind: row.scope_kind,

@@ -1,7 +1,8 @@
-import type { DbClient, DbRow } from "@supplystrata/db/read";
+import type { DbClient } from "@supplystrata/db/read";
 import type { CompanyFinancialPeerMetric } from "@supplystrata/render";
+import type pg from "pg";
 
-interface FinancialPeerMetricRow extends DbRow {
+interface FinancialPeerMetricRow extends pg.QueryResultRow {
   risk_view_id: string;
   generated_at: Date;
   model_version: string;

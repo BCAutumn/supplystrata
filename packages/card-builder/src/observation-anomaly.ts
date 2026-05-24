@@ -1,15 +1,16 @@
-import type { DbClient, ObservationRow, RiskMetricRecord } from "@supplystrata/db/read";
+import type { DbClient, RiskMetricRecord } from "@supplystrata/db/read";
 import { getLatestRiskViewByScope, listRiskMetricsForView } from "@supplystrata/db/read";
 import type { CompanyObservation, ComponentObservation, ObservationAnomalySummary } from "@supplystrata/render";
+import type { CardObservationRow } from "./db-rows.js";
 
-export async function companyObservationFromRowWithAnomaly(client: DbClient, row: ObservationRow): Promise<CompanyObservation> {
+export async function companyObservationFromRowWithAnomaly(client: DbClient, row: CardObservationRow): Promise<CompanyObservation> {
   return {
     ...observationBaseFromRow(row),
     anomaly: await loadObservationAnomaly(client, row.observation_id)
   };
 }
 
-export async function componentObservationFromRowWithAnomaly(client: DbClient, row: ObservationRow): Promise<ComponentObservation> {
+export async function componentObservationFromRowWithAnomaly(client: DbClient, row: CardObservationRow): Promise<ComponentObservation> {
   return {
     ...observationBaseFromRow(row),
     anomaly: await loadObservationAnomaly(client, row.observation_id)
@@ -60,11 +61,29 @@ function anomalySummaryFromMetric(
   };
 }
 
-function observationBaseFromRow(row: ObservationRow): Omit<CompanyObservation, "anomaly"> {
+function observationBaseFromRow(row: CardObservationRow): Omit<CompanyObservation, "anomaly"> {
   return {
-    ...row,
+    observation_id: row.observation_id,
+    observation_type: row.observation_type,
+    source_adapter_id: row.source_adapter_id,
+    source_item_id: row.source_item_id,
+    doc_id: row.doc_id,
+    scope_kind: row.scope_kind,
+    scope_id: row.scope_id,
+    geography_kind: row.geography_kind,
+    geography_id: row.geography_id,
+    component_id: row.component_id,
+    metric_name: row.metric_name,
+    metric_value: row.metric_value,
+    metric_unit: row.metric_unit,
     time_window_start: row.time_window_start === null ? null : row.time_window_start.toISOString(),
     time_window_end: row.time_window_end === null ? null : row.time_window_end.toISOString(),
+    baseline_value: row.baseline_value,
+    change_value: row.change_value,
+    change_percent: row.change_percent,
+    confidence: row.confidence,
+    provenance: row.provenance,
+    attrs: row.attrs,
     created_at: row.created_at.toISOString()
   };
 }
