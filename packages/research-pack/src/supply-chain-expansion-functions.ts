@@ -8,6 +8,7 @@ import type {
   SupplyChainDependencyState,
   SupplyChainExpansionFrontierItem,
   SupplyChainExpansionState,
+  SupplyChainExpansionStopReason,
   SupplyChainExpansionStopCondition,
   SupplyChainExpansionSummary
 } from "./supply-chain-expansion-definitions.js";
@@ -17,6 +18,82 @@ interface SourcePlanMatch {
   source_plan_refs: string[];
   has_runnable_target: boolean;
 }
+
+type DependencyStateRule = {
+  state: SupplyChainDependencyState;
+  matches: (input: { lead: ComponentUpstreamLead; factCovered: boolean; sourcePlanMatch: SourcePlanMatch }) => boolean;
+};
+
+type FrontierStateRule = {
+  state: SupplyChainExpansionState;
+  matches: (input: { edge: WorkbenchEdge; pathDepth: number; maxDepth: number }) => boolean;
+};
+
+const DEPENDENCY_STATE_RULES = [
+  {
+    state: "fact_covered",
+    matches: (input) => input.factCovered
+  },
+  {
+    state: "source_path_runnable",
+    matches: (input) => input.sourcePlanMatch.has_runnable_target
+  },
+  {
+    state: "source_path_planned",
+    matches: (input) => input.sourcePlanMatch.source_plan_refs.length > 0
+  },
+  {
+    state: "observation_layer_only",
+    matches: (input) => input.lead.category === "logistics"
+  }
+] as const satisfies readonly DependencyStateRule[];
+
+const FRONTIER_STATE_RULES = [
+  {
+    state: "stop_depth_limit",
+    matches: (input) => input.pathDepth >= input.maxDepth
+  },
+  {
+    state: "needs_component_context",
+    matches: (input) => input.edge.component_id === null
+  }
+] as const satisfies readonly FrontierStateRule[];
+
+const FRONTIER_ACTIONS = {
+  stop_depth_limit: "Stop recursive expansion for this edge unless the caller raises max_depth after review.",
+  needs_component_context: "Backfill component_id/component specificity from evidence before expanding the counterparty's supplier network.",
+  expand_candidate: "Research the counterparty with the same evidence-first workflow, constrained to this edge's component/process context."
+} as const satisfies Record<SupplyChainExpansionState, string>;
+
+const DEPENDENCY_ACTIONS = {
+  fact_covered: () => "Use existing Level 4/5 component fact coverage before scheduling more expansion.",
+  source_path_runnable: () => "Run or sync the existing source-plan target, then keep outputs in review/observation paths until evidence supports a fact edge.",
+  source_path_planned: () => "Turn the planned source path into a synced target before expecting data coverage.",
+  observation_layer_only: () => "Collect route/trade/port observations as context; do not create company fact edges from logistics signals alone.",
+  lead_only: (lead) => `Review source suggestions (${lead.source_suggestions.join(", ")}) and add an auditable source-plan path if this lead is in scope.`
+} as const satisfies Record<SupplyChainDependencyState, (lead: ComponentUpstreamLead) => string>;
+
+const FRONTIER_STOP_REASONS = {
+  stop_depth_limit: "depth_limit",
+  needs_component_context: "missing_component_context"
+} as const satisfies Record<Exclude<SupplyChainExpansionState, "expand_candidate">, SupplyChainExpansionStopReason>;
+
+const COMPONENT_STOP_RULES = {
+  observation_layer_only: {
+    reason: "observation_layer_boundary",
+    rationale: "This dependency should remain in observation/lead layers because logistics signals do not prove company-specific cargo ownership."
+  },
+  catalog_boundary: {
+    reason: "catalog_boundary",
+    rationale: "The current component-context catalog has no deeper deterministic upstream dependency for this target."
+  }
+} as const satisfies Record<
+  "observation_layer_only" | "catalog_boundary",
+  {
+    reason: SupplyChainExpansionStopReason;
+    rationale: string;
+  }
+>;
 
 export function buildExpansionFrontier(input: {
   companyId: string;
@@ -73,19 +150,7 @@ export function componentDependencyLeads(input: {
 }
 
 export function componentStopConditions(leads: readonly SupplyChainComponentDependencyLead[]): SupplyChainExpansionStopCondition[] {
-  return leads
-    .filter((lead) => lead.state === "observation_layer_only" || reachesCatalogBoundary(lead))
-    .map((lead) => ({
-      stop_id: stableId("SCS", [lead.lead_id, lead.state]),
-      reason: lead.state === "observation_layer_only" ? "observation_layer_boundary" : "catalog_boundary",
-      scope_kind: "component",
-      scope_id: lead.target_id,
-      rationale:
-        lead.state === "observation_layer_only"
-          ? "This dependency should remain in observation/lead layers because logistics signals do not prove company-specific cargo ownership."
-          : "The current component-context catalog has no deeper deterministic upstream dependency for this target.",
-      refs: [`dependency:${lead.dependency_id}`, ...lead.supporting_edge_ids.map((edgeId) => `edge:${edgeId}`)]
-    }));
+  return leads.filter((lead) => lead.state === "observation_layer_only" || reachesCatalogBoundary(lead)).map((lead) => componentStopCondition(lead));
 }
 
 export function frontierStopConditions(frontier: readonly SupplyChainExpansionFrontierItem[]): SupplyChainExpansionStopCondition[] {
@@ -93,7 +158,7 @@ export function frontierStopConditions(frontier: readonly SupplyChainExpansionFr
     .filter((item) => item.expansion_state !== "expand_candidate")
     .map((item) => ({
       stop_id: stableId("SCS", [item.frontier_id, item.expansion_state]),
-      reason: item.expansion_state === "stop_depth_limit" ? "depth_limit" : "missing_component_context",
+      reason: frontierStopReason(item.expansion_state),
       scope_kind: "edge",
       scope_id: item.edge_id,
       rationale: item.rationale,
@@ -201,17 +266,11 @@ function componentDependencyLead(
 }
 
 function dependencyState(lead: ComponentUpstreamLead, factCovered: boolean, sourcePlanMatch: SourcePlanMatch): SupplyChainDependencyState {
-  if (factCovered) return "fact_covered";
-  if (sourcePlanMatch.has_runnable_target) return "source_path_runnable";
-  if (sourcePlanMatch.source_plan_refs.length > 0) return "source_path_planned";
-  if (lead.category === "logistics") return "observation_layer_only";
-  return "lead_only";
+  return DEPENDENCY_STATE_RULES.find((rule) => rule.matches({ lead, factCovered, sourcePlanMatch }))?.state ?? "lead_only";
 }
 
 function frontierState(edge: WorkbenchEdge, pathDepth: number, maxDepth: number): SupplyChainExpansionState {
-  if (pathDepth >= maxDepth) return "stop_depth_limit";
-  if (edge.component_id === null) return "needs_component_context";
-  return "expand_candidate";
+  return FRONTIER_STATE_RULES.find((rule) => rule.matches({ edge, pathDepth, maxDepth }))?.state ?? "expand_candidate";
 }
 
 function frontierRationale(
@@ -229,20 +288,28 @@ function frontierRationale(
 }
 
 function frontierAction(state: SupplyChainExpansionState): string {
-  if (state === "stop_depth_limit") return "Stop recursive expansion for this edge unless the caller raises max_depth after review.";
-  if (state === "needs_component_context")
-    return "Backfill component_id/component specificity from evidence before expanding the counterparty's supplier network.";
-  return "Research the counterparty with the same evidence-first workflow, constrained to this edge's component/process context.";
+  return FRONTIER_ACTIONS[state];
 }
 
 function dependencyAction(state: SupplyChainDependencyState, lead: ComponentUpstreamLead): string {
-  if (state === "fact_covered") return "Use existing Level 4/5 component fact coverage before scheduling more expansion.";
-  if (state === "source_path_runnable")
-    return "Run or sync the existing source-plan target, then keep outputs in review/observation paths until evidence supports a fact edge.";
-  if (state === "source_path_planned") return "Turn the planned source path into a synced target before expecting data coverage.";
-  if (state === "observation_layer_only")
-    return "Collect route/trade/port observations as context; do not create company fact edges from logistics signals alone.";
-  return `Review source suggestions (${lead.source_suggestions.join(", ")}) and add an auditable source-plan path if this lead is in scope.`;
+  return DEPENDENCY_ACTIONS[state](lead);
+}
+
+function componentStopCondition(lead: SupplyChainComponentDependencyLead): SupplyChainExpansionStopCondition {
+  const rule = lead.state === "observation_layer_only" ? COMPONENT_STOP_RULES.observation_layer_only : COMPONENT_STOP_RULES.catalog_boundary;
+  return {
+    stop_id: stableId("SCS", [lead.lead_id, lead.state]),
+    reason: rule.reason,
+    scope_kind: "component",
+    scope_id: lead.target_id,
+    rationale: rule.rationale,
+    refs: [`dependency:${lead.dependency_id}`, ...lead.supporting_edge_ids.map((edgeId) => `edge:${edgeId}`)]
+  };
+}
+
+function frontierStopReason(state: SupplyChainExpansionState): SupplyChainExpansionStopReason {
+  if (state === "expand_candidate") throw new Error("expand_candidate frontier items do not produce stop conditions");
+  return FRONTIER_STOP_REASONS[state];
 }
 
 function reachesCatalogBoundary(lead: SupplyChainComponentDependencyLead): boolean {
