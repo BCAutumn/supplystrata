@@ -11,6 +11,21 @@ import type {
 } from "./official-disclosure-readiness-definitions.js";
 import { sourceTargetsForNode } from "./official-disclosure-source-targets.js";
 
+const NODE_COVERAGE_ORDER = {
+  missing: 0,
+  official_source_planned: 1,
+  official_target_runnable: 2,
+  official_target_synced: 3,
+  official_target_with_observation: 4,
+  covered_fact: 5
+} as const satisfies Record<OfficialDisclosureNodeCoverageState, number>;
+
+const TARGET_PRIORITY_ORDER = {
+  P0: 0,
+  P1: 1,
+  P2: 2
+} as const satisfies Record<NonNullable<OfficialDisclosureReadinessNode["target_priority"]>, number>;
+
 export { buildCorroborationQueue } from "./official-disclosure-corroboration-queue.js";
 export {
   buildExpectedSourceCoverage,
@@ -177,12 +192,7 @@ function compareNodes(left: OfficialDisclosureReadinessNode, right: OfficialDisc
 }
 
 function nodeCoverageOrder(state: OfficialDisclosureNodeCoverageState): number {
-  if (state === "missing") return 0;
-  if (state === "official_source_planned") return 1;
-  if (state === "official_target_runnable") return 2;
-  if (state === "official_target_synced") return 3;
-  if (state === "official_target_with_observation") return 4;
-  return 5;
+  return NODE_COVERAGE_ORDER[state];
 }
 
 function compareProfileExpansionCandidates(left: OfficialDisclosureProfileExpansionCandidate, right: OfficialDisclosureProfileExpansionCandidate): number {
@@ -195,9 +205,7 @@ function compareProfileExpansionCandidates(left: OfficialDisclosureProfileExpans
 }
 
 function priorityOrder(priority: "P0" | "P1" | "P2"): number {
-  if (priority === "P0") return 0;
-  if (priority === "P1") return 1;
-  return 2;
+  return TARGET_PRIORITY_ORDER[priority];
 }
 
 function uniqueSorted(values: readonly string[]): string[] {

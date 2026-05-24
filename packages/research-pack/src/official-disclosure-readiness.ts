@@ -55,6 +55,18 @@ const DEFAULT_TARGETS: OfficialDisclosureReadinessTargets = {
   corroboration_ratio: 0.3
 };
 
+const TRACEABILITY_ORDER = {
+  missing: 0,
+  partial: 1,
+  complete: 2
+} as const satisfies Record<OfficialDisclosureTraceabilityState, number>;
+
+const CORROBORATION_ORDER = {
+  missing_evidence: 0,
+  single_source: 1,
+  cross_source: 2
+} as const satisfies Record<OfficialDisclosureCorroborationState, number>;
+
 export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosureReadinessInput): OfficialDisclosureReadinessReport {
   const targets = officialDisclosureTargets(input);
   const componentIds = uniqueSorted(input.component_ids);
@@ -263,15 +275,11 @@ function compareReadinessEdges(left: OfficialDisclosureReadinessEdge, right: Off
 }
 
 function traceabilityOrder(state: OfficialDisclosureTraceabilityState): number {
-  if (state === "missing") return 0;
-  if (state === "partial") return 1;
-  return 2;
+  return TRACEABILITY_ORDER[state];
 }
 
 function corroborationOrder(state: OfficialDisclosureCorroborationState): number {
-  if (state === "missing_evidence") return 0;
-  if (state === "single_source") return 1;
-  return 2;
+  return CORROBORATION_ORDER[state];
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
