@@ -916,18 +916,12 @@ function rowsForIntelligence<T extends pg.QueryResultRow>(sql: string, params: r
   }
 
   if (sql.includes("RETURNING edge_id, last_verified_at, decay_model")) {
-    return [
-      {
-        edge_id: params[0],
-        last_verified_at: params[1],
-        decay_model: params[2],
-        age_days: params[3],
-        freshness_score: params[4],
-        computed_at: params[5],
-        source_evidence_id: params[6],
-        attrs: {}
-      }
-    ] as unknown as T[];
+    const rows: unknown = typeof params[0] === "string" ? JSON.parse(params[0]) : [];
+    if (!Array.isArray(rows)) throw new Error("Expected edge freshness batch payload");
+    return rows.map((row) => {
+      if (typeof row !== "object" || row === null) throw new Error("Expected edge freshness row object");
+      return { ...row, attrs: {} };
+    }) as unknown as T[];
   }
 
   if (sql.includes("FROM edge_strength_estimates")) {

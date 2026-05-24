@@ -42,6 +42,16 @@ interface EdgeFreshnessRow extends pg.QueryResultRow {
   attrs: Record<string, unknown>;
 }
 
+interface EdgeFreshnessUpsertInputRow {
+  edge_id: string;
+  last_verified_at: string;
+  decay_model: EdgeFreshnessDecayModel;
+  age_days: number;
+  freshness_score: number;
+  computed_at: string;
+  source_evidence_id: string | null;
+}
+
 export interface UpsertEdgeStrengthEstimateInput {
   strength_id?: string;
   edge_id: string;
@@ -123,42 +133,54 @@ export async function refreshEdgeFreshness(client: DbTxClient, input: { edgeIds:
      ORDER BY edge_id`,
     [input.edgeIds]
   );
-  const records: EdgeFreshnessRecord[] = [];
-  for (const row of sourceRows.rows) {
+  const rows: EdgeFreshnessUpsertInputRow[] = sourceRows.rows.map((row) => {
     const freshness = calculateEdgeFreshness({
       last_verified_at: toIsoString(row.last_verified_at),
       computed_at: input.computedAt
     });
-    const stored = await client.query<EdgeFreshnessRow>(
-      `INSERT INTO edge_freshness (
+    return {
+      edge_id: row.edge_id,
+      last_verified_at: toIsoString(row.last_verified_at),
+      decay_model: freshness.decay_model,
+      age_days: freshness.age_days,
+      freshness_score: freshness.freshness_score,
+      computed_at: input.computedAt,
+      source_evidence_id: row.primary_evidence_id
+    };
+  });
+  if (rows.length === 0) return [];
+  const stored = await client.query<EdgeFreshnessRow>(
+    `WITH input AS (
+       SELECT *
+       FROM jsonb_to_recordset($1::jsonb) AS row(
+         edge_id text,
+         last_verified_at timestamptz,
+         decay_model text,
+         age_days integer,
+         freshness_score real,
+         computed_at timestamptz,
+         source_evidence_id text
+       )
+     )
+     INSERT INTO edge_freshness (
          edge_id, last_verified_at, decay_model, age_days, freshness_score,
          computed_at, source_evidence_id, attrs
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'{}'::jsonb)
-       ON CONFLICT (edge_id)
-       DO UPDATE SET
+     SELECT edge_id, last_verified_at, decay_model, age_days, freshness_score, computed_at, source_evidence_id, '{}'::jsonb
+     FROM input
+     ON CONFLICT (edge_id)
+     DO UPDATE SET
          last_verified_at = EXCLUDED.last_verified_at,
          decay_model = EXCLUDED.decay_model,
          age_days = EXCLUDED.age_days,
          freshness_score = EXCLUDED.freshness_score,
          computed_at = EXCLUDED.computed_at,
          source_evidence_id = EXCLUDED.source_evidence_id
-       RETURNING edge_id, last_verified_at, decay_model, age_days, freshness_score,
-                 computed_at, source_evidence_id, attrs`,
-      [
-        row.edge_id,
-        toIsoString(row.last_verified_at),
-        freshness.decay_model,
-        freshness.age_days,
-        freshness.freshness_score,
-        input.computedAt,
-        row.primary_evidence_id
-      ]
-    );
-    const storedRow = stored.rows[0];
-    if (storedRow !== undefined) records.push(freshnessRowToRecord(storedRow));
-  }
-  return records;
+     RETURNING edge_id, last_verified_at, decay_model, age_days, freshness_score,
+               computed_at, source_evidence_id, attrs`,
+    [JSON.stringify(rows)]
+  );
+  return stored.rows.map(freshnessRowToRecord);
 }
 
 export async function listEdgeFreshness(client: DbClient, input: { edgeIds: readonly string[]; computedAt: string }): Promise<EdgeFreshnessRecord[]> {
