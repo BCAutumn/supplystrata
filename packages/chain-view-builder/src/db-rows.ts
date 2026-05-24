@@ -24,3 +24,26 @@ export interface ChainFactRow extends pg.QueryResultRow {
   claim_id: string | null;
   claim_text: string | null;
 }
+
+export interface ChainObservationRow extends pg.QueryResultRow {
+  observation_id: string;
+  component_id: string | null;
+  observation_type: string;
+  metric_name: string;
+  metric_value: string | null;
+  metric_unit: string | null;
+  confidence: number;
+}
+
+export interface ChainLeadRow extends pg.QueryResultRow {
+  lead_id: string;
+  title: string;
+  summary: string;
+  status: "open" | "in_review" | "promoted" | "rejected" | "closed";
+}
+
+export interface ChainUnknownRow extends pg.QueryResultRow {
+  unknown_id: string;
+  question: string;
+  why_unknown: string;
+}

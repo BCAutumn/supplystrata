@@ -1,6 +1,5 @@
-import type { LeadObservationRow, ObservationRow, UnknownItemRow } from "@supplystrata/db/read";
 import type { ChainFact, ChainLead, ChainObservation, ChainUnknown } from "./definitions.js";
-import type { ChainFactRow } from "./db-rows.js";
+import type { ChainFactRow, ChainLeadRow, ChainObservationRow, ChainUnknownRow } from "./db-rows.js";
 
 export function chainFactFromRow(row: ChainFactRow): ChainFact {
   return {
@@ -23,7 +22,7 @@ export function chainFactFromRow(row: ChainFactRow): ChainFact {
   };
 }
 
-export function chainObservationFromRow(row: ObservationRow): ChainObservation {
+export function chainObservationFromRow(row: ChainObservationRow): ChainObservation {
   return {
     observation_id: row.observation_id,
     component_id: row.component_id,
@@ -35,7 +34,7 @@ export function chainObservationFromRow(row: ObservationRow): ChainObservation {
   };
 }
 
-export function chainLeadFromRow(row: LeadObservationRow): ChainLead {
+export function chainLeadFromRow(row: ChainLeadRow): ChainLead {
   return {
     lead_id: row.lead_id,
     title: row.title,
@@ -44,7 +43,7 @@ export function chainLeadFromRow(row: LeadObservationRow): ChainLead {
   };
 }
 
-export function chainUnknownFromRow(row: UnknownItemRow): ChainUnknown {
+export function chainUnknownFromRow(row: ChainUnknownRow): ChainUnknown {
   return {
     unknown_id: row.unknown_id,
     question: row.question,
