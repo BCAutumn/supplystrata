@@ -1,4 +1,5 @@
 import type { DatabaseStore } from "@supplystrata/db/write";
+import type { SourceAdapter } from "@supplystrata/source-adapter-spec";
 import { optionalConfigPositiveInteger, requireConfigString, type SourceCheckConfigSchema, type SourceCheckConnector } from "@supplystrata/source-connectors";
 import {
   asmlIrAdapter,
@@ -19,121 +20,59 @@ import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-r
 import { documentObservationStoreOption } from "./document-observation-context.js";
 
 export const officialIrSourceCheckConnectors: readonly SourceCheckConnector<DatabaseStore, SourceCheckSummary>[] = [
-  {
-    source_adapter_id: "company-ir",
-    target_kind: "official-html-disclosure",
-    config_schema: companyIrConfigSchema(),
-    run(store, target, context) {
-      return runSourceAdapterCheck(store, {
-        adapter: companyIrExplicitUrlAdapter,
-        adapterInput: companyIrExplicitUrlInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(context.adapter_context_input),
-        options: {
-          checkTargetId: target.check_target_id,
-          failureCausedBy: "source-check.company-ir",
-          checkedAt: context.checked_at,
-          ...documentObservationStoreOption(context),
-          ...(context.logger === undefined ? {} : { logger: context.logger })
-        }
-      });
-    }
-  },
-  {
-    source_adapter_id: "tsmc-ir",
-    target_kind: "official-html-disclosure",
-    config_schema: officialIrConfigSchema("ENT-TSMC"),
-    run(store, target, context) {
-      return runSourceAdapterCheck(store, {
-        adapter: tsmcIrAdapter,
-        adapterInput: tsmcIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(context.adapter_context_input),
-        options: {
-          checkTargetId: target.check_target_id,
-          failureCausedBy: "source-check.tsmc-ir",
-          checkedAt: context.checked_at,
-          ...documentObservationStoreOption(context),
-          ...(context.logger === undefined ? {} : { logger: context.logger })
-        }
-      });
-    }
-  },
-  {
-    source_adapter_id: "samsung-ir",
-    target_kind: "official-html-disclosure",
-    config_schema: officialIrConfigSchema("ENT-SAMSUNG-ELECTRONICS"),
-    run(store, target, context) {
-      return runSourceAdapterCheck(store, {
-        adapter: samsungIrAdapter,
-        adapterInput: samsungIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(context.adapter_context_input),
-        options: {
-          checkTargetId: target.check_target_id,
-          failureCausedBy: "source-check.samsung-ir",
-          checkedAt: context.checked_at,
-          ...documentObservationStoreOption(context),
-          ...(context.logger === undefined ? {} : { logger: context.logger })
-        }
-      });
-    }
-  },
-  {
-    source_adapter_id: "skhynix-ir",
-    target_kind: "official-html-disclosure",
-    config_schema: officialIrConfigSchema("ENT-SKHYNIX"),
-    run(store, target, context) {
-      return runSourceAdapterCheck(store, {
-        adapter: skHynixIrAdapter,
-        adapterInput: skHynixIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(context.adapter_context_input),
-        options: {
-          checkTargetId: target.check_target_id,
-          failureCausedBy: "source-check.skhynix-ir",
-          checkedAt: context.checked_at,
-          ...documentObservationStoreOption(context),
-          ...(context.logger === undefined ? {} : { logger: context.logger })
-        }
-      });
-    }
-  },
-  {
-    source_adapter_id: "asml-ir",
-    target_kind: "official-html-disclosure",
-    config_schema: officialIrConfigSchema("ENT-ASML"),
-    run(store, target, context) {
-      return runSourceAdapterCheck(store, {
-        adapter: asmlIrAdapter,
-        adapterInput: asmlIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(context.adapter_context_input),
-        options: {
-          checkTargetId: target.check_target_id,
-          failureCausedBy: "source-check.asml-ir",
-          checkedAt: context.checked_at,
-          ...documentObservationStoreOption(context),
-          ...(context.logger === undefined ? {} : { logger: context.logger })
-        }
-      });
-    }
-  },
-  {
-    source_adapter_id: "micron-ir",
-    target_kind: "official-html-disclosure",
-    config_schema: officialIrConfigSchema("ENT-MICRON"),
-    run(store, target, context) {
-      return runSourceAdapterCheck(store, {
-        adapter: micronIrAdapter,
-        adapterInput: micronIrInputFromConfig(target.target_config),
-        context: createOfficialIrAdapterContext(context.adapter_context_input),
-        options: {
-          checkTargetId: target.check_target_id,
-          failureCausedBy: "source-check.micron-ir",
-          checkedAt: context.checked_at,
-          ...documentObservationStoreOption(context),
-          ...(context.logger === undefined ? {} : { logger: context.logger })
-        }
-      });
-    }
-  }
+  sourceCheckConnectorForOfficialIrAdapter({
+    adapter: companyIrExplicitUrlAdapter,
+    configSchema: companyIrConfigSchema(),
+    inputFromConfig: companyIrExplicitUrlInputFromConfig
+  }),
+  sourceCheckConnectorForKnownOfficialIrAdapter({ adapter: tsmcIrAdapter, expectedEntityId: "ENT-TSMC", inputFromConfig: tsmcIrInputFromConfig }),
+  sourceCheckConnectorForKnownOfficialIrAdapter({
+    adapter: samsungIrAdapter,
+    expectedEntityId: "ENT-SAMSUNG-ELECTRONICS",
+    inputFromConfig: samsungIrInputFromConfig
+  }),
+  sourceCheckConnectorForKnownOfficialIrAdapter({ adapter: skHynixIrAdapter, expectedEntityId: "ENT-SKHYNIX", inputFromConfig: skHynixIrInputFromConfig }),
+  sourceCheckConnectorForKnownOfficialIrAdapter({ adapter: asmlIrAdapter, expectedEntityId: "ENT-ASML", inputFromConfig: asmlIrInputFromConfig }),
+  sourceCheckConnectorForKnownOfficialIrAdapter({ adapter: micronIrAdapter, expectedEntityId: "ENT-MICRON", inputFromConfig: micronIrInputFromConfig })
 ];
+
+function sourceCheckConnectorForKnownOfficialIrAdapter<TInput>(input: {
+  readonly adapter: SourceAdapter<TInput, Uint8Array>;
+  readonly expectedEntityId: string;
+  readonly inputFromConfig: (config: Record<string, unknown>) => TInput;
+}): SourceCheckConnector<DatabaseStore, SourceCheckSummary> {
+  return sourceCheckConnectorForOfficialIrAdapter({
+    adapter: input.adapter,
+    configSchema: officialIrConfigSchema(input.expectedEntityId),
+    inputFromConfig: input.inputFromConfig
+  });
+}
+
+function sourceCheckConnectorForOfficialIrAdapter<TInput>(input: {
+  readonly adapter: SourceAdapter<TInput, Uint8Array>;
+  readonly configSchema: SourceCheckConfigSchema;
+  readonly inputFromConfig: (config: Record<string, unknown>) => TInput;
+}): SourceCheckConnector<DatabaseStore, SourceCheckSummary> {
+  return {
+    source_adapter_id: input.adapter.id,
+    target_kind: "official-html-disclosure",
+    config_schema: input.configSchema,
+    run(store, target, context) {
+      return runSourceAdapterCheck(store, {
+        adapter: input.adapter,
+        adapterInput: input.inputFromConfig(target.target_config),
+        context: createOfficialIrAdapterContext(context.adapter_context_input),
+        options: {
+          checkTargetId: target.check_target_id,
+          failureCausedBy: `source-check.${input.adapter.id}`,
+          checkedAt: context.checked_at,
+          ...documentObservationStoreOption(context),
+          ...(context.logger === undefined ? {} : { logger: context.logger })
+        }
+      });
+    }
+  };
+}
 
 function companyIrConfigSchema(): SourceCheckConfigSchema {
   return {
