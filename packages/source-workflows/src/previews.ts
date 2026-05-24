@@ -57,6 +57,18 @@ export const NVIDIA_SEC_10K_EXAMPLE_PROFILE: SecEdgarSupplyChainPreviewProfile =
   input: { cik: "0001045810", entityId: "ENT-NVIDIA", formTypes: ["10-K"] }
 };
 
+const NVIDIA_RESEARCH_EXAMPLE_OFFICIAL_DISCLOSURES = {
+  tsmc: { year: 2025, entityId: "ENT-TSMC" },
+  samsung: { year: 2025, entityId: "ENT-SAMSUNG-ELECTRONICS" },
+  skhynix: { year: 2025, entityId: "ENT-SKHYNIX" },
+  asml: { year: 2025, entityId: "ENT-ASML" }
+} as const satisfies {
+  tsmc: TsmcIrInput;
+  samsung: SamsungIrInput;
+  skhynix: SkHynixIrInput;
+  asml: AsmlIrInput;
+};
+
 export async function previewSecEdgarSupplyChain(input: SecEdgarInput, runtime: SourceWorkflowRuntime): Promise<SupplyChainPreview> {
   const { raw, normalized, documentType, sourceDate } = await fetchAndParseSecEdgar(input, { adapterContextInput: runtime.adapterContextInput });
   const scorer = new DeterministicEvidenceScorer();
@@ -106,7 +118,7 @@ export async function previewSecEdgarSupplyChainProfile(
   return previewSecEdgarSupplyChain(profile.input, runtime);
 }
 
-export async function previewTsmcIr(runtime: SourceWorkflowRuntime, input: TsmcIrInput = { year: 2025, entityId: "ENT-TSMC" }): Promise<TsmcIrPreview> {
+export async function previewTsmcIr(runtime: SourceWorkflowRuntime, input: TsmcIrInput): Promise<TsmcIrPreview> {
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: tsmcIrAdapter,
     input,
@@ -126,18 +138,15 @@ export async function previewTsmcIr(runtime: SourceWorkflowRuntime, input: TsmcI
 export async function previewNvidiaResearchReport(runtime: SourceWorkflowRuntime): Promise<NvidiaResearchReportPreview> {
   const [nvidia, tsmc, samsung, skhynix, asml] = await Promise.all([
     previewSecEdgarSupplyChainProfile(NVIDIA_SEC_10K_EXAMPLE_PROFILE, runtime),
-    previewTsmcIr(runtime),
-    previewOptionalDisclosure("samsung-ir", () => previewSamsungIr(runtime)),
-    previewOptionalDisclosure("skhynix-ir", () => previewSkHynixIr(runtime)),
-    previewOptionalDisclosure("asml-ir", () => previewAsmlIr(runtime))
+    previewTsmcIr(runtime, NVIDIA_RESEARCH_EXAMPLE_OFFICIAL_DISCLOSURES.tsmc),
+    previewOptionalDisclosure("samsung-ir", () => previewSamsungIr(runtime, NVIDIA_RESEARCH_EXAMPLE_OFFICIAL_DISCLOSURES.samsung)),
+    previewOptionalDisclosure("skhynix-ir", () => previewSkHynixIr(runtime, NVIDIA_RESEARCH_EXAMPLE_OFFICIAL_DISCLOSURES.skhynix)),
+    previewOptionalDisclosure("asml-ir", () => previewAsmlIr(runtime, NVIDIA_RESEARCH_EXAMPLE_OFFICIAL_DISCLOSURES.asml))
   ]);
   return { nvidia, tsmc, samsung, skhynix, asml };
 }
 
-export async function previewSamsungIr(
-  runtime: SourceWorkflowRuntime,
-  input: SamsungIrInput = { year: 2025, entityId: "ENT-SAMSUNG-ELECTRONICS" }
-): Promise<OfficialDisclosurePreview> {
+export async function previewSamsungIr(runtime: SourceWorkflowRuntime, input: SamsungIrInput): Promise<OfficialDisclosurePreview> {
   return previewOfficialDisclosure({
     adapter: samsungIrAdapter,
     input,
@@ -147,10 +156,7 @@ export async function previewSamsungIr(
   });
 }
 
-export async function previewSkHynixIr(
-  runtime: SourceWorkflowRuntime,
-  input: SkHynixIrInput = { year: 2025, entityId: "ENT-SKHYNIX" }
-): Promise<OfficialDisclosurePreview> {
+export async function previewSkHynixIr(runtime: SourceWorkflowRuntime, input: SkHynixIrInput): Promise<OfficialDisclosurePreview> {
   return previewOfficialDisclosure({
     adapter: skHynixIrAdapter,
     input,
@@ -160,10 +166,7 @@ export async function previewSkHynixIr(
   });
 }
 
-export async function previewAsmlIr(
-  runtime: SourceWorkflowRuntime,
-  input: AsmlIrInput = { year: 2025, entityId: "ENT-ASML" }
-): Promise<OfficialDisclosurePreview> {
+export async function previewAsmlIr(runtime: SourceWorkflowRuntime, input: AsmlIrInput): Promise<OfficialDisclosurePreview> {
   return previewOfficialDisclosure({
     adapter: asmlIrAdapter,
     input,
