@@ -5,7 +5,7 @@ import {
   type ComponentTradeCode,
   type MaterialObservationTarget
 } from "@supplystrata/component-context";
-import { getSourceById, type SourceRegistryEntry, type SourceTier } from "@supplystrata/source-registry";
+import { getSourceById, type RelationAuthority, type SourceCategory, type SourceRegistryEntry, type SourceTier } from "@supplystrata/source-registry";
 import type {
   MaterialObservationContext,
   PlannedOutputLayer,
@@ -19,6 +19,53 @@ import type {
   TradeObservationDirection
 } from "./definitions.js";
 import { buildOfficialDisclosureCheckTargetSuggestions } from "./official-disclosure-targets.js";
+
+const RELATION_AUTHORITY_POLICY_OVERRIDES: Partial<Record<RelationAuthority, SourceRelationPolicy>> = {
+  registry_fact: "entity_only",
+  macro_trend: "observation_only",
+  lead_only: "lead_only"
+};
+
+const POLICY_OUTPUT_LAYERS = {
+  can_create_fact_edge: "edge",
+  observation_only: "observation",
+  entity_only: "entity",
+  lead_only: "lead"
+} as const satisfies Record<SourceRelationPolicy, PlannedOutputLayer>;
+
+const SOURCE_CATEGORY_PURPOSES = {
+  official_disclosure: "official_disclosure",
+  entity_resolution: "entity_resolution",
+  supplier_list: "facility",
+  facility: "facility",
+  trade: "trade",
+  commodity: "commodity",
+  macro: "macro",
+  logistics: "logistics",
+  procurement_news: "procurement",
+  policy: "policy",
+  manual: "manual_review"
+} as const satisfies Record<SourceCategory, ResearchSourcePurpose>;
+
+const SOURCE_TIER_RANKS = {
+  P0: 0,
+  P1: 1,
+  P2: 2,
+  manual: 3
+} as const satisfies Record<SourceTier, number>;
+
+const OUTPUT_LAYER_RANKS = {
+  edge: 0,
+  entity: 1,
+  observation: 2,
+  lead: 3
+} as const satisfies Record<PlannedOutputLayer, number>;
+
+const MATERIAL_PERIOD_CONTEXT_KEYS = {
+  year: "year",
+  month: "month",
+  none: "none"
+} as const satisfies Record<MaterialObservationTarget["required_period"], keyof MaterialObservationContext | "none">;
 
 export function aggregateDrafts(drafts: readonly SourcePlanDraft[], context?: SourcePlanContext): SourcePlanItem[] {
   const grouped = new Map<string, SourcePlanDraft[]>();
@@ -142,9 +189,8 @@ function toMaterialObservationSuggestion(
 }
 
 function materialPeriodForTarget(target: MaterialObservationTarget, context: MaterialObservationContext): string | undefined {
-  if (target.required_period === "year") return context.year;
-  if (target.required_period === "month") return context.month;
-  return "none";
+  const key = MATERIAL_PERIOD_CONTEXT_KEYS[target.required_period];
+  return key === "none" ? "none" : context[key];
 }
 
 function dedupeSuggestions(suggestions: readonly SourcePlanCheckTargetSuggestion[]): SourcePlanCheckTargetSuggestion[] {
@@ -164,30 +210,18 @@ function stableConfigKey(config: Record<string, string | number | boolean | stri
 }
 
 function relationPolicyForSource(source: SourceRegistryEntry): SourceRelationPolicy {
-  if (source.relation_authority === "registry_fact") return "entity_only";
-  if (source.relation_authority === "macro_trend") return "observation_only";
-  if (source.relation_authority === "lead_only") return "lead_only";
+  const override = RELATION_AUTHORITY_POLICY_OVERRIDES[source.relation_authority];
+  if (override !== undefined) return override;
   if (source.evidence_level_cap >= 4) return "can_create_fact_edge";
   return "observation_only";
 }
 
 function outputLayerForSource(source: SourceRegistryEntry): PlannedOutputLayer {
-  const policy = relationPolicyForSource(source);
-  if (policy === "can_create_fact_edge") return "edge";
-  if (policy === "observation_only") return "observation";
-  if (policy === "entity_only") return "entity";
-  return "lead";
+  return POLICY_OUTPUT_LAYERS[relationPolicyForSource(source)];
 }
 
 function purposeForSource(source: SourceRegistryEntry): ResearchSourcePurpose {
-  if (source.category === "supplier_list" || source.category === "facility") return "facility";
-  if (source.category === "commodity") return "commodity";
-  if (source.category === "trade") return "trade";
-  if (source.category === "logistics") return "logistics";
-  if (source.category === "procurement_news") return "procurement";
-  if (source.category === "policy") return "policy";
-  if (source.category === "manual") return "manual_review";
-  return source.category;
+  return SOURCE_CATEGORY_PURPOSES[source.category];
 }
 
 function comparePlanItems(left: SourcePlanItem, right: SourcePlanItem): number {
@@ -199,17 +233,11 @@ function comparePlanItems(left: SourcePlanItem, right: SourcePlanItem): number {
 }
 
 function tierRank(tier: SourceTier): number {
-  if (tier === "P0") return 0;
-  if (tier === "P1") return 1;
-  if (tier === "P2") return 2;
-  return 3;
+  return SOURCE_TIER_RANKS[tier];
 }
 
 function outputLayerRank(layer: PlannedOutputLayer): number {
-  if (layer === "edge") return 0;
-  if (layer === "entity") return 1;
-  if (layer === "observation") return 2;
-  return 3;
+  return OUTPUT_LAYER_RANKS[layer];
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
