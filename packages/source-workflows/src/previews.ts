@@ -173,10 +173,7 @@ export async function previewAsmlIr(
   });
 }
 
-export async function previewAppleSuppliers(
-  runtime: SourceWorkflowRuntime,
-  input: AppleSuppliersInput = { fiscalYear: 2022, entityId: "ENT-APPLE" }
-): Promise<AppleSuppliersPreview> {
+export async function previewAppleSuppliers(runtime: SourceWorkflowRuntime, input: AppleSuppliersInput): Promise<AppleSuppliersPreview> {
   const { raw, normalized, sourceDate } = await fetchAndNormalizeFirstTask({
     adapter: appleSuppliersAdapter,
     input,
