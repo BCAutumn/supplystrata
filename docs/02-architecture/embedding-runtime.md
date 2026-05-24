@@ -6,9 +6,9 @@
 
 | 模式                 | 需要 Postgres | 需要 GraphStore / Neo4j | 需要 Docker | 典型命令                                                                     | 用途                                                   |
 | -------------------- | ------------- | ----------------------- | ----------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `preview`            | 否            | 否                      | 否          | `pnpm cli examples nvidia preview --format markdown`                         | 实时抓取、解析、规则抽取和 seed 消歧，不落库           |
+| `preview`            | 否            | 否                      | 否          | `pnpm cli preview sec-edgar --cik <cik> --entity <entity-id>`                | 实时抓取、解析、规则抽取和 seed 消歧，不落库           |
 | `workbench_snapshot` | 否            | 否                      | 否          | `pnpm cli research from-workbench --workbench reports/nvidia-workbench.json` | 从已有 Workbench JSON 生成静态研究包                   |
-| `truth_store`        | 是            | 否                      | 否          | `pnpm cli research run --company nvidia --out reports/nvidia-research-pack`  | 持久化证据、claims、observations、review/source health |
+| `truth_store`        | 是            | 否                      | 否          | `pnpm cli research run --company <query> --out reports/research-pack`        | 持久化证据、claims、observations、review/source health |
 | `graph_projection`   | 是            | 是                      | 否          | `pnpm cli graph rebuild && pnpm cli graph check`                             | 从 truth store 重建可插拔图投影                        |
 
 Docker 只是本地一键启动 Postgres / Neo4j 的便捷方式。产品运行时不依赖 Docker；宿主可以提供自己的 Postgres、远程 Postgres、托管 SQL 或兼容 `DatabaseStore` 生命周期的 adapter。Neo4j 是当前内置 `GraphStore` adapter，不是事实存储。

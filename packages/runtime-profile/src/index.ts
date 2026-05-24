@@ -42,7 +42,7 @@ export function runtimeModes(input: Pick<RuntimeProfileInput, "workbench_path" |
       status: "ready",
       docker_required: false,
       summary: "实时抓取/解析/规则抽取，不落库，不写 GraphStore。",
-      command: "pnpm --silent cli preview sec-edgar --cik 0001045810 --entity ENT-NVIDIA --format markdown",
+      command: "pnpm --silent cli preview sec-edgar --cik <cik> --entity <entity-id> --format markdown",
       requires: ["Node.js", "pnpm", "network for live source fetches"]
     },
     {
@@ -58,7 +58,7 @@ export function runtimeModes(input: Pick<RuntimeProfileInput, "workbench_path" |
       status: truthStoreStatus,
       docker_required: false,
       summary: "完整持久化研究链路；需要 SQL truth store。内置 adapter 是 Postgres，但服务可以来自本机、远程或宿主 app。",
-      command: "pnpm --silent cli research run --company nvidia --out reports/nvidia-research-pack",
+      command: "pnpm --silent cli research run --company <query> --out reports/research-pack",
       requires: ["POSTGRES_URL reachable", "migrated schema", "seeded entities/components"]
     },
     {
