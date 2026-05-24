@@ -45,6 +45,15 @@ export function renderGate1RunLedgerMarkdown(ledger: Gate1RunLedger): string {
   } else {
     for (const action of ledger.action_queue) renderAction(lines, action);
   }
+  lines.push("", "## Review Workbench", "");
+  lines.push(`- Items: ${ledger.review_workbench.summary.total_items}`);
+  lines.push(`- Human approval required: ${ledger.review_workbench.summary.human_approval_required_items}`);
+  lines.push(`- Auto-ranked only: ${ledger.review_workbench.summary.auto_ranked_items}`);
+  for (const item of ledger.review_workbench.items.slice(0, 12)) {
+    lines.push(`- ${item.priority} ${item.kind}: ${item.title}`);
+    lines.push(`  Recommended: ${item.recommended_decision}; allowed: ${item.allowed_decisions.join(", ")}`);
+    lines.push(`  Policy: ${item.policy.review_policy}; fact mutation: ${String(item.policy.automatic_fact_mutation_allowed)}`);
+  }
   lines.push("", "## Company Switching", "");
   lines.push(`- Frontier companies: ${ledger.company_switching.frontier_companies}`);
   lines.push(`- Next focus: ${ledger.company_switching.next_focus}`);

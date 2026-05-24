@@ -447,6 +447,10 @@ describe("research-pack", () => {
       })
     );
     expect(pack.gate1_run_ledger.company_switching.next_research_targets[0]?.command_hint).toContain("supplystrata research run --company ENT-SKHYNIX");
+    expect(pack.gate1_run_ledger.review_workbench.summary.total_items).toBeGreaterThan(0);
+    expect(pack.gate1_run_ledger.review_workbench.items.every((item) => item.policy.automatic_fact_mutation_allowed === false)).toBe(true);
+    expect(pack.gate1_run_ledger.review_workbench.items.some((item) => item.kind === "edge_corroboration")).toBe(true);
+    expect(pack.gate1_run_ledger.review_workbench.items.some((item) => item.allowed_decisions.includes("needs_more_evidence"))).toBe(true);
     expect(pack.official_disclosure_readiness.corroboration_queue.length).toBeGreaterThan(0);
     expect(pack.official_disclosure_readiness.scorecard.status).toBe("partial");
     expect(pack.official_disclosure_readiness.scorecard.criteria.map((criterion) => criterion.criterion_id)).toEqual([

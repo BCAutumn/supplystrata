@@ -8,6 +8,11 @@ import type {
   Gate1RunAction,
   Gate1RunLedger,
   Gate1RunScorecard,
+  Gate1ReviewDecision,
+  Gate1ReviewItem,
+  Gate1ReviewItemKind,
+  Gate1ReviewPolicy,
+  Gate1ReviewWorkbench,
   Gate1SourcePathProgressLedger
 } from "./gate1-run-ledger-definitions.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
@@ -33,6 +38,7 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
   const sourcePathProgress = gate1SourcePathProgress(input.official_disclosure_readiness);
   const mainlinePhase = gate1MainlinePhase({ readiness: input.official_disclosure_readiness, dataProgress, sourcePathProgress });
   const companySwitching = gate1CompanySwitching(input);
+  const actionQueue = gate1RunActions({ input, dataProgress, sourcePathProgress, companySwitching });
   return {
     schema_version: "1.0.0",
     generated_at: input.generated_at,
@@ -42,7 +48,8 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
     scorecard,
     data_progress: dataProgress,
     source_path_progress: sourcePathProgress,
-    action_queue: gate1RunActions({ input, dataProgress, sourcePathProgress, companySwitching }),
+    action_queue: actionQueue,
+    review_workbench: gate1ReviewWorkbench({ input, actionQueue, companySwitching }),
     company_switching: companySwitching,
     guardrails: [
       "Official source paths and smoke results do not create fact edges.",
@@ -50,6 +57,158 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
       "Single-source silence must become an explicit disposition or unknown; it is not corroboration.",
       "Frontier company switching uses the same generic research run path; do not add company-specific supplier workflows."
     ]
+  };
+}
+
+function gate1ReviewWorkbench(input: {
+  input: Gate1RunLedgerInput;
+  actionQueue: readonly Gate1RunAction[];
+  companySwitching: Gate1CompanySwitchingLedger;
+}): Gate1ReviewWorkbench {
+  const items = [
+    ...sourceTargetBatchReviewItems(input.actionQueue),
+    ...edgeCorroborationReviewItems(input.input),
+    ...officialSignalDispositionReviewItems(input.input),
+    ...frontierCompanyReviewItems(input.companySwitching)
+  ].sort(compareReviewItems);
+  return {
+    summary: {
+      total_items: items.length,
+      source_target_batch_items: items.filter((item) => item.kind === "source_target_batch").length,
+      edge_corroboration_items: items.filter((item) => item.kind === "edge_corroboration").length,
+      official_signal_disposition_items: items.filter((item) => item.kind === "official_signal_disposition").length,
+      frontier_company_research_items: items.filter((item) => item.kind === "frontier_company_research").length,
+      auto_ranked_items: items.filter((item) => item.policy.automation_hint === "auto_rank_only").length,
+      human_approval_required_items: items.filter((item) => item.policy.requires_human_approval).length
+    },
+    items
+  };
+}
+
+function sourceTargetBatchReviewItems(actions: readonly Gate1RunAction[]): Gate1ReviewItem[] {
+  return actions
+    .filter((action) => action.kind === "smoke_targets" || action.kind === "sync_targets" || action.kind === "run_due_targets")
+    .map((action) => {
+      const recommended = sourceTargetDecision(action.kind);
+      return reviewItem({
+        review_item_id: `${action.action_id}:review`,
+        kind: "source_target_batch",
+        priority: action.priority,
+        title: action.title,
+        rationale: action.rationale,
+        recommended_decision: recommended,
+        allowed_decisions: [recommended, "defer"],
+        write_effect: action.kind === "smoke_targets" ? "none" : "source_target_state_change",
+        policy: reviewPolicy("auto_prepare_command_only", true),
+        command_hint: action.command_hint,
+        refs: action.refs
+      });
+    });
+}
+
+function edgeCorroborationReviewItems(input: Gate1RunLedgerInput): Gate1ReviewItem[] {
+  return input.official_disclosure_readiness.corroboration_queue.slice(0, 80).map((item) => {
+    const proposedUnknownId = item.proposed_unknown?.unknown_id ?? null;
+    return reviewItem({
+      review_item_id: `gate1:edge-corroboration:${item.edge_id}`,
+      kind: "edge_corroboration",
+      priority: item.priority,
+      title: `Resolve corroboration for ${item.from_name} -> ${item.to_name}`,
+      rationale: item.reason,
+      recommended_decision: item.disposition === "needs_explicit_single_source_disposition" ? "record_single_source_unknown" : "needs_more_evidence",
+      allowed_decisions: edgeCorroborationDecisions(item.disposition),
+      write_effect: proposedUnknownId === null ? "review_change_only" : "unknown_materialization_after_review",
+      policy: reviewPolicy(proposedUnknownId === null ? "auto_rank_only" : "auto_materialize_after_recorded_disposition", true),
+      command_hint: null,
+      refs: [item.edge_id, ...item.source_plan_refs, ...item.unknown_ids, ...(proposedUnknownId === null ? [] : [proposedUnknownId])],
+      edge_id: item.edge_id,
+      unknown_id: proposedUnknownId
+    });
+  });
+}
+
+function officialSignalDispositionReviewItems(input: Gate1RunLedgerInput): Gate1ReviewItem[] {
+  return input.official_disclosure_readiness.official_disclosure_signal_correlation_hints
+    .filter((hint) => hint.disposition_status === "open")
+    .slice(0, 80)
+    .map((hint) =>
+      reviewItem({
+        review_item_id: `gate1:official-signal:${hint.review_id}:${hint.edge_id}`,
+        kind: "official_signal_disposition",
+        priority: "P1",
+        title: `Record official signal disposition for ${hint.edge_summary}`,
+        rationale: `${hint.action} Match reasons: ${hint.match_reasons.join(", ")}.`,
+        recommended_decision: hint.disposition === "needs_explicit_single_source_disposition" ? "record_single_source_unknown" : "needs_more_evidence",
+        allowed_decisions: [
+          "supports_existing_edge",
+          "needs_more_evidence",
+          "not_relevant",
+          "record_single_source_unknown",
+          "create_counterparty_source_target",
+          "defer"
+        ],
+        write_effect: "review_change_only",
+        policy: reviewPolicy("auto_rank_only", true),
+        command_hint: null,
+        refs: [hint.review_id, hint.edge_id, hint.source_adapter_id],
+        edge_id: hint.edge_id,
+        review_id: hint.review_id
+      })
+    );
+}
+
+function frontierCompanyReviewItems(companySwitching: Gate1CompanySwitchingLedger): Gate1ReviewItem[] {
+  return companySwitching.next_research_targets.slice(0, 10).map((target, index) =>
+    reviewItem({
+      review_item_id: `gate1:frontier-review:${safeSegment(target.company_id)}:${safeSegment(target.component_id)}:${index + 1}`,
+      kind: "frontier_company_research",
+      priority: "P2",
+      title: `Open frontier research for ${target.company_name}`,
+      rationale: target.rationale,
+      recommended_decision: "open_frontier_research_pack",
+      allowed_decisions: ["open_frontier_research_pack", "defer"],
+      write_effect: "none",
+      policy: reviewPolicy("auto_prepare_command_only", false),
+      command_hint: target.command_hint,
+      refs: [target.seed_edge_id, ...target.unknown_ids],
+      edge_id: target.seed_edge_id
+    })
+  );
+}
+
+function reviewItem(input: {
+  review_item_id: string;
+  kind: Gate1ReviewItemKind;
+  priority: Gate1ReviewItem["priority"];
+  title: string;
+  rationale: string;
+  recommended_decision: Gate1ReviewDecision;
+  allowed_decisions: Gate1ReviewDecision[];
+  write_effect: Gate1ReviewItem["write_effect"];
+  policy: Gate1ReviewPolicy;
+  command_hint: string | null;
+  refs: string[];
+  edge_id?: string | null;
+  review_id?: string | null;
+  unknown_id?: string | null;
+  check_target_id?: string | null;
+}): Gate1ReviewItem {
+  return {
+    review_item_id: input.review_item_id,
+    kind: input.kind,
+    priority: input.priority,
+    title: input.title,
+    rationale: input.rationale,
+    recommended_decision: input.recommended_decision,
+    allowed_decisions: uniqueDecisions(input.allowed_decisions),
+    write_effect: input.write_effect,
+    policy: input.policy,
+    command_hint: input.command_hint,
+    refs: uniqueSorted(input.refs),
+    edge_id: input.edge_id ?? null,
+    review_id: input.review_id ?? null,
+    unknown_id: input.unknown_id ?? null,
+    check_target_id: input.check_target_id ?? null
   };
 }
 
@@ -130,6 +289,30 @@ function phaseReason(phase: Gate1MainlinePhase): string {
     case "expand_frontier_companies":
       return "Current company frontier can seed the next generic company research run.";
   }
+}
+
+function sourceTargetDecision(kind: Gate1RunAction["kind"]): Gate1ReviewDecision {
+  if (kind === "smoke_targets") return "approve_smoke";
+  if (kind === "run_due_targets") return "approve_run_due";
+  return "approve_sync";
+}
+
+function edgeCorroborationDecisions(disposition: string): Gate1ReviewDecision[] {
+  if (disposition === "needs_explicit_single_source_disposition") return ["record_single_source_unknown", "needs_more_evidence", "defer"];
+  if (disposition === "needs_counterparty_source_target") return ["create_counterparty_source_target", "needs_more_evidence", "defer"];
+  if (disposition === "single_source_disposition_recorded") return ["needs_more_evidence", "defer"];
+  if (disposition === "needs_traceability_backfill") return ["needs_more_evidence", "defer"];
+  return ["needs_more_evidence", "record_single_source_unknown", "defer"];
+}
+
+function reviewPolicy(automationHint: Gate1ReviewPolicy["automation_hint"], requiresHumanApproval: boolean): Gate1ReviewPolicy {
+  return {
+    review_policy: "review_only_no_fact_mutation",
+    automatic_fact_mutation_allowed: false,
+    allowed_edge_mutation: "none",
+    requires_human_approval: requiresHumanApproval,
+    automation_hint: automationHint
+  };
 }
 
 function gate1RunActions(input: {
@@ -316,6 +499,21 @@ function compareActions(left: Gate1RunAction, right: Gate1RunAction): number {
   return priorityOrder(left.priority) - priorityOrder(right.priority) || left.action_id.localeCompare(right.action_id);
 }
 
+function compareReviewItems(left: Gate1ReviewItem, right: Gate1ReviewItem): number {
+  return (
+    priorityOrder(left.priority) - priorityOrder(right.priority) ||
+    reviewKindOrder(left.kind) - reviewKindOrder(right.kind) ||
+    left.review_item_id.localeCompare(right.review_item_id)
+  );
+}
+
+function reviewKindOrder(kind: Gate1ReviewItemKind): number {
+  if (kind === "source_target_batch") return 0;
+  if (kind === "edge_corroboration") return 1;
+  if (kind === "official_signal_disposition") return 2;
+  return 3;
+}
+
 function priorityOrder(priority: Gate1RunAction["priority"]): number {
   if (priority === "P0") return 0;
   if (priority === "P1") return 1;
@@ -333,6 +531,14 @@ function dedupeCompanyTargets(targets: readonly Gate1CompanyResearchTarget[]): G
     deduped.push(target);
   }
   return deduped;
+}
+
+function uniqueDecisions(decisions: readonly Gate1ReviewDecision[]): Gate1ReviewDecision[] {
+  return [...new Set(decisions)];
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort();
 }
 
 function safeSegment(value: string): string {

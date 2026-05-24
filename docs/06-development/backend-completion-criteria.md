@@ -525,6 +525,7 @@ POST /review/:id/reject
 [x] `corroboration-source-plan` 能为每个 filtered target 输出确定性 `next_action`，把 preflight/coverage 状态收口成配置凭据、修配置、smoke、sync、enable、run due、等待、排错或 review observation
 [x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
 [x] research-pack 能输出 `gate1-run-ledger.json/md`，把 Gate 1 data progress、source path progress、corroboration 批次和 supply-chain frontier company switching 合成一个只读执行账本
+[x] `gate1-run-ledger` 能输出 frontend-ready `review_workbench`，为 source target 批次、edge corroboration、official signal disposition 和 frontier company research 给出推荐决策、允许决策、命令提示、写入影响与 `review_only_no_fact_mutation` policy，让规则自动排优先级、人工只确认受控动作
 [x] research-pack 能按 audited next-action 输出非空的 action-specific corroboration source-plan 批次，避免把仍需 smoke / 修凭据 / 修配置的 target 直接混入 sync / enable / run-due 执行
 [x] research-pack manifest / README 汇总 source target preflight issue kind 分布，让 Gate 1 smoke 卡点能直接显示为缺凭据、配置错误、connector 未实现、源不可达或 adapter 异常
 [x] supply-chain expansion plan 能把 L4/L5 fact frontier、component taxonomy lead、source path、unknown 和 stop condition 接进 research-pack / backlog，形成下一层递归研究计划且不写事实边

@@ -27,6 +27,7 @@ export interface Gate1RunLedger {
   data_progress: Gate1DataProgressLedger;
   source_path_progress: Gate1SourcePathProgressLedger;
   action_queue: Gate1RunAction[];
+  review_workbench: Gate1ReviewWorkbench;
   company_switching: Gate1CompanySwitchingLedger;
   guardrails: string[];
 }
@@ -78,6 +79,61 @@ export interface Gate1RunAction {
   rationale: string;
   command_hint: string | null;
   refs: string[];
+}
+
+export type Gate1ReviewItemKind = "source_target_batch" | "edge_corroboration" | "official_signal_disposition" | "frontier_company_research";
+
+export type Gate1ReviewDecision =
+  | "approve_smoke"
+  | "approve_sync"
+  | "approve_run_due"
+  | "supports_existing_edge"
+  | "needs_more_evidence"
+  | "not_relevant"
+  | "record_single_source_unknown"
+  | "create_counterparty_source_target"
+  | "open_frontier_research_pack"
+  | "defer";
+
+export type Gate1ReviewWriteEffect = "none" | "source_target_state_change" | "review_change_only" | "unknown_materialization_after_review";
+
+export interface Gate1ReviewPolicy {
+  review_policy: "review_only_no_fact_mutation";
+  automatic_fact_mutation_allowed: false;
+  allowed_edge_mutation: "none";
+  requires_human_approval: boolean;
+  automation_hint: "auto_rank_only" | "auto_prepare_command_only" | "auto_materialize_after_recorded_disposition";
+}
+
+export interface Gate1ReviewWorkbench {
+  summary: {
+    total_items: number;
+    source_target_batch_items: number;
+    edge_corroboration_items: number;
+    official_signal_disposition_items: number;
+    frontier_company_research_items: number;
+    auto_ranked_items: number;
+    human_approval_required_items: number;
+  };
+  items: Gate1ReviewItem[];
+}
+
+export interface Gate1ReviewItem {
+  review_item_id: string;
+  kind: Gate1ReviewItemKind;
+  priority: "P0" | "P1" | "P2" | "P3";
+  title: string;
+  rationale: string;
+  recommended_decision: Gate1ReviewDecision;
+  allowed_decisions: Gate1ReviewDecision[];
+  write_effect: Gate1ReviewWriteEffect;
+  policy: Gate1ReviewPolicy;
+  command_hint: string | null;
+  refs: string[];
+  edge_id: string | null;
+  review_id: string | null;
+  unknown_id: string | null;
+  check_target_id: string | null;
 }
 
 export interface Gate1CompanySwitchingLedger {

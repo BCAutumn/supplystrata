@@ -27,9 +27,14 @@ describe("research-pack writer", () => {
       expect(readme).toContain("`gate1-run-ledger.json` and `gate1-run-ledger.md`");
       expect(readme).toContain("`evidence-index.json` contains the evidence records carried by the workbench export.");
 
-      const ledger = JSON.parse(await readFile(join(outDir, "gate1-run-ledger.json"), "utf8")) as { mainline_phase?: string; company_switching?: unknown };
+      const ledger = JSON.parse(await readFile(join(outDir, "gate1-run-ledger.json"), "utf8")) as {
+        mainline_phase?: string;
+        company_switching?: unknown;
+        review_workbench?: { summary?: { total_items?: number } };
+      };
       expect(ledger.mainline_phase).toBe("sync_official_source_targets");
       expect(ledger.company_switching).toBeDefined();
+      expect(ledger.review_workbench?.summary?.total_items).toBeGreaterThan(0);
     } finally {
       await rm(outDir, { force: true, recursive: true });
     }
