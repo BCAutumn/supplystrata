@@ -1,6 +1,32 @@
 import type { SourcePlanItem } from "@supplystrata/source-plan";
+import type { SourceTargetCoverageState } from "@supplystrata/source-monitor";
 import type { OfficialDisclosureReadinessSourcePlanItem, OfficialDisclosureReadinessSourceTarget } from "./official-disclosure-readiness-definitions.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
+
+type OfficialTargetActionRule = {
+  matches: (targets: readonly OfficialDisclosureReadinessSourceTarget[]) => boolean;
+  action: string;
+};
+
+const FAILED_OR_DEGRADED_TARGET_STATES = ["retry_wait", "dead", "degraded"] as const satisfies readonly SourceTargetCoverageState[];
+
+const OFFICIAL_TARGET_ACTION_RULES = [
+  stateActionRule("not_synced", "Sync runnable official disclosure targets into source_check_targets first."),
+  stateActionRule("disabled", "Enable synced official disclosure targets after cadence/retry policy review."),
+  stateActionRule("due", "Run due official disclosure targets through the shared source-check worker path."),
+  stateActionRule("active_job", "Wait for active official disclosure source-check jobs before changing conclusions."),
+  {
+    matches: (targets) => targets.some((target) => target.state !== null && isFailedOrDegradedTargetState(target.state)),
+    action: "Inspect failed or degraded official disclosure checks before relying on the latest source state."
+  },
+  {
+    matches: (targets) => targets.some((target) => (target.observations ?? 0) > 0),
+    action: "Review produced official disclosure observations and keep any fact-edge promotion behind evidence review."
+  }
+] as const satisfies readonly OfficialTargetActionRule[];
+
+const DEFAULT_OFFICIAL_TARGET_ACTION =
+  "Review configured official disclosure targets and collect traceable evidence candidates before expanding to weaker signal sources.";
 
 export function summarizeOfficialSourcePlan(
   sourcePlan: readonly SourcePlanItem[],
@@ -23,15 +49,7 @@ export function summarizeOfficialSourcePlan(
 }
 
 export function actionForOfficialTargets(targets: readonly OfficialDisclosureReadinessSourceTarget[]): string {
-  if (targets.some((target) => target.state === "not_synced")) return "Sync runnable official disclosure targets into source_check_targets first.";
-  if (targets.some((target) => target.state === "disabled")) return "Enable synced official disclosure targets after cadence/retry policy review.";
-  if (targets.some((target) => target.state === "due")) return "Run due official disclosure targets through the shared source-check worker path.";
-  if (targets.some((target) => target.state === "active_job")) return "Wait for active official disclosure source-check jobs before changing conclusions.";
-  if (targets.some((target) => target.state === "retry_wait" || target.state === "dead" || target.state === "degraded"))
-    return "Inspect failed or degraded official disclosure checks before relying on the latest source state.";
-  if (targets.some((target) => (target.observations ?? 0) > 0))
-    return "Review produced official disclosure observations and keep any fact-edge promotion behind evidence review.";
-  return "Review configured official disclosure targets and collect traceable evidence candidates before expanding to weaker signal sources.";
+  return OFFICIAL_TARGET_ACTION_RULES.find((rule) => rule.matches(targets))?.action ?? DEFAULT_OFFICIAL_TARGET_ACTION;
 }
 
 export function uniqueSourceTargets(targets: readonly OfficialDisclosureReadinessSourceTarget[]): OfficialDisclosureReadinessSourceTarget[] {
@@ -61,6 +79,17 @@ export function compareSourceTargets(left: OfficialDisclosureReadinessSourceTarg
 
 function isOfficialDisclosurePlanItem(item: SourcePlanItem): boolean {
   return item.purpose === "official_disclosure" || (item.expected_output_layer === "edge" && item.relation_policy === "can_create_fact_edge");
+}
+
+function stateActionRule(state: SourceTargetCoverageState, action: string): OfficialTargetActionRule {
+  return {
+    matches: (targets) => targets.some((target) => target.state === state),
+    action
+  };
+}
+
+function isFailedOrDegradedTargetState(state: string): boolean {
+  return FAILED_OR_DEGRADED_TARGET_STATES.some((candidate) => candidate === state);
 }
 
 function summarizeSourceTarget(
