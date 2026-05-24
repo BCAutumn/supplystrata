@@ -80,7 +80,7 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
   async fetch(task, ctx) {
     const bytes = await fetchBytesWithTimeout(task.url, { userAgent: ctx.userAgent, timeoutMs: 20_000, sourceLabel: "SEC filing" });
     const entityPart = task.hint?.entity_id ?? "unknown";
-    const period = task.hint?.period ?? new Date().toISOString().slice(0, 10);
+    const period = taskPeriod(task);
     return persistRawDocumentSnapshot({
       ctx,
       sourceAdapterId: "sec-edgar",
@@ -105,6 +105,12 @@ export const secEdgarAdapter = createRateLimitedSourceAdapter(secEdgarAdapterBas
 
 export function createAdapterContext(input: CreateAdapterContextInput): AdapterContext {
   return createRuntimeAdapterContext(input);
+}
+
+function taskPeriod(task: FetchTask): string {
+  const period = task.hint?.period;
+  if (period === undefined) throw new Error(`SEC EDGAR task missing source period: ${task.task_id}`);
+  return period;
 }
 
 export function isSecEdgarFormType(value: string): value is SecEdgarFormType {

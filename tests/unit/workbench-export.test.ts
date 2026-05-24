@@ -98,7 +98,7 @@ describe("workbench-export", () => {
   it("exports draft claims separately from chain fact edges", async () => {
     const client = new WorkbenchDbClient();
 
-    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, draftClaimLimit: 5 });
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, generatedAt: "2026-05-23T00:00:00.000Z", draftClaimLimit: 5 });
 
     expect(model.edges).toHaveLength(0);
     expect(model.draft_claims).toHaveLength(1);
@@ -158,7 +158,7 @@ describe("workbench-export", () => {
   });
 
   it("normalizes legacy workbench snapshots without mutating caller-owned objects", async () => {
-    const model = await buildWorkbenchModel(new WorkbenchDbClient(), { company: "nvidia", depth: 1 });
+    const model = await buildWorkbenchModel(new WorkbenchDbClient(), { company: "nvidia", depth: 1, generatedAt: "2026-05-23T00:00:00.000Z" });
     const legacy = JSON.parse(JSON.stringify(model)) as {
       draft_claims?: unknown;
       attention_queue?: unknown;
@@ -189,7 +189,7 @@ describe("workbench-export", () => {
   it("exports all evidence attached to chain edges, including superseded evidence", async () => {
     const client = new WorkbenchDbClient(true);
 
-    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1 });
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, generatedAt: "2026-05-23T00:00:00.000Z" });
 
     expect(model.edges).toHaveLength(1);
     expect(model.edges[0]?.evidence_ids).toEqual(["EV-PRIMARY"]);
@@ -206,7 +206,7 @@ describe("workbench-export", () => {
   it("exports active claims still attached to deprecated edges as lifecycle warnings", async () => {
     const client = new WorkbenchDbClient({ includeDeprecatedClaim: true });
 
-    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, lifecycleClaimLimit: 5 });
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, generatedAt: "2026-05-23T00:00:00.000Z", lifecycleClaimLimit: 5 });
 
     expect(model.claims).toHaveLength(1);
     expect(model.claims[0]).toMatchObject({
@@ -240,7 +240,7 @@ describe("workbench-export", () => {
   it("exports alert candidates into the unified attention queue", async () => {
     const client = new WorkbenchDbClient({ includeAttentionSignals: true });
 
-    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, alertLimit: 10 });
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, generatedAt: "2026-05-23T00:00:00.000Z", alertLimit: 10 });
 
     expect(model.attention_queue).toContainEqual(
       expect.objectContaining({
@@ -260,7 +260,7 @@ describe("workbench-export", () => {
   it("exports official disclosure review signals as read-only workbench context", async () => {
     const client = new WorkbenchDbClient({ includeEdgeEvidence: true, includeReviewSignals: true });
 
-    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, reviewCandidateLimit: 10 });
+    const model = await buildWorkbenchModel(client, { company: "nvidia", depth: 1, generatedAt: "2026-05-23T00:00:00.000Z", reviewCandidateLimit: 10 });
 
     expect(model.review_queue).toHaveLength(1);
     expect(model.review_queue[0]).toMatchObject({

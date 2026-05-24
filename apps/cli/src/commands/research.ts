@@ -72,7 +72,8 @@ export function registerResearchCommands(program: Command): void {
         out: string;
       }) => {
         await withDatabase(async (store) => {
-          const pack = await buildResearchPack(store, await researchPackInputFromOptions(options));
+          const generatedAt = options.generatedAt === undefined ? new Date().toISOString() : parseSince(options.generatedAt);
+          const pack = await buildResearchPack(store, await researchPackInputFromOptions({ ...options, generatedAt }));
           const written = await writeResearchPack(options.out, pack);
           writeJson({
             ok: true,
@@ -153,7 +154,7 @@ async function researchPackInputFromOptions(options: {
   company: string;
   component?: string;
   depth: string;
-  generatedAt?: string;
+  generatedAt: string;
   since?: string;
   changeLimit: string;
   sourceLimit: string;
@@ -178,7 +179,7 @@ async function researchPackInputFromOptions(options: {
   return {
     company: options.company,
     depth: parseLimit(options.depth),
-    ...(options.generatedAt === undefined ? {} : { generatedAt: parseSince(options.generatedAt) }),
+    generatedAt: options.generatedAt,
     ...(options.component === undefined ? {} : { components: parseCommaSeparated(options.component) }),
     ...(options.since === undefined ? {} : { since: parseSince(options.since) }),
     changeLimit: parseLimit(options.changeLimit),

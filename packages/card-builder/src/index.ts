@@ -35,10 +35,10 @@ export async function loadChainCard(client: DbClient, query: string, input: { de
 }
 
 export interface CardBuilderOptions {
-  computedAt?: string;
+  computedAt: string;
 }
 
-export async function loadCompanyCard(client: DbClient, query: string, options: CardBuilderOptions = {}): Promise<CompanyCardModel> {
+export async function loadCompanyCard(client: DbClient, query: string, options: CardBuilderOptions): Promise<CompanyCardModel> {
   const entityId = await resolveEntityId(client, query);
   const header = await loadCompanyHeader(client, entityId);
   const upstreamEdges = await loadCompanyEdges(client, entityId, "upstream");
@@ -60,7 +60,7 @@ export async function loadCompanyCard(client: DbClient, query: string, options: 
   };
 }
 
-export async function loadComponentCard(client: DbClient, query: string, options: CardBuilderOptions = {}): Promise<ComponentCardModel> {
+export async function loadComponentCard(client: DbClient, query: string, options: CardBuilderOptions): Promise<ComponentCardModel> {
   const component = await resolveComponent(client, query);
   const edges = await loadComponentEdges(client, component);
   const intelligenceByEdgeId = await loadEdgeIntelligence(
@@ -196,15 +196,14 @@ async function loadComponentEdges(client: DbClient, component: ComponentHeaderRo
   return result.rows;
 }
 
-async function loadEdgeIntelligence(client: DbClient, edgeIds: readonly string[], computedAt?: string): Promise<Map<string, EdgeIntelligenceSummary>> {
+async function loadEdgeIntelligence(client: DbClient, edgeIds: readonly string[], computedAt: string): Promise<Map<string, EdgeIntelligenceSummary>> {
   const uniqueEdgeIds = [...new Set(edgeIds)].sort();
   const output = new Map<string, EdgeIntelligenceSummary>();
   if (uniqueEdgeIds.length === 0) return output;
 
-  const freshnessComputedAt = computedAt ?? new Date().toISOString();
   const [strengths, freshness] = await Promise.all([
     listEdgeStrengthEstimates(client, uniqueEdgeIds),
-    listEdgeFreshness(client, { edgeIds: uniqueEdgeIds, computedAt: freshnessComputedAt })
+    listEdgeFreshness(client, { edgeIds: uniqueEdgeIds, computedAt })
   ]);
   const strengthsByEdgeId = groupByEdgeId(strengths);
   const freshnessByEdgeId = new Map(freshness.map((item) => [item.edge_id, item]));

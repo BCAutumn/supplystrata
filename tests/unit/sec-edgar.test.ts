@@ -138,6 +138,7 @@ describe("SEC EDGAR adapter helpers", () => {
     for await (const task of secCompanyFactsAdapter.plan({ cik: "1045810", entityId: "ENT-NVIDIA" }, adapterContext())) {
       tasks.push(task);
     }
+    expect(tasks[0]?.hint?.period).toBe("2026-05-17");
 
     const normalized = await secCompanyFactsAdapter.normalize(
       {

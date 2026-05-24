@@ -127,8 +127,9 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("run MVP data quality checks against Postgres truth")
     .action(async (options: { format: string; unknownCompany?: string; unknownMin: string; checkedAt?: string }) => {
       await withDatabase(async (pool) => {
+        const checkedAt = options.checkedAt === undefined ? new Date().toISOString() : parseSince(options.checkedAt);
         const summary = await runDataQualityChecks(pool.read, {
-          ...(options.checkedAt === undefined ? {} : { checkedAt: parseSince(options.checkedAt) }),
+          checkedAt,
           ...(options.unknownCompany === undefined
             ? {}
             : { entity_unknown_map_targets: [{ scope_id: options.unknownCompany, minimum_open_items: parseLimit(options.unknownMin) }] })
@@ -144,7 +145,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a company card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderCompanyCard(await loadCompanyCard(pool.read, query), parseFormat(options.format)));
+        write(renderCompanyCard(await loadCompanyCard(pool.read, query, { computedAt: new Date().toISOString() }), parseFormat(options.format)));
       });
     });
 
@@ -167,7 +168,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a component supply-chain card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderComponentCard(await loadComponentCard(pool.read, query), parseFormat(options.format)));
+        write(renderComponentCard(await loadComponentCard(pool.read, query, { computedAt: new Date().toISOString() }), parseFormat(options.format)));
       });
     });
 

@@ -42,10 +42,10 @@ export interface EntityUnknownMapTarget {
 
 export interface DataQualityCheckInput {
   entity_unknown_map_targets?: readonly EntityUnknownMapTarget[];
-  checkedAt?: string;
+  checkedAt: string;
 }
 
-export async function runDataQualityChecks(client: DbClient, input: DataQualityCheckInput = {}): Promise<DataQualitySummary> {
+export async function runDataQualityChecks(client: DbClient, input: DataQualityCheckInput): Promise<DataQualitySummary> {
   const issues: DataQualityIssue[] = [];
   for (const rule of dataQualityRules(input)) {
     issues.push(...(await rule.check(client)));
@@ -53,7 +53,7 @@ export async function runDataQualityChecks(client: DbClient, input: DataQualityC
 
   const counts = countIssues(issues);
   return {
-    checked_at: input.checkedAt ?? new Date().toISOString(),
+    checked_at: input.checkedAt,
     ok: counts.error === 0,
     counts,
     issues
@@ -77,7 +77,7 @@ export const ENTITY_SPECIFIC_DATA_QUALITY_RULES: readonly DataQualityRule[] = []
 
 export const DATA_QUALITY_RULES: readonly DataQualityRule[] = [...GLOBAL_DATA_QUALITY_RULES, ...ENTITY_SPECIFIC_DATA_QUALITY_RULES];
 
-export function dataQualityRules(input: DataQualityCheckInput = {}): readonly DataQualityRule[] {
+export function dataQualityRules(input: { entity_unknown_map_targets?: readonly EntityUnknownMapTarget[] } = {}): readonly DataQualityRule[] {
   return [...GLOBAL_DATA_QUALITY_RULES, ...unknownMapMinimumItemRules(input.entity_unknown_map_targets ?? [])];
 }
 

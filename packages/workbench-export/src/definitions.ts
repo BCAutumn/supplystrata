@@ -22,7 +22,7 @@ import type { SourcePlanItem } from "@supplystrata/source-plan";
 export interface WorkbenchExportInput {
   company: string;
   depth?: number;
-  generatedAt?: string;
+  generatedAt: string;
   since?: string;
   changeLimit?: number;
   sourceLimit?: number;

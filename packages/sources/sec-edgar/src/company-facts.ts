@@ -111,9 +111,9 @@ const secCompanyFactsAdapterBase: SourceAdapter<SecCompanyFactsInput, Uint8Array
   description: "SEC EDGAR company facts API",
   tos_url: "https://www.sec.gov/os/accessing-edgar-data",
   rate_limit: { requests: 5, per_seconds: 1 },
-  async *plan(input) {
+  async *plan(input, ctx) {
     const cik10 = normalizeCik(input.cik);
-    yield companyFactsTask(cik10, input.entityId);
+    yield companyFactsTask(cik10, input.entityId, ctx.now().toISOString().slice(0, 10));
   },
   async fetch(task, ctx) {
     const bytes = await fetchBytesWithTimeout(task.url, { userAgent: ctx.userAgent, timeoutMs: 12_000, sourceLabel: "SEC company facts" });
@@ -138,12 +138,12 @@ const secCompanyFactsAdapterBase: SourceAdapter<SecCompanyFactsInput, Uint8Array
 
 export const secCompanyFactsAdapter = createRateLimitedSourceAdapter(secCompanyFactsAdapterBase);
 
-export function companyFactsTask(cik10: string, entityId: string): FetchTask {
+export function companyFactsTask(cik10: string, entityId: string, period: string): FetchTask {
   return {
     task_id: `sec-companyfacts-${cik10}`,
     url: `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`,
     expected_format: "json",
-    hint: { entity_id: entityId, document_type: "company_facts", period: new Date().toISOString().slice(0, 10) }
+    hint: { entity_id: entityId, document_type: "company_facts", period }
   };
 }
 

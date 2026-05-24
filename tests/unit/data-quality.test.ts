@@ -38,7 +38,9 @@ describe("data-quality rules", () => {
   });
 
   it("builds parameterized unknown-map checks for the selected company", async () => {
-    const rules = dataQualityRules({ entity_unknown_map_targets: [{ scope_id: "ENT-ACME", label: "ACME", minimum_open_items: 2 }] });
+    const rules = dataQualityRules({
+      entity_unknown_map_targets: [{ scope_id: "ENT-ACME", label: "ACME", minimum_open_items: 2 }]
+    });
     const rule = rules.find((item) => item.rule_id === "unknown_map.minimum_open_items.ENT-ACME");
     if (rule === undefined) throw new Error("Expected entity unknown-map rule");
     const client = new DataQualityDbClient();

@@ -20,6 +20,7 @@ const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
   const pool = createIntegrationDatabaseStore();
+  const generatedAt = "2026-05-23T00:00:00.000Z";
 
   beforeAll(async () => {
     await migrate(pool);
@@ -58,7 +59,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
       await builder.close();
     }
 
-    const company = renderCompanyCard(await loadCompanyCard(pool.read, "nvidia"), "markdown");
+    const company = renderCompanyCard(await loadCompanyCard(pool.read, "nvidia", { computedAt: generatedAt }), "markdown");
     const unknownMap = renderUnknownMapCard(await loadUnknownMap(pool.read, "nvidia"), "markdown");
 
     expect(summary).toMatchObject({ candidates: 8, applied_edges: 8 });
@@ -74,6 +75,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
     const pack = await buildResearchPack(pool, {
       company: "nvidia",
       depth: 3,
+      generatedAt,
       components: ["COMP-HBM", "COMP-MEMORY"],
       officialDisclosureYear: "2025",
       sourceTargetNamespace: "e2e-nvidia-fixture",

@@ -36,7 +36,7 @@ export { resolveResearchPackWriteSteps } from "./prepare-data.js";
 export { safeFileSegment, writeResearchPack, writeWorkbenchSnapshotPack } from "./writer.js";
 
 export async function buildResearchPack(client: DatabaseStore, input: ResearchPackInput): Promise<ResearchPackModel> {
-  const generatedAt = input.generatedAt ?? new Date().toISOString();
+  const generatedAt = input.generatedAt;
   const depth = input.depth ?? 3;
   const writeSteps = resolveResearchPackWriteSteps(input);
   const claimBuild = await maybeBuildClaims(client, writeSteps, input);

@@ -57,7 +57,7 @@ export interface OfficialDisclosureSignalDispositionInput {
   evidenceId?: string;
   unknownId?: string;
   checkTargetId?: string;
-  recordedAt?: string;
+  recordedAt: string;
 }
 
 export interface OfficialDisclosureSignalDispositionRecord {
@@ -292,7 +292,7 @@ export async function recordOfficialDisclosureSignalDisposition(
   if (input.edgeId.trim().length === 0) throw new Error("Official disclosure signal disposition requires an edge id");
   if (input.reason.trim().length === 0) throw new Error("Official disclosure signal disposition requires a reason");
 
-  const recordedAt = input.recordedAt ?? new Date().toISOString();
+  const recordedAt = input.recordedAt;
   const after = {
     review_id: item.review_id,
     edge_id: input.edgeId,

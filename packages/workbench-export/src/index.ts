@@ -65,7 +65,7 @@ import { compareWorkbenchEvidence, edgeFreshnessToDto, edgeStrengthToDto, eviden
 import { loadWorkbenchReviewQueue, reviewQueueSourceAdapterIds } from "./review-queue.js";
 
 export async function buildWorkbenchModel(client: DbClient, input: WorkbenchExportInput): Promise<WorkbenchModel> {
-  const generatedAt = input.generatedAt ?? new Date().toISOString();
+  const generatedAt = input.generatedAt;
   const rootEntityId = await resolveEntityId(client, input.company);
   const chain = await buildCompanyChainView(client, { query: rootEntityId, depth: input.depth ?? 2, generated_by: "workbench-export.v1" });
   const edgeSegments = chain.segments.filter(isEdgeSegment);
