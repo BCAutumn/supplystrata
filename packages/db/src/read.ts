@@ -1,4 +1,4 @@
-export type { DbClient, DbRow } from "./client.js";
+export type { DbClient } from "./client.js";
 export type { EdgeFreshnessRecord, EdgeStrengthEstimateRecord } from "@supplystrata/core";
 export { listAlertCandidates, type AlertCandidateRecord, type AlertSeverity, type AlertStatus } from "./alerts.js";
 export { listEdgeCalibrationLabels, type EdgeCalibrationLabelRecord } from "./calibration.js";
