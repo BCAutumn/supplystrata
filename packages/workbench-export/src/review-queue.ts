@@ -1,6 +1,7 @@
 import type { DbClient } from "@supplystrata/db/read";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { OfficialSignalDispositionDbRow, ReviewCandidateDbRow } from "./db-rows.js";
+import type { OfficialSignalDispositionDtoSource, ReviewCandidateDtoSource } from "./dto-source-records.js";
 import type {
   WorkbenchEvidence,
   WorkbenchOfficialDisclosureSignalDisposition,
@@ -76,7 +77,7 @@ async function loadOfficialDisclosureSignalDispositions(
   return result.rows.map(officialSignalDispositionToDto);
 }
 
-function officialSignalDispositionToDto(row: OfficialSignalDispositionDbRow): WorkbenchOfficialDisclosureSignalDisposition {
+function officialSignalDispositionToDto(row: OfficialSignalDispositionDtoSource): WorkbenchOfficialDisclosureSignalDisposition {
   const after = row.after;
   if (after === null) throw new Error(`Official signal disposition change is missing payload: ${row.change_id}`);
   const policy = recordField(after, "fact_write_policy", row.change_id);
@@ -117,7 +118,7 @@ function dispositionDecision(value: string, changeId: string): WorkbenchOfficial
   throw new Error(`Invalid official signal disposition decision for ${changeId}: ${value}`);
 }
 
-function reviewCandidateToDto(row: ReviewCandidateDbRow): WorkbenchReviewCandidate {
+function reviewCandidateToDto(row: ReviewCandidateDtoSource): WorkbenchReviewCandidate {
   return {
     review_id: row.review_id,
     kind: row.kind,
@@ -137,7 +138,7 @@ function reviewCandidateToDto(row: ReviewCandidateDbRow): WorkbenchReviewCandida
   };
 }
 
-function reviewCandidateSignalToDto(row: ReviewCandidateDbRow): WorkbenchReviewCandidateSignal | null {
+function reviewCandidateSignalToDto(row: ReviewCandidateDtoSource): WorkbenchReviewCandidateSignal | null {
   if (row.kind !== "official_disclosure_signal") return null;
   return {
     signal_title: requiredText(row.signal_title, row.review_id, "signal_title"),

@@ -1,8 +1,8 @@
 import type { EdgeFreshnessRecord, EdgeStrengthEstimateRecord } from "@supplystrata/core";
-import type { EvidenceDbRow, SourceHealthDbRow, UnknownDbRow } from "./db-rows.js";
+import type { EvidenceDtoSource, SourceHealthDtoSource, UnknownDtoSource } from "./dto-source-records.js";
 import type { WorkbenchEdgeFreshness, WorkbenchEdgeStrength, WorkbenchEvidence, WorkbenchSourceHealth, WorkbenchUnknownItem } from "./definitions.js";
 
-export function evidenceToDto(row: EvidenceDbRow): WorkbenchEvidence {
+export function evidenceToDto(row: EvidenceDtoSource): WorkbenchEvidence {
   return {
     evidence_id: row.evidence_id,
     edge_id: row.edge_id,
@@ -32,7 +32,7 @@ export function evidenceToDto(row: EvidenceDbRow): WorkbenchEvidence {
   };
 }
 
-export function unknownItemToDto(row: UnknownDbRow): WorkbenchUnknownItem {
+export function unknownItemToDto(row: UnknownDtoSource): WorkbenchUnknownItem {
   return {
     unknown_id: row.unknown_id,
     scope_kind: row.scope_kind,
@@ -45,7 +45,7 @@ export function unknownItemToDto(row: UnknownDbRow): WorkbenchUnknownItem {
   };
 }
 
-export function sourceHealthToDto(row: SourceHealthDbRow): WorkbenchSourceHealth {
+export function sourceHealthToDto(row: SourceHealthDtoSource): WorkbenchSourceHealth {
   return {
     source_adapter_id: row.source_adapter_id,
     tier: row.tier,

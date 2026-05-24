@@ -1,158 +1,21 @@
 import type pg from "pg";
-import type { ClaimType, EdgeValidity, EvidenceLevel, ExtractionMethod, RelationType } from "@supplystrata/core";
-import type { WorkbenchClaimStatus, WorkbenchReviewCandidateStatus } from "./definitions.js";
+import type {
+  ClaimDtoSource,
+  EvidenceDtoSource,
+  OfficialSignalDispositionDtoSource,
+  ReviewCandidateDtoSource,
+  SourceHealthDtoSource,
+  UnknownDtoSource
+} from "./dto-source-records.js";
 
-export interface ClaimDbRow extends pg.QueryResultRow {
-  claim_id: string;
-  claim_type: ClaimType;
-  claim_text: string;
-  subject_id: string | null;
-  object_id: string | null;
-  component_id: string | null;
-  edge_id: string | null;
-  edge_validity: EdgeValidity | null;
-  edge_deprecated_reason: string | null;
-  edge_superseded_by_edge_id: string | null;
-  review_id: string | null;
-  status: WorkbenchClaimStatus;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  generated_by: string;
-  last_verified_at: Date | string;
-  created_at: Date | string;
-  updated_at: Date | string;
-}
+export interface ClaimDbRow extends pg.QueryResultRow, ClaimDtoSource {}
 
-export interface EvidenceDbRow extends pg.QueryResultRow {
-  evidence_id: string;
-  edge_id: string | null;
-  superseded_by: string | null;
-  cite_text: string;
-  cite_locator: string | null;
-  cite_start_char: number | null;
-  cite_end_char: number | null;
-  cite_text_sha256: string | null;
-  normalized_cite_text_sha256: string | null;
-  source_snapshot_sha256: string | null;
-  parser_version: string | null;
-  extractor_version: string | null;
-  relation_candidate_hash: string | null;
-  evidence_level: EvidenceLevel;
-  confidence: number;
-  is_inferred: boolean;
-  extraction_method: ExtractionMethod;
-  source_url: string;
-  source_date: Date | string | null;
-  fetched_at: Date | string;
-  source_adapter_id: string;
-  document_type: string;
-  subject_name: string | null;
-  object_name: string | null;
-  relation: RelationType | null;
-}
+export interface EvidenceDbRow extends pg.QueryResultRow, EvidenceDtoSource {}
 
-export interface UnknownDbRow extends pg.QueryResultRow {
-  unknown_id: string;
-  scope_kind: string;
-  scope_id: string;
-  question: string;
-  why_unknown: string;
-  blocking_data_sources: string[];
-  proxies: string[];
-  status: string;
-}
+export interface UnknownDbRow extends pg.QueryResultRow, UnknownDtoSource {}
 
-export interface SourceHealthDbRow extends pg.QueryResultRow {
-  source_adapter_id: string;
-  tier: string;
-  category: string;
-  registry_status: string;
-  automation: string;
-  tos_url: string;
-  official_url: string;
-  requires_key: boolean;
-  last_checked_at: Date | string | null;
-  last_success_at: Date | string | null;
-  last_failure_at: Date | string | null;
-  failure_count: number;
-  last_change_at: Date | string | null;
-  last_error_message: string | null;
-  policy_enabled: boolean | null;
-  check_cadence_minutes: number | null;
-  jitter_minutes: number | null;
-  priority: number | null;
-  next_check_at: Date | string | null;
-  policy_config_source: string | null;
-  policy_notes: string | null;
-}
+export interface SourceHealthDbRow extends pg.QueryResultRow, SourceHealthDtoSource {}
 
-export interface ReviewCandidateDbRow extends pg.QueryResultRow {
-  review_id: string;
-  kind: string;
-  status: WorkbenchReviewCandidateStatus;
-  title: string | null;
-  confidence: string | null;
-  source_adapter_id: string;
-  doc_id: string | null;
-  source_url: string | null;
-  source_locator: string | null;
-  source_row_text: string | null;
-  signal_title: string | null;
-  signal_evidence_level_hint: string | null;
-  signal_automatic_fact_mutation_allowed: string | null;
-  reviewed_at: Date | string | null;
-  decision_reason: string | null;
-  created_at: Date | string;
-}
+export interface ReviewCandidateDbRow extends pg.QueryResultRow, ReviewCandidateDtoSource {}
 
-export interface OfficialSignalDispositionDbRow extends pg.QueryResultRow {
-  change_id: string;
-  review_id: string;
-  after: Record<string, unknown> | null;
-  caused_by: string;
-  detected_at: Date | string;
-}
-
-export interface ChangeTimelineDbRecord {
-  event_id: string;
-  event_family: "graph" | "source" | "semantic" | "risk";
-  event_type: string;
-  occurred_at: string;
-  caused_by: string;
-  requires_attention: boolean;
-  scope_kind?: string;
-  scope_id?: string;
-  source_adapter_id?: string;
-  source_item_id?: string;
-  doc_id?: string;
-  previous_doc_id?: string;
-  next_doc_id?: string;
-  edge_id?: string;
-  evidence_id?: string;
-  evidence_level?: EvidenceLevel;
-  superseded_evidence_ids?: string[];
-  superseded_by_evidence_id?: string;
-  subject_id?: string;
-  subject_name?: string;
-  object_id?: string;
-  object_name?: string;
-  relation?: RelationType;
-  component?: string;
-  semantic_relation_kind?: string;
-  relation_subject_surface?: string;
-  relation_object_surface?: string;
-  relation_fingerprint?: string;
-  observation_scope_kind?: string;
-  observation_scope_id?: string;
-  metric_name?: string;
-  metric_value?: string;
-  metric_unit?: string;
-  baseline_method?: string;
-  baseline_value?: string;
-  change_percent?: number;
-  anomaly_severity?: string;
-  anomaly_direction?: string;
-  before?: Record<string, unknown>;
-  after?: Record<string, unknown>;
-}
+export interface OfficialSignalDispositionDbRow extends pg.QueryResultRow, OfficialSignalDispositionDtoSource {}

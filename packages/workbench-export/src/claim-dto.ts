@@ -1,10 +1,10 @@
 import { buildClaimConflictContext } from "@supplystrata/claim-builder";
 import { listClaimEvidenceLinks, listClaimUnknownLinks, type ClaimEvidenceRole, type ClaimUnknownRole, type DbClient } from "@supplystrata/db/read";
-import type { ClaimDbRow } from "./db-rows.js";
+import type { ClaimDtoSource } from "./dto-source-records.js";
 import type { WorkbenchClaim, WorkbenchClaimEvidenceRef, WorkbenchClaimLifecycleWarning, WorkbenchClaimUnknownRef } from "./definitions.js";
 import { toIsoString } from "./dto-mappers.js";
 
-export async function claimToDto(client: DbClient, row: ClaimDbRow): Promise<WorkbenchClaim> {
+export async function claimToDto(client: DbClient, row: ClaimDtoSource): Promise<WorkbenchClaim> {
   const [evidenceRefs, unknownRefs] = await Promise.all([listClaimEvidenceLinks(client, row.claim_id), listClaimUnknownLinks(client, row.claim_id)]);
   const evidenceRefsDto = claimEvidenceRefsToDto(evidenceRefs);
   const unknownRefsDto = claimUnknownRefsToDto(unknownRefs);
@@ -57,7 +57,7 @@ function compareWorkbenchClaims(left: WorkbenchClaim, right: WorkbenchClaim): nu
   return right.evidence_level - left.evidence_level || right.confidence - left.confidence || left.claim_id.localeCompare(right.claim_id);
 }
 
-function claimLifecycleWarnings(row: ClaimDbRow): WorkbenchClaimLifecycleWarning[] {
+function claimLifecycleWarnings(row: ClaimDtoSource): WorkbenchClaimLifecycleWarning[] {
   if (row.status !== "active") return [];
   if (row.edge_id === null || row.edge_validity === null || row.edge_validity === "current") return [];
   const replacement = row.edge_superseded_by_edge_id === null ? "" : `; superseded by ${row.edge_superseded_by_edge_id}`;
