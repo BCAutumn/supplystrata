@@ -23,6 +23,51 @@ const OFFICIAL_SOURCE_CONNECTOR_IDS = new Set([
   "asml-ir"
 ]);
 
+const EXPECTED_SOURCE_COVERAGE_SUMMARY_ACTION_RULES = [
+  {
+    state: "connector_available",
+    action: "Add node-specific source-plan targets for expected official sources that already have connectors, then sync them into source_check_targets."
+  },
+  {
+    state: "source_registered_unimplemented",
+    action: "Keep registered-but-unimplemented official sources as explicit Gate 1 gaps until connector or manual-review workflow support exists."
+  }
+] as const satisfies readonly {
+  state: OfficialDisclosureExpectedSourceCoverageState;
+  action: string;
+}[];
+
+const DEFAULT_EXPECTED_SOURCE_COVERAGE_SUMMARY_ACTION = "Register missing expected source mappings before using the profile as an operational coverage plan.";
+
+const EXPECTED_SOURCE_COVERAGE_ACTIONS = {
+  covered_fact: () => "Official fact evidence from this expected source is already visible in the pack.",
+  official_target_with_observation: () =>
+    "Review produced official observations and promote only traceable evidence candidates through the evidence review path.",
+  official_target_synced: () => "Enable or run the synced official source target according to the configured monitoring policy.",
+  official_target_runnable: () => "Sync the runnable source-plan target into source_check_targets before expecting observations.",
+  official_source_planned: () => "Add a concrete runnable target config for this planned official source.",
+  connector_available: (sourceId) => `Create a node-specific source-plan target for ${sourceId}; the connector exists but this profile node is not yet wired.`,
+  source_registered_unimplemented: (sourceId) => `Keep ${sourceId} as an explicit backend coverage gap until a connector or manual review workflow exists.`,
+  missing_source_mapping: () => "Map this expected source id to the registered source catalog before treating it as actionable coverage."
+} as const satisfies Record<OfficialDisclosureExpectedSourceCoverageState, (sourceId: string) => string>;
+
+const EXPECTED_SOURCE_COVERAGE_ORDER = {
+  missing_source_mapping: 0,
+  source_registered_unimplemented: 1,
+  connector_available: 2,
+  official_source_planned: 3,
+  official_target_runnable: 4,
+  official_target_synced: 5,
+  official_target_with_observation: 6,
+  covered_fact: 7
+} as const satisfies Record<OfficialDisclosureExpectedSourceCoverageState, number>;
+
+const TARGET_PRIORITY_ORDER = {
+  P0: 0,
+  P1: 1,
+  P2: 2
+} as const satisfies Record<NonNullable<OfficialDisclosureExpectedSourceCoverage["target_priority"]>, number>;
+
 export function buildExpectedSourceCoverage(input: {
   nodes: readonly OfficialDisclosureReadinessNode[];
   edges: readonly OfficialDisclosureReadinessEdge[];
@@ -45,11 +90,10 @@ export function buildExpectedSourceCoverage(input: {
 }
 
 export function expectedSourceCoverageAction(items: readonly OfficialDisclosureExpectedSourceCoverage[]): string {
-  if (items.some((item) => item.coverage_state === "connector_available"))
-    return "Add node-specific source-plan targets for expected official sources that already have connectors, then sync them into source_check_targets.";
-  if (items.some((item) => item.coverage_state === "source_registered_unimplemented"))
-    return "Keep registered-but-unimplemented official sources as explicit Gate 1 gaps until connector or manual-review workflow support exists.";
-  return "Register missing expected source mappings before using the profile as an operational coverage plan.";
+  const coverageStates = new Set(items.map((item) => item.coverage_state));
+  return (
+    EXPECTED_SOURCE_COVERAGE_SUMMARY_ACTION_RULES.find((rule) => coverageStates.has(rule.state))?.action ?? DEFAULT_EXPECTED_SOURCE_COVERAGE_SUMMARY_ACTION
+  );
 }
 
 export function expectedSourceHasCoverage(state: OfficialDisclosureExpectedSourceCoverageState): boolean {
@@ -115,17 +159,7 @@ function expectedSourceCoverageState(input: {
 }
 
 function actionForExpectedSourceCoverage(state: OfficialDisclosureExpectedSourceCoverageState, sourceId: string): string {
-  if (state === "covered_fact") return "Official fact evidence from this expected source is already visible in the pack.";
-  if (state === "official_target_with_observation")
-    return "Review produced official observations and promote only traceable evidence candidates through the evidence review path.";
-  if (state === "official_target_synced") return "Enable or run the synced official source target according to the configured monitoring policy.";
-  if (state === "official_target_runnable") return "Sync the runnable source-plan target into source_check_targets before expecting observations.";
-  if (state === "official_source_planned") return "Add a concrete runnable target config for this planned official source.";
-  if (state === "connector_available")
-    return `Create a node-specific source-plan target for ${sourceId}; the connector exists but this profile node is not yet wired.`;
-  if (state === "source_registered_unimplemented")
-    return `Keep ${sourceId} as an explicit backend coverage gap until a connector or manual review workflow exists.`;
-  return `Map this expected source id to the registered source catalog before treating it as actionable coverage.`;
+  return EXPECTED_SOURCE_COVERAGE_ACTIONS[state](sourceId);
 }
 
 function compareExpectedSourceCoverage(left: OfficialDisclosureExpectedSourceCoverage, right: OfficialDisclosureExpectedSourceCoverage): number {
@@ -139,18 +173,9 @@ function compareExpectedSourceCoverage(left: OfficialDisclosureExpectedSourceCov
 }
 
 function expectedSourceCoverageOrder(state: OfficialDisclosureExpectedSourceCoverageState): number {
-  if (state === "missing_source_mapping") return 0;
-  if (state === "source_registered_unimplemented") return 1;
-  if (state === "connector_available") return 2;
-  if (state === "official_source_planned") return 3;
-  if (state === "official_target_runnable") return 4;
-  if (state === "official_target_synced") return 5;
-  if (state === "official_target_with_observation") return 6;
-  return 7;
+  return EXPECTED_SOURCE_COVERAGE_ORDER[state];
 }
 
 function priorityOrder(priority: "P0" | "P1" | "P2"): number {
-  if (priority === "P0") return 0;
-  if (priority === "P1") return 1;
-  return 2;
+  return TARGET_PRIORITY_ORDER[priority];
 }
