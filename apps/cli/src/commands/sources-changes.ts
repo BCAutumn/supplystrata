@@ -40,6 +40,7 @@ import {
   write,
   writeJson
 } from "../cli-utils.js";
+import { currentIsoTimestamp } from "../cli-clock.js";
 import {
   buildManualSourceCheckConfig,
   buildSourceCheckTargetIdsFromSourcePlanFile,
@@ -131,7 +132,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .action(async (options: { limit: string; checkTargetId?: string; source?: string; sourcePlan?: string; namespace?: string; format: string }) => {
       await withDatabase(async (pool) => {
         const selection = await buildSourceCheckSelectionOptions(options);
-        const due = await listDueSourceChecks(pool.read, { limit: parseLimit(options.limit), now: new Date().toISOString(), ...selection });
+        const due = await listDueSourceChecks(pool.read, { limit: parseLimit(options.limit), now: currentIsoTimestamp(), ...selection });
         write(renderDueSources(due, parseFormat(options.format)));
       });
     });
@@ -150,7 +151,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         const result = await runDueSourceChecks(pool, {
           env: loadEnv(),
           limit: parseLimit(options.limit),
-          now: new Date().toISOString(),
+          now: currentIsoTimestamp(),
           documentObservationStore: { persistDocumentObservations },
           ...selection
         });
@@ -198,7 +199,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
               ...(options.targetKind === undefined ? {} : { target_kind: options.targetKind }),
               target_config: targetConfig
             },
-            { env: loadEnv(), checkedAt: new Date().toISOString(), documentObservationStore: { persistDocumentObservations } }
+            { env: loadEnv(), checkedAt: currentIsoTimestamp(), documentObservationStore: { persistDocumentObservations } }
           );
           if (parseFormat(options.format) === "json") {
             writeJson({

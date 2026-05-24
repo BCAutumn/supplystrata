@@ -24,6 +24,7 @@ import {
   write,
   writeJson
 } from "../cli-utils.js";
+import { currentIsoTimestamp } from "../cli-clock.js";
 import { createCliNeo4jGraphStore } from "../graph-store.js";
 import { renderAppleSuppliersPreview, renderPreview, renderResearchReport } from "../preview-render.js";
 import { sourceWorkflowRuntime, type CliSourceWorkflowRuntime } from "../source-workflow-runtime.js";
@@ -158,7 +159,7 @@ async function runSecEdgarPipeline(store: DatabaseStore, input: SecPipelineInput
       await recordSourceFailure(client, {
         source_adapter_id: "sec-edgar",
         error_message: messageFromUnknown(error),
-        failed_at: new Date().toISOString(),
+        failed_at: currentIsoTimestamp(),
         caused_by: "pipeline.sec-edgar"
       });
     });

@@ -11,6 +11,7 @@ import {
 } from "@supplystrata/research-pack";
 import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 import { parseCommaSeparated, parseLimit, parseSince, parseTradeDirections, withDatabase, writeJson } from "../cli-utils.js";
+import { explicitOrCurrentIsoTimestamp } from "../cli-clock.js";
 
 export function registerResearchCommands(program: Command): void {
   const research = program.command("research").description("research package commands");
@@ -72,7 +73,7 @@ export function registerResearchCommands(program: Command): void {
         out: string;
       }) => {
         await withDatabase(async (store) => {
-          const generatedAt = options.generatedAt === undefined ? new Date().toISOString() : parseSince(options.generatedAt);
+          const generatedAt = explicitOrCurrentIsoTimestamp(options.generatedAt);
           const pack = await buildResearchPack(store, await researchPackInputFromOptions({ ...options, generatedAt }));
           const written = await writeResearchPack(options.out, pack);
           writeJson({

@@ -4,6 +4,7 @@ import { loadEnv } from "@supplystrata/config";
 import { createDatabaseStore } from "@supplystrata/db/write";
 import { buildRuntimeDoctorReport, type RuntimeDoctorReport } from "@supplystrata/runtime-profile";
 import { parseFormat, write, writeJson } from "../cli-utils.js";
+import { currentIsoTimestamp } from "../cli-clock.js";
 
 export function registerRuntimeCommands(program: Command): void {
   const runtime = program.command("runtime").description("runtime mode diagnostics");
@@ -29,7 +30,7 @@ async function probeRuntimeDoctorReport(input: { workbenchPath: string; checkDb:
   const workbenchExists = existsSync(input.workbenchPath);
   const dbReachable = input.checkDb ? await checkDatabaseConnection() : null;
   return buildRuntimeDoctorReport({
-    checked_at: new Date().toISOString(),
+    checked_at: currentIsoTimestamp(),
     postgres_url: env.POSTGRES_URL,
     neo4j_uri: env.NEO4J_URI,
     checked_db: input.checkDb,

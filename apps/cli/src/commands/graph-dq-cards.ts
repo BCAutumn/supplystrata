@@ -6,6 +6,7 @@ import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import { renderChainCard, renderCompanyCard, renderComponentCard, renderEvidenceCard, renderUnknownMapCard } from "@supplystrata/render";
 import { parseFormat, parseGraphSyncMode, parseLimit, parseSince, withDatabase, write, writeJson } from "../cli-utils.js";
+import { currentIsoTimestamp, explicitOrCurrentIsoTimestamp } from "../cli-clock.js";
 import { renderDataQuality } from "../dq-render.js";
 import { createCliNeo4jGraphStore } from "../graph-store.js";
 import { renderGraphCheck } from "../graph-render.js";
@@ -127,7 +128,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("run MVP data quality checks against Postgres truth")
     .action(async (options: { format: string; unknownCompany?: string; unknownMin: string; checkedAt?: string }) => {
       await withDatabase(async (pool) => {
-        const checkedAt = options.checkedAt === undefined ? new Date().toISOString() : parseSince(options.checkedAt);
+        const checkedAt = explicitOrCurrentIsoTimestamp(options.checkedAt);
         const summary = await runDataQualityChecks(pool.read, {
           checkedAt,
           ...(options.unknownCompany === undefined
@@ -145,7 +146,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a company card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderCompanyCard(await loadCompanyCard(pool.read, query, { computedAt: new Date().toISOString() }), parseFormat(options.format)));
+        write(renderCompanyCard(await loadCompanyCard(pool.read, query, { computedAt: currentIsoTimestamp() }), parseFormat(options.format)));
       });
     });
 
@@ -168,7 +169,7 @@ export function registerGraphDqAndCardCommands(program: Command): void {
     .description("render a component supply-chain card")
     .action(async (query: string, options: { format: string }) => {
       await withDatabase(async (pool) => {
-        write(renderComponentCard(await loadComponentCard(pool.read, query, { computedAt: new Date().toISOString() }), parseFormat(options.format)));
+        write(renderComponentCard(await loadComponentCard(pool.read, query, { computedAt: currentIsoTimestamp() }), parseFormat(options.format)));
       });
     });
 

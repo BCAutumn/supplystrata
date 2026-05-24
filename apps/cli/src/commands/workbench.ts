@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 import type { Command } from "commander";
 import { buildWorkbenchModel } from "@supplystrata/workbench-export";
 import { parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
+import { explicitOrCurrentIsoTimestamp } from "../cli-clock.js";
 
 export function registerWorkbenchCommands(program: Command): void {
   const workbench = program.command("workbench").description("local research workbench commands");
@@ -18,7 +19,7 @@ export function registerWorkbenchCommands(program: Command): void {
     .action(
       async (options: { company: string; depth: string; since?: string; generatedAt?: string; changeLimit: string; sourceLimit: string; out?: string }) => {
         await withDatabase(async (pool) => {
-          const generatedAt = options.generatedAt === undefined ? new Date().toISOString() : parseSince(options.generatedAt);
+          const generatedAt = explicitOrCurrentIsoTimestamp(options.generatedAt);
           const model = await buildWorkbenchModel(pool.read, {
             company: options.company,
             depth: parseLimit(options.depth),

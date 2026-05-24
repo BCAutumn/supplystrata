@@ -16,6 +16,7 @@ import {
 import { listAlertCandidates, type AlertStatus } from "@supplystrata/db/read";
 import { updateAlertCandidateStatus } from "@supplystrata/db/write";
 import { defaultSince, parseLimit, parseSince, withDatabase, writeJson } from "../cli-utils.js";
+import { explicitOrCurrentIsoTimestamp } from "../cli-clock.js";
 
 export function registerIntelligenceCommands(program: Command): void {
   const intelligence = program.command("intelligence").description("derived intelligence context commands");
@@ -56,7 +57,7 @@ export function registerIntelligenceCommands(program: Command): void {
         options: { label: string; reviewer: string; evidence?: string; errorCategory?: string; reviewedAt?: string; rationale?: string }
       ) => {
         await withDatabase(async (store) => {
-          const reviewedAt = options.reviewedAt === undefined ? new Date().toISOString() : parseSince(options.reviewedAt);
+          const reviewedAt = explicitOrCurrentIsoTimestamp(options.reviewedAt);
           const result = await store.transaction((client) =>
             recordEdgeCalibrationLabel(client, {
               edge_id: edgeId,
@@ -81,7 +82,7 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("compute deterministic edge precision and reliability buckets from human calibration labels")
     .action(async (options: { minEvidenceLevel: string; limit: string; generatedAt?: string }) => {
       await withDatabase(async (store) => {
-        const generatedAt = options.generatedAt === undefined ? new Date().toISOString() : parseSince(options.generatedAt);
+        const generatedAt = explicitOrCurrentIsoTimestamp(options.generatedAt);
         const summary = await store.transaction((client) =>
           refreshEdgeCalibrationRun(client, {
             min_evidence_level: parseCalibrationEvidenceLevel(options.minEvidenceLevel),
@@ -102,7 +103,7 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("refresh deterministic edge strength, freshness, and strength-unknown context")
     .action(async (options: { minEvidenceLevel: string; limit: string; computedAt?: string; skipUnknowns?: boolean }) => {
       await withDatabase(async (store) => {
-        const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
+        const computedAt = explicitOrCurrentIsoTimestamp(options.computedAt);
         const summary = await store.transaction((client) =>
           refreshEdgeIntelligenceContext(client, {
             min_evidence_level: parseEvidenceLevel(options.minEvidenceLevel),
@@ -122,7 +123,7 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("refresh deterministic component risk baseline from fact edges, strength, and freshness")
     .action(async (options: { component: string; computedAt?: string }) => {
       await withDatabase(async (store) => {
-        const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
+        const computedAt = explicitOrCurrentIsoTimestamp(options.computedAt);
         const componentId = options.component.trim();
         const eligibleComponents = await listRefreshableComponentRiskComponentIds(store.read, [componentId]);
         if (!eligibleComponents.includes(componentId)) {
@@ -163,7 +164,7 @@ export function registerIntelligenceCommands(program: Command): void {
         computedAt?: string;
       }) => {
         await withDatabase(async (store) => {
-          const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
+          const computedAt = explicitOrCurrentIsoTimestamp(options.computedAt);
           const summary = await store.transaction((client) =>
             refreshObservationAnomalyViews(client, {
               limit: parseLimit(options.limit),
@@ -187,7 +188,7 @@ export function registerIntelligenceCommands(program: Command): void {
     .description("refresh deterministic same-period financial metric peer comparison views")
     .action(async (options: { limit: string; minPeerCount: string; computedAt?: string }) => {
       await withDatabase(async (store) => {
-        const computedAt = options.computedAt === undefined ? new Date().toISOString() : parseSince(options.computedAt);
+        const computedAt = explicitOrCurrentIsoTimestamp(options.computedAt);
         const summary = await store.transaction((client) =>
           refreshFinancialMetricPeerComparisonViews(client, {
             limit: parseLimit(options.limit),

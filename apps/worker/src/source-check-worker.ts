@@ -19,7 +19,7 @@ export async function runSourceCheckWorkerCycle(input: {
   limit: number;
   logger: SupplyStrataLogger;
 }): Promise<DueSourceCheckRunResult> {
-  const startedAt = new Date().toISOString();
+  const startedAt = currentIsoTimestamp();
   const result = await runDueSourceChecks(input.store, {
     env: input.env,
     limit: input.limit,
@@ -41,6 +41,10 @@ export async function runSourceCheckWorkerCycle(input: {
     "source check worker cycle completed"
   );
   return result;
+}
+
+function currentIsoTimestamp(): string {
+  return new Date().toISOString();
 }
 
 export async function runSourceCheckWorkerLoop(input: SourceCheckWorkerLoopInput): Promise<void> {
