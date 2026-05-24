@@ -5,8 +5,6 @@ import type {
   Gate1CompanySwitchingLedger,
   Gate1DataProgressLedger,
   Gate1MainlinePhase,
-  Gate1MonitoringBatch,
-  Gate1MonitoringConfigLedger,
   Gate1RunAction,
   Gate1RunLedger,
   Gate1RunScorecard,
@@ -17,7 +15,10 @@ import type {
   Gate1ReviewWorkbench,
   Gate1SourcePathProgressLedger
 } from "./gate1-run-ledger-definitions.js";
+import { buildGate1MonitoringConfig, gate1SourcePathProgressFromCoverage } from "./gate1-run-ledger-monitoring.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
+import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
+import type { SourceTargetPreflightReport } from "./source-target-preflight.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 
 export type * from "./gate1-run-ledger-definitions.js";
@@ -32,15 +33,22 @@ export interface Gate1RunLedgerInput {
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   corroboration_source_plan: CorroborationSourcePlan;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
+  source_target_coverage?: SourceTargetCoverageReport;
+  source_target_preflight?: SourceTargetPreflightReport | null;
 }
 
 export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger {
   const scorecard = gate1RunScorecard(input.official_disclosure_readiness);
   const dataProgress = gate1DataProgress(input.official_disclosure_readiness);
-  const sourcePathProgress = gate1SourcePathProgress(input.official_disclosure_readiness);
+  const sourcePathProgress = gate1SourcePathProgress(input.official_disclosure_readiness, input.source_target_coverage);
   const mainlinePhase = gate1MainlinePhase({ readiness: input.official_disclosure_readiness, dataProgress, sourcePathProgress });
   const companySwitching = gate1CompanySwitching(input);
-  const monitoringConfig = gate1MonitoringConfig({ input, dataProgress, sourcePathProgress });
+  const monitoringConfig = buildGate1MonitoringConfig({
+    namespace: input.research_input.sourceTargetNamespace ?? defaultNamespace(input.company_id),
+    dataProgress,
+    sourcePathProgress,
+    sourceTargetPreflight: input.source_target_preflight ?? null
+  });
   const actionQueue = gate1RunActions({ input, dataProgress, sourcePathProgress, companySwitching });
   return {
     schema_version: "1.0.0",
@@ -61,128 +69,6 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
       "Single-source silence must become an explicit disposition or unknown; it is not corroboration.",
       "Frontier company switching uses the same generic research run path; do not add company-specific supplier workflows."
     ]
-  };
-}
-
-const GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS = {
-  enabled_on_sync: false,
-  enable_after_review: true,
-  check_cadence_minutes: 10_080,
-  jitter_minutes: 120,
-  max_attempts: 3,
-  backoff_base_minutes: 2,
-  backoff_max_minutes: 120,
-  next_check_at: null
-} as const;
-
-function gate1MonitoringConfig(input: {
-  input: Gate1RunLedgerInput;
-  dataProgress: Gate1DataProgressLedger;
-  sourcePathProgress: Gate1SourcePathProgressLedger;
-}): Gate1MonitoringConfigLedger {
-  const namespace = input.input.research_input.sourceTargetNamespace ?? defaultNamespace(input.input.company_id);
-  return {
-    config_surface: "source_policy_config",
-    namespace,
-    target_schedule_defaults: GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS,
-    configurable_fields: [
-      monitoringField("check_cadence_minutes", "Check cadence", "minutes", 1, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.check_cadence_minutes, "number_input"),
-      monitoringField("jitter_minutes", "Jitter", "minutes", 0, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.jitter_minutes, "number_input"),
-      monitoringField("max_attempts", "Retry attempts", "count", 1, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.max_attempts, "number_input"),
-      monitoringField(
-        "backoff_base_minutes",
-        "Retry backoff base",
-        "minutes",
-        1,
-        GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_base_minutes,
-        "number_input"
-      ),
-      monitoringField("backoff_max_minutes", "Retry backoff max", "minutes", 1, GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_max_minutes, "number_input"),
-      monitoringField("next_check_at", "Initial next check", "iso_datetime_or_null", null, null, "datetime_input")
-    ],
-    batches: monitoringBatches({
-      namespace,
-      sourcePathProgress: input.sourcePathProgress,
-      dataProgress: input.dataProgress
-    }),
-    guardrails: [
-      "Syncing a target writes source_check_targets only; it does not fetch documents.",
-      "Enabling a target starts scheduled monitoring only after review; it does not create fact edges.",
-      "Smoke runs stay no-database and should happen before syncing or enabling uncertain corroboration targets.",
-      "Cadence, jitter, retry, backoff, and next_check_at are configuration fields for source policy/target state, not research conclusions."
-    ]
-  };
-}
-
-function monitoringField(
-  field: Gate1MonitoringConfigLedger["configurable_fields"][number]["field"],
-  label: string,
-  unit: Gate1MonitoringConfigLedger["configurable_fields"][number]["unit"],
-  min: number | null,
-  recommended: number | null,
-  frontendControl: Gate1MonitoringConfigLedger["configurable_fields"][number]["frontend_control"]
-): Gate1MonitoringConfigLedger["configurable_fields"][number] {
-  return { field, label, unit, min, recommended, frontend_control: frontendControl };
-}
-
-function monitoringBatches(input: {
-  namespace: string;
-  sourcePathProgress: Gate1SourcePathProgressLedger;
-  dataProgress: Gate1DataProgressLedger;
-}): Gate1MonitoringBatch[] {
-  return [
-    monitoringBatch({
-      batch_id: "official_source_path",
-      source_plan_ref: "source-plan.json",
-      target_count: input.sourcePathProgress.runnable_targets,
-      current_state:
-        input.sourcePathProgress.synced_targets === 0
-          ? "not_synced"
-          : input.sourcePathProgress.due_targets > 0
-            ? "due"
-            : input.sourcePathProgress.targets_with_observations > 0
-              ? "observing"
-              : "synced",
-      recommended_next_decision: input.sourcePathProgress.synced_targets === 0 ? "approve_sync" : "approve_run_due",
-      namespace: input.namespace
-    }),
-    monitoringBatch({
-      batch_id: "edge_corroboration",
-      source_plan_ref:
-        input.dataProgress.corroboration_queue_with_runnable_targets > 0 ? "corroboration-source-plan-smoke.json" : "corroboration-source-plan.json",
-      target_count: input.dataProgress.corroboration_queue_with_runnable_targets,
-      current_state: input.dataProgress.corroboration_queue_with_runnable_targets > 0 ? "smoke_first" : "not_synced",
-      recommended_next_decision: "approve_smoke",
-      namespace: input.namespace
-    })
-  ];
-}
-
-function monitoringBatch(input: {
-  batch_id: Gate1MonitoringBatch["batch_id"];
-  source_plan_ref: string;
-  target_count: number;
-  current_state: Gate1MonitoringBatch["current_state"];
-  recommended_next_decision: Gate1MonitoringBatch["recommended_next_decision"];
-  namespace: string;
-}): Gate1MonitoringBatch {
-  const scheduleFlags = [
-    `--check-cadence-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.check_cadence_minutes)}`,
-    `--jitter-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.jitter_minutes)}`,
-    `--max-attempts ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.max_attempts)}`,
-    `--backoff-base-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_base_minutes)}`,
-    `--backoff-max-minutes ${String(GATE1_MONITORING_TARGET_SCHEDULE_DEFAULTS.backoff_max_minutes)}`
-  ].join(" ");
-  return {
-    batch_id: input.batch_id,
-    source_plan_ref: input.source_plan_ref,
-    target_count: input.target_count,
-    current_state: input.current_state,
-    recommended_next_decision: input.recommended_next_decision,
-    preview_command_hint: `supplystrata sources policy preview-plan-targets --source-plan ${input.source_plan_ref} --namespace ${input.namespace} ${scheduleFlags}`,
-    sync_command_hint: `supplystrata sources policy sync-plan-targets --source-plan ${input.source_plan_ref} --namespace ${input.namespace} ${scheduleFlags}`,
-    enable_command_hint: `supplystrata sources policy enable-plan-targets --source-plan ${input.source_plan_ref} --namespace ${input.namespace} ${scheduleFlags}`,
-    run_due_command_hint: `supplystrata sources run-due --source-plan ${input.source_plan_ref} --namespace ${input.namespace}`
   };
 }
 
@@ -213,7 +99,9 @@ function gate1ReviewWorkbench(input: {
 
 function sourceTargetBatchReviewItems(actions: readonly Gate1RunAction[]): Gate1ReviewItem[] {
   return actions
-    .filter((action) => action.kind === "smoke_targets" || action.kind === "sync_targets" || action.kind === "run_due_targets")
+    .filter(
+      (action) => action.kind === "smoke_targets" || action.kind === "sync_targets" || action.kind === "enable_targets" || action.kind === "run_due_targets"
+    )
     .map((action) => {
       const recommended = sourceTargetDecision(action.kind);
       return reviewItem({
@@ -370,18 +258,24 @@ function gate1DataProgress(report: OfficialDisclosureReadinessReport): Gate1Data
   };
 }
 
-function gate1SourcePathProgress(report: OfficialDisclosureReadinessReport): Gate1SourcePathProgressLedger {
-  return {
-    expected_source_links: report.summary.expected_official_source_links,
-    expected_source_links_with_coverage: report.summary.expected_official_source_links_with_coverage,
-    expected_source_links_gap: Math.max(0, report.summary.expected_official_source_links - report.summary.expected_official_source_links_with_coverage),
-    runnable_targets: report.summary.runnable_official_targets,
-    synced_targets: report.summary.synced_official_targets,
-    due_targets: report.summary.due_official_targets,
-    degraded_targets: report.summary.degraded_official_targets,
-    targets_with_observations: report.summary.official_targets_with_observations,
-    next_focus: sourcePathFocus(report)
-  };
+function gate1SourcePathProgress(
+  report: OfficialDisclosureReadinessReport,
+  sourceTargetCoverage: SourceTargetCoverageReport | undefined
+): Gate1SourcePathProgressLedger {
+  return gate1SourcePathProgressFromCoverage(
+    {
+      expected_source_links: report.summary.expected_official_source_links,
+      expected_source_links_with_coverage: report.summary.expected_official_source_links_with_coverage,
+      expected_source_links_gap: Math.max(0, report.summary.expected_official_source_links - report.summary.expected_official_source_links_with_coverage),
+      runnable_targets: report.summary.runnable_official_targets,
+      synced_targets: report.summary.synced_official_targets,
+      due_targets: report.summary.due_official_targets,
+      degraded_targets: report.summary.degraded_official_targets,
+      targets_with_observations: report.summary.official_targets_with_observations,
+      next_focus: sourcePathFocus(report)
+    },
+    sourceTargetCoverage
+  );
 }
 
 function gate1MainlinePhase(input: {
@@ -419,6 +313,7 @@ function phaseReason(phase: Gate1MainlinePhase): string {
 
 function sourceTargetDecision(kind: Gate1RunAction["kind"]): Gate1ReviewDecision {
   if (kind === "smoke_targets") return "approve_smoke";
+  if (kind === "enable_targets") return "approve_enable";
   if (kind === "run_due_targets") return "approve_run_due";
   return "approve_sync";
 }
@@ -466,6 +361,17 @@ function sourcePathActions(input: Gate1RunLedgerInput, progress: Gate1SourcePath
       title: "Sync runnable official source targets",
       rationale: `${progress.runnable_targets - progress.synced_targets} runnable official targets are not yet synced into source_check_targets.`,
       command_hint: `supplystrata sources policy sync-plan-targets --source-plan ${sourcePlanRef} --namespace ${namespace}`,
+      refs: [sourcePlanRef, "source-target-coverage.json"]
+    });
+  }
+  if (progress.synced_targets > progress.enabled_targets) {
+    actions.push({
+      action_id: "gate1:source-targets:enable",
+      kind: "enable_targets",
+      priority: "P0",
+      title: "Enable synced official source targets",
+      rationale: `${progress.synced_targets - progress.enabled_targets} synced official targets are disabled; approve cadence and retry policy before due processing.`,
+      command_hint: `supplystrata sources policy enable-plan-targets --source-plan ${sourcePlanRef} --namespace ${namespace}`,
       refs: [sourcePlanRef, "source-target-coverage.json"]
     });
   }

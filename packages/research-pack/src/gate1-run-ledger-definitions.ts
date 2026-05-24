@@ -66,8 +66,13 @@ export interface Gate1SourcePathProgressLedger {
   expected_source_links_gap: number;
   runnable_targets: number;
   synced_targets: number;
+  enabled_targets: number;
   due_targets: number;
+  active_jobs: number;
+  retry_wait_targets: number;
   degraded_targets: number;
+  dead_targets: number;
+  source_failed_targets: number;
   targets_with_observations: number;
   next_focus: string;
 }
@@ -115,12 +120,55 @@ export interface Gate1MonitoringBatch {
   batch_id: "official_source_path" | "edge_corroboration";
   source_plan_ref: string;
   target_count: number;
-  current_state: "not_synced" | "smoke_first" | "synced" | "due" | "observing";
+  current_state: Gate1MonitoringCurrentState;
   recommended_next_decision: Gate1ReviewDecision;
+  recommended_operational_action: Gate1MonitoringOperationalAction;
+  state_counts: Gate1MonitoringStateCounts;
+  attention_hint: string | null;
   preview_command_hint: string;
   sync_command_hint: string;
   enable_command_hint: string;
   run_due_command_hint: string;
+}
+
+export type Gate1MonitoringCurrentState =
+  | "not_synced"
+  | "smoke_first"
+  | "disabled"
+  | "synced"
+  | "due"
+  | "active_job"
+  | "retry_wait"
+  | "degraded"
+  | "dead"
+  | "observing";
+
+export type Gate1MonitoringOperationalAction =
+  | "sync_targets"
+  | "smoke_targets"
+  | "enable_targets"
+  | "run_due_targets"
+  | "wait_for_jobs"
+  | "investigate_source_failure"
+  | "review_observations"
+  | "none";
+
+export interface Gate1MonitoringStateCounts {
+  not_synced: number;
+  disabled: number;
+  synced: number;
+  enabled: number;
+  due: number;
+  active_jobs: number;
+  retry_wait: number;
+  degraded: number;
+  dead: number;
+  source_failed: number;
+  targets_with_observations: number;
+  preflight_failed: number;
+  missing_credentials: number;
+  invalid_config: number;
+  source_unreachable: number;
 }
 
 export type Gate1ReviewItemKind = "source_target_batch" | "edge_corroboration" | "official_signal_disposition" | "frontier_company_research";
@@ -128,6 +176,7 @@ export type Gate1ReviewItemKind = "source_target_batch" | "edge_corroboration" |
 export type Gate1ReviewDecision =
   | "approve_smoke"
   | "approve_sync"
+  | "approve_enable"
   | "approve_run_due"
   | "supports_existing_edge"
   | "needs_more_evidence"

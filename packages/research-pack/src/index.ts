@@ -178,7 +178,9 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
       research_input: input,
       official_disclosure_readiness: officialDisclosureReadiness,
       corroboration_source_plan: corroborationSourcePlan,
-      supply_chain_expansion_plan: supplyChainExpansionPlan
+      supply_chain_expansion_plan: supplyChainExpansionPlan,
+      source_target_coverage: sourceTargetCoverage,
+      source_target_preflight: sourceTargetPreflight
     })
   };
 }
@@ -320,7 +322,9 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
       research_input: staticInput,
       official_disclosure_readiness: officialDisclosureReadiness,
       corroboration_source_plan: corroborationSourcePlan,
-      supply_chain_expansion_plan: supplyChainExpansionPlan
+      supply_chain_expansion_plan: supplyChainExpansionPlan,
+      source_target_coverage: sourceTargetCoverage,
+      source_target_preflight: sourceTargetPreflight
     })
   };
 }

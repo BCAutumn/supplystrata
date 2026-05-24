@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildGate1RunLedger, renderGate1RunLedgerMarkdown } from "@supplystrata/research-pack";
-import type { CorroborationSourcePlan, OfficialDisclosureReadinessReport, SupplyChainExpansionPlan } from "@supplystrata/research-pack";
+import type {
+  CorroborationSourcePlan,
+  OfficialDisclosureReadinessReport,
+  SourceTargetCoverageReport,
+  SourceTargetPreflightReport,
+  SupplyChainExpansionPlan
+} from "@supplystrata/research-pack";
 
 describe("Gate 1 run ledger", () => {
   it("builds a frontend-safe review workbench without fact mutation authority", () => {
@@ -81,6 +87,83 @@ describe("Gate 1 run ledger", () => {
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Review Workbench");
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Monitoring Config");
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("fact mutation: false");
+  });
+
+  it("turns source target coverage into operational monitoring batches", () => {
+    const readiness = officialDisclosureReadinessFixture();
+    readiness.summary.synced_official_targets = 8;
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: readiness,
+      corroboration_source_plan: corroborationSourcePlanFixture(),
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
+      source_target_coverage: sourceTargetCoverageFixture()
+    });
+
+    const officialBatch = ledger.monitoring_config.batches.find((batch) => batch.batch_id === "official_source_path");
+
+    expect(officialBatch).toEqual(
+      expect.objectContaining({
+        current_state: "retry_wait",
+        recommended_next_decision: "defer",
+        recommended_operational_action: "investigate_source_failure",
+        attention_hint: "2 targets have latest SOURCE_FAILED events; inspect job errors before retrying."
+      })
+    );
+    expect(officialBatch?.state_counts).toEqual(
+      expect.objectContaining({
+        disabled: 1,
+        enabled: 7,
+        retry_wait: 2,
+        degraded: 1,
+        source_failed: 2
+      })
+    );
+    expect(ledger.source_path_progress.enabled_targets).toBe(7);
+    expect(ledger.source_path_progress.retry_wait_targets).toBe(2);
+    expect(renderGate1RunLedgerMarkdown(ledger)).toContain("action=investigate_source_failure");
+  });
+
+  it("does not force smoke-first when corroboration preflight already failed", () => {
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: officialDisclosureReadinessFixture(),
+      corroboration_source_plan: corroborationSourcePlanFixture(),
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
+      source_target_preflight: sourceTargetPreflightFixture()
+    });
+
+    const corroborationBatch = ledger.monitoring_config.batches.find((batch) => batch.batch_id === "edge_corroboration");
+
+    expect(corroborationBatch).toEqual(
+      expect.objectContaining({
+        current_state: "retry_wait",
+        recommended_next_decision: "defer",
+        recommended_operational_action: "investigate_source_failure",
+        attention_hint: "1 targets need credentials before they can produce monitoring data."
+      })
+    );
+    expect(corroborationBatch?.state_counts).toEqual(
+      expect.objectContaining({
+        not_synced: 1,
+        preflight_failed: 1,
+        missing_credentials: 1
+      })
+    );
   });
 });
 
@@ -252,6 +335,125 @@ function sourceTargetFixture(): OfficialDisclosureReadinessReport["corroboration
     synced: false,
     observations: 0,
     latest_event_type: null
+  };
+}
+
+function sourceTargetCoverageFixture(): SourceTargetCoverageReport {
+  return {
+    schema_version: "1.0.0",
+    generated_at: "2026-01-01T00:00:00.000Z",
+    company_id: "ENT-NVIDIA",
+    namespace: "gate1-review-test",
+    summary: {
+      expected_targets: 8,
+      synced_targets: 8,
+      not_synced: 0,
+      enabled_targets: 7,
+      due_targets: 0,
+      active_jobs: 0,
+      retry_wait: 2,
+      degraded_targets: 1,
+      dead_targets: 0,
+      targets_with_observations: 0
+    },
+    items: [
+      coverageItem("target-dart", "dart-kr", "retry_wait", "SOURCE_FAILED"),
+      coverageItem("target-edinet", "edinet", "retry_wait", "SOURCE_FAILED"),
+      coverageItem("target-samsung", "samsung-ir", "degraded", "SOURCE_DEGRADED")
+    ]
+  };
+}
+
+function sourceTargetPreflightFixture(): SourceTargetPreflightReport {
+  return {
+    schema_version: "1.0.0",
+    summary: {
+      requested_targets: 1,
+      selected_targets: 1,
+      checked_targets: 0,
+      failed_targets: 1,
+      skipped_targets: 0,
+      planned_tasks: 0,
+      fetched_documents: 0,
+      normalized_documents: 0,
+      degraded_documents: 0,
+      by_source: { "dart-kr": 1 },
+      by_source_status: {
+        "dart-kr": {
+          selected_targets: 1,
+          checked_targets: 0,
+          failed_targets: 1,
+          skipped_targets: 0,
+          planned_tasks: 0,
+          fetched_documents: 0,
+          normalized_documents: 0,
+          degraded_documents: 0,
+          target_kinds: { "official-regulatory-disclosure": 1 },
+          issue_kinds: { missing_credentials: 1 }
+        }
+      }
+    },
+    items: [
+      {
+        check_target_id: "target-dart",
+        source_adapter_id: "dart-kr",
+        target_kind: "official-regulatory-disclosure",
+        status: "failed",
+        planned_tasks: 0,
+        fetched_documents: 0,
+        normalized_documents: 0,
+        degraded_documents: 0,
+        documents: [],
+        issue_kind: "missing_credentials",
+        error_message: "OPENDART_API_KEY is required.",
+        missing_credentials: [{ env_key: "OPENDART_API_KEY", description: "OpenDART API key", required: true }]
+      }
+    ]
+  };
+}
+
+function coverageItem(
+  checkTargetId: string,
+  sourceAdapterId: string,
+  state: SourceTargetCoverageReport["items"][number]["state"],
+  eventType: string
+): SourceTargetCoverageReport["items"][number] {
+  return {
+    expected_target: {
+      check_target_id: checkTargetId,
+      source_adapter_id: sourceAdapterId,
+      target_kind: "official-html-disclosure",
+      enabled: true,
+      target_config: {}
+    },
+    synced: true,
+    match_kind: "check_target_id",
+    matched_check_target_id: checkTargetId,
+    state,
+    target_enabled: true,
+    policy_enabled: true,
+    next_check_at: "2026-01-08T00:00:00.000Z",
+    effective_check_cadence_minutes: 10080,
+    effective_jitter_minutes: 120,
+    latest_job: {
+      job_id: `job-${checkTargetId}`,
+      status: state === "retry_wait" ? "failed" : "succeeded",
+      attempts: state === "retry_wait" ? 1 : 0,
+      last_error: state === "retry_wait" ? `${sourceAdapterId} requires AdapterContext.credentials.SOURCE_KEY` : null,
+      next_attempt_at: "2026-01-01T00:02:00.000Z",
+      completed_at: state === "retry_wait" ? null : "2026-01-01T00:01:00.000Z",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:01:00.000Z"
+    },
+    latest_event: {
+      event_id: `event-${checkTargetId}`,
+      event_type: eventType,
+      doc_id: null,
+      detected_at: "2026-01-01T00:00:00.000Z",
+      caused_by: `source-check.${sourceAdapterId}`
+    },
+    observations: 0,
+    latest_observation_at: null
   };
 }
 
