@@ -4,6 +4,46 @@ import type { InvestigationBacklogInput, InvestigationBacklogSourceTargetCoverag
 import type { OfficialDisclosureCorroborationQueueItem } from "./official-disclosure-readiness.js";
 import type { SourceTargetPreflightIssueKind, SourceTargetPreflightItem } from "./source-target-preflight.js";
 
+type CoverageActionPrefixRule = {
+  matches: (coverage: readonly InvestigationBacklogSourceTargetCoverage[]) => boolean;
+  action: (coverage: readonly InvestigationBacklogSourceTargetCoverage[]) => string;
+};
+
+const COVERAGE_ACTION_PREFIX_RULES = [
+  statePrefixRule("dead", "Investigate dead source-check jobs before expecting new evidence."),
+  statePrefixRule("retry_wait", "Inspect failed source-check attempts and wait for configured retry or rerun after fixing the source issue."),
+  statePrefixRule("degraded", "Inspect degraded source fetches before treating the latest check as usable evidence."),
+  {
+    matches: hasPreflightIssue("missing_credentials"),
+    action: missingCredentialPrefix
+  },
+  preflightIssuePrefixRule("target_config_invalid", "Fix the source-plan target configuration before syncing or enabling this target."),
+  preflightIssuePrefixRule("connector_unsupported", "Register or implement the required source-check connector before syncing this target."),
+  {
+    matches: (coverage) => coverage.some((item) => item.preflight_issue_kind === "source_unreachable" || item.preflight_issue_kind === "source_response_error"),
+    action: () => "Verify source reachability and response format before treating this target as monitor-ready."
+  },
+  preflightStatusPrefixRule(
+    "failed",
+    "Fix source-plan preflight failures (credentials, target config, or source reachability) before syncing or enabling this target."
+  ),
+  preflightStatusPrefixRule("skipped", "Resolve unsupported source-plan preflight target or connector registration before syncing."),
+  {
+    matches: (coverage) => coverage.some((item) => item.preflight_degraded_documents > 0),
+    action: () => "Inspect degraded preflight fetches before treating the latest source path as healthy."
+  },
+  statePrefixRule("disabled", "Enable the synced source-check targets when the monitoring cadence is approved."),
+  statePrefixRule("not_synced", "Sync runnable source-plan targets into source_check_targets first."),
+  statePrefixRule("due", "Run due source-check targets through sources run-due or the worker."),
+  statePrefixRule("active_job", "Wait for active source-check jobs to complete before changing conclusions."),
+  {
+    matches: (coverage) => coverage.some((item) => item.observations > 0),
+    action: () => "Review produced observations and keep any fact-edge promotion behind review."
+  }
+] as const satisfies readonly CoverageActionPrefixRule[];
+
+const DEFAULT_COVERAGE_ACTION_PREFIX = "Inspect the latest source-check result; if it produced no useful observation, refine the target configuration.";
+
 export function runnableTargetsForRefs(sourcePlan: readonly SourcePlanItem[], refs: readonly string[]): SourcePlanCheckTargetSuggestion[] {
   return runnableTargetsForSources(sourcePlan, sourceIdsFromRefs(refs));
 }
@@ -148,33 +188,42 @@ function preflightFields(
 }
 
 function coverageActionPrefix(coverage: readonly InvestigationBacklogSourceTargetCoverage[]): string {
-  if (coverage.some((item) => item.state === "dead")) return "Investigate dead source-check jobs before expecting new evidence.";
-  if (coverage.some((item) => item.state === "retry_wait"))
-    return "Inspect failed source-check attempts and wait for configured retry or rerun after fixing the source issue.";
-  if (coverage.some((item) => item.state === "degraded")) return "Inspect degraded source fetches before treating the latest check as usable evidence.";
-  if (coverage.some((item) => item.preflight_issue_kind === "missing_credentials")) {
-    const keys = uniqueSorted(coverage.flatMap((item) => item.preflight_missing_credential_env_keys));
-    const suffix = keys.length === 0 ? "" : ` (${keys.join(", ")})`;
-    return `Configure required source credentials${suffix} before syncing or enabling this source-plan target.`;
-  }
-  if (coverage.some((item) => item.preflight_issue_kind === "target_config_invalid"))
-    return "Fix the source-plan target configuration before syncing or enabling this target.";
-  if (coverage.some((item) => item.preflight_issue_kind === "connector_unsupported"))
-    return "Register or implement the required source-check connector before syncing this target.";
-  if (coverage.some((item) => item.preflight_issue_kind === "source_unreachable" || item.preflight_issue_kind === "source_response_error"))
-    return "Verify source reachability and response format before treating this target as monitor-ready.";
-  if (coverage.some((item) => item.preflight_status === "failed"))
-    return "Fix source-plan preflight failures (credentials, target config, or source reachability) before syncing or enabling this target.";
-  if (coverage.some((item) => item.preflight_status === "skipped"))
-    return "Resolve unsupported source-plan preflight target or connector registration before syncing.";
-  if (coverage.some((item) => item.preflight_degraded_documents > 0))
-    return "Inspect degraded preflight fetches before treating the latest source path as healthy.";
-  if (coverage.some((item) => item.state === "disabled")) return "Enable the synced source-check targets when the monitoring cadence is approved.";
-  if (coverage.some((item) => item.state === "not_synced")) return "Sync runnable source-plan targets into source_check_targets first.";
-  if (coverage.some((item) => item.state === "due")) return "Run due source-check targets through sources run-due or the worker.";
-  if (coverage.some((item) => item.state === "active_job")) return "Wait for active source-check jobs to complete before changing conclusions.";
-  if (coverage.some((item) => item.observations > 0)) return "Review produced observations and keep any fact-edge promotion behind review.";
-  return "Inspect the latest source-check result; if it produced no useful observation, refine the target configuration.";
+  const rule = COVERAGE_ACTION_PREFIX_RULES.find((item) => item.matches(coverage));
+  return rule === undefined ? DEFAULT_COVERAGE_ACTION_PREFIX : rule.action(coverage);
+}
+
+function statePrefixRule(state: InvestigationBacklogSourceTargetCoverage["state"], action: string): CoverageActionPrefixRule {
+  return {
+    matches: (coverage) => coverage.some((item) => item.state === state),
+    action: () => action
+  };
+}
+
+function preflightIssuePrefixRule(issueKind: SourceTargetPreflightIssueKind, action: string): CoverageActionPrefixRule {
+  return {
+    matches: hasPreflightIssue(issueKind),
+    action: () => action
+  };
+}
+
+function preflightStatusPrefixRule(
+  status: NonNullable<InvestigationBacklogSourceTargetCoverage["preflight_status"]>,
+  action: string
+): CoverageActionPrefixRule {
+  return {
+    matches: (coverage) => coverage.some((item) => item.preflight_status === status),
+    action: () => action
+  };
+}
+
+function hasPreflightIssue(issueKind: SourceTargetPreflightIssueKind): (coverage: readonly InvestigationBacklogSourceTargetCoverage[]) => boolean {
+  return (coverage) => coverage.some((item) => item.preflight_issue_kind === issueKind);
+}
+
+function missingCredentialPrefix(coverage: readonly InvestigationBacklogSourceTargetCoverage[]): string {
+  const keys = uniqueSorted(coverage.flatMap((item) => item.preflight_missing_credential_env_keys));
+  const suffix = keys.length === 0 ? "" : ` (${keys.join(", ")})`;
+  return `Configure required source credentials${suffix} before syncing or enabling this source-plan target.`;
 }
 
 function runnableTargetKey(target: { source_adapter_id: string; target_kind: string; target_config: Record<string, unknown> }): string {
