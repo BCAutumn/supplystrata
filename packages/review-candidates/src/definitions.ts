@@ -162,18 +162,29 @@ export interface ClaimConflictReviewUnknownRef {
   status: string;
 }
 
-export interface ClaimConflictReviewFactWritePolicy {
+export interface ReviewOnlyFactWritePolicy {
   automatic_fact_mutation_allowed: false;
   allowed_edge_mutation: "none";
   requires_human_review: true;
+}
+
+export interface ClaimConflictReviewFactWritePolicy extends ReviewOnlyFactWritePolicy {
   reason_codes: string[];
+}
+
+export const REVIEW_ONLY_FACT_WRITE_POLICY: ReviewOnlyFactWritePolicy = {
+  automatic_fact_mutation_allowed: false,
+  allowed_edge_mutation: "none",
+  requires_human_review: true
+};
+
+export function reviewOnlyFactWritePolicy(): ReviewOnlyFactWritePolicy {
+  return { ...REVIEW_ONLY_FACT_WRITE_POLICY };
 }
 
 export function blockedFactWritePolicy(reasonCodes: readonly string[]): ClaimConflictReviewFactWritePolicy {
   return {
-    automatic_fact_mutation_allowed: false,
-    allowed_edge_mutation: "none",
-    requires_human_review: true,
+    ...REVIEW_ONLY_FACT_WRITE_POLICY,
     reason_codes: [...reasonCodes]
   };
 }

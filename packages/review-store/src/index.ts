@@ -2,9 +2,12 @@ import { recordSemanticChange, type DatabaseStore, type DbClient, type DbTxClien
 import {
   isOfficialDisclosureSignalReviewCandidate,
   isReviewCandidate,
+  isReviewOnlyFactWritePolicy,
+  reviewOnlyFactWritePolicy,
   type ReviewCandidate,
   type ReviewCandidateKind,
-  type ReviewCandidateStatus
+  type ReviewCandidateStatus,
+  type ReviewOnlyFactWritePolicy
 } from "@supplystrata/review-candidates";
 import type { OfficialDisclosureSignalDispositionRow, ReviewCandidateRow, ReviewStatsRow } from "./db-rows.js";
 
@@ -74,11 +77,7 @@ export interface OfficialDisclosureSignalDispositionRecord {
   unknown_id: string | null;
   check_target_id: string | null;
   recorded_at: string;
-  fact_write_policy: {
-    automatic_fact_mutation_allowed: false;
-    allowed_edge_mutation: "none";
-    requires_human_review: true;
-  };
+  fact_write_policy: ReviewOnlyFactWritePolicy;
 }
 
 export async function enqueueReviewCandidates(client: DbTxClient, candidates: readonly ReviewCandidate[]): Promise<{ inserted: number; skipped: number }> {
@@ -305,11 +304,7 @@ export async function recordOfficialDisclosureSignalDisposition(
     evidence_id: input.evidenceId ?? null,
     unknown_id: input.unknownId ?? null,
     check_target_id: input.checkTargetId ?? null,
-    fact_write_policy: {
-      automatic_fact_mutation_allowed: false,
-      allowed_edge_mutation: "none",
-      requires_human_review: true
-    },
+    fact_write_policy: reviewOnlyFactWritePolicy(),
     recorded_at: recordedAt
   };
   const change = await recordSemanticChange(client, {
@@ -384,10 +379,7 @@ function rowToReviewItem(row: ReviewCandidateRow | undefined): ReviewQueueItem |
 function officialDisclosureSignalDispositionRecordFromAfter(row: OfficialDisclosureSignalDispositionRow): OfficialDisclosureSignalDispositionRecord {
   if (!isRecord(row.after)) throw new Error(`Invalid official disclosure signal disposition payload: ${row.change_id}`);
   const factWritePolicy = row.after["fact_write_policy"];
-  if (!isRecord(factWritePolicy)) throw new Error(`Missing fact write policy for official signal disposition: ${row.change_id}`);
-  if (factWritePolicy["automatic_fact_mutation_allowed"] !== false || factWritePolicy["allowed_edge_mutation"] !== "none")
-    throw new Error(`Official signal disposition cannot authorize fact mutation: ${row.change_id}`);
-  if (factWritePolicy["requires_human_review"] !== true) throw new Error(`Official signal disposition must require human review: ${row.change_id}`);
+  if (!isReviewOnlyFactWritePolicy(factWritePolicy)) throw new Error(`Official signal disposition cannot authorize fact mutation: ${row.change_id}`);
   const decision = dispositionDecision(row.after["decision"]);
   return {
     change_id: row.change_id,
@@ -403,11 +395,7 @@ function officialDisclosureSignalDispositionRecordFromAfter(row: OfficialDisclos
     unknown_id: nullableStringField(row.after, "unknown_id"),
     check_target_id: nullableStringField(row.after, "check_target_id"),
     recorded_at: stringField(row.after, "recorded_at", row.detected_at.toISOString()),
-    fact_write_policy: {
-      automatic_fact_mutation_allowed: false,
-      allowed_edge_mutation: "none",
-      requires_human_review: true
-    }
+    fact_write_policy: reviewOnlyFactWritePolicy()
   };
 }
 

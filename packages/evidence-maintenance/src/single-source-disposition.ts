@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { DbClient } from "@supplystrata/db/read";
 import { upsertUnknownItem, type DbTxClient } from "@supplystrata/db/write";
+import { isReviewOnlyFactWritePolicy } from "@supplystrata/review-candidates";
 import type { ExistingEdgeRow, OfficialSignalDispositionChangeRow } from "./db-rows.js";
 
 export interface ProposedSingleSourceDispositionUnknown {
@@ -246,8 +247,7 @@ function parseOfficialSignalDispositionPayload(change: OfficialSignalDisposition
   const after = change.after;
   if (after === null) throw new Error(`Official signal disposition change is missing payload: ${change.change_id}`);
   const policy = recordField(after, "fact_write_policy", change.change_id);
-  if (policy["automatic_fact_mutation_allowed"] !== false || policy["allowed_edge_mutation"] !== "none" || policy["requires_human_review"] !== true)
-    throw new Error(`Official signal disposition cannot authorize fact mutation: ${change.change_id}`);
+  if (!isReviewOnlyFactWritePolicy(policy)) throw new Error(`Official signal disposition cannot authorize fact mutation: ${change.change_id}`);
   return {
     review_id: stringField(after, "review_id"),
     edge_id: stringField(after, "edge_id"),

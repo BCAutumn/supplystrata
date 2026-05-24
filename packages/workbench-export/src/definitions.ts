@@ -17,6 +17,7 @@ import type {
   ExtractionMethod,
   RelationType
 } from "@supplystrata/core";
+import type { ReviewOnlyFactWritePolicy } from "@supplystrata/review-candidates";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 export interface WorkbenchExportInput {
@@ -245,11 +246,7 @@ export interface WorkbenchOfficialDisclosureSignalDisposition {
   unknown_id: string | null;
   check_target_id: string | null;
   recorded_at: string;
-  fact_write_policy: {
-    automatic_fact_mutation_allowed: false;
-    allowed_edge_mutation: "none";
-    requires_human_review: true;
-  };
+  fact_write_policy: ReviewOnlyFactWritePolicy;
 }
 
 export interface WorkbenchReviewCandidate {

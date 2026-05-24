@@ -1,7 +1,7 @@
 import { WORKBENCH_ATTENTION_KINDS, WORKBENCH_ATTENTION_PRIORITIES, WORKBENCH_ATTENTION_STATUSES, type WorkbenchModel } from "./definitions.js";
 import { validateDerivedWorkbenchViews } from "./schema-derived-views.js";
 import { EDGE_FRESHNESS_DECAY_MODELS, EDGE_STRENGTH_KINDS, SEMANTIC_LAYERS } from "@supplystrata/core";
-import { REVIEW_CANDIDATE_STATUSES } from "@supplystrata/review-candidates";
+import { REVIEW_CANDIDATE_STATUSES, REVIEW_ONLY_FACT_WRITE_POLICY } from "@supplystrata/review-candidates";
 import { PLANNED_OUTPUT_LAYERS, SOURCE_RELATION_POLICIES } from "@supplystrata/source-plan";
 import { validateClaim } from "./schema-claim-validator.js";
 import {
@@ -294,9 +294,9 @@ function validateOfficialSignalDisposition(value: unknown, path: string, errors:
   expectString(value, "recorded_at", path, errors);
   const policy = value["fact_write_policy"];
   if (!isRecordAt(policy, `${path}.fact_write_policy`, errors)) return;
-  expectLiteral(policy, "automatic_fact_mutation_allowed", false, `${path}.fact_write_policy`, errors);
-  expectLiteral(policy, "allowed_edge_mutation", "none", `${path}.fact_write_policy`, errors);
-  expectLiteral(policy, "requires_human_review", true, `${path}.fact_write_policy`, errors);
+  expectLiteral(policy, "automatic_fact_mutation_allowed", REVIEW_ONLY_FACT_WRITE_POLICY.automatic_fact_mutation_allowed, `${path}.fact_write_policy`, errors);
+  expectLiteral(policy, "allowed_edge_mutation", REVIEW_ONLY_FACT_WRITE_POLICY.allowed_edge_mutation, `${path}.fact_write_policy`, errors);
+  expectLiteral(policy, "requires_human_review", REVIEW_ONLY_FACT_WRITE_POLICY.requires_human_review, `${path}.fact_write_policy`, errors);
 }
 
 function validateIntelligenceContext(value: unknown, path: string, errors: string[]): void {

@@ -12,6 +12,7 @@ import type {
   OfficialDisclosureSignalReviewCandidate,
   OshFacilityReviewCandidate,
   ReviewCandidate,
+  ReviewOnlyFactWritePolicy,
   SemanticChangeReviewCandidate,
   SupplierListReviewCandidate
 } from "./definitions.js";
@@ -211,14 +212,15 @@ function isClaimConflictReviewUnknownRefArray(value: unknown): value is ClaimCon
   });
 }
 
-function isClaimConflictReviewFactWritePolicy(value: unknown): value is ClaimConflictReviewFactWritePolicy {
+export function isReviewOnlyFactWritePolicy(value: unknown): value is ReviewOnlyFactWritePolicy {
   if (!isRecord(value)) return false;
-  return (
-    value["automatic_fact_mutation_allowed"] === false &&
-    value["allowed_edge_mutation"] === "none" &&
-    value["requires_human_review"] === true &&
-    isStringArray(value["reason_codes"])
-  );
+  return value["automatic_fact_mutation_allowed"] === false && value["allowed_edge_mutation"] === "none" && value["requires_human_review"] === true;
+}
+
+function isClaimConflictReviewFactWritePolicy(value: unknown): value is ClaimConflictReviewFactWritePolicy {
+  if (!isReviewOnlyFactWritePolicy(value)) return false;
+  if (!isRecord(value)) return false;
+  return isStringArray(value["reason_codes"]);
 }
 
 function isOshFacilityCandidateRecord(value: unknown): boolean {

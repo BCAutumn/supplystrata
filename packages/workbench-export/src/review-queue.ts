@@ -1,4 +1,5 @@
 import type { DbClient } from "@supplystrata/db/read";
+import { isReviewOnlyFactWritePolicy, reviewOnlyFactWritePolicy } from "@supplystrata/review-candidates";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { OfficialSignalDispositionDbRow, ReviewCandidateDbRow } from "./db-rows.js";
 import { toIsoString, toNullableIsoString } from "./dto-mappers.js";
@@ -82,8 +83,7 @@ function officialSignalDispositionToDto(row: OfficialSignalDispositionDtoSource)
   const after = row.after;
   if (after === null) throw new Error(`Official signal disposition change is missing payload: ${row.change_id}`);
   const policy = recordField(after, "fact_write_policy", row.change_id);
-  if (policy["automatic_fact_mutation_allowed"] !== false || policy["allowed_edge_mutation"] !== "none" || policy["requires_human_review"] !== true)
-    throw new Error(`Official signal disposition cannot authorize fact mutation: ${row.change_id}`);
+  if (!isReviewOnlyFactWritePolicy(policy)) throw new Error(`Official signal disposition cannot authorize fact mutation: ${row.change_id}`);
   return {
     change_id: row.change_id,
     review_id: textField(after, "review_id", row.review_id),
@@ -98,11 +98,7 @@ function officialSignalDispositionToDto(row: OfficialSignalDispositionDtoSource)
     unknown_id: nullableTextField(after, "unknown_id", row.change_id),
     check_target_id: nullableTextField(after, "check_target_id", row.change_id),
     recorded_at: textField(after, "recorded_at", toIsoString(row.detected_at)),
-    fact_write_policy: {
-      automatic_fact_mutation_allowed: false,
-      allowed_edge_mutation: "none",
-      requires_human_review: true
-    }
+    fact_write_policy: reviewOnlyFactWritePolicy()
   };
 }
 
