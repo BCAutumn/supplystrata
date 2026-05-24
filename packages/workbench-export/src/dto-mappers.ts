@@ -109,7 +109,7 @@ export function compareWorkbenchEvidence(left: WorkbenchEvidence, right: Workben
   return right.evidence_level - left.evidence_level || right.confidence - left.confidence || left.evidence_id.localeCompare(right.evidence_id);
 }
 
-function toNullableIsoString(value: Date | string | null): string | null {
+export function toNullableIsoString(value: Date | string | null): string | null {
   return value === null ? null : toIsoString(value);
 }
 

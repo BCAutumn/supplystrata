@@ -1,6 +1,7 @@
 import type { DbClient } from "@supplystrata/db/read";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { OfficialSignalDispositionDbRow, ReviewCandidateDbRow } from "./db-rows.js";
+import { toIsoString, toNullableIsoString } from "./dto-mappers.js";
 import type { OfficialSignalDispositionDtoSource, ReviewCandidateDtoSource } from "./dto-source-records.js";
 import type {
   WorkbenchEvidence,
@@ -190,14 +191,6 @@ function parseReviewCandidateNumber(value: string | null, reviewId: string, fiel
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toNullableIsoString(value: Date | string | null): string | null {
-  return value === null ? null : toIsoString(value);
-}
-
-function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
