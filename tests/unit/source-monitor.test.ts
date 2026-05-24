@@ -6,6 +6,7 @@ import {
   claimDueSourceCheckJobs,
   enqueueAndClaimDueSourceCheckJobs,
   enableSourceCheckTargets,
+  classifySourceTargetFailure,
   classifyDocumentChange,
   enqueueDueSourceCheckJobs,
   ensureSourceCheckTarget,
@@ -26,6 +27,16 @@ describe("source monitor", () => {
     expect(classifyDocumentChange(null, "sha-a")).toBe("DOCUMENT_NEW");
     expect(classifyDocumentChange("sha-a", "sha-a")).toBe("DOCUMENT_UNCHANGED");
     expect(classifyDocumentChange("sha-a", "sha-b")).toBe("DOCUMENT_CHANGED");
+  });
+
+  it("classifies source target job failures for operational triage", () => {
+    expect(classifySourceTargetFailure("Missing required source credentials: EDINET_API_KEY")).toBe("missing_credentials");
+    expect(classifySourceTargetFailure("HTTP 429 Too Many Requests")).toBe("rate_limited");
+    expect(classifySourceTargetFailure("fetch failed: ENOTFOUND disclosure.example")).toBe("source_unreachable");
+    expect(classifySourceTargetFailure("HTTP 503 Service Unavailable")).toBe("source_response_error");
+    expect(classifySourceTargetFailure("adapter normalize failed")).toBe("adapter_error");
+    expect(classifySourceTargetFailure("unexpected failure")).toBe("unknown_failure");
+    expect(classifySourceTargetFailure(null)).toBeNull();
   });
 
   it("parses external source monitoring policies", () => {
@@ -436,6 +447,7 @@ describe("source monitor", () => {
     });
     expect(coverage[0]?.latest_event?.event_type).toBe("DOCUMENT_CHANGED");
     expect(coverage[0]?.latest_job?.status).toBe("succeeded");
+    expect(coverage[0]?.latest_job?.failure_kind).toBeNull();
     expect(coverage[1]).toMatchObject({
       synced: false,
       match_kind: "none",

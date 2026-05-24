@@ -353,6 +353,17 @@ function sourcePathActions(input: Gate1RunLedgerInput, progress: Gate1SourcePath
   const sourcePlanRef = "source-plan.json";
   const namespace = input.research_input.sourceTargetNamespace ?? defaultNamespace(input.company_id);
   const actions: Gate1RunAction[] = [];
+  if (progress.source_failed_targets > 0 || progress.retry_wait_targets > 0 || progress.dead_targets > 0) {
+    actions.push({
+      action_id: "gate1:source-failures:triage",
+      kind: "investigate_source_failures",
+      priority: "P0",
+      title: "Triage failed official source targets",
+      rationale: sourceFailureActionRationale(progress),
+      command_hint: null,
+      refs: ["source-target-coverage.json", "gate1-run-ledger.json"]
+    });
+  }
   if (progress.runnable_targets > progress.synced_targets) {
     actions.push({
       action_id: "gate1:source-targets:sync",
@@ -398,6 +409,16 @@ function sourcePathActions(input: Gate1RunLedgerInput, progress: Gate1SourcePath
     });
   }
   return actions;
+}
+
+function sourceFailureActionRationale(progress: Gate1SourcePathProgressLedger): string {
+  const failureKinds = Object.entries(progress.source_failure_kinds)
+    .filter(([, count]) => count > 0)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([kind, count]) => `${kind}:${count}`)
+    .join(", ");
+  const details = failureKinds.length === 0 ? "unclassified" : failureKinds;
+  return `${progress.source_failed_targets} official source targets have latest SOURCE_FAILED events; retry_wait=${progress.retry_wait_targets}, dead=${progress.dead_targets}, failure kinds ${details}. Resolve credentials, config, source reachability, rate limits, or adapter errors before rerunning.`;
 }
 
 function dataProgressActions(input: Gate1RunLedgerInput, progress: Gate1DataProgressLedger): Gate1RunAction[] {

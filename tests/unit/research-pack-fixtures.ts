@@ -74,6 +74,16 @@ export function officialSourceTargetCoverage(state: SourceTargetCoverageReport["
       retry_wait: 0,
       degraded_targets: state === "degraded" ? 1 : 0,
       dead_targets: 0,
+      source_failed_targets: 0,
+      source_failure_kinds: {
+        missing_credentials: 0,
+        target_config_invalid: 0,
+        source_unreachable: 0,
+        source_response_error: 0,
+        rate_limited: 0,
+        adapter_error: 0,
+        unknown_failure: 0
+      },
       targets_with_observations: 0
     },
     items: [

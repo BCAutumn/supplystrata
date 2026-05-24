@@ -58,7 +58,10 @@ export function buildGate1MonitoringConfig(input: {
 }
 
 export function gate1SourcePathProgressFromCoverage(
-  progress: Omit<Gate1SourcePathProgressLedger, "enabled_targets" | "active_jobs" | "retry_wait_targets" | "dead_targets" | "source_failed_targets">,
+  progress: Omit<
+    Gate1SourcePathProgressLedger,
+    "enabled_targets" | "active_jobs" | "retry_wait_targets" | "dead_targets" | "source_failed_targets" | "source_failure_kinds"
+  >,
   coverage: SourceTargetCoverageReport | undefined
 ): Gate1SourcePathProgressLedger {
   return {
@@ -70,7 +73,8 @@ export function gate1SourcePathProgressFromCoverage(
     retry_wait_targets: coverage?.summary.retry_wait ?? 0,
     degraded_targets: coverage?.summary.degraded_targets ?? progress.degraded_targets,
     dead_targets: coverage?.summary.dead_targets ?? 0,
-    source_failed_targets: coverage?.items.filter((item) => item.latest_event?.event_type === "SOURCE_FAILED").length ?? 0,
+    source_failed_targets: coverage?.summary.source_failed_targets ?? 0,
+    source_failure_kinds: coverage?.summary.source_failure_kinds ?? {},
     targets_with_observations: coverage?.summary.targets_with_observations ?? progress.targets_with_observations
   };
 }
@@ -144,6 +148,7 @@ function monitoringBatch(input: {
 function sourcePathStateCounts(progress: Gate1SourcePathProgressLedger, preflight: SourceTargetPreflightReport | null): Gate1MonitoringStateCounts {
   const notSynced = Math.max(0, progress.runnable_targets - progress.synced_targets);
   const disabled = Math.max(0, progress.synced_targets - progress.enabled_targets);
+  const preflightCounts = preflightIssueCounts(preflight);
   return {
     not_synced: notSynced,
     disabled,
@@ -156,11 +161,21 @@ function sourcePathStateCounts(progress: Gate1SourcePathProgressLedger, prefligh
     dead: progress.dead_targets,
     source_failed: progress.source_failed_targets,
     targets_with_observations: progress.targets_with_observations,
-    ...preflightIssueCounts(preflight)
+    preflight_failed: preflightCounts.preflight_failed,
+    missing_credentials: preflightCounts.missing_credentials + sourceFailureKindCount(progress.source_failure_kinds, "missing_credentials"),
+    invalid_config: preflightCounts.invalid_config + sourceFailureKindCount(progress.source_failure_kinds, "target_config_invalid"),
+    source_unreachable:
+      preflightCounts.source_unreachable +
+      sourceFailureKindCount(progress.source_failure_kinds, "source_unreachable") +
+      sourceFailureKindCount(progress.source_failure_kinds, "source_response_error"),
+    rate_limited: preflightCounts.rate_limited + sourceFailureKindCount(progress.source_failure_kinds, "rate_limited"),
+    adapter_error: preflightCounts.adapter_error + sourceFailureKindCount(progress.source_failure_kinds, "adapter_error"),
+    unknown_failure: preflightCounts.unknown_failure + sourceFailureKindCount(progress.source_failure_kinds, "unknown_failure")
   };
 }
 
 function corroborationStateCounts(progress: Gate1DataProgressLedger, preflight: SourceTargetPreflightReport | null): Gate1MonitoringStateCounts {
+  const preflightCounts = preflightIssueCounts(preflight);
   return {
     not_synced: progress.corroboration_queue_with_runnable_targets,
     disabled: 0,
@@ -173,23 +188,37 @@ function corroborationStateCounts(progress: Gate1DataProgressLedger, preflight: 
     dead: 0,
     source_failed: 0,
     targets_with_observations: 0,
-    ...preflightIssueCounts(preflight)
+    ...preflightCounts
   };
 }
 
 function preflightIssueCounts(
   preflight: SourceTargetPreflightReport | null
-): Pick<Gate1MonitoringStateCounts, "preflight_failed" | "missing_credentials" | "invalid_config" | "source_unreachable"> {
+): Pick<
+  Gate1MonitoringStateCounts,
+  "preflight_failed" | "missing_credentials" | "invalid_config" | "source_unreachable" | "rate_limited" | "adapter_error" | "unknown_failure"
+> {
   return {
     preflight_failed: preflight?.summary.failed_targets ?? 0,
     missing_credentials: countPreflightIssue(preflight, "missing_credentials"),
     invalid_config: countPreflightIssue(preflight, "target_config_invalid") + countPreflightIssue(preflight, "connector_unsupported"),
-    source_unreachable: countPreflightIssue(preflight, "source_unreachable") + countPreflightIssue(preflight, "source_response_error")
+    source_unreachable: countPreflightIssue(preflight, "source_unreachable") + countPreflightIssue(preflight, "source_response_error"),
+    rate_limited: 0,
+    adapter_error: countPreflightIssue(preflight, "adapter_error"),
+    unknown_failure: 0
   };
 }
 
 function currentStateForCounts(counts: Gate1MonitoringStateCounts): Gate1MonitoringCurrentState {
-  if (counts.missing_credentials > 0 || counts.invalid_config > 0 || counts.source_unreachable > 0) return "retry_wait";
+  if (
+    counts.missing_credentials > 0 ||
+    counts.invalid_config > 0 ||
+    counts.source_unreachable > 0 ||
+    counts.rate_limited > 0 ||
+    counts.adapter_error > 0 ||
+    counts.unknown_failure > 0
+  )
+    return "retry_wait";
   if (counts.retry_wait > 0 || counts.source_failed > 0) return "retry_wait";
   if (counts.dead > 0) return "dead";
   if (counts.degraded > 0) return "degraded";
@@ -244,6 +273,10 @@ function reviewDecisionForOperationalAction(action: Gate1MonitoringOperationalAc
 
 function attentionHint(counts: Gate1MonitoringStateCounts): string | null {
   if (counts.missing_credentials > 0) return `${counts.missing_credentials} targets need credentials before they can produce monitoring data.`;
+  if (counts.rate_limited > 0) return `${counts.rate_limited} targets hit rate limits; keep retry/backoff conservative before rerunning.`;
+  if (counts.invalid_config > 0) return `${counts.invalid_config} targets have invalid config and should be corrected before rerunning.`;
+  if (counts.source_unreachable > 0) return `${counts.source_unreachable} targets failed due to source reachability or response errors.`;
+  if (counts.adapter_error > 0) return `${counts.adapter_error} targets failed inside adapter parsing or normalization.`;
   if (counts.source_failed > 0) return `${counts.source_failed} targets have latest SOURCE_FAILED events; inspect job errors before retrying.`;
   if (counts.dead > 0) return `${counts.dead} targets exhausted retry attempts and need operator investigation before rescheduling.`;
   if (counts.degraded > 0) return `${counts.degraded} targets are degraded; cached or partial source data must not be treated as full success.`;
@@ -269,4 +302,8 @@ function scheduleFlags(): string {
 function countPreflightIssue(preflight: SourceTargetPreflightReport | null, issue: SourceTargetPreflightIssueKind): number {
   if (preflight === null) return 0;
   return Object.values(preflight.summary.by_source_status).reduce((count, source) => count + (source.issue_kinds[issue] ?? 0), 0);
+}
+
+function sourceFailureKindCount(counts: Record<string, number>, kind: string): number {
+  return counts[kind] ?? 0;
 }

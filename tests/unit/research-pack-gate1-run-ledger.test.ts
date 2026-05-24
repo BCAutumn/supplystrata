@@ -114,7 +114,7 @@ describe("Gate 1 run ledger", () => {
         current_state: "retry_wait",
         recommended_next_decision: "defer",
         recommended_operational_action: "investigate_source_failure",
-        attention_hint: "2 targets have latest SOURCE_FAILED events; inspect job errors before retrying."
+        attention_hint: "2 targets need credentials before they can produce monitoring data."
       })
     );
     expect(officialBatch?.state_counts).toEqual(
@@ -123,11 +123,21 @@ describe("Gate 1 run ledger", () => {
         enabled: 7,
         retry_wait: 2,
         degraded: 1,
-        source_failed: 2
+        source_failed: 2,
+        missing_credentials: 2
       })
     );
     expect(ledger.source_path_progress.enabled_targets).toBe(7);
     expect(ledger.source_path_progress.retry_wait_targets).toBe(2);
+    expect(ledger.action_queue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action_id: "gate1:source-failures:triage",
+          kind: "investigate_source_failures",
+          priority: "P0"
+        })
+      ])
+    );
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("action=investigate_source_failure");
   });
 
@@ -354,6 +364,16 @@ function sourceTargetCoverageFixture(): SourceTargetCoverageReport {
       retry_wait: 2,
       degraded_targets: 1,
       dead_targets: 0,
+      source_failed_targets: 2,
+      source_failure_kinds: {
+        missing_credentials: 2,
+        target_config_invalid: 0,
+        source_unreachable: 0,
+        source_response_error: 0,
+        rate_limited: 0,
+        adapter_error: 0,
+        unknown_failure: 0
+      },
       targets_with_observations: 0
     },
     items: [
@@ -440,6 +460,7 @@ function coverageItem(
       status: state === "retry_wait" ? "failed" : "succeeded",
       attempts: state === "retry_wait" ? 1 : 0,
       last_error: state === "retry_wait" ? `${sourceAdapterId} requires AdapterContext.credentials.SOURCE_KEY` : null,
+      failure_kind: state === "retry_wait" ? "missing_credentials" : null,
       next_attempt_at: "2026-01-01T00:02:00.000Z",
       completed_at: state === "retry_wait" ? null : "2026-01-01T00:01:00.000Z",
       created_at: "2026-01-01T00:00:00.000Z",

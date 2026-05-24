@@ -1,7 +1,12 @@
 import { buildSourceCheckTargetsFromPlan } from "@supplystrata/source-management";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { DbClient } from "@supplystrata/db/read";
-import { listSourceTargetCoverage, type SourceTargetCoverageItem, type SourceTargetCoverageState } from "@supplystrata/source-monitor";
+import {
+  listSourceTargetCoverage,
+  type SourceTargetCoverageItem,
+  type SourceTargetCoverageState,
+  type SourceTargetFailureKind
+} from "@supplystrata/source-monitor";
 
 export interface SourceTargetCoverageReport {
   schema_version: "1.0.0";
@@ -18,6 +23,8 @@ export interface SourceTargetCoverageReport {
     retry_wait: number;
     degraded_targets: number;
     dead_targets: number;
+    source_failed_targets: number;
+    source_failure_kinds: Record<SourceTargetFailureKind, number>;
     targets_with_observations: number;
   };
   items: SourceTargetCoverageItem[];
@@ -94,6 +101,8 @@ function buildSourceTargetCoverageReportFromItems(input: {
       retry_wait: countState(input.items, "retry_wait"),
       degraded_targets: countState(input.items, "degraded"),
       dead_targets: countState(input.items, "dead"),
+      source_failed_targets: countLatestEvent(input.items, "SOURCE_FAILED"),
+      source_failure_kinds: countFailureKinds(input.items),
       targets_with_observations: input.items.filter((item) => item.observations > 0).length
     },
     items: [...input.items]
@@ -118,6 +127,8 @@ export function renderSourceTargetCoverageMarkdown(report: SourceTargetCoverageR
     `- Retry wait: ${report.summary.retry_wait}`,
     `- Degraded targets: ${report.summary.degraded_targets}`,
     `- Dead targets: ${report.summary.dead_targets}`,
+    `- Source failed targets: ${report.summary.source_failed_targets}`,
+    `- Source failure kinds: ${formatCountMap(report.summary.source_failure_kinds)}`,
     `- Targets with observations: ${report.summary.targets_with_observations}`,
     "",
     "## Targets",
@@ -130,7 +141,12 @@ export function renderSourceTargetCoverageMarkdown(report: SourceTargetCoverageR
     lines.push(`  Enabled: target=${boolOrUnknown(item.target_enabled)}, policy=${boolOrUnknown(item.policy_enabled)}`);
     lines.push(`  Next check: ${item.next_check_at ?? "n/a"}`);
     lines.push(`  Observations: ${item.observations}; latest observation: ${item.latest_observation_at ?? "n/a"}`);
-    if (item.latest_job !== null) lines.push(`  Latest job: ${item.latest_job.status} ${item.latest_job.job_id}; attempts=${item.latest_job.attempts}`);
+    if (item.latest_job !== null) {
+      lines.push(
+        `  Latest job: ${item.latest_job.status} ${item.latest_job.job_id}; attempts=${item.latest_job.attempts}; failure_kind=${item.latest_job.failure_kind ?? "none"}`
+      );
+      if (item.latest_job.last_error !== null) lines.push(`  Last error: ${item.latest_job.last_error}`);
+    }
     if (item.latest_event !== null) lines.push(`  Latest event: ${item.latest_event.event_type} ${item.latest_event.event_id}`);
   }
   return lines.join("\n");
@@ -161,6 +177,37 @@ function toUnsyncedCoverageItem(expectedTarget: SourceTargetCoverageItem["expect
 
 function countState(items: readonly SourceTargetCoverageItem[], state: SourceTargetCoverageState): number {
   return items.filter((item) => item.state === state).length;
+}
+
+function countLatestEvent(items: readonly SourceTargetCoverageItem[], eventType: string): number {
+  return items.filter((item) => item.latest_event?.event_type === eventType).length;
+}
+
+function countFailureKinds(items: readonly SourceTargetCoverageItem[]): Record<SourceTargetFailureKind, number> {
+  const counts: Record<SourceTargetFailureKind, number> = {
+    missing_credentials: 0,
+    target_config_invalid: 0,
+    source_unreachable: 0,
+    source_response_error: 0,
+    rate_limited: 0,
+    adapter_error: 0,
+    unknown_failure: 0
+  };
+  for (const item of items) {
+    const failureKind = item.latest_job?.failure_kind ?? null;
+    if (failureKind === null) continue;
+    counts[failureKind] += 1;
+  }
+  return counts;
+}
+
+function formatCountMap(counts: Record<string, number>): string {
+  const entries = Object.entries(counts).filter(([, count]) => count > 0);
+  if (entries.length === 0) return "none";
+  return entries
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => `${key}:${count}`)
+    .join(", ");
 }
 
 function boolOrUnknown(value: boolean | null): string {

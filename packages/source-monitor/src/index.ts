@@ -7,7 +7,7 @@ import type { SourceCheckTargetSelection } from "./types.js";
 
 export { parseSourcePolicyConfig } from "./policy-config.js";
 export { calculateNextCheckAt } from "./scheduling.js";
-export { listSourceTargetCoverage } from "./coverage.js";
+export { classifySourceTargetFailure, listSourceTargetCoverage } from "./coverage.js";
 export { enableSourceCheckTargets, ensureSourceCheckTarget, listSourceHealthRows, syncSourcePolicyConfig } from "./source-policy-management.js";
 export { classifyDocumentChange, recordDocumentObservation, recordSourceDegraded, recordSourceFailure } from "./source-observation-events.js";
 export { syncSourceHealthRegistry } from "./source-health-registry.js";
@@ -24,7 +24,8 @@ export type {
   SourceTargetCoverageJob,
   SourceTargetCoverageMatchKind,
   SourceTargetCoverageState,
-  SourceTargetCoverageEvent
+  SourceTargetCoverageEvent,
+  SourceTargetFailureKind
 } from "./coverage.js";
 export type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow, SourceHealthRow, SourcePolicyRow } from "./db-rows.js";
 export type {

@@ -129,8 +129,11 @@ export interface ResearchPackStats {
   source_target_not_synced: number;
   source_target_due_targets: number;
   source_target_active_jobs: number;
+  source_target_retry_wait: number;
   source_target_degraded_targets: number;
   source_target_dead_targets: number;
+  source_target_source_failed_targets: number;
+  source_target_failure_kinds: Record<string, number>;
   source_target_targets_with_observations: number;
   source_target_preflight_selected_targets: number;
   source_target_preflight_checked_targets: number;

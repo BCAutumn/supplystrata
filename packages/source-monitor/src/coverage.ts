@@ -16,11 +16,21 @@ export type SourceTargetCoverageState =
 
 export type SourceTargetCoverageMatchKind = "check_target_id" | "target_config" | "none";
 
+export type SourceTargetFailureKind =
+  | "missing_credentials"
+  | "target_config_invalid"
+  | "source_unreachable"
+  | "source_response_error"
+  | "rate_limited"
+  | "adapter_error"
+  | "unknown_failure";
+
 export interface SourceTargetCoverageJob {
   job_id: string;
   status: SourceCheckJobStatus;
   attempts: number;
   last_error: string | null;
+  failure_kind: SourceTargetFailureKind | null;
   next_attempt_at: string;
   completed_at: string | null;
   created_at: string;
@@ -180,11 +190,54 @@ function latestJobFromRow(row: SourceTargetCoverageRow): SourceTargetCoverageJob
     status: row.job_status,
     attempts: row.job_attempts,
     last_error: row.job_last_error,
+    failure_kind: classifySourceTargetFailure(row.job_last_error),
     next_attempt_at: row.job_next_attempt_at.toISOString(),
     completed_at: isoOrNull(row.job_completed_at),
     created_at: row.job_created_at.toISOString(),
     updated_at: row.job_updated_at.toISOString()
   };
+}
+
+export function classifySourceTargetFailure(errorMessage: string | null): SourceTargetFailureKind | null {
+  if (errorMessage === null) return null;
+  const normalized = errorMessage.toLowerCase();
+  if (
+    normalized.includes("missing required source credentials") ||
+    normalized.includes("missing source credentials") ||
+    normalized.includes("requires adaptercontext.credentials") ||
+    normalized.includes("credentials.") ||
+    normalized.includes("api key") ||
+    normalized.includes("_api_key")
+  )
+    return "missing_credentials";
+  if (normalized.includes("rate limit") || normalized.includes("too many requests") || normalized.includes("http 429")) return "rate_limited";
+  if (
+    normalized.includes("target config") ||
+    normalized.includes("invalid target") ||
+    normalized.includes("unsupported target") ||
+    normalized.includes("connector unsupported")
+  )
+    return "target_config_invalid";
+  if (
+    normalized.includes("timeout") ||
+    normalized.includes("timed out") ||
+    normalized.includes("econnreset") ||
+    normalized.includes("enotfound") ||
+    normalized.includes("eai_again") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("source unreachable")
+  )
+    return "source_unreachable";
+  if (
+    normalized.includes("http 4") ||
+    normalized.includes("http 5") ||
+    normalized.includes("bad gateway") ||
+    normalized.includes("service unavailable") ||
+    normalized.includes("source response")
+  )
+    return "source_response_error";
+  if (normalized.includes("adapter") || normalized.includes("normalize") || normalized.includes("parse")) return "adapter_error";
+  return "unknown_failure";
 }
 
 function latestEventFromRow(row: SourceTargetCoverageRow): SourceTargetCoverageEvent | null {

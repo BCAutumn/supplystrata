@@ -12,6 +12,7 @@ export type Gate1RunActionKind =
   | "enable_targets"
   | "run_due_targets"
   | "smoke_targets"
+  | "investigate_source_failures"
   | "review_observations"
   | "record_single_source_disposition"
   | "create_fact_edge_candidates"
@@ -73,6 +74,7 @@ export interface Gate1SourcePathProgressLedger {
   degraded_targets: number;
   dead_targets: number;
   source_failed_targets: number;
+  source_failure_kinds: Record<string, number>;
   targets_with_observations: number;
   next_focus: string;
 }
@@ -169,6 +171,9 @@ export interface Gate1MonitoringStateCounts {
   missing_credentials: number;
   invalid_config: number;
   source_unreachable: number;
+  rate_limited: number;
+  adapter_error: number;
+  unknown_failure: number;
 }
 
 export type Gate1ReviewItemKind = "source_target_batch" | "edge_corroboration" | "official_signal_disposition" | "frontier_company_research";

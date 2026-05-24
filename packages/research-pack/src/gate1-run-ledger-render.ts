@@ -52,7 +52,7 @@ export function renderGate1RunLedgerMarkdown(ledger: Gate1RunLedger): string {
     );
     lines.push(`  Source plan: ${batch.source_plan_ref}`);
     lines.push(
-      `  Counts: not_synced=${batch.state_counts.not_synced}, disabled=${batch.state_counts.disabled}, due=${batch.state_counts.due}, retry_wait=${batch.state_counts.retry_wait}, degraded=${batch.state_counts.degraded}, source_failed=${batch.state_counts.source_failed}, observations=${batch.state_counts.targets_with_observations}`
+      `  Counts: not_synced=${batch.state_counts.not_synced}, disabled=${batch.state_counts.disabled}, due=${batch.state_counts.due}, retry_wait=${batch.state_counts.retry_wait}, degraded=${batch.state_counts.degraded}, source_failed=${batch.state_counts.source_failed}, missing_credentials=${batch.state_counts.missing_credentials}, rate_limited=${batch.state_counts.rate_limited}, adapter_error=${batch.state_counts.adapter_error}, observations=${batch.state_counts.targets_with_observations}`
     );
     if (batch.attention_hint !== null) lines.push(`  Attention: ${batch.attention_hint}`);
     lines.push(`  Sync: \`${batch.sync_command_hint}\``);
