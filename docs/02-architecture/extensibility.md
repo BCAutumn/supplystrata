@@ -79,6 +79,7 @@ export function createCompanyIrAdapterContext(): AdapterContext {
   const env = loadEnv();
   return {
     userAgent: env.SEC_USER_AGENT,
+    // 宿主 App / worker 应把同一次运行的审计时间注入 adapter，避免 adapter 自己决定 fetched_at。
     now: () => new Date(),
     snapshotStore: createFsSnapshotStore(env.OBJECT_STORE_FS_BASE)
   };

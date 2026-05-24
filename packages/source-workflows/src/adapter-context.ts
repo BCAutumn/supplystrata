@@ -1,10 +1,11 @@
 import { SOURCE_CREDENTIAL_DEFINITIONS, type Env } from "@supplystrata/config";
 import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
 
-export function sourceWorkflowAdapterContextInput(env: Env): CreateAdapterContextInput {
+export function sourceWorkflowAdapterContextInput(env: Env, input: { now: string }): CreateAdapterContextInput {
   return {
     userAgent: env.SEC_USER_AGENT,
     objectStoreBase: env.OBJECT_STORE_FS_BASE,
+    now: () => new Date(input.now),
     credentials: sourceCredentialMap(env)
   };
 }

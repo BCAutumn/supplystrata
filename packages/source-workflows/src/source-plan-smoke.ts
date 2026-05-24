@@ -17,6 +17,7 @@ export interface SourcePlanSmokeTarget {
 export interface SourcePlanSmokeInput {
   env: Env;
   targets: readonly SourcePlanSmokeTarget[];
+  checkedAt: string;
   source_adapter_ids?: readonly string[];
   limit?: number;
 }
@@ -117,7 +118,7 @@ export async function runSourcePlanConnectivitySmoke(input: SourcePlanSmokeInput
   const selectedTargets = selectSourcePlanSmokeTargets(input);
   const runtime = {
     env: input.env,
-    adapterContextInput: sourceWorkflowAdapterContextInput(input.env)
+    adapterContextInput: sourceWorkflowAdapterContextInput(input.env, { now: input.checkedAt })
   };
   const items: SourcePlanSmokeItem[] = [];
   for (const target of selectedTargets) {

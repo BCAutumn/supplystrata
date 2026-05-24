@@ -36,6 +36,7 @@ export interface SourceCheckConnectorLogger {
 export interface SourceCheckAdapterContextInput {
   userAgent: string;
   objectStoreBase: string;
+  now: () => Date;
   credentials?: Readonly<Record<string, string | undefined>> | undefined;
 }
 

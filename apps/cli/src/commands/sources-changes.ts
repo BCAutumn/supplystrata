@@ -333,6 +333,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
       const report = await runSourcePlanConnectivitySmoke({
         env: loadEnv(),
         targets: preview.config.check_targets,
+        checkedAt: currentIsoTimestamp(),
         ...(options.source === undefined ? {} : { source_adapter_ids: parseCommaSeparated(options.source) }),
         ...(options.limit === undefined ? {} : { limit: parseLimit(options.limit) })
       });

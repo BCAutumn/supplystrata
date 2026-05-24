@@ -10,8 +10,8 @@ export type { AdapterContext, SourceAdapter, SourceRateLimit, SourceSnapshotLook
 export interface CreateAdapterContextInput {
   userAgent: string;
   objectStoreBase: string;
+  now: () => Date;
   credentials?: AdapterContext["credentials"];
-  now?: () => Date;
   snapshotStore?: SourceSnapshotStore;
 }
 
@@ -185,7 +185,7 @@ export function createFsSnapshotStore(baseDir: string): SourceSnapshotStore {
 export function createAdapterContext(input: CreateAdapterContextInput): AdapterContext {
   return {
     userAgent: input.userAgent,
-    now: input.now ?? (() => new Date()),
+    now: input.now,
     snapshotStore: input.snapshotStore ?? createFsSnapshotStore(input.objectStoreBase),
     ...(input.credentials === undefined ? {} : { credentials: input.credentials })
   };

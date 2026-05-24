@@ -84,7 +84,8 @@ function connectorContext() {
     checked_at: "2026-05-19T00:00:00.000Z",
     adapter_context_input: {
       userAgent: "SupplyStrata test contact@example.com",
-      objectStoreBase: "./data/raw"
+      objectStoreBase: "./data/raw",
+      now: () => new Date("2026-05-19T00:00:00.000Z")
     }
   };
 }

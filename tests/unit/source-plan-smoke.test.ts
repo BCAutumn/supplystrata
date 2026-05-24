@@ -14,6 +14,7 @@ const TEST_ENV = envSchema.parse({
   CENSUS_API_KEY: "test-census-key",
   OSH_API_TOKEN: "test-osh-token"
 });
+const TEST_CHECKED_AT = "2026-05-17T00:00:00.000Z";
 
 const TARGETS: SourcePlanSmokeTarget[] = [
   {
@@ -76,6 +77,7 @@ describe("source-plan connectivity smoke", () => {
     const report = await runSourcePlanConnectivitySmoke({
       env: TEST_ENV,
       targets: TARGETS,
+      checkedAt: TEST_CHECKED_AT,
       source_adapter_ids: ["unknown-official-source"]
     });
 
@@ -111,6 +113,7 @@ describe("source-plan connectivity smoke", () => {
   it("keeps target config failures inside the per-target smoke report", async () => {
     const report = await runSourcePlanConnectivitySmoke({
       env: TEST_ENV,
+      checkedAt: TEST_CHECKED_AT,
       targets: [
         {
           check_target_id: "plan:test:bad-sec",
@@ -137,6 +140,7 @@ describe("source-plan connectivity smoke", () => {
     const report = await runSourcePlanConnectivitySmoke({
       env: { ...TEST_ENV, EDINET_API_KEY: "" },
       targets: TARGETS,
+      checkedAt: TEST_CHECKED_AT,
       source_adapter_ids: ["edinet"]
     });
 

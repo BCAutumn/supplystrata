@@ -61,7 +61,7 @@ export type DueSourceCheckRunInput = { now: string; limit?: number } & SourceChe
 
 export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceCheckRunInput): Promise<DueSourceCheckRunResult> {
   const logger = input.logger ?? noopLogger;
-  const adapterContextInput = sourceWorkflowAdapterContextInput(input.env);
+  const adapterContextInput = sourceWorkflowAdapterContextInput(input.env, { now: input.now });
   const jobBatch = await store.transaction((client) =>
     enqueueAndClaimDueSourceCheckJobs(client, {
       limit: input.limit ?? 50,
@@ -128,7 +128,7 @@ export async function runManualSourceCheck(store: DatabaseStore, input: ManualSo
   const target = manualSourceCheckTarget(input);
   return runRegisteredSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
-    adapter_context_input: sourceWorkflowAdapterContextInput(options.env),
+    adapter_context_input: sourceWorkflowAdapterContextInput(options.env, { now: options.checkedAt }),
     checked_at: options.checkedAt,
     ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })
   });
