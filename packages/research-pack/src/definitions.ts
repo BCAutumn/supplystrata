@@ -4,6 +4,7 @@ import type { ChainViewModel, CompanyCardModel, ComponentCardModel } from "@supp
 import type { SourcePlanItem, TradeObservationDirection } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { CorroborationSourcePlan } from "./corroboration-source-plan.js";
+import type { Gate1RunLedger } from "./gate1-run-ledger.js";
 import type { InvestigationBacklog } from "./investigation-backlog.js";
 import type { ObservationCoverageReport } from "./observation-coverage.js";
 import type { OfficialDisclosureReadinessReport, OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
@@ -220,6 +221,7 @@ export interface ResearchPackModel {
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
+  gate1_run_ledger: Gate1RunLedger;
 }
 
 export interface WorkbenchSnapshotPackInput {
@@ -253,6 +255,7 @@ export interface WorkbenchSnapshotPackModel {
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
+  gate1_run_ledger: Gate1RunLedger;
 }
 
 export interface ResearchPackTargetProfile {

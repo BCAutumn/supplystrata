@@ -10,6 +10,7 @@ import {
 } from "./corroboration-source-plan.js";
 import type { ResearchPackFile, ResearchPackModel, WorkbenchSnapshotPackModel, WrittenResearchPack } from "./definitions.js";
 import { renderInvestigationBacklogMarkdown } from "./investigation-backlog.js";
+import { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
 import { renderObservationCoverageMarkdown } from "./observation-coverage.js";
 import { renderOfficialDisclosureReadinessMarkdown } from "./official-disclosure-readiness.js";
 import { renderQuestionReadinessMarkdown } from "./question-readiness.js";
@@ -58,6 +59,8 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
       renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
       "Recursive supply-chain expansion plan markdown"
     ),
+    await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
+    await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
       outDir,
@@ -154,6 +157,8 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
       renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
       "Recursive supply-chain expansion plan markdown"
     ),
+    await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
+    await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
       outDir,
@@ -222,6 +227,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage and methodology gaps.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
+    "- `gate1-run-ledger.json` and `gate1-run-ledger.md` merge readiness, source-target coverage, corroboration batches, and frontier switching into one deterministic execution ledger.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show whether runnable source-plan targets are synced, enabled, due, running, failed, or producing observations.",
@@ -256,6 +262,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage visible from the snapshot.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
+    "- `gate1-run-ledger.json` and `gate1-run-ledger.md` merge readiness, source-target coverage, corroboration batches, and frontier switching into one deterministic execution ledger.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
     "- `source-target-coverage.json` and `source-target-coverage.md` show expected runnable targets as `not_synced` until a SQL truth store syncs them into `source_check_targets`.",

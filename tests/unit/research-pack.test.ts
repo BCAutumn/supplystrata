@@ -12,6 +12,7 @@ import {
   getBuiltInResearchTargetProfile,
   listBuiltInResearchTargetProfiles,
   parseSourceTargetPreflightReport,
+  renderGate1RunLedgerMarkdown,
   renderInvestigationBacklogMarkdown,
   renderCorroborationSourcePlanMarkdown,
   renderObservationCoverageMarkdown,
@@ -436,6 +437,16 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.official_disclosure_traceable_edges).toBe(1);
     expect(pack.manifest.stats.official_disclosure_gate1_overall_progress).toBe(pack.official_disclosure_readiness.scorecard.overall_progress);
     expect(pack.manifest.stats.official_disclosure_corroboration_queue_items).toBe(pack.official_disclosure_readiness.summary.corroboration_queue_items);
+    expect(pack.gate1_run_ledger.mainline_phase).toBe("resolve_corroboration");
+    expect(pack.gate1_run_ledger.data_progress.fact_edge_gap).toBeGreaterThan(0);
+    expect(pack.gate1_run_ledger.company_switching.next_research_targets[0]).toEqual(
+      expect.objectContaining({
+        company_id: "ENT-SKHYNIX",
+        component_id: "COMP-MEMORY",
+        seed_edge_id: "EDGE-1"
+      })
+    );
+    expect(pack.gate1_run_ledger.company_switching.next_research_targets[0]?.command_hint).toContain("supplystrata research run --company ENT-SKHYNIX");
     expect(pack.official_disclosure_readiness.corroboration_queue.length).toBeGreaterThan(0);
     expect(pack.official_disclosure_readiness.scorecard.status).toBe("partial");
     expect(pack.official_disclosure_readiness.scorecard.criteria.map((criterion) => criterion.criterion_id)).toEqual([
@@ -456,6 +467,7 @@ describe("research-pack", () => {
     expect(renderQuestionReadinessMarkdown(pack.question_readiness)).toContain("company.upstream_dependencies");
     expect(renderInvestigationBacklogMarkdown(pack.investigation_backlog)).toContain("Investigation Backlog");
     expect(renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan)).toContain("Corroboration Source Plan");
+    expect(renderGate1RunLedgerMarkdown(pack.gate1_run_ledger)).toContain("Gate 1 Run Ledger");
     expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Not synced");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Gate 1 scorecard");

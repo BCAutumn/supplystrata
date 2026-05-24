@@ -6,6 +6,7 @@ import type { ComponentCardModel } from "@supplystrata/render";
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
 import { buildCorroborationSourcePlan } from "./corroboration-source-plan.js";
+import { buildGate1RunLedger } from "./gate1-run-ledger.js";
 import { buildInvestigationBacklog } from "./investigation-backlog.js";
 import { emptyStaticDataQualitySummary, manifestFromModel } from "./manifest.js";
 import { buildObservationCoverageReport } from "./observation-coverage.js";
@@ -24,6 +25,8 @@ import type { ResearchPackInput, ResearchPackModel, WorkbenchSnapshotPackInput, 
 
 export * from "./investigation-backlog.js";
 export * from "./corroboration-source-plan.js";
+export * from "./gate1-run-ledger.js";
+export { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
 export * from "./observation-coverage.js";
 export * from "./official-disclosure-readiness.js";
 export * from "./official-disclosure-signal-correlation.js";
@@ -168,7 +171,15 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
-    supply_chain_expansion_plan: supplyChainExpansionPlan
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
+    gate1_run_ledger: buildGate1RunLedger({
+      generated_at: generatedAt,
+      company_id: workbench.selected_company_id,
+      research_input: input,
+      official_disclosure_readiness: officialDisclosureReadiness,
+      corroboration_source_plan: corroborationSourcePlan,
+      supply_chain_expansion_plan: supplyChainExpansionPlan
+    })
   };
 }
 
@@ -302,7 +313,15 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_target_preflight: sourceTargetPreflight,
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
-    supply_chain_expansion_plan: supplyChainExpansionPlan
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
+    gate1_run_ledger: buildGate1RunLedger({
+      generated_at: generatedAt,
+      company_id: input.workbench.selected_company_id,
+      research_input: staticInput,
+      official_disclosure_readiness: officialDisclosureReadiness,
+      corroboration_source_plan: corroborationSourcePlan,
+      supply_chain_expansion_plan: supplyChainExpansionPlan
+    })
   };
 }
 
