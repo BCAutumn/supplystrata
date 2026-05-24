@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  CORROBORATION_SOURCE_PLAN_ACTION_BATCHES,
   buildCorroborationSourcePlan,
   buildCorroborationSourcePlanActionBatch,
   buildInvestigationBacklog,
@@ -8,11 +7,9 @@ import {
   buildOfficialDisclosureReadinessReport,
   buildResearchPackFromWorkbench,
   buildSupplyChainExpansionPlan,
-  collectResearchComponentIds,
   getBuiltInResearchTargetProfile,
   listBuiltInResearchTargetProfiles,
   parseSourceTargetPreflightReport,
-  renderGate1RunLedgerMarkdown,
   renderInvestigationBacklogMarkdown,
   renderCorroborationSourcePlanMarkdown,
   renderObservationCoverageMarkdown,
@@ -20,69 +17,25 @@ import {
   renderQuestionReadinessMarkdown,
   renderSourceTargetPreflightMarkdown,
   renderSourceTargetCoverageMarkdown,
-  renderSupplyChainExpansionPlanMarkdown,
-  resolveResearchPackWriteSteps,
-  safeFileSegment
+  renderSupplyChainExpansionPlanMarkdown
 } from "@supplystrata/research-pack";
 import { buildSourcePolicyConfigFromPlanTargets, parseManagedSourcePlanDocument } from "@supplystrata/source-management";
+import {
+  actionBatchDefinition,
+  edgeFixture,
+  edgeSegmentFixture,
+  emptyWorkbench,
+  evidenceFixture,
+  observationFixture,
+  officialSourceTargetCoverage,
+  readyQuestionReadiness
+} from "./research-pack-fixtures.js";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
-import type {
-  InvestigationBacklog,
-  ObservationCoverageObservation,
-  ObservationCoverageReport,
-  QuestionReadinessMatrix,
-  SourceTargetCoverageReport
-} from "@supplystrata/research-pack";
+import type { InvestigationBacklog, ObservationCoverageReport, QuestionReadinessMatrix, SourceTargetCoverageReport } from "@supplystrata/research-pack";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 describe("research-pack", () => {
-  it("keeps research-pack write steps opt-in", () => {
-    expect(resolveResearchPackWriteSteps({})).toEqual({
-      buildClaims: false,
-      refreshIntelligence: false,
-      refreshComponentRisk: false
-    });
-    expect(
-      resolveResearchPackWriteSteps({
-        buildClaims: true,
-        refreshIntelligence: true,
-        refreshComponentRisk: true
-      })
-    ).toEqual({
-      buildClaims: true,
-      refreshIntelligence: true,
-      refreshComponentRisk: true
-    });
-  });
-
-  it("collects explicit components and chain components into a stable research set", () => {
-    const segments: ChainViewSegmentModel[] = [
-      {
-        sequence_index: 0,
-        depth: 1,
-        semantic_layer: "edge",
-        from: { kind: "company", id: "ENT-NVIDIA", name: "NVIDIA" },
-        to: { kind: "company", id: "ENT-SKHYNIX", name: "SK Hynix" },
-        relation: "BUYS_FROM",
-        component: "memory",
-        component_id: "COMP-MEMORY",
-        edge_id: "EDGE-1",
-        evidence_ids: ["EV-1"],
-        evidence_level: 5,
-        confidence: 0.95,
-        label: "NVIDIA buys memory from SK Hynix"
-      }
-    ];
-
-    expect(collectResearchComponentIds({ chain_segments: segments }, ["COMP-HBM", " COMP-MEMORY "])).toEqual(["COMP-HBM", "COMP-MEMORY"]);
-  });
-
-  it("creates safe deterministic file segments", () => {
-    expect(safeFileSegment("COMP-HBM")).toBe("comp-hbm");
-    expect(safeFileSegment("HBM / Advanced Packaging")).toBe("hbm-advanced-packaging");
-  });
-
   it("builds a deterministic recursive expansion plan without creating fact edges", () => {
     const workbench = {
       ...emptyWorkbench(),
@@ -447,10 +400,6 @@ describe("research-pack", () => {
       })
     );
     expect(pack.gate1_run_ledger.company_switching.next_research_targets[0]?.command_hint).toContain("supplystrata research run --company ENT-SKHYNIX");
-    expect(pack.gate1_run_ledger.review_workbench.summary.total_items).toBeGreaterThan(0);
-    expect(pack.gate1_run_ledger.review_workbench.items.every((item) => item.policy.automatic_fact_mutation_allowed === false)).toBe(true);
-    expect(pack.gate1_run_ledger.review_workbench.items.some((item) => item.kind === "edge_corroboration")).toBe(true);
-    expect(pack.gate1_run_ledger.review_workbench.items.some((item) => item.allowed_decisions.includes("needs_more_evidence"))).toBe(true);
     expect(pack.official_disclosure_readiness.corroboration_queue.length).toBeGreaterThan(0);
     expect(pack.official_disclosure_readiness.scorecard.status).toBe("partial");
     expect(pack.official_disclosure_readiness.scorecard.criteria.map((criterion) => criterion.criterion_id)).toEqual([
@@ -471,7 +420,6 @@ describe("research-pack", () => {
     expect(renderQuestionReadinessMarkdown(pack.question_readiness)).toContain("company.upstream_dependencies");
     expect(renderInvestigationBacklogMarkdown(pack.investigation_backlog)).toContain("Investigation Backlog");
     expect(renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan)).toContain("Corroboration Source Plan");
-    expect(renderGate1RunLedgerMarkdown(pack.gate1_run_ledger)).toContain("Gate 1 Run Ledger");
     expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Not synced");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Gate 1 scorecard");
@@ -1586,219 +1534,5 @@ function officialSourcePlanItem(): SourcePlanItem {
         reason: "Samsung IR has a registered official disclosure connector for 2025."
       }
     ]
-  };
-}
-
-function edgeSegmentFixture(
-  edgeId: string,
-  depth: number,
-  fromId: string,
-  fromName: string,
-  toId: string,
-  toName: string,
-  componentId: string | null
-): ChainViewSegmentModel {
-  return {
-    sequence_index: depth,
-    depth,
-    semantic_layer: "edge",
-    from: { kind: "company", id: fromId, name: fromName },
-    to: { kind: "company", id: toId, name: toName },
-    relation: "BUYS_FROM",
-    component: componentId,
-    component_id: componentId,
-    edge_id: edgeId,
-    evidence_ids: [`EV-${edgeId}`],
-    evidence_level: 5,
-    confidence: 0.95,
-    label: `${fromName} buys from ${toName}`
-  };
-}
-
-function edgeFixture(
-  edgeId: string,
-  fromId: string,
-  fromName: string,
-  toId: string,
-  toName: string,
-  componentId: string | null
-): WorkbenchModel["edges"][number] {
-  return {
-    edge_id: edgeId,
-    from_id: fromId,
-    from_name: fromName,
-    to_id: toId,
-    to_name: toName,
-    relation: "BUYS_FROM",
-    component: componentId,
-    component_id: componentId,
-    evidence_level: 5,
-    confidence: 0.95,
-    evidence_ids: [`EV-${edgeId}`]
-  };
-}
-
-function actionBatchDefinition(kind: "smoke" | "sync" | "enable" | "run_due") {
-  const definition = CORROBORATION_SOURCE_PLAN_ACTION_BATCHES.find((item) => item.kind === kind);
-  if (definition === undefined) throw new Error(`Missing action batch definition: ${kind}`);
-  return definition;
-}
-
-function officialSourceTargetCoverage(state: SourceTargetCoverageReport["items"][number]["state"]): SourceTargetCoverageReport {
-  return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    company_id: "ENT-NVIDIA",
-    namespace: "nvidia-memory-2025",
-    summary: {
-      expected_targets: 1,
-      synced_targets: 1,
-      not_synced: 0,
-      enabled_targets: state === "disabled" ? 0 : 1,
-      due_targets: state === "due" ? 1 : 0,
-      active_jobs: 0,
-      retry_wait: 0,
-      degraded_targets: state === "degraded" ? 1 : 0,
-      dead_targets: 0,
-      targets_with_observations: 0
-    },
-    items: [
-      {
-        expected_target: {
-          check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6",
-          source_adapter_id: "samsung-ir",
-          target_kind: "official-html-disclosure",
-          enabled: true,
-          target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 }
-        },
-        synced: true,
-        match_kind: "check_target_id",
-        matched_check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6",
-        state,
-        target_enabled: state !== "disabled",
-        policy_enabled: true,
-        next_check_at: state === "due" ? "2025-12-31T00:00:00.000Z" : null,
-        effective_check_cadence_minutes: 10080,
-        effective_jitter_minutes: 120,
-        latest_job: null,
-        latest_event: null,
-        observations: 0,
-        latest_observation_at: null
-      }
-    ]
-  };
-}
-
-function emptyWorkbench(): WorkbenchModel {
-  return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    selected_company_id: "ENT-NVIDIA",
-    companies: [],
-    chain: {
-      schema_version: "1.0.0",
-      view_type: "company_chain",
-      root: { kind: "company", id: "ENT-NVIDIA", name: "NVIDIA" },
-      max_depth: 1,
-      generated_by: "test",
-      segments: [],
-      stats: { fact_edges: 0, claims: 0, observations: 0, leads: 0, unknowns: 0 }
-    },
-    chain_segments: [],
-    edges: [],
-    upstream_edges: [],
-    downstream_edges: [],
-    claims: [],
-    draft_claims: [],
-    evidences: [],
-    unknown_items: [],
-    sources: [],
-    source_plan: [],
-    changes: [],
-    attention_queue: [],
-    review_queue: [],
-    intelligence: { edge_strengths: [], edge_freshness: [] }
-  };
-}
-
-function readyQuestionReadiness(): QuestionReadinessMatrix {
-  return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    company_id: "ENT-NVIDIA",
-    summary: { ready: 1, partial: 0, blocked: 0 },
-    items: [
-      {
-        question_id: "company.upstream_dependencies",
-        question: "一级供应商是否可审计？",
-        status: "ready",
-        confidence: 0.7,
-        ready_signals: ["fixture"],
-        missing_requirements: [],
-        supporting_refs: [],
-        unknown_ids: []
-      }
-    ]
-  };
-}
-
-function observationFixture(
-  observationId: string,
-  observationType: ObservationCoverageObservation["observation_type"],
-  overrides: Partial<ObservationCoverageObservation> = {}
-): ObservationCoverageObservation {
-  return {
-    observation_id: observationId,
-    observation_type: observationType,
-    source_adapter_id: "fixture",
-    source_item_id: null,
-    doc_id: null,
-    scope_kind: "company",
-    scope_id: "ENT-NVIDIA",
-    geography_kind: null,
-    geography_id: null,
-    component_id: null,
-    metric_name: "fixture_metric",
-    metric_value: null,
-    metric_unit: null,
-    time_window_start: null,
-    time_window_end: null,
-    baseline_value: null,
-    change_percent: null,
-    confidence: 0.8,
-    anomaly: null,
-    created_at: "2026-01-01T00:00:00.000Z",
-    ...overrides
-  };
-}
-
-function evidenceFixture(evidenceId: string, overrides: Partial<WorkbenchModel["evidences"][number]> = {}): WorkbenchModel["evidences"][number] {
-  return {
-    evidence_id: evidenceId,
-    edge_id: null,
-    superseded_by: null,
-    cite_text: "NVIDIA depends on third-party suppliers for memory.",
-    cite_locator: "10-K",
-    cite_start_char: 10,
-    cite_end_char: 68,
-    cite_text_sha256: null,
-    normalized_cite_text_sha256: null,
-    source_snapshot_sha256: null,
-    parser_version: "fixture",
-    extractor_version: "fixture",
-    relation_candidate_hash: "fixture",
-    evidence_level: 5,
-    confidence: 0.95,
-    is_inferred: false,
-    extraction_method: "rule",
-    source_url: "https://example.com/source",
-    source_date: "2025-01-01T00:00:00.000Z",
-    fetched_at: "2026-01-01T00:00:00.000Z",
-    source_adapter_id: "fixture",
-    document_type: "10-K",
-    subject_name: "NVIDIA",
-    object_name: "Micron",
-    relation: "BUYS_FROM",
-    ...overrides
   };
 }
