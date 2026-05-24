@@ -308,6 +308,9 @@ importers:
       '@supplystrata/evidence-trace':
         specifier: workspace:*
         version: link:../evidence-trace
+      '@supplystrata/review-candidates':
+        specifier: workspace:*
+        version: link:../review-candidates
       pg:
         specifier: ~8.13.1
         version: 8.13.3
