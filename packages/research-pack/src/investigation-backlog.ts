@@ -39,6 +39,7 @@ export function buildInvestigationBacklog(input: InvestigationBacklogInput): Inv
       p3: countPriority(items, "P3"),
       runnable_check_targets: items.reduce((count, item) => count + item.runnable_check_targets.length, 0),
       source_target_coverage_items: items.reduce((count, item) => count + item.source_target_coverage.length, 0),
+      propagation_readiness_items: items.filter((item) => item.kind === "propagation_readiness").length,
       ...corroborationReviewSummary
     },
     items

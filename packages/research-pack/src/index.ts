@@ -136,6 +136,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness,
     source_target_coverage: sourceTargetCoverage,
     ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });
@@ -292,6 +293,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness,
     source_target_coverage: sourceTargetCoverage,
     ...(sourceTargetPreflight === null ? {} : { source_target_preflight: sourceTargetPreflight })
   });

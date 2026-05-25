@@ -115,6 +115,7 @@ export interface ResearchPackStats {
   investigation_backlog_corroboration_review_invalid_config: number;
   investigation_backlog_corroboration_review_unsupported_connector: number;
   investigation_backlog_corroboration_review_source_unreachable: number;
+  investigation_backlog_propagation_readiness_items: number;
   corroboration_source_plan_items: number;
   corroboration_source_plan_targets: number;
   corroboration_source_plan_edges: number;

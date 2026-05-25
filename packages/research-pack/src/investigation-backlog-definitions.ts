@@ -4,6 +4,7 @@ import type { SourceTargetCoverageState } from "@supplystrata/source-monitor";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { ObservationCoverageReport } from "./observation-coverage.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
+import type { PropagationReadinessReport } from "./propagation-readiness.js";
 import type { QuestionReadinessMatrix } from "./question-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
@@ -18,7 +19,8 @@ export type InvestigationBacklogKind =
   | "official_disclosure_coverage"
   | "corroboration_review"
   | "profile_expansion"
-  | "supply_chain_expansion";
+  | "supply_chain_expansion"
+  | "propagation_readiness";
 export type InvestigationBacklogPriority = "P0" | "P1" | "P2" | "P3";
 
 export interface InvestigationBacklogTarget {
@@ -86,6 +88,7 @@ export interface InvestigationBacklog {
     corroboration_review_invalid_config: number;
     corroboration_review_unsupported_connector: number;
     corroboration_review_source_unreachable: number;
+    propagation_readiness_items: number;
   };
   items: InvestigationBacklogItem[];
 }
@@ -100,6 +103,7 @@ export interface InvestigationBacklogInput {
   observation_coverage?: ObservationCoverageReport;
   official_disclosure_readiness?: OfficialDisclosureReadinessReport;
   supply_chain_expansion_plan?: SupplyChainExpansionPlan;
+  propagation_readiness?: PropagationReadinessReport;
   source_target_coverage?: SourceTargetCoverageReport;
   source_target_preflight?: SourceTargetPreflightReport;
 }

@@ -35,6 +35,7 @@ export function backlogDrafts(input: InvestigationBacklogInput): BacklogDraft[] 
     ...corroborationReviewDrafts(input),
     ...profileExpansionDrafts(input),
     ...supplyChainExpansionDrafts(input),
+    ...propagationReadinessDrafts(input),
     ...observationSeriesDrafts(input),
     ...sourceCheckDrafts(input)
   ];
@@ -268,6 +269,35 @@ function supplyChainExpansionDrafts(input: InvestigationBacklogInput): BacklogDr
   return [...frontierDrafts, ...leadDrafts];
 }
 
+function propagationReadinessDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
+  const report = input.propagation_readiness;
+  if (report === undefined) return [];
+  const coverageByTarget = coverageByRunnableTarget(input);
+  return report.items
+    .filter((item) => item.status !== "ready")
+    .map((item) => {
+      const sourceIds = sourceIdsFromRefs(item.source_plan_refs);
+      const runnableCheckTargets = runnableTargetsForSources(input.source_plan, sourceIds);
+      return {
+        kind: "propagation_readiness",
+        priority: priorityForPropagationReadiness(item.status),
+        title: `Collect propagation context for ${item.context_kind}`,
+        rationale: item.missing_requirements.join("; "),
+        action: item.action,
+        target: {
+          component_ids: item.component_ids,
+          edge_ids: edgeIdsFromRefs(item.frontier_refs),
+          unknown_ids: [],
+          source_ids: sourceIds,
+          question_ids: [`propagation.${item.context_kind}`]
+        },
+        supporting_refs: [item.context_id, ...item.observation_series_refs, ...item.source_plan_refs, ...item.component_dependency_refs, ...item.frontier_refs],
+        runnable_check_targets: runnableCheckTargets,
+        source_target_coverage: coverageForTargets(coverageByTarget, runnableCheckTargets)
+      };
+    });
+}
+
 function sourceCheckDrafts(input: InvestigationBacklogInput): BacklogDraft[] {
   const coverageByTarget = coverageByRunnableTarget(input);
   return input.source_plan
@@ -341,6 +371,13 @@ function priorityForSourcePlanItem(item: SourcePlanItem): InvestigationBacklogPr
 function priorityForObservationSeries(series: ObservationSeriesReadiness): InvestigationBacklogPriority {
   if (series.observation_type === "FINANCIAL_METRIC_OBSERVATION" || series.observation_type === "TRADE_FLOW_OBSERVATION") return "P2";
   return "P3";
+}
+
+function priorityForPropagationReadiness(
+  status: NonNullable<InvestigationBacklogInput["propagation_readiness"]>["items"][number]["status"]
+): InvestigationBacklogPriority {
+  if (status === "blocked") return "P0";
+  return "P1";
 }
 
 function actionForQuestion(questionId: string): string {

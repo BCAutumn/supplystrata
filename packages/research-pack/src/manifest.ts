@@ -93,6 +93,7 @@ export function manifestFromModel(input: {
       investigation_backlog_corroboration_review_invalid_config: input.investigationBacklog.summary.corroboration_review_invalid_config,
       investigation_backlog_corroboration_review_unsupported_connector: input.investigationBacklog.summary.corroboration_review_unsupported_connector,
       investigation_backlog_corroboration_review_source_unreachable: input.investigationBacklog.summary.corroboration_review_source_unreachable,
+      investigation_backlog_propagation_readiness_items: input.investigationBacklog.summary.propagation_readiness_items,
       corroboration_source_plan_items: input.corroborationSourcePlan.summary.source_plan_items,
       corroboration_source_plan_targets: input.corroborationSourcePlan.summary.runnable_targets,
       corroboration_source_plan_edges: input.corroborationSourcePlan.summary.review_edges,

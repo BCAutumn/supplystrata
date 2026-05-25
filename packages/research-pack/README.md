@@ -7,6 +7,7 @@
 - 生成 `workbench`、CompanyCard、ChainCard、ComponentCard、question readiness、official disclosure readiness、source plan、source target coverage、investigation backlog、corroboration source plan、supply-chain expansion plan、propagation readiness、Gate 1 run ledger 和 manifest。
 - 把 Gate 1 的事实覆盖、source path、二源检查、single-source disposition、official signal disposition、monitoring config 和 review workbench 汇总成只读执行账本。
 - 把需求、扩产、设施建设、设备安装、工艺材料、价格/贸易和政策信号整理成结构化 reasoning inputs，供未来前端研究员或安全 AI 消费。
+- 把 `partial/blocked` propagation readiness 转成 investigation backlog，使补 observation / source target 的动作可排队、可审计。
 - 支持 DB-backed `research run` 和无数据库 `from-workbench` snapshot 两条路径。
 - 在显式 `prepare-data` 输入下调用派生刷新步骤。
 

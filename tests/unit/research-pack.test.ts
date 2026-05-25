@@ -442,6 +442,10 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.supply_chain_expansion_component_dependency_leads).toBeGreaterThan(0);
     expect(pack.manifest.stats.propagation_readiness_ready).toBe(pack.propagation_readiness.summary.ready);
     expect(pack.manifest.stats.propagation_reasoning_inputs).toBe(pack.propagation_readiness.summary.reasoning_inputs);
+    expect(pack.manifest.stats.investigation_backlog_propagation_readiness_items).toBe(
+      pack.propagation_readiness.summary.partial + pack.propagation_readiness.summary.blocked
+    );
+    expect(pack.investigation_backlog.items.some((item) => item.kind === "propagation_readiness")).toBe(true);
     expect(pack.supply_chain_expansion_plan.frontier[0]).toEqual(
       expect.objectContaining({
         edge_id: "EDGE-1",
@@ -1523,7 +1527,8 @@ describe("research-pack", () => {
         corroboration_review_missing_credentials: 0,
         corroboration_review_invalid_config: 0,
         corroboration_review_unsupported_connector: 0,
-        corroboration_review_source_unreachable: 0
+        corroboration_review_source_unreachable: 0,
+        propagation_readiness_items: 0
       },
       items: [
         {
