@@ -5,9 +5,9 @@ import { ensureSupplierListFacilityEntity, resolvePendingEntitySurface, type Fac
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphSqlWriter } from "@supplystrata/graph-builder";
-import { supplierListReviewToFacilityRelation, supplierListReviewToSupplierRelation } from "@supplystrata/review-candidates";
+import { supplierListReviewToFacilityRelation, supplierListReviewToSupplierRelation, type SupplierListReviewCandidate } from "@supplystrata/review-candidates";
 import { markReviewCandidateApplied, type ReviewQueueItem } from "@supplystrata/review-store";
-import { locateCandidateCitation } from "./citation-location.js";
+import { locateCandidateCitation, type CitationLocation, type SavedChunkRef } from "./citation-location.js";
 import { assertReviewItemKind, blockReviewCandidate } from "./review-apply-blocking.js";
 import type { AppliedReviewEdgeResult, ReviewApplyOptions, ReviewApplyResult, SupplierListReviewItem } from "./review-apply-definitions.js";
 
@@ -46,7 +46,7 @@ async function applySupplierListReviewCandidate(
       reviewer,
       reviewed_at: reviewedAt
     });
-    const citationChunks = locateSupplierListCitations(doc.document, scored);
+    const citationChunks = locateSupplierListCitations(doc.document, item.candidate, scored);
     if (citationChunks.status === "blocked") return blockReviewCandidate(client, reviewId, citationChunks.reason);
     const sqlWriter = new GraphSqlWriter(resolver);
     const applyResults = await applySupplierListEdges(client, sqlWriter, scored, doc.docId, citationChunks, { reviewer, reviewed_at: reviewedAt });
@@ -165,13 +165,14 @@ async function scoreSupplierListRelations(
 
 function locateSupplierListCitations(
   doc: DocumentWithChunks,
+  candidate: SupplierListReviewCandidate,
   scored: ScoredSupplierListRelations
 ): SupplierListCitationChunks | { status: "blocked"; reason: string } {
-  const supplierLocation = locateCandidateCitation(doc.chunks, scored.supplierRelation);
+  const supplierLocation = locateSupplierListCitation(doc.chunks, candidate, scored.supplierRelation);
   if (supplierLocation.status !== "located") {
     return { status: "blocked", reason: `supplier relation citation is not uniquely located: ${supplierLocation.reason}` };
   }
-  const facilityLocation = locateCandidateCitation(doc.chunks, scored.facilityRelation);
+  const facilityLocation = locateSupplierListCitation(doc.chunks, candidate, scored.facilityRelation);
   if (facilityLocation.status !== "located") {
     return { status: "blocked", reason: `facility relation citation is not uniquely located: ${facilityLocation.reason}` };
   }
@@ -180,6 +181,59 @@ function locateSupplierListCitations(
     supplierChunkId: supplierLocation.chunk_id,
     facilityChunkId: facilityLocation.chunk_id
   };
+}
+
+function locateSupplierListCitation(
+  chunks: readonly SavedChunkRef[],
+  candidate: SupplierListReviewCandidate,
+  relation: ReturnType<typeof supplierListReviewToSupplierRelation> | ReturnType<typeof supplierListReviewToFacilityRelation>
+): CitationLocation {
+  const exact = locateCandidateCitation(chunks, relation);
+  if (exact.status === "located") return exact;
+  return locateSupplierListRowContext(chunks, candidate);
+}
+
+export function locateSupplierListRowContext(chunks: readonly SavedChunkRef[], candidate: SupplierListReviewCandidate): CitationLocation {
+  const supplierName = normalizeSupplierListContext(candidate.payload.supplier_name);
+  const rowText = normalizeSupplierListContext(candidate.evidence.source_row_text);
+  const locationAndCountry = normalizeSupplierListContext(`${candidate.payload.location_text} ${candidate.payload.country_or_region}`);
+
+  const matches = chunks.filter((chunk) => {
+    const text = normalizeSupplierListContext(chunk.text);
+    // Apple Supplier List 的 continuation row 经常只保留地点行。要求同一 chunk 同时出现供应商名和该行地点，
+    // 这样保留 chunk 级可追溯性，同时避免把常见地点文本误匹配到别的供应商。
+    if (!text.includes(supplierName)) return false;
+    if (rowText.length > 0 && text.includes(rowText)) return true;
+    return locationAndCountry.length > 0 && text.includes(locationAndCountry);
+  });
+
+  if (matches.length === 0) {
+    return {
+      status: "not_found",
+      occurrence_count: 0,
+      reason: "supplier-list row context is not present in persisted document chunks"
+    };
+  }
+  if (matches.length > 1) {
+    return {
+      status: "ambiguous",
+      occurrence_count: matches.length,
+      reason: "supplier-list row context appears in multiple persisted chunks"
+    };
+  }
+  const match = matches[0];
+  if (match === undefined) {
+    return {
+      status: "not_found",
+      occurrence_count: 0,
+      reason: "supplier-list row context is not present in persisted document chunks"
+    };
+  }
+  return { status: "located", chunk_id: match.chunk_id, occurrence_count: 1 };
+}
+
+function normalizeSupplierListContext(text: string): string {
+  return text.normalize("NFKC").replace(/\s+/g, " ").trim();
 }
 
 async function applySupplierListEdges(

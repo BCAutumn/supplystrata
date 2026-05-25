@@ -78,6 +78,7 @@ describe("db read contracts", () => {
 
     const bulkInsert = client.statements.find((statement) => statement.includes("jsonb_to_recordset($2::jsonb)"));
     expect(bulkInsert).toBeDefined();
+    expect(bulkInsert).toContain("value numeric");
     expect(bulkInsert).not.toMatch(/\bSELECT\s+\*/i);
   });
 

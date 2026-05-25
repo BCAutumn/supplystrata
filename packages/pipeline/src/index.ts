@@ -4,6 +4,7 @@ export { persistDocumentObservations, recordSavedDocumentObservation } from "./d
 export type { PersistDocumentObservationResult } from "./document-observations.js";
 export { enqueueOfficialDisclosureSignalReviewCandidates } from "./official-disclosure-signal-candidates.js";
 export type { OfficialDisclosureSignalCandidateResult } from "./official-disclosure-signal-candidates.js";
+export { locateSupplierListRowContext } from "./review-apply-supplier-list.js";
 export { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "./review-apply.js";
 export type { AppliedReviewEdgeResult, ReviewApplyBatchItem, ReviewApplyBatchSummary, ReviewApplyResult } from "./review-apply.js";
 export { isValidCandidate, runSupplyChainPipelineFromNormalized } from "./run.js";

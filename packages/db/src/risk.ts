@@ -104,7 +104,7 @@ export async function replaceRiskView(client: DbTxClient, input: ReplaceRiskView
            subject_kind text,
            subject_id text,
            component_id text,
-           value text,
+           value numeric,
            confidence double precision,
            provenance jsonb,
            attrs jsonb
