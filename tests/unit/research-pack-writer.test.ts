@@ -31,10 +31,19 @@ describe("research-pack writer", () => {
         batch_kind?: string;
         automatic_fact_mutation_allowed?: boolean;
         summary?: { items?: number };
+        items?: Array<{
+          allowed_decisions?: string[];
+          command_hints?: unknown[];
+          frontend_action_kind?: string;
+          write_impact?: string;
+        }>;
       };
       expect(p0Batch.batch_kind).toBe("p0");
       expect(p0Batch.automatic_fact_mutation_allowed).toBe(false);
       expect(p0Batch.summary?.items).toBeGreaterThan(0);
+      expect(p0Batch.items?.some((item) => item.frontend_action_kind !== undefined)).toBe(true);
+      expect(p0Batch.items?.every((item) => (item.allowed_decisions?.length ?? 0) > 0)).toBe(true);
+      expect(p0Batch.items?.every((item) => (item.write_impact?.length ?? 0) > 0)).toBe(true);
 
       const ledger = JSON.parse(await readFile(join(outDir, "gate1-run-ledger.json"), "utf8")) as {
         mainline_phase?: string;

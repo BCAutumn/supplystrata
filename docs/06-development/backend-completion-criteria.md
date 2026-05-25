@@ -588,6 +588,7 @@ POST /review/:id/reject
 [x] research-pack 能输出 `gate1-run-ledger.json/md`，把 Gate 1 data progress、source path progress、corroboration 批次和 supply-chain frontier company switching 合成一个只读执行账本
 [x] research-pack 能输出 `gate1-data-depth-workbench.json/md`，把 Gate 1 数据深度缺口收敛成 review-only 优先级清单，覆盖 L4/L5 增长、二源 corroboration、source blocker、strength 缺失、gold label 批次和 propagation context
 [x] research-pack 能把 Gate 1 data-depth workbench 拆成 action batch JSON，至少覆盖 P0、source blockers、labeling、corroboration 和 intelligence context，供前端/host app 做受控审查或配置动作
+[x] Gate 1 data-depth action item 能输出推荐决策、允许决策、写入影响、frontend action kind 和命令提示；这些字段只授权配置/审查/标注/递归研究动作，不授权自动写 fact edge 或关闭 unknown
 [x] research-pack 能输出 `propagation-readiness.json/md` 或等价 DTO，作为 AI/前端分析产业传导链路的结构化输入，不直接生成结论或事实边
 [x] `gate1-run-ledger` 能输出 frontend-ready `monitoring_config`，把 source policy / source target 的 cadence、jitter、retry、backoff、初始 `next_check_at` 和 source-plan 批次建议统一暴露给后续前端配置
 [x] `gate1-run-ledger.monitoring_config.batches[]` 能输出 state counts、attention hint 和 recommended operational action，区分 sync、enable、run due、wait、investigate failure、review observation

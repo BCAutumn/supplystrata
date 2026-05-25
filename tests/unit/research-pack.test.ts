@@ -781,8 +781,13 @@ describe("research-pack", () => {
     const corroborationBatch = buildGate1DataDepthActionBatch(pack.gate1_data_depth_workbench, gate1DataDepthActionBatchDefinition("corroboration"));
     expect(p0Batch.summary.items).toBe(pack.gate1_data_depth_workbench.items.filter((item) => item.priority === "P0").length);
     expect(p0Batch.automatic_fact_mutation_allowed).toBe(false);
+    expect(p0Batch.items.every((item) => item.review_policy === "review_only_no_fact_mutation")).toBe(true);
+    expect(p0Batch.items.every((item) => item.allowed_decisions.length > 0)).toBe(true);
+    expect(p0Batch.items.every((item) => item.write_impact.length > 0)).toBe(true);
     expect(corroborationBatch.summary.by_workstream.counterparty_corroboration).toBe(corroborationBatch.summary.items);
     expect(corroborationBatch.items.every((item) => item.workstream === "counterparty_corroboration")).toBe(true);
+    expect(corroborationBatch.items.every((item) => item.recommended_decision === "record_corroboration_disposition")).toBe(true);
+    expect(corroborationBatch.items.every((item) => item.frontend_action_kind === "review_counterparty_corroboration")).toBe(true);
   });
 
   it("reports official disclosure readiness gaps without inferring corroboration from silence", () => {

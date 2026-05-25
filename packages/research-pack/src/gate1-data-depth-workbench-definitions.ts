@@ -11,6 +11,20 @@ export type Gate1DataDepthWorkstream =
 export type Gate1DataDepthPriority = "P0" | "P1" | "P2";
 export type Gate1DataDepthReviewPolicy = "review_only_no_fact_mutation";
 export type Gate1DataDepthActionBatchKind = "p0" | "source_blockers" | "labeling" | "corroboration" | "intelligence_context";
+export type Gate1DataDepthFrontendActionKind =
+  | "run_frontier_research"
+  | "repair_source_target"
+  | "label_observation_sample"
+  | "review_counterparty_corroboration"
+  | "review_intelligence_context";
+export type Gate1DataDepthReviewDecision =
+  | "sync_or_enable_source_target"
+  | "rerun_source_check"
+  | "record_observation_label"
+  | "record_corroboration_disposition"
+  | "keep_unknown_open"
+  | "run_recursive_company_research"
+  | "defer";
 
 export interface Gate1DataDepthActionBatchDefinition {
   kind: Gate1DataDepthActionBatchKind;
@@ -70,9 +84,14 @@ export interface Gate1DataDepthWorkbenchItem {
   item_id: string;
   workstream: Gate1DataDepthWorkstream;
   priority: Gate1DataDepthPriority;
+  frontend_action_kind: Gate1DataDepthFrontendActionKind;
   title: string;
   rationale: string;
   recommended_action: string;
+  recommended_decision: Gate1DataDepthReviewDecision;
+  allowed_decisions: Gate1DataDepthReviewDecision[];
+  write_impact: string;
+  command_hints: Gate1DataDepthCommandHint[];
   review_policy: Gate1DataDepthReviewPolicy;
   automatic_fact_mutation_allowed: false;
   refs: string[];
@@ -80,6 +99,13 @@ export interface Gate1DataDepthWorkbenchItem {
   component_ids: string[];
   source_adapters: string[];
   source_targets: Gate1DataDepthSourceTargetRef[];
+}
+
+export interface Gate1DataDepthCommandHint {
+  label: string;
+  command: string;
+  writes_truth_store: boolean;
+  requires_database: boolean;
 }
 
 export interface Gate1DataDepthSourceTargetRef {

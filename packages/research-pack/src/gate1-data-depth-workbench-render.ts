@@ -32,9 +32,21 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     lines.push("");
     lines.push(`- ID: ${item.item_id}`);
     lines.push(`- Workstream: ${item.workstream}`);
+    lines.push(`- Frontend action: ${item.frontend_action_kind}`);
     lines.push(`- Policy: ${item.review_policy}; automatic fact mutation: ${String(item.automatic_fact_mutation_allowed)}`);
     lines.push(`- Rationale: ${item.rationale}`);
     lines.push(`- Recommended action: ${item.recommended_action}`);
+    lines.push(`- Recommended decision: ${item.recommended_decision}`);
+    lines.push(`- Allowed decisions: ${item.allowed_decisions.join(", ")}`);
+    lines.push(`- Write impact: ${item.write_impact}`);
+    if (item.command_hints.length > 0) {
+      lines.push("- Command hints:");
+      for (const hint of item.command_hints) {
+        lines.push(
+          `  - ${hint.label}: \`${hint.command}\` (writes_truth_store=${String(hint.writes_truth_store)}; requires_database=${String(hint.requires_database)})`
+        );
+      }
+    }
     lines.push(`- Edges: ${item.edge_ids.length === 0 ? "none" : item.edge_ids.join(", ")}`);
     lines.push(`- Components: ${item.component_ids.length === 0 ? "none" : item.component_ids.join(", ")}`);
     lines.push(`- Source adapters: ${item.source_adapters.length === 0 ? "none" : item.source_adapters.join(", ")}`);
