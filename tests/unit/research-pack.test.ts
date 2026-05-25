@@ -1829,10 +1829,15 @@ describe("research-pack", () => {
       target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2024 },
       reason: "Samsung IR 2024 connector target."
     };
+    const reviewTarget = {
+      ...smokeTarget,
+      target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2023 },
+      reason: "Samsung IR 2023 connector target."
+    };
     const sourcePlan: SourcePlanItem[] = [
       {
         ...sourcePlanItem,
-        suggested_check_targets: [smokeTarget, syncTarget]
+        suggested_check_targets: [smokeTarget, syncTarget, reviewTarget]
       }
     ];
     const backlog: InvestigationBacklog = {
@@ -1840,16 +1845,16 @@ describe("research-pack", () => {
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
       summary: {
-        open_items: 2,
+        open_items: 3,
         p0: 0,
-        p1: 2,
+        p1: 3,
         p2: 0,
         p3: 0,
-        runnable_check_targets: 2,
-        source_target_coverage_items: 1,
-        corroboration_reviews: 2,
-        corroboration_review_runnable_targets: 2,
-        corroboration_review_with_source_target_coverage: 1,
+        runnable_check_targets: 3,
+        source_target_coverage_items: 2,
+        corroboration_reviews: 3,
+        corroboration_review_runnable_targets: 3,
+        corroboration_review_with_source_target_coverage: 2,
         corroboration_review_explicit_disposition_only: 0,
         corroboration_review_need_sync: 1,
         corroboration_review_need_enable: 0,
@@ -1917,6 +1922,44 @@ describe("research-pack", () => {
               preflight_degraded_documents: 0
             }
           ]
+        },
+        {
+          backlog_id: "BACKLOG-REVIEW",
+          kind: "corroboration_review",
+          priority: "P1",
+          title: "Review completed Samsung IR target",
+          rationale: "The source target already completed successfully.",
+          action: "Review normalized output instead of repeating smoke.",
+          target: {
+            component_ids: ["COMP-DRAM"],
+            edge_ids: ["EDGE-REVIEW"],
+            unknown_ids: [],
+            source_ids: ["samsung-ir"],
+            question_ids: ["official_disclosure.corroboration"]
+          },
+          supporting_refs: [],
+          runnable_check_targets: [reviewTarget],
+          source_target_coverage: [
+            {
+              source_adapter_id: "samsung-ir",
+              target_kind: "official-html-disclosure",
+              target_config: reviewTarget.target_config,
+              check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:review",
+              state: "succeeded",
+              synced: true,
+              observations: 0,
+              latest_job_id: "job-review",
+              latest_job_status: "succeeded",
+              latest_event_id: "event-review",
+              latest_event_type: "DOCUMENT_UNCHANGED",
+              preflight_status: null,
+              preflight_issue_kind: null,
+              preflight_error_message: null,
+              preflight_missing_credential_env_keys: [],
+              preflight_normalized_documents: 0,
+              preflight_degraded_documents: 0
+            }
+          ]
         }
       ]
     };
@@ -1930,7 +1973,8 @@ describe("research-pack", () => {
     const smokeBatch = buildCorroborationSourcePlanActionBatch(plan, actionBatchDefinition("smoke"));
     const syncBatch = buildCorroborationSourcePlanActionBatch(plan, actionBatchDefinition("sync"));
 
-    expect(plan.summary.by_next_action).toEqual({ smoke_target: 1, sync_target: 1 });
+    expect(plan.summary.by_next_action).toEqual({ review_observations: 1, smoke_target: 1, sync_target: 1 });
+    expect(plan.target_refs.find((target) => target.edge_ids.includes("EDGE-REVIEW"))?.next_action).toBe("review_observations");
     expect(smokeBatch.summary).toEqual(
       expect.objectContaining({
         runnable_targets: 1,

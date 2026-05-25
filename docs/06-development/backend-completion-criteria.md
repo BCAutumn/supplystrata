@@ -584,6 +584,7 @@ POST /review/:id/reject
 [x] investigation-backlog / research-pack manifest 能汇总 corroboration review 的 runnable / sync / enable / due / preflight / credential / disposition-only 状态
 [x] research-pack 能输出 `corroboration-source-plan.json/md`，把 edge-level corroboration runnable target 过滤成可直接交给 source-management 的标准 source-plan 子集
 [x] `corroboration-source-plan` 能为每个 filtered target 输出确定性 `next_action`，把 preflight/coverage 状态收口成配置凭据、修配置、smoke、sync、enable、run due、等待、排错或 review observation
+[x] `corroboration-source-plan` 的 next-action 状态机优先尊重已同步 source target 的真实运行态；`succeeded` target 直接进入 review observation，不因缺少 preflight 快照而重复提示 smoke
 [x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
 [x] research-pack 能输出 `gate1-run-ledger.json/md`，把 Gate 1 data progress、source path progress、corroboration 批次和 supply-chain frontier company switching 合成一个只读执行账本
 [x] research-pack 能输出 `gate1-data-depth-workbench.json/md`，把 Gate 1 数据深度缺口收敛成 review-only 优先级清单，覆盖 L4/L5 增长、二源 corroboration、source blocker、strength 缺失、gold label 批次和 propagation context

@@ -115,7 +115,7 @@ const CORROBORATION_NEXT_ACTION_RULES: readonly CorroborationNextActionRule[] = 
     }
   },
   {
-    matches: (coverage) => coverage === undefined || coverage.preflight_status === null,
+    matches: (coverage) => coverage === undefined || (coverage.state === "not_synced" && coverage.preflight_status === null),
     resolve: () => ({
       next_action: "smoke_target",
       next_action_reason: "Run source-plan smoke for this filtered target before syncing it into continuous monitoring."
