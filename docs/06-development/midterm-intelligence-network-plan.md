@@ -46,6 +46,7 @@
 - 通知通道。
 - USGS / IEA 等原材料源 adapter，把 planned material target 进一步变成 runnable connector，并落成 mineral / critical-minerals observations。
 - DART-KR / EDINET / TWSE 等官方披露源，把二级/三级事实边继续做厚。当前 DART 已先接到 disclosure list monitor / source-check / readiness；EDINET 已先接到 `documents.json` daily-filings monitor / source-check / readiness，并在 profile 中覆盖 silicon wafer / ABF substrate 的日本官方目录监控；TWSE MOPS 已接到 `electronic-documents` 目录 monitor / source-check / readiness，先覆盖 Foxconn / Quanta 这类台湾 AI server ODM 节点的官方披露入口。正文下载、XBRL ZIP / PDF 和韩文/HWP 解析继续后排。
+- Propagation readiness 输出仍未落地：需要把需求信号、扩产信号、设施建设、设备安装、工艺材料消耗、原材料价格/贸易/政策信号汇总成 `ready / partial / blocked` 推理输入。它只服务前端/AI 研究，不直接生成事实边或自然语言结论。
 - 需要 key 的公开源必须走统一 source credential 配置：key 定义集中在 `@supplystrata/config`，本地真实值集中到 git 忽略的 `config/source-credentials.local.json`，`.env` / 环境变量只作为覆盖入口。未配置 key 时，source-plan smoke / backlog 标记 `missing_credentials`，research-pack 仍能输出当前可审计数据和缺口。
 
 ## 2. 目标形态
@@ -58,6 +59,7 @@ SupplyStrata 中期要回答的是：
 需求端有没有变化？
 生产端有没有变化？
 组件、材料、能源、物流、港口有没有变化？
+这些变化沿着组件、设备、材料、设施和地区怎么传导？
 哪些是事实？
 哪些是推断？
 哪些只是线索？
@@ -73,6 +75,14 @@ SupplyStrata 中期要回答的是：
 | Observation | 可复现观测，不能单独证明关系 | 否                 | Comtrade、EIA、NOAA AIS、USGS  |
 | Lead        | 值得研究的线索               | 否                 | 新闻、招聘、政府采购、单条 BOL |
 | Unknown     | 公开数据无法确认或暂未确认项 | 画成边界           | 研究流程、规则、人工 review    |
+
+后端中期还必须把产业链递归展开所需的节点准备好：
+
+```text
+company / facility / component / material / equipment / process / geography
+```
+
+例如 AI compute 不能只停在 `NVIDIA -> TSMC / SK Hynix`。它还要能把 `GPU / HBM / server / PCB / optical module / cleanroom / semiconductor equipment / photoresist / target / CMP / copper foil / resin / electronic glass cloth / high-purity gas` 这类 component、material、equipment 和 process frontier 放进 taxonomy、source-plan、unknown 和 investigation backlog。后端负责把这些节点、来源、证据和缺口准备好；最终“这条传导链意味着什么”的开放式综合分析，留给未来前端研究流程和安全 AI 消费结构化 DTO 完成。
 
 一句话：**图不是事实，证据才是事实；观测不是关系，线索不是证据。**
 
