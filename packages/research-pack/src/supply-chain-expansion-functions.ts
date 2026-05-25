@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { listComponentUpstreamLeads, type ComponentUpstreamLead } from "@supplystrata/component-context";
-import type { SourcePlanItem } from "@supplystrata/source-plan";
+import type { PlannedOutputLayer, SourcePlanItem, SourceRelationPolicy } from "@supplystrata/source-plan";
 import type { WorkbenchEdge, WorkbenchModel, WorkbenchUnknownItem } from "@supplystrata/workbench-export";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type {
@@ -8,6 +8,7 @@ import type {
   SupplyChainDependencyState,
   SupplyChainExpansionFrontierItem,
   SupplyChainExpansionState,
+  SupplyChainSourcePathAuthority,
   SupplyChainExpansionStopReason,
   SupplyChainExpansionStopCondition,
   SupplyChainExpansionSummary
@@ -16,6 +17,8 @@ import type {
 interface SourcePlanMatch {
   source_ids: string[];
   source_plan_refs: string[];
+  relation_policies: SourceRelationPolicy[];
+  output_layers: PlannedOutputLayer[];
   has_runnable_target: boolean;
 }
 
@@ -64,14 +67,6 @@ const FRONTIER_ACTIONS = {
   needs_component_context: "Backfill component_id/component specificity from evidence before expanding the counterparty's supplier network.",
   expand_candidate: "Research the counterparty with the same evidence-first workflow, constrained to this edge's component/process context."
 } as const satisfies Record<SupplyChainExpansionState, string>;
-
-const DEPENDENCY_ACTIONS = {
-  fact_covered: () => "Use existing Level 4/5 component fact coverage before scheduling more expansion.",
-  source_path_runnable: () => "Run or sync the existing source-plan target, then keep outputs in review/observation paths until evidence supports a fact edge.",
-  source_path_planned: () => "Turn the planned source path into a synced target before expecting data coverage.",
-  observation_layer_only: () => "Collect route/trade/port observations as context; do not create company fact edges from logistics signals alone.",
-  lead_only: (lead) => `Review source suggestions (${lead.source_suggestions.join(", ")}) and add an auditable source-plan path if this lead is in scope.`
-} as const satisfies Record<SupplyChainDependencyState, (lead: ComponentUpstreamLead) => string>;
 
 const FRONTIER_STOP_REASONS = {
   stop_depth_limit: "depth_limit",
@@ -179,6 +174,9 @@ export function expansionSummary(input: {
     component_dependency_leads: input.leads.length,
     leads_with_fact_coverage: input.leads.filter((lead) => lead.state === "fact_covered").length,
     leads_with_source_path: input.leads.filter((lead) => lead.state === "source_path_runnable" || lead.state === "source_path_planned").length,
+    leads_with_fact_capable_source_path: input.leads.filter((lead) => lead.source_path_authority === "fact_capable").length,
+    leads_with_observation_source_path: input.leads.filter((lead) => lead.source_path_authority === "observation_only").length,
+    leads_with_lead_only_source_path: input.leads.filter((lead) => lead.source_path_authority === "lead_only").length,
     lead_only_items: input.leads.filter((lead) => lead.state === "lead_only").length,
     observation_layer_items: input.leads.filter((lead) => lead.state === "observation_layer_only").length,
     blocked_frontier_edges: input.frontier.filter((item) => item.expansion_state !== "expand_candidate").length,
@@ -196,7 +194,7 @@ export function compareEdges(left: WorkbenchEdge, right: WorkbenchEdge): number 
   return left.edge_id.localeCompare(right.edge_id);
 }
 
-export function uniqueSorted(values: readonly string[]): string[] {
+export function uniqueSorted<T extends string>(values: readonly T[]): T[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))].sort((left, right) => left.localeCompare(right));
 }
 
@@ -244,6 +242,7 @@ function componentDependencyLead(
 ): SupplyChainComponentDependencyLead {
   const state = dependencyState(lead, input.factCovered, input.sourcePlanMatch);
   const sourceIds = uniqueSorted([...input.sourcePlanMatch.source_ids, ...sourceIdsFromReadiness(input.readinessSourceRefs, lead.target_id)]);
+  const sourcePathAuthority = sourcePathAuthorityFor(input.sourcePlanMatch.relation_policies);
   return {
     lead_id: stableId("SCL", [lead.dependency_id, lead.parent_component_id, lead.target_id]),
     dependency_id: lead.dependency_id,
@@ -257,11 +256,14 @@ function componentDependencyLead(
     confidence: lead.confidence,
     source_ids: sourceIds,
     source_plan_refs: input.sourcePlanMatch.source_plan_refs,
+    source_relation_policies: input.sourcePlanMatch.relation_policies,
+    source_output_layers: input.sourcePlanMatch.output_layers,
+    source_path_authority: sourcePathAuthority,
     supporting_edge_ids: [...input.supportingEdgeIds].sort(),
     unknowns: [...lead.unknowns].sort(),
     expansion_policy: "lead_only_no_fact_mutation",
     rationale: lead.summary,
-    action: dependencyAction(state, lead)
+    action: dependencyAction(state, lead, sourcePathAuthority)
   };
 }
 
@@ -291,8 +293,22 @@ function frontierAction(state: SupplyChainExpansionState): string {
   return FRONTIER_ACTIONS[state];
 }
 
-function dependencyAction(state: SupplyChainDependencyState, lead: ComponentUpstreamLead): string {
-  return DEPENDENCY_ACTIONS[state](lead);
+function dependencyAction(state: SupplyChainDependencyState, lead: ComponentUpstreamLead, authority: SupplyChainSourcePathAuthority): string {
+  if (state === "fact_covered") return "Use existing Level 4/5 component fact coverage before scheduling more expansion.";
+  if (state === "source_path_runnable") {
+    if (authority === "fact_capable") return "Run or sync the official source-plan target, then review evidence before creating any fact edge.";
+    if (authority === "observation_only") return "Run or sync the observation-only source-plan target as context; do not create a company fact edge from it.";
+    if (authority === "lead_only") return "Run or sync the lead-only target as a review queue input; require stronger evidence before fact mutation.";
+    return "Run or sync the existing source-plan target, then keep outputs in review/observation paths until evidence supports a fact edge.";
+  }
+  if (state === "source_path_planned") {
+    if (authority === "fact_capable") return "Turn the planned official source path into a synced target before expecting auditable relation evidence.";
+    if (authority === "observation_only") return "Turn the planned observation source path into a synced target before expecting context coverage.";
+    return "Turn the planned source path into a synced target before expecting data coverage.";
+  }
+  if (state === "observation_layer_only")
+    return "Collect route/trade/port observations as context; do not create company fact edges from logistics signals alone.";
+  return `Review source suggestions (${lead.source_suggestions.join(", ")}) and add an auditable source-plan path if this lead is in scope.`;
 }
 
 function componentStopCondition(lead: SupplyChainComponentDependencyLead): SupplyChainExpansionStopCondition {
@@ -319,15 +335,24 @@ function reachesCatalogBoundary(lead: SupplyChainComponentDependencyLead): boole
 function sourcePlanMatchForLead(sourcePlan: readonly SourcePlanItem[], lead: ComponentUpstreamLead): SourcePlanMatch {
   const matched = sourcePlan.filter(
     (item) =>
-      item.trigger_dependency_ids.includes(lead.dependency_id) ||
-      item.target_ids.includes(lead.target_id) ||
-      item.parent_component_ids.includes(lead.parent_component_id)
+      item.trigger_dependency_ids.includes(lead.dependency_id) || item.target_ids.includes(lead.target_id) || item.parent_component_ids.includes(lead.target_id)
   );
   return {
     source_ids: uniqueSorted(matched.map((item) => item.source_id)),
     source_plan_refs: uniqueSorted(matched.map((item) => `source_plan:${item.source_id}`)),
+    relation_policies: uniqueSorted(matched.map((item) => item.relation_policy)),
+    output_layers: uniqueSorted(matched.map((item) => item.expected_output_layer)),
     has_runnable_target: matched.some((item) => item.suggested_check_targets.some((target) => target.runnable))
   };
+}
+
+function sourcePathAuthorityFor(policies: readonly SourceRelationPolicy[]): SupplyChainSourcePathAuthority {
+  if (policies.length === 0) return "none";
+  if (policies.includes("can_create_fact_edge")) return "fact_capable";
+  if (policies.length > 1) return "mixed";
+  const policy = policies[0];
+  if (policy === "observation_only" || policy === "lead_only" || policy === "entity_only") return policy;
+  return "mixed";
 }
 
 function sourceIdsFromReadiness(readinessSourceRefs: ReadonlyMap<string, string>, targetId: string): string[] {

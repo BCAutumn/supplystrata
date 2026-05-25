@@ -1,10 +1,11 @@
 import type { ComponentDependencyCategory } from "@supplystrata/component-context";
-import type { SourcePlanItem } from "@supplystrata/source-plan";
+import type { PlannedOutputLayer, SourcePlanItem, SourceRelationPolicy } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 
 export type SupplyChainExpansionState = "expand_candidate" | "needs_component_context" | "stop_depth_limit";
 export type SupplyChainDependencyState = "fact_covered" | "source_path_runnable" | "source_path_planned" | "observation_layer_only" | "lead_only";
+export type SupplyChainSourcePathAuthority = "fact_capable" | "observation_only" | "lead_only" | "entity_only" | "mixed" | "none";
 export type SupplyChainExpansionStopReason = "depth_limit" | "missing_component_context" | "catalog_boundary" | "observation_layer_boundary";
 
 export interface SupplyChainExpansionPlan {
@@ -25,6 +26,9 @@ export interface SupplyChainExpansionSummary {
   component_dependency_leads: number;
   leads_with_fact_coverage: number;
   leads_with_source_path: number;
+  leads_with_fact_capable_source_path: number;
+  leads_with_observation_source_path: number;
+  leads_with_lead_only_source_path: number;
   lead_only_items: number;
   observation_layer_items: number;
   blocked_frontier_edges: number;
@@ -65,6 +69,9 @@ export interface SupplyChainComponentDependencyLead {
   confidence: number;
   source_ids: string[];
   source_plan_refs: string[];
+  source_relation_policies: SourceRelationPolicy[];
+  source_output_layers: PlannedOutputLayer[];
+  source_path_authority: SupplyChainSourcePathAuthority;
   supporting_edge_ids: string[];
   unknowns: string[];
   expansion_policy: "lead_only_no_fact_mutation";

@@ -14,6 +14,7 @@ import {
   observationFixture,
   officialSourcePlanItem
 } from "./research-pack-fixtures.js";
+import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 describe("research-pack expansion and propagation", () => {
   it("builds a deterministic recursive expansion plan without creating fact edges", () => {
@@ -79,6 +80,9 @@ describe("research-pack expansion and propagation", () => {
       expect.objectContaining({
         state: "source_path_runnable",
         expansion_policy: "lead_only_no_fact_mutation",
+        source_path_authority: "fact_capable",
+        source_relation_policies: ["can_create_fact_edge"],
+        source_output_layers: ["edge"],
         source_plan_refs: ["source_plan:samsung-ir"]
       })
     );
@@ -165,5 +169,85 @@ describe("research-pack expansion and propagation", () => {
     );
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
     expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");
+  });
+
+  it("classifies component lead source paths by authority without borrowing parent-only source plans", () => {
+    const parentOnlyOfficialSource: SourcePlanItem = {
+      ...officialSourcePlanItem(),
+      source_id: "company-ir",
+      source_name: "Company IR",
+      parent_component_ids: ["COMP-SERVER"],
+      target_ids: ["COMP-SERVER"],
+      trigger_dependency_ids: ["official-target:COMP-SERVER:company-ir"],
+      reasons: ["Server component has a generic company IR plan."],
+      suggested_check_targets: [
+        {
+          source_adapter_id: "company-ir",
+          target_kind: "official-html-disclosure",
+          runnable: true,
+          target_config: { entity_id: "ENT-ODM", url: "https://example.com/ir" },
+          reason: "Generic server disclosure target."
+        }
+      ]
+    };
+    const observationOnlyCclSource: SourcePlanItem = {
+      source_id: "census-trade",
+      source_name: "Census Trade",
+      purpose: "trade",
+      priority: "P1",
+      status: "preview",
+      automation: "allowed",
+      requires_key: true,
+      expected_output_layer: "observation",
+      relation_policy: "observation_only",
+      parent_component_ids: ["COMP-PCB"],
+      target_ids: ["COMP-CCL"],
+      trigger_dependency_ids: ["CDEP-PCB-CCL"],
+      reasons: ["CCL can be observed through HS proxy trade data."],
+      suggested_check_targets: [
+        {
+          source_adapter_id: "census-trade",
+          target_kind: "trade-flow-observation",
+          runnable: true,
+          target_config: { component_id: "COMP-CCL", commodity_code: "741021", time: "2025-12", direction: "imports" },
+          reason: "Trade proxy only."
+        }
+      ]
+    };
+    const plan = buildSupplyChainExpansionPlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: { ...emptyWorkbench(), chain_segments: [], edges: [] },
+      component_ids: ["COMP-SERVER", "COMP-PCB"],
+      source_plan: [parentOnlyOfficialSource, observationOnlyCclSource],
+      max_depth: 7
+    });
+
+    expect(plan.component_dependency_leads.find((lead) => lead.dependency_id === "CDEP-SERVER-GPU")).toEqual(
+      expect.objectContaining({
+        state: "lead_only",
+        source_path_authority: "none",
+        source_plan_refs: []
+      })
+    );
+    expect(plan.component_dependency_leads.find((lead) => lead.dependency_id === "CDEP-SERVER-PCB")).toEqual(
+      expect.objectContaining({
+        state: "source_path_runnable",
+        source_path_authority: "observation_only",
+        source_ids: ["census-trade"],
+        source_plan_refs: ["source_plan:census-trade"]
+      })
+    );
+    expect(plan.component_dependency_leads.find((lead) => lead.dependency_id === "CDEP-PCB-CCL")).toEqual(
+      expect.objectContaining({
+        state: "source_path_runnable",
+        source_path_authority: "observation_only",
+        source_relation_policies: ["observation_only"],
+        source_output_layers: ["observation"],
+        source_plan_refs: ["source_plan:census-trade"]
+      })
+    );
+    expect(plan.summary.leads_with_observation_source_path).toBeGreaterThan(0);
+    expect(renderSupplyChainExpansionPlanMarkdown(plan)).toContain("Source authority: observation_only");
   });
 });

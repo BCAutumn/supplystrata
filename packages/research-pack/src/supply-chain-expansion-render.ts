@@ -13,7 +13,7 @@ export function renderSupplyChainExpansionPlanMarkdown(plan: SupplyChainExpansio
     "",
     `- Fact edges considered: ${plan.summary.fact_edges_considered}`,
     `- Frontier edges: ${plan.summary.frontier_edges}; companies ${plan.summary.frontier_companies}; blocked ${plan.summary.blocked_frontier_edges}`,
-    `- Component dependency leads: ${plan.summary.component_dependency_leads}; fact-covered ${plan.summary.leads_with_fact_coverage}; source-path ${plan.summary.leads_with_source_path}; lead-only ${plan.summary.lead_only_items}; observation-layer ${plan.summary.observation_layer_items}`,
+    `- Component dependency leads: ${plan.summary.component_dependency_leads}; fact-covered ${plan.summary.leads_with_fact_coverage}; source-path ${plan.summary.leads_with_source_path}; fact-capable paths ${plan.summary.leads_with_fact_capable_source_path}; observation paths ${plan.summary.leads_with_observation_source_path}; lead-only paths ${plan.summary.leads_with_lead_only_source_path}; lead-only ${plan.summary.lead_only_items}; observation-layer ${plan.summary.observation_layer_items}`,
     `- Stop conditions: ${plan.summary.stop_conditions}; explicit unknown refs ${plan.summary.explicit_unknown_refs}`,
     "",
     "## Frontier",
@@ -49,6 +49,9 @@ function appendComponentLeadSection(lines: string[], plan: SupplyChainExpansionP
   for (const lead of plan.component_dependency_leads.slice(0, 80)) {
     lines.push(`- ${lead.state} ${lead.parent_component_id} -> ${lead.target_id} (${lead.target_name})`);
     lines.push(`  Category: ${lead.category}; tier=${lead.tier_depth}; confidence=${lead.confidence.toFixed(2)}`);
+    lines.push(`  Source authority: ${lead.source_path_authority}`);
+    if (lead.source_relation_policies.length > 0) lines.push(`  Source policies: ${lead.source_relation_policies.join(", ")}`);
+    if (lead.source_output_layers.length > 0) lines.push(`  Output layers: ${lead.source_output_layers.join(", ")}`);
     lines.push(`  Policy: ${lead.expansion_policy}`);
     lines.push(`  Action: ${lead.action}`);
     lines.push(`  Why: ${lead.rationale}`);

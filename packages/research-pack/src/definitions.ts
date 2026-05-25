@@ -209,6 +209,9 @@ export interface ResearchPackStats {
   supply_chain_expansion_frontier_companies: number;
   supply_chain_expansion_component_dependency_leads: number;
   supply_chain_expansion_leads_with_source_path: number;
+  supply_chain_expansion_leads_with_fact_capable_source_path: number;
+  supply_chain_expansion_leads_with_observation_source_path: number;
+  supply_chain_expansion_leads_with_lead_only_source_path: number;
   supply_chain_expansion_blocked_frontier_edges: number;
   supply_chain_expansion_stop_conditions: number;
   propagation_readiness_ready: number;
