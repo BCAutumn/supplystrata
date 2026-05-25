@@ -666,6 +666,15 @@ describe("research-pack", () => {
     expect(profile.target_nodes.find((node) => node.node_id === "ENT-NVIDIA")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
     );
+    expect(profile.target_nodes.find((node) => node.node_id === "ENT-MICROSOFT")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "ENT-AMAZON")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-SERVER")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar", "company-ir"] })
+    );
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-HBM")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["skhynix-ir", "samsung-ir", "micron-ir"] })
     );

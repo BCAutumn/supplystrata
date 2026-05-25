@@ -1,6 +1,7 @@
 import type { DatabaseStore } from "@supplystrata/db/write";
 import type { Env } from "@supplystrata/config";
 import {
+  ensureSourceCheckTarget,
   enqueueAndClaimDueSourceCheckJobs,
   markSourceCheckJobFailed,
   markSourceCheckJobSucceeded,
@@ -126,6 +127,25 @@ async function runDueSourceCheckJob(
 
 export async function runManualSourceCheck(store: DatabaseStore, input: ManualSourceCheckInput, options: SourceCheckRunOptions): Promise<SourceCheckSummary[]> {
   const target = manualSourceCheckTarget(input);
+  if (input.check_target_id === undefined) {
+    // 手动 DB-backed check 也会写 source event / observation。登记为 disabled manual target，
+    // 可以保留审计归属并复用统一 next_check_at 计算，但不会把临时检查自动纳入调度。
+    await store.transaction((client) =>
+      ensureSourceCheckTarget(client, {
+        target: {
+          check_target_id: target.check_target_id,
+          source_adapter_id: target.source_adapter_id,
+          target_kind: target.target_kind,
+          enabled: false,
+          priority: 900,
+          ...(input.subject_entity_id === undefined ? {} : { subject_entity_id: input.subject_entity_id }),
+          target_config: target.target_config,
+          notes: "Manual DB-backed source check target; disabled by default and not scheduled automatically."
+        },
+        configSource: "manual-source-check"
+      })
+    );
+  }
   return runRegisteredSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
     adapter_context_input: sourceWorkflowAdapterContextInput(options.env, { now: options.checkedAt }),

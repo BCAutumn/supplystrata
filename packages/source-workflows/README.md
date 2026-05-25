@@ -25,6 +25,10 @@
 - `listRegisteredSourceCheckConnectorCapabilities()`：导出 connector capability。
 - 各来源的 adapter / parser helper，例如 `dartKrAdapter`、`edinetAdapter`、`twseMopsAdapter`。
 
+## 手动检查约定
+
+`runManualSourceCheck` 在没有显式 `check_target_id` 时，会登记一个 disabled manual target。这样手动 DB-backed check 仍有稳定的 source event / observation 归属，也能复用统一的 `next_check_at` 计算；但它不会被自动调度，避免一次性研究动作悄悄变成持续监控任务。
+
 ## 边界约定
 
 source-workflows 是“外部来源执行编排”，不是事实层。新增来源时应优先注册 connector capability 和明确 target config schema，避免在 CLI 或 research-pack 里硬编码来源分支。
