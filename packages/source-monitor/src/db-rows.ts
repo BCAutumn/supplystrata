@@ -127,6 +127,8 @@ export interface SourceTargetCoverageRow extends pg.QueryResultRow {
   event_detected_at: Date | null;
   event_caused_by: string | null;
   observation_count: string | number;
+  observations_by_metric: unknown;
+  observation_samples: unknown;
   latest_observation_at: Date | null;
   match_rank: number;
 }

@@ -287,6 +287,71 @@ describe("source-management", () => {
     ]);
   });
 
+  it("filters generated source-plan targets by source adapter", () => {
+    const document = parseManagedSourcePlanDocument(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        source_plan: [
+          {
+            source_id: "sec-edgar",
+            priority: "P0",
+            reasons: ["SEC and DART targets share the same research loop."],
+            suggested_check_targets: [
+              {
+                source_adapter_id: "sec-edgar",
+                target_kind: "sec-company-facts",
+                runnable: true,
+                target_config: {
+                  cik: "0001045810",
+                  entity_id: "ENT-NVIDIA",
+                  metrics: ["revenue"],
+                  max_periods: 12
+                },
+                reason: "Monitor SEC company facts."
+              },
+              {
+                source_adapter_id: "dart-kr",
+                target_kind: "company-filings",
+                runnable: true,
+                target_config: {
+                  corp_code: "00164779",
+                  entity_id: "ENT-SKHYNIX",
+                  disclosure_types: ["A"],
+                  year: 2025,
+                  final_reports_only: "Y"
+                },
+                reason: "Monitor Korean filings."
+              }
+            ]
+          }
+        ]
+      })
+    );
+
+    const config = buildSourcePolicyConfigFromPlanTargets({
+      source_plan: document.source_plan,
+      namespace: "Gate 1 filtered",
+      enabled: true,
+      source_adapter_ids: ["sec-edgar"]
+    });
+
+    expect(config.check_targets.map((target) => target.source_adapter_id)).toEqual(["sec-edgar"]);
+    expect(buildSourceCheckTargetIdsFromPlan({ source_plan: document.source_plan, namespace: "Gate 1 filtered", source_adapter_ids: ["sec-edgar"] })).toEqual(
+      config.check_targets.map((target) => target.check_target_id)
+    );
+
+    const report = previewSourceCheckTargetsFromPlan({
+      source_plan: document.source_plan,
+      namespace: "Gate 1 filtered",
+      source_adapter_ids: ["sec-edgar"],
+      connector_capabilities: listRegisteredSourceCheckConnectorCapabilities()
+    });
+    expect(report.summary.runnable_suggestions).toBe(1);
+    expect(report.summary.generated_targets).toBe(1);
+    expect(report.summary.duplicate_targets_skipped).toBe(0);
+    expect(report.summary.by_source).toEqual({ "sec-edgar": 1 });
+  });
+
   it("previews source-plan target sync without writing policy rows", () => {
     const document = parseManagedSourcePlanDocument(
       JSON.stringify({

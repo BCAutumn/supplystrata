@@ -113,6 +113,16 @@ describe("source-plan", () => {
                 form_types: ["10-K", "10-Q", "20-F", "8-K"],
                 limit: 3
               }
+            },
+            {
+              source_id: "sec-edgar",
+              target_kind: "sec-company-facts",
+              target_config: {
+                cik: "0001045810",
+                entity_id: "ENT-NVIDIA",
+                metrics: ["inventory", "revenue"],
+                max_periods: 12
+              }
             }
           ]
         },
@@ -159,6 +169,16 @@ describe("source-plan", () => {
                 entity_id: "ENT-NVIDIA",
                 form_types: ["10-K", "10-Q", "20-F", "8-K"],
                 limit: 3
+              }
+            },
+            {
+              source_id: "sec-edgar",
+              target_kind: "sec-company-facts",
+              target_config: {
+                cik: "0001045810",
+                entity_id: "ENT-NVIDIA",
+                metrics: ["inventory", "revenue"],
+                max_periods: 12
               }
             }
           ]
@@ -217,6 +237,19 @@ describe("source-plan", () => {
           entity_id: "ENT-NVIDIA",
           form_types: ["10-K", "10-Q", "20-F", "8-K"],
           limit: 3
+        }
+      })
+    );
+    expect(sec?.suggested_check_targets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "sec-edgar",
+        target_kind: "sec-company-facts",
+        runnable: true,
+        target_config: {
+          cik: "0001045810",
+          entity_id: "ENT-NVIDIA",
+          metrics: ["inventory", "revenue"],
+          max_periods: 12
         }
       })
     );

@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   buildCorroborationSourcePlan,
   buildCorroborationSourcePlanActionBatch,
+  buildGate1DataDepthActionBatch,
   buildInvestigationBacklog,
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
   buildPropagationReadinessReport,
   buildResearchPackFromWorkbench,
+  buildSourceTargetObservationReview,
   buildSupplyChainExpansionPlan,
+  GATE1_DATA_DEPTH_ACTION_BATCHES,
   getBuiltInResearchTargetProfile,
   listBuiltInResearchTargetProfiles,
   parseSourceTargetPreflightReport,
+  renderGate1DataDepthWorkbenchMarkdown,
   renderInvestigationBacklogMarkdown,
   renderCorroborationSourcePlanMarkdown,
   renderObservationCoverageMarkdown,
@@ -38,6 +42,216 @@ import type { InvestigationBacklog, ObservationCoverageReport, QuestionReadiness
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 describe("research-pack", () => {
+  it("turns source target metric coverage into deterministic observation review seeds", () => {
+    const review = buildSourceTargetObservationReview([
+      {
+        expected_target: {
+          check_target_id: "plan:nvidia-memory-2025:sec-edgar:companyfacts:abc",
+          source_adapter_id: "sec-edgar",
+          target_kind: "sec-company-facts",
+          enabled: true,
+          subject_entity_id: "ENT-NVIDIA",
+          target_config: { cik: "0001045810" }
+        },
+        synced: true,
+        match_kind: "check_target_id",
+        matched_check_target_id: "plan:nvidia-memory-2025:sec-edgar:companyfacts:abc",
+        state: "succeeded",
+        target_enabled: true,
+        policy_enabled: true,
+        next_check_at: null,
+        effective_check_cadence_minutes: 10080,
+        effective_jitter_minutes: 120,
+        latest_job: null,
+        latest_event: null,
+        observations: 7,
+        observations_by_metric: {
+          purchase_obligations: 2,
+          revenue: 5
+        },
+        observation_samples: [
+          {
+            observation_id: "OBS-PO-1",
+            observation_type: "FINANCIAL_METRIC_OBSERVATION",
+            metric_name: "purchase_obligations",
+            metric_value: "42",
+            metric_unit: "USD",
+            baseline_value: "21",
+            change_percent: 100,
+            scope_kind: "company",
+            scope_id: "ENT-NVIDIA",
+            doc_id: "DOC-PO-1",
+            source_item_id: "SRCITEM-PO-1",
+            source_url: "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+            time_window_start: "2025-01-01",
+            time_window_end: "2025-12-31",
+            confidence: 0.95
+          }
+        ],
+        latest_observation_at: "2026-01-01T00:00:00.000Z"
+      }
+    ]);
+
+    expect(review.summary).toEqual({
+      review_items: 2,
+      calibration_candidates: 1,
+      labeled_calibration_candidates: 0,
+      unlabeled_calibration_candidates: 1,
+      next_labeling_batch_candidates: 1,
+      p0: 1,
+      p1: 0,
+      p2: 1,
+      by_category: {
+        supply_chain_signal: 1,
+        financial_context: 1,
+        metric_mapping_gap: 0
+      },
+      by_recommended_label: {
+        useful_signal: 1,
+        background_context: 0,
+        needs_context: 0,
+        not_useful: 0
+      },
+      by_persisted_label: {
+        useful_signal: 0,
+        background_context: 0,
+        needs_context: 0,
+        not_useful: 0
+      },
+      next_labeling_batch_by_priority: { P0: 1, P1: 0, P2: 0 },
+      next_labeling_batch_by_metric: { purchase_obligations: 1 }
+    });
+    expect(review.items[0]).toMatchObject({
+      metric_name: "purchase_obligations",
+      priority: "P0",
+      category: "supply_chain_signal",
+      review_policy: "review_only_no_fact_mutation"
+    });
+    expect(review.items[0]?.sample_observations).toEqual([
+      expect.objectContaining({
+        observation_id: "OBS-PO-1",
+        doc_id: "DOC-PO-1",
+        source_item_id: "SRCITEM-PO-1"
+      })
+    ]);
+    expect(review.calibration_candidates).toEqual([
+      expect.objectContaining({
+        candidate_id: "observation-calibration:purchase_obligations:OBS-PO-1",
+        observation_id: "OBS-PO-1",
+        metric_name: "purchase_obligations",
+        priority: "P0",
+        category: "supply_chain_signal",
+        recommended_label: "useful_signal",
+        allowed_labels: ["useful_signal", "background_context", "needs_context", "not_useful"],
+        review_policy: "review_only_no_fact_mutation",
+        review_status: "unlabeled",
+        latest_label: null,
+        existing_labels: [],
+        doc_id: "DOC-PO-1",
+        source_item_id: "SRCITEM-PO-1",
+        source_url: "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json"
+      })
+    ]);
+    expect(review.items[1]).toMatchObject({
+      metric_name: "revenue",
+      priority: "P2",
+      category: "financial_context"
+    });
+    expect(review.labeling_plan).toMatchObject({
+      strategy: "stratified_unlabeled_by_priority_metric",
+      review_policy: "review_only_no_fact_mutation",
+      batch_size: 12,
+      candidates: [
+        expect.objectContaining({
+          candidate_id: "observation-calibration:purchase_obligations:OBS-PO-1",
+          observation_id: "OBS-PO-1",
+          recommended_label: "useful_signal"
+        })
+      ]
+    });
+  });
+
+  it("feeds persisted observation calibration labels back into review output", () => {
+    const review = buildSourceTargetObservationReview(
+      [
+        {
+          expected_target: {
+            check_target_id: "plan:nvidia-memory-2025:sec-edgar:companyfacts:abc",
+            source_adapter_id: "sec-edgar",
+            target_kind: "sec-company-facts",
+            enabled: true,
+            subject_entity_id: "ENT-NVIDIA",
+            target_config: { cik: "0001045810" }
+          },
+          synced: true,
+          match_kind: "check_target_id",
+          matched_check_target_id: "plan:nvidia-memory-2025:sec-edgar:companyfacts:abc",
+          state: "succeeded",
+          target_enabled: true,
+          policy_enabled: true,
+          next_check_at: null,
+          effective_check_cadence_minutes: 10080,
+          effective_jitter_minutes: 120,
+          latest_job: null,
+          latest_event: null,
+          observations: 1,
+          observations_by_metric: { purchase_obligations: 1 },
+          observation_samples: [
+            {
+              observation_id: "OBS-PO-1",
+              observation_type: "FINANCIAL_METRIC_OBSERVATION",
+              metric_name: "purchase_obligations",
+              metric_value: "42",
+              metric_unit: "USD",
+              baseline_value: "21",
+              change_percent: 100,
+              scope_kind: "company",
+              scope_id: "ENT-NVIDIA",
+              doc_id: "DOC-PO-1",
+              source_item_id: "SRCITEM-PO-1",
+              source_url: "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+              time_window_start: "2025-01-01",
+              time_window_end: "2025-12-31",
+              confidence: 0.95
+            }
+          ],
+          latest_observation_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      [
+        {
+          label_id: "OBS-CAL-LABEL-1",
+          observation_id: "OBS-PO-1",
+          candidate_id: "observation-calibration:purchase_obligations:OBS-PO-1",
+          label: "useful_signal",
+          reviewer: "unit-test",
+          reviewed_at: "2026-05-25T00:00:00.000Z",
+          rationale: "Useful purchase-obligation calibration seed."
+        }
+      ]
+    );
+
+    expect(review.summary.labeled_calibration_candidates).toBe(1);
+    expect(review.summary.unlabeled_calibration_candidates).toBe(0);
+    expect(review.summary.next_labeling_batch_candidates).toBe(0);
+    expect(review.summary.by_persisted_label.useful_signal).toBe(1);
+    expect(review.labeling_plan.candidates).toEqual([]);
+    expect(review.calibration_candidates[0]).toMatchObject({
+      review_status: "labeled",
+      latest_label: {
+        label_id: "OBS-CAL-LABEL-1",
+        label: "useful_signal",
+        reviewer: "unit-test"
+      },
+      existing_labels: [
+        expect.objectContaining({
+          label_id: "OBS-CAL-LABEL-1",
+          observation_id: "OBS-PO-1"
+        })
+      ]
+    });
+  });
+
   it("builds a deterministic recursive expansion plan without creating fact edges", () => {
     const workbench = {
       ...emptyWorkbench(),
@@ -344,6 +558,8 @@ describe("research-pack", () => {
           fetched_documents: 1,
           normalized_documents: 1,
           degraded_documents: 0,
+          observation_drafts: 2,
+          semantic_sections: 2,
           by_source: { "fixture-ir": 1, "sec-edgar": 1 }
         },
         items: [
@@ -364,7 +580,11 @@ describe("research-pack", () => {
                 document_type: "10-K",
                 source_date: "2026-02-25",
                 text_chars: 1000,
-                chunks: 2
+                chunks: 2,
+                observation_drafts: 2,
+                semantic_sections: 2,
+                observation_types: ["BACKLOG_OBSERVATION", "PROCUREMENT_OBSERVATION"],
+                semantic_section_kinds: ["backlog", "procurement"]
               }
             ]
           },
@@ -414,6 +634,19 @@ describe("research-pack", () => {
       })
     );
     expect(secTargets.some((target) => target.target_config["cik"] === "0001045810" && target.target_config["entity_id"] === "ENT-NVIDIA")).toBe(true);
+    expect(secTargets).toContainEqual(
+      expect.objectContaining({
+        source_adapter_id: "sec-edgar",
+        target_kind: "sec-company-facts",
+        runnable: true,
+        target_config: {
+          cik: "0001045810",
+          entity_id: "ENT-NVIDIA",
+          metrics: ["inventory", "cost_of_revenue", "capital_expenditures", "accounts_payable", "purchase_obligations", "revenue"],
+          max_periods: 12
+        }
+      })
+    );
     const censusTargets = pack.source_plan.find((item) => item.source_id === "census-trade")?.suggested_check_targets ?? [];
     const defaultWindowTradeTarget = censusTargets.find((target) => target.target_config["time"] === "2026-04");
     expect(defaultWindowTradeTarget?.source_adapter_id).toBe("census-trade");
@@ -429,20 +662,27 @@ describe("research-pack", () => {
     expect(pack.source_target_coverage.summary.not_synced).toBe(pack.source_target_coverage.summary.expected_targets);
     expect(pack.source_target_coverage.items.every((item) => item.state === "not_synced")).toBe(true);
     expect(pack.source_target_preflight?.summary.checked_targets).toBe(1);
+    expect(pack.source_target_preflight?.summary.observation_drafts).toBe(2);
+    expect(pack.source_target_preflight?.items[0]?.documents[0]?.observation_types).toEqual(["BACKLOG_OBSERVATION", "PROCUREMENT_OBSERVATION"]);
     expect(pack.source_target_preflight?.summary.by_source_status["sec-edgar"]).toEqual(
       expect.objectContaining({
         selected_targets: 1,
         checked_targets: 1,
         normalized_documents: 1,
+        observation_drafts: 2,
+        semantic_sections: 2,
         target_kinds: { "sec-company-filings": 1 }
       })
     );
     expect(pack.manifest.stats.source_target_preflight_selected_targets).toBe(2);
     expect(pack.manifest.stats.source_target_preflight_checked_targets).toBe(1);
     expect(pack.manifest.stats.source_target_preflight_failed_targets).toBe(1);
+    expect(pack.manifest.stats.source_target_preflight_observation_drafts).toBe(2);
+    expect(pack.manifest.stats.source_target_preflight_semantic_sections).toBe(2);
     expect(pack.manifest.stats.source_target_preflight_issue_kinds).toEqual({ source_unreachable: 1 });
     expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Source Target Preflight");
     expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Source Readiness Matrix");
+    expect(renderSourceTargetPreflightMarkdown(sourceTargetPreflight)).toContain("Observation drafts: 2");
     expect(pack.manifest.stats.source_target_expected_targets).toBe(pack.source_target_coverage.summary.expected_targets);
     expect(pack.manifest.stats.observation_records).toBe(0);
     expect(pack.manifest.stats.observation_types_present).toBe(0);
@@ -457,6 +697,14 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.supply_chain_expansion_component_dependency_leads).toBeGreaterThan(0);
     expect(pack.manifest.stats.propagation_readiness_ready).toBe(pack.propagation_readiness.summary.ready);
     expect(pack.manifest.stats.propagation_reasoning_inputs).toBe(pack.propagation_readiness.summary.reasoning_inputs);
+    expect(pack.manifest.stats.gate1_data_depth_items).toBe(pack.gate1_data_depth_workbench.summary.items);
+    expect(pack.manifest.stats.gate1_data_depth_fact_edge_gap).toBe(pack.gate1_data_depth_workbench.summary.fact_edge_gap_to_target);
+    expect(pack.gate1_data_depth_workbench.summary.l4_l5_fact_edges).toBe(1);
+    expect(pack.gate1_data_depth_workbench.summary.fact_edge_target).toBe(100);
+    expect(pack.gate1_data_depth_workbench.summary.by_workstream.fact_edge_growth).toBeGreaterThan(0);
+    expect(pack.gate1_data_depth_workbench.summary.by_workstream.counterparty_corroboration).toBeGreaterThan(0);
+    expect(pack.gate1_data_depth_workbench.items.every((item) => item.automatic_fact_mutation_allowed === false)).toBe(true);
+    expect(pack.gate1_data_depth_workbench.items.every((item) => item.review_policy === "review_only_no_fact_mutation")).toBe(true);
     expect(pack.manifest.stats.investigation_backlog_propagation_readiness_items).toBe(
       pack.propagation_readiness.summary.partial + pack.propagation_readiness.summary.blocked
     );
@@ -519,6 +767,7 @@ describe("research-pack", () => {
     expect(renderInvestigationBacklogMarkdown(pack.investigation_backlog)).toContain("Investigation Backlog");
     expect(renderCorroborationSourcePlanMarkdown(pack.corroboration_source_plan)).toContain("Corroboration Source Plan");
     expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Not synced");
+    expect(renderSourceTargetCoverageMarkdown(pack.source_target_coverage)).toContain("Total observations: 0");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Level 4/5 fact edges: 1/100");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Gate 1 scorecard");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Corroboration queue");
@@ -526,6 +775,14 @@ describe("research-pack", () => {
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Target profile: ai-compute-memory.v0");
     expect(renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan)).toContain("Supply Chain Expansion Plan");
     expect(renderPropagationReadinessMarkdown(pack.propagation_readiness)).toContain("Propagation Readiness");
+    expect(renderGate1DataDepthWorkbenchMarkdown(pack.gate1_data_depth_workbench)).toContain("Gate 1 Data Depth Workbench");
+    expect(renderGate1DataDepthWorkbenchMarkdown(pack.gate1_data_depth_workbench)).toContain("automatic fact mutation: false");
+    const p0Batch = buildGate1DataDepthActionBatch(pack.gate1_data_depth_workbench, gate1DataDepthActionBatchDefinition("p0"));
+    const corroborationBatch = buildGate1DataDepthActionBatch(pack.gate1_data_depth_workbench, gate1DataDepthActionBatchDefinition("corroboration"));
+    expect(p0Batch.summary.items).toBe(pack.gate1_data_depth_workbench.items.filter((item) => item.priority === "P0").length);
+    expect(p0Batch.automatic_fact_mutation_allowed).toBe(false);
+    expect(corroborationBatch.summary.by_workstream.counterparty_corroboration).toBe(corroborationBatch.summary.items);
+    expect(corroborationBatch.items.every((item) => item.workstream === "counterparty_corroboration")).toBe(true);
   });
 
   it("reports official disclosure readiness gaps without inferring corroboration from silence", () => {
@@ -771,6 +1028,14 @@ describe("research-pack", () => {
     expect(profile.target_nodes.find((node) => node.node_id === "ENT-AMAZON")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
     );
+    const nvidiaSecTargets = profile.target_nodes.find((node) => node.node_id === "ENT-NVIDIA")?.expected_source_targets ?? [];
+    expect(nvidiaSecTargets.map((target) => target.target_kind).sort()).toEqual(["sec-company-facts", "sec-company-filings"]);
+    expect(nvidiaSecTargets.find((target) => target.target_kind === "sec-company-facts")?.target_config).toEqual({
+      cik: "0001045810",
+      entity_id: "ENT-NVIDIA",
+      metrics: ["inventory", "cost_of_revenue", "capital_expenditures", "accounts_payable", "purchase_obligations", "revenue"],
+      max_periods: 12
+    });
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-SERVER")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar", "company-ir"] })
     );
@@ -1058,7 +1323,51 @@ describe("research-pack", () => {
           adapter_error: 0,
           unknown_failure: 0
         },
-        targets_with_observations: 0
+        targets_with_observations: 0,
+        total_observations: 0,
+        observed_subject_entities: 0,
+        observations_by_source: {},
+        observations_by_target_kind: {},
+        observations_by_metric: {}
+      },
+      observation_review: {
+        summary: {
+          review_items: 0,
+          calibration_candidates: 0,
+          labeled_calibration_candidates: 0,
+          unlabeled_calibration_candidates: 0,
+          next_labeling_batch_candidates: 0,
+          p0: 0,
+          p1: 0,
+          p2: 0,
+          by_category: {
+            supply_chain_signal: 0,
+            financial_context: 0,
+            metric_mapping_gap: 0
+          },
+          by_recommended_label: {
+            useful_signal: 0,
+            background_context: 0,
+            needs_context: 0,
+            not_useful: 0
+          },
+          by_persisted_label: {
+            useful_signal: 0,
+            background_context: 0,
+            needs_context: 0,
+            not_useful: 0
+          },
+          next_labeling_batch_by_priority: { P0: 0, P1: 0, P2: 0 },
+          next_labeling_batch_by_metric: {}
+        },
+        items: [],
+        calibration_candidates: [],
+        labeling_plan: {
+          strategy: "stratified_unlabeled_by_priority_metric",
+          review_policy: "review_only_no_fact_mutation",
+          batch_size: 12,
+          candidates: []
+        }
       },
       items: [
         {
@@ -1081,6 +1390,8 @@ describe("research-pack", () => {
           latest_job: null,
           latest_event: null,
           observations: 0,
+          observations_by_metric: {},
+          observation_samples: [],
           latest_observation_at: null
         }
       ]
@@ -1656,6 +1967,12 @@ function officialSourcePlanItem(): SourcePlanItem {
       }
     ]
   };
+}
+
+function gate1DataDepthActionBatchDefinition(kind: (typeof GATE1_DATA_DEPTH_ACTION_BATCHES)[number]["kind"]) {
+  const definition = GATE1_DATA_DEPTH_ACTION_BATCHES.find((item) => item.kind === kind);
+  if (definition === undefined) throw new Error(`Missing Gate 1 data-depth action batch definition: ${kind}`);
+  return definition;
 }
 
 function commoditySourcePlanItem(): SourcePlanItem {

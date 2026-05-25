@@ -49,11 +49,16 @@ export async function buildSourceCheckSelectionOptions(
   };
 }
 
-export async function buildSourceCheckTargetIdsFromSourcePlanFile(input: { sourcePlan: string; namespace: string }): Promise<string[]> {
+export async function buildSourceCheckTargetIdsFromSourcePlanFile(input: {
+  sourcePlan: string;
+  namespace: string;
+  sourceAdapterIds?: readonly string[];
+}): Promise<string[]> {
   const document = await readSourcePlanDocument(input.sourcePlan);
   return buildSourceCheckTargetIdsFromPlan({
     source_plan: document.source_plan,
-    namespace: input.namespace
+    namespace: input.namespace,
+    ...(input.sourceAdapterIds === undefined ? {} : { source_adapter_ids: input.sourceAdapterIds })
   });
 }
 

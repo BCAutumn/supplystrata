@@ -45,6 +45,24 @@ export interface SourceTargetCoverageEvent {
   caused_by: string;
 }
 
+export interface SourceTargetCoverageObservationSample {
+  observation_id: string;
+  observation_type: string;
+  metric_name: string;
+  metric_value: string | null;
+  metric_unit: string | null;
+  baseline_value: string | null;
+  change_percent: number | null;
+  scope_kind: string;
+  scope_id: string;
+  doc_id: string | null;
+  source_item_id: string | null;
+  source_url: string | null;
+  time_window_start: string | null;
+  time_window_end: string | null;
+  confidence: number;
+}
+
 export interface SourceTargetCoverageItem {
   expected_target: SourceCheckTargetInput;
   synced: boolean;
@@ -59,6 +77,8 @@ export interface SourceTargetCoverageItem {
   latest_job: SourceTargetCoverageJob | null;
   latest_event: SourceTargetCoverageEvent | null;
   observations: number;
+  observations_by_metric: Record<string, number>;
+  observation_samples: SourceTargetCoverageObservationSample[];
   latest_observation_at: string | null;
 }
 
@@ -96,7 +116,10 @@ async function loadSourceTargetCoverage(client: DbClient, expectedTarget: Source
             j.next_attempt_at AS job_next_attempt_at, j.completed_at AS job_completed_at,
             j.created_at AS job_created_at, j.updated_at AS job_updated_at,
             e.event_id, e.event_type, e.doc_id AS event_doc_id, e.detected_at AS event_detected_at, e.caused_by AS event_caused_by,
-            COALESCE(o.observation_count, 0) AS observation_count, o.latest_observation_at
+            COALESCE(o.observation_count, 0) AS observation_count,
+            COALESCE(o.observations_by_metric, '{}'::jsonb) AS observations_by_metric,
+            COALESCE(o.observation_samples, '[]'::jsonb) AS observation_samples,
+            o.latest_observation_at
      FROM matched_target mt
      LEFT JOIN LATERAL (
        SELECT job_id, status, attempts, last_error, next_attempt_at, completed_at, created_at, updated_at
@@ -113,13 +136,58 @@ async function loadSourceTargetCoverage(client: DbClient, expectedTarget: Source
        LIMIT 1
      ) e ON true
      LEFT JOIN LATERAL (
-       SELECT COUNT(*) AS observation_count, MAX(created_at) AS latest_observation_at
-       FROM observations
-       WHERE doc_id IN (
-         SELECT doc_id
-         FROM source_change_events
-         WHERE check_target_id = mt.check_target_id AND doc_id IS NOT NULL
+       WITH target_observations AS (
+         SELECT o.observation_id, o.observation_type, o.metric_name, o.metric_value::text, o.metric_unit,
+                o.baseline_value::text, o.change_percent, o.scope_kind, o.scope_id, o.doc_id,
+                o.source_item_id, si.url AS source_url, o.time_window_start::text, o.time_window_end::text,
+                o.confidence, o.created_at,
+                row_number() OVER (
+                  PARTITION BY o.metric_name
+                  ORDER BY o.time_window_end DESC NULLS LAST, o.created_at DESC, o.observation_id
+                ) AS sample_rank
+         FROM observations o
+         LEFT JOIN source_items si ON si.source_item_id = o.source_item_id
+         WHERE o.doc_id IN (
+           SELECT doc_id
+           FROM source_change_events
+           WHERE check_target_id = mt.check_target_id AND doc_id IS NOT NULL
+         )
        )
+       SELECT
+         (SELECT COUNT(*) FROM target_observations) AS observation_count,
+         (
+           SELECT jsonb_object_agg(metric_name, metric_count ORDER BY metric_name)
+           FROM (
+             SELECT metric_name, COUNT(*) AS metric_count
+             FROM target_observations
+             GROUP BY metric_name
+           ) metric_counts
+         ) AS observations_by_metric,
+         (
+           SELECT jsonb_agg(
+                    jsonb_build_object(
+                      'observation_id', observation_id,
+                      'observation_type', observation_type,
+                      'metric_name', metric_name,
+                      'metric_value', metric_value,
+                      'metric_unit', metric_unit,
+                      'baseline_value', baseline_value,
+                      'change_percent', change_percent,
+                      'scope_kind', scope_kind,
+                      'scope_id', scope_id,
+                      'doc_id', doc_id,
+                      'source_item_id', source_item_id,
+                      'source_url', source_url,
+                      'time_window_start', time_window_start,
+                      'time_window_end', time_window_end,
+                      'confidence', confidence
+                    )
+                    ORDER BY metric_name, sample_rank
+                  )
+           FROM target_observations
+           WHERE sample_rank <= 3
+         ) AS observation_samples,
+         (SELECT MAX(created_at) FROM target_observations) AS latest_observation_at
      ) o ON true`,
     [expectedTarget.check_target_id, expectedTarget.source_adapter_id, expectedTarget.target_kind, JSON.stringify(expectedTarget.target_config)]
   );
@@ -139,6 +207,8 @@ async function loadSourceTargetCoverage(client: DbClient, expectedTarget: Source
     latest_job: latestJobFromRow(row),
     latest_event: latestEventFromRow(row),
     observations: numberFromCount(row.observation_count),
+    observations_by_metric: numberRecordFromUnknown(row.observations_by_metric),
+    observation_samples: observationSamplesFromUnknown(row.observation_samples),
     latest_observation_at: isoOrNull(row.latest_observation_at)
   };
 }
@@ -158,6 +228,8 @@ function unsyncedCoverageItem(expectedTarget: SourceCheckTargetInput): SourceTar
     latest_job: null,
     latest_event: null,
     observations: 0,
+    observations_by_metric: {},
+    observation_samples: [],
     latest_observation_at: null
   };
 }
@@ -257,4 +329,64 @@ function isoOrNull(value: Date | null): string | null {
 
 function numberFromCount(value: string | number): number {
   return typeof value === "number" ? value : Number.parseInt(value, 10);
+}
+
+function numberRecordFromUnknown(value: unknown): Record<string, number> {
+  if (!isRecord(value)) return {};
+  const counts: Record<string, number> = {};
+  for (const [key, count] of Object.entries(value)) {
+    const parsed = typeof count === "number" ? count : typeof count === "string" ? Number.parseInt(count, 10) : Number.NaN;
+    if (Number.isFinite(parsed) && parsed > 0) counts[key] = parsed;
+  }
+  const sorted: Record<string, number> = {};
+  for (const [key, count] of Object.entries(counts).sort(([left], [right]) => left.localeCompare(right))) sorted[key] = count;
+  return sorted;
+}
+
+function observationSamplesFromUnknown(value: unknown): SourceTargetCoverageObservationSample[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const observationId = stringValue(item["observation_id"]);
+    const observationType = stringValue(item["observation_type"]);
+    const metricName = stringValue(item["metric_name"]);
+    const scopeKind = stringValue(item["scope_kind"]);
+    const scopeId = stringValue(item["scope_id"]);
+    const confidence = numberValue(item["confidence"]);
+    if (observationId === null || observationType === null || metricName === null || scopeKind === null || scopeId === null || confidence === null) return [];
+    return [
+      {
+        observation_id: observationId,
+        observation_type: observationType,
+        metric_name: metricName,
+        metric_value: stringValue(item["metric_value"]),
+        metric_unit: stringValue(item["metric_unit"]),
+        baseline_value: stringValue(item["baseline_value"]),
+        change_percent: numberValue(item["change_percent"]),
+        scope_kind: scopeKind,
+        scope_id: scopeId,
+        doc_id: stringValue(item["doc_id"]),
+        source_item_id: stringValue(item["source_item_id"]),
+        source_url: stringValue(item["source_url"]),
+        time_window_start: stringValue(item["time_window_start"]),
+        time_window_end: stringValue(item["time_window_end"]),
+        confidence
+      }
+    ];
+  });
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function numberValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

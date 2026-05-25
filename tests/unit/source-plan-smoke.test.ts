@@ -100,6 +100,8 @@ describe("source-plan connectivity smoke", () => {
       fetched_documents: 0,
       normalized_documents: 0,
       degraded_documents: 0,
+      observation_drafts: 0,
+      semantic_sections: 0,
       target_kinds: { "company-filings": 1 },
       issue_kinds: { connector_unsupported: 1 }
     });

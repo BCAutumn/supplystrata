@@ -177,7 +177,7 @@ packages/risk-view
 
 当前完成态：
 
-- Gate 1 已有只读 readiness / backlog / run ledger 输出，能量化事实边覆盖、traceability、二源或 single-source disposition、expected source coverage、source target coverage 和下一层 frontier research。
+- Gate 1 已有只读 readiness / backlog / run ledger / data-depth workbench 输出，能量化事实边覆盖、traceability、二源或 single-source disposition、expected source coverage、source target coverage、source blocker、gold label 批次和下一层 frontier research。
 - 官方源路径已覆盖 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF entity lookup 的基础接线；DART/EDINET/TWSE 当前定位为目录/target/readiness/monitor 骨架，不解析正文、不写事实边。
 - 二源检查已形成标准 source-plan 子集和 action-specific 批次，支持 preview、无数据库 smoke、sync、enable、run-due，并能把 preflight / DB-backed failure kind 回流到 Gate 1 action queue。
 - `gate1-run-ledger` 已提供 frontend-ready `monitoring_config` 和 `review_workbench`：前者收口 cadence / jitter / retry / backoff / `next_check_at`，后者收口 source target、edge corroboration、official signal disposition、frontier company research 的 review-only 决策入口。
@@ -549,10 +549,10 @@ POST /review/:id/reject
 - research-pack 输出 `question-readiness.json/md`，把核心问题标为 ready / partial / blocked，并列出 supporting refs、missing requirements 和 unknown ids；它只评估可答性，不生成自然语言结论。
 - research-pack 输出 `investigation-backlog.json/md`，把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 汇总为可审计调查任务；它只规划，不抓取、不落库、不写事实边。
 - research-pack / Workbench DTO 必须能作为未来 AI 和前端研究员的推理输入：输出 relationship network、propagation context、source gaps、unknown、calibration 和 risk/intelligence metrics；但 API 不输出未经 schema 化的“最终判断”作为 truth-store 数据。
-- source-plan 支持消费 target profile official source hints：带 SEC CIK 的公司可生成 `sec-edgar/sec-company-filings` runnable target；显式 `officialDisclosureYear` 存在时，已注册官方 IR connector 可生成 node-specific `official-html-disclosure` target，`company-ir` 这类长尾入口必须额外带审计过的显式 HTTPS URL，DART / EDINET 这类监管目录 connector 可生成目录 monitor target；Apple Supplier List 这类 publisher-specific 官方名单只能作为 review-only 来源接入，不能成为每个研究对象一个 `<company>-suppliers` 文件的先例；无年份或缺 connector/config/URL 时保持 gap，避免猜默认披露期、猜 IR 页面或伪造可运行能力。
+- source-plan 支持消费 target profile official source hints：带 SEC CIK 的公司可生成 `sec-edgar/sec-company-filings` runnable target，并同时生成 observation-only `sec-edgar/sec-company-facts` target，用于把结构化财报指标纳入 source-target coverage；显式 `officialDisclosureYear` 存在时，已注册官方 IR connector 可生成 node-specific `official-html-disclosure` target，`company-ir` 这类长尾入口必须额外带审计过的显式 HTTPS URL，DART / EDINET 这类监管目录 connector 可生成目录 monitor target；Apple Supplier List 这类 publisher-specific 官方名单只能作为 review-only 来源接入，不能成为每个研究对象一个 `<company>-suppliers` 文件的先例；无年份或缺 connector/config/URL 时保持 gap，避免猜默认披露期、猜 IR 页面或伪造可运行能力。
 - 任意上市公司入口必须保持 `--company <query>` 语义：先解析实体，再由 registry/source-plan/source-target coverage 输出可执行目标和缺口。陌生公司没有足够 metadata 时应显式进入 entity/source discovery backlog，不能要求用户手写完整 profile，也不能用公司名硬编码新 workflow。
-- source-management 提供 `source-plan.json` 到 `source_check_targets` 的稳定转换和无数据库预览；CLI 只做 `sources policy preview-plan-targets` / `sync-plan-targets` / `enable-plan-targets` 薄入口。预览只生成稳定 target id、去重统计、source / target kind / priority 汇总和 validation 结果，不写库、不抓源。同步默认 disabled，审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并统一写入 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。
-- source-monitor 通过 `source_change_events.check_target_id` 保留 target 级事件链；research-pack 输出 `source-target-coverage.json/md`，把 runnable target 的 sync、enable、due、job、event、observation 状态回流到研究包，并让 `investigation-backlog` 的 action 随 coverage 状态变化。显式传入 `source-target-preflight.json` 时，backlog 还会把预检 failed/skipped/degraded 放进同一任务的 action 和 coverage 行，作为同步前排错入口。
+- source-management 提供 `source-plan.json` 到 `source_check_targets` 的稳定转换和无数据库预览；CLI 只做 `sources policy preview-plan-targets` / `sync-plan-targets` / `enable-plan-targets` 薄入口。预览只生成稳定 target id、去重统计、source / target kind / priority 汇总和 validation 结果，不写库、不抓源。预览、同步和启用都可按 source adapter 过滤，方便先接入 SEC / 官方 IR 这类当前可运行来源，再单独处理需要凭据或目录策略的 Census / DART / EDINET / TWSE 目标。同步默认 disabled，审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并统一写入 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。
+- source-monitor 通过 `source_change_events.check_target_id` 保留 target 级事件链；research-pack 输出 `source-target-coverage.json/md`，把 runnable target 的 sync、enable、due、job、event、observation 状态回流到研究包，并让 `investigation-backlog` 的 action 随 coverage 状态变化。显式传入 `source-target-preflight.json` 时，backlog 还会把预检 failed/skipped/degraded 放进同一任务的 action 和 coverage 行，作为同步前排错入口。preflight 可展示 normalized document 的只读 observation draft / semantic section 计数，用来衡量数据是否进入可抽取层；这些计数不是已落库 observation，也不是事实边证据。
 
 完成标准：
 
@@ -567,7 +567,8 @@ POST /review/:id/reject
 [x] runnable source-plan target suggestions 能在无数据库场景下预览，将 target id、去重、credentials warning 和 validation 暴露给宿主 App / CLI 审计
 [x] runnable source-plan target suggestions 能在无数据库场景下执行 plan/fetch/normalize smoke，提前暴露外部源连通性、凭据和 target config 问题
 [x] 已同步 source-plan target 能在审计后受控启用，并把调度参数继续收口到 source policy/target config
-[x] research-pack 能输出 source target coverage，展示 runnable target 是否已同步、启用、due、运行、失败或产出 observation
+[x] research-pack 能输出 source target coverage，展示 runnable target 是否已同步、启用、due、运行、失败或产出 observation，并汇总 observation 总量、已观测主体数、按 source / target kind / metric 的观测量
+[x] source target coverage 能把 metric 覆盖转成只读 observation review seeds 和 calibration candidates，按 P0/P1/P2 区分供应链信号、财务背景和 metric mapping gap，并显式声明 review-only/no fact mutation policy；每个 candidate 会带可追溯 sample observation refs、推荐 label、已持久化 label 状态和下一批 priority/metric 分层 labeling plan，供前端审查和 calibration/gold label 抽样
 [x] investigation-backlog 能消费 source target coverage，把下一步 action 从通用 source check 提示细化为同步、启用、运行、等待、排错或 review observation
 [x] investigation-backlog 能消费 source target preflight，把无数据库预检失败转成同步前排错动作
 [x] source target preflight 能输出按 source 聚合的 checked / failed / skipped / normalized / degraded / issue kind 矩阵
@@ -585,6 +586,8 @@ POST /review/:id/reject
 [x] `corroboration-source-plan` 能为每个 filtered target 输出确定性 `next_action`，把 preflight/coverage 状态收口成配置凭据、修配置、smoke、sync、enable、run due、等待、排错或 review observation
 [x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
 [x] research-pack 能输出 `gate1-run-ledger.json/md`，把 Gate 1 data progress、source path progress、corroboration 批次和 supply-chain frontier company switching 合成一个只读执行账本
+[x] research-pack 能输出 `gate1-data-depth-workbench.json/md`，把 Gate 1 数据深度缺口收敛成 review-only 优先级清单，覆盖 L4/L5 增长、二源 corroboration、source blocker、strength 缺失、gold label 批次和 propagation context
+[x] research-pack 能把 Gate 1 data-depth workbench 拆成 action batch JSON，至少覆盖 P0、source blockers、labeling、corroboration 和 intelligence context，供前端/host app 做受控审查或配置动作
 [x] research-pack 能输出 `propagation-readiness.json/md` 或等价 DTO，作为 AI/前端分析产业传导链路的结构化输入，不直接生成结论或事实边
 [x] `gate1-run-ledger` 能输出 frontend-ready `monitoring_config`，把 source policy / source target 的 cadence、jitter、retry、backoff、初始 `next_check_at` 和 source-plan 批次建议统一暴露给后续前端配置
 [x] `gate1-run-ledger.monitoring_config.batches[]` 能输出 state counts、attention hint 和 recommended operational action，区分 sync、enable、run due、wait、investigate failure、review observation
@@ -659,6 +662,9 @@ POST /review/:id/reject
 [ ] relation strength / freshness 已稳定
 [x] risk_view 已有确定性 baseline
 [x] 有人工 review gold label/run 契约可用于 calibration
+[x] observation calibration candidates 能进入持久化 label 样本池，且不会自动写 fact edge 或修改 observation
+[x] research-pack / manifest 能把已持久化 observation calibration label 回灌到 source-target coverage，区分 recommended label、persisted label、labeled/unlabeled 候选数，避免把未审查候选误读成 gold label
+[x] research-pack 能生成 deterministic next labeling batch，按 priority/metric 分层抽取未标注 observation calibration candidates，帮助扩大 gold set 时保持覆盖面
 [ ] 人工 gold set 样本量足够并完成季度 precision 校准
 ```
 

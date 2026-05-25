@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
+import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel, ObservationCalibrationLabel } from "@supplystrata/core";
 import type { DbClient } from "@supplystrata/db/read";
-import { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel, type DbTxClient } from "@supplystrata/db/write";
+import { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel, upsertObservationCalibrationLabel, type DbTxClient } from "@supplystrata/db/write";
 import type { EdgeCalibrationSampleRow } from "./db-rows.js";
 
 export interface RecordEdgeCalibrationLabelInput {
@@ -20,6 +20,16 @@ export interface RefreshEdgeCalibrationRunInput {
   limit?: number;
   generated_at: string;
   generated_by?: string;
+}
+
+export interface RecordObservationCalibrationLabelInput {
+  label_id?: string;
+  observation_id: string;
+  candidate_id?: string;
+  label: ObservationCalibrationLabel;
+  reviewer: string;
+  reviewed_at: string;
+  rationale?: string;
 }
 
 export interface EdgeCalibrationRunSummary {
@@ -66,6 +76,22 @@ export async function recordEdgeCalibrationLabel(client: DbTxClient, input: Reco
     reviewed_at: input.reviewed_at,
     ...(input.rationale === undefined ? {} : { rationale: input.rationale }),
     attrs: { recorded_by: "evidence-maintenance.edge-calibration.v1" }
+  });
+}
+
+export async function recordObservationCalibrationLabel(
+  client: DbTxClient,
+  input: RecordObservationCalibrationLabelInput
+): Promise<{ label_id: string; inserted: boolean }> {
+  return upsertObservationCalibrationLabel(client, {
+    ...(input.label_id === undefined ? {} : { label_id: input.label_id }),
+    observation_id: input.observation_id,
+    ...(input.candidate_id === undefined ? {} : { candidate_id: input.candidate_id }),
+    label: input.label,
+    reviewer: input.reviewer,
+    reviewed_at: input.reviewed_at,
+    ...(input.rationale === undefined ? {} : { rationale: input.rationale }),
+    attrs: { recorded_by: "evidence-maintenance.observation-calibration.v1" }
   });
 }
 

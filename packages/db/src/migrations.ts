@@ -25,6 +25,7 @@ import { sql as migration0023SourceEventCheckTargetSql } from "./migration-sql/0
 import { sql as migration0024SourceEventCheckTargetLooseRefSql } from "./migration-sql/0024_source_event_check_target_loose_ref.js";
 import { sql as migration0025SourceCheckJobLeaseSql } from "./migration-sql/0025_source_check_job_lease.js";
 import { sql as migration0026ClaimHumanEditGuardSql } from "./migration-sql/0026_claim_human_edit_guard.js";
+import { sql as migration0027ObservationCalibrationSql } from "./migration-sql/0027_observation_calibration.js";
 
 export interface Migration {
   readonly id: string;
@@ -162,6 +163,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0026_claim_human_edit_guard",
     description: "Track human-edited claims so derived refreshes cannot overwrite reviewer-maintained content.",
     sql: migration0026ClaimHumanEditGuardSql
+  },
+  {
+    id: "0027_observation_calibration",
+    description: "Create observation calibration labels for review-only signal gold sets.",
+    sql: migration0027ObservationCalibrationSql
   }
 ];
 

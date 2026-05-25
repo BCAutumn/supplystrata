@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
-import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
+import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel, ObservationCalibrationLabel } from "@supplystrata/core";
 import {
   materializeSingleSourceDispositionUnknowns,
   parseOfficialDisclosureReadinessProposedUnknowns,
   recordEdgeCalibrationLabel,
+  recordObservationCalibrationLabel,
   refreshAlertCandidates,
   refreshComponentRiskView,
   refreshEdgeIntelligenceContext,
@@ -115,6 +116,32 @@ export function registerIntelligenceCommands(program: Command): void {
           })
         );
         writeJson({ ok: true, ...summary });
+      });
+    });
+
+  intelligence
+    .command("observation-calibration-label")
+    .argument("<observationId>", "observation id being reviewed for calibration")
+    .requiredOption("--label <label>", "useful_signal, background_context, needs_context, or not_useful")
+    .requiredOption("--reviewer <name>", "reviewer name")
+    .option("--candidate <candidateId>", "research-pack observation calibration candidate id")
+    .option("--reviewed-at <date>", "ISO date/time for the human or rules review")
+    .option("--rationale <text>", "short reviewer rationale")
+    .description("record a review-only calibration label for an observation sample")
+    .action(async (observationId: string, options: { label: string; reviewer: string; candidate?: string; reviewedAt?: string; rationale?: string }) => {
+      await withDatabase(async (store) => {
+        const reviewedAt = explicitOrCurrentIsoTimestamp(options.reviewedAt);
+        const result = await store.transaction((client) =>
+          recordObservationCalibrationLabel(client, {
+            observation_id: observationId,
+            ...(options.candidate === undefined ? {} : { candidate_id: options.candidate }),
+            label: parseObservationCalibrationLabel(options.label),
+            reviewer: options.reviewer,
+            reviewed_at: reviewedAt,
+            ...(options.rationale === undefined ? {} : { rationale: options.rationale })
+          })
+        );
+        writeJson({ ok: true, ...result });
       });
     });
 
@@ -334,4 +361,9 @@ function parseCalibrationErrorCategory(value: string): EdgeCalibrationErrorCateg
     return value;
   }
   throw new Error(`Unsupported calibration error category: ${value}`);
+}
+
+function parseObservationCalibrationLabel(value: string): ObservationCalibrationLabel {
+  if (value === "useful_signal" || value === "background_context" || value === "needs_context" || value === "not_useful") return value;
+  throw new Error(`Unsupported observation calibration label: ${value}`);
 }

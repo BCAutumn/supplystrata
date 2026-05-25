@@ -93,6 +93,8 @@ export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, forma
     `Fetched documents: ${report.summary.fetched_documents}`,
     `Normalized documents: ${report.summary.normalized_documents}`,
     `Degraded documents: ${report.summary.degraded_documents}`,
+    `Observation drafts: ${report.summary.observation_drafts}`,
+    `Semantic sections: ${report.summary.semantic_sections}`,
     "",
     "## By Source",
     ""
@@ -107,7 +109,7 @@ export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, forma
       .map(([issueKind, count]) => `${issueKind}:${count}`)
       .join(", ");
     lines.push(
-      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}; issue_kinds=${issueKinds.length === 0 ? "none" : issueKinds}`
+      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; observation_drafts=${summary.observation_drafts}; semantic_sections=${summary.semantic_sections}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}; issue_kinds=${issueKinds.length === 0 ? "none" : issueKinds}`
     );
   }
   lines.push("", "## Targets", "");
@@ -123,8 +125,12 @@ export function renderSourcePlanSmokeReport(report: SourcePlanSmokeReport, forma
     if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
     for (const document of item.documents.slice(0, 3)) {
       lines.push(
-        `  - ${document.task_id}: ${document.document_type ?? "raw"}${document.source_date === undefined ? "" : ` @ ${document.source_date}`} (${document.text_chars ?? 0} chars)`
+        `  - ${document.task_id}: ${document.document_type ?? "raw"}${document.source_date === undefined ? "" : ` @ ${document.source_date}`} (${document.text_chars ?? 0} chars; observations=${document.observation_drafts ?? 0}; sections=${document.semantic_sections ?? 0})`
       );
+      const observationTypes = document.observation_types ?? [];
+      const sectionKinds = document.semantic_section_kinds ?? [];
+      if (observationTypes.length > 0) lines.push(`    Observation types: ${observationTypes.join(", ")}`);
+      if (sectionKinds.length > 0) lines.push(`    Semantic sections: ${sectionKinds.join(", ")}`);
       lines.push(`    URL: ${document.source_url}`);
     }
     if (item.documents.length > 3) lines.push(`  More documents: ${item.documents.length - 3}`);

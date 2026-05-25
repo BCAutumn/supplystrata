@@ -1,7 +1,13 @@
 export type { DatabaseStore, DbClient, DbTxClient, DbRow } from "./client.js";
 export { createDatabaseStore, dbTxClientBrand } from "./client.js";
 export { updateAlertCandidateStatus, upsertAlertCandidate, type UpsertAlertCandidateInput } from "./alerts.js";
-export { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel, type UpsertEdgeCalibrationLabelInput } from "./calibration.js";
+export {
+  replaceEdgeCalibrationRun,
+  upsertEdgeCalibrationLabel,
+  upsertObservationCalibrationLabel,
+  type UpsertEdgeCalibrationLabelInput,
+  type UpsertObservationCalibrationLabelInput
+} from "./calibration.js";
 export { insertChainSegment, insertChainSegments, insertChainView, type NewChainSegmentInput, type NewChainViewInput } from "./chain-views.js";
 export {
   insertClaim,

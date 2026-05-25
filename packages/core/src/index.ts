@@ -137,6 +137,10 @@ export const EDGE_CALIBRATION_ERROR_CATEGORIES = [
 
 export type EdgeCalibrationErrorCategory = (typeof EDGE_CALIBRATION_ERROR_CATEGORIES)[number];
 
+export const OBSERVATION_CALIBRATION_LABELS = ["useful_signal", "background_context", "needs_context", "not_useful"] as const;
+
+export type ObservationCalibrationLabel = (typeof OBSERVATION_CALIBRATION_LABELS)[number];
+
 export const OBSERVATION_TYPES = [
   "FINANCIAL_METRIC_OBSERVATION",
   "TRADE_FLOW_OBSERVATION",

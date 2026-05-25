@@ -6,6 +6,7 @@
 
 - 汇总 source registry、connector capability 和 credential requirements，生成 source catalog。
 - 把 `source-plan` 的 runnable suggestions 转成稳定 `check_target_id`。
+- 支持按 `source_adapter_id` 过滤转换批次，便于只同步当前已审计、已配置凭据或不需要凭据的来源。
 - 校验 target config、connector 是否存在、manual-only source 是否被误启用、凭据是否需要配置。
 - 生成可交给 source monitor 的 policy / target 配置。
 

@@ -20,6 +20,15 @@ export interface ResearchTargetProfileSelection {
 export type ResearchTargetProfileOption = ResearchTargetProfileId | "none";
 type ResearchTargetNodePriority = NonNullable<OfficialDisclosureReadinessTargetNode["priority"]>;
 
+const SEC_COMPANY_FACT_OBSERVATION_METRICS = [
+  "inventory",
+  "cost_of_revenue",
+  "capital_expenditures",
+  "accounts_payable",
+  "purchase_obligations",
+  "revenue"
+] as const;
+
 const AI_COMPUTE_MEMORY_TARGET_NODES = [
   secTargetCompany("ENT-MICROSOFT", "Microsoft", "P0", "0000789019"),
   secTargetCompany("ENT-AMAZON", "Amazon", "P0", "0001018724"),
@@ -141,6 +150,17 @@ function secTargetCompany(
           limit: 3
         },
         reason: `${name} has a curated SEC CIK in seeds/entities.csv; monitor official filings as Gate 1 source coverage.`
+      },
+      {
+        source_id: "sec-edgar",
+        target_kind: "sec-company-facts",
+        target_config: {
+          cik,
+          entity_id: nodeId,
+          metrics: [...SEC_COMPANY_FACT_OBSERVATION_METRICS],
+          max_periods: 12
+        },
+        reason: `${name} has a curated SEC CIK in seeds/entities.csv; monitor SEC company facts as observation-only financial signals for Gate 1.`
       }
     ]
   };

@@ -16,6 +16,10 @@ export interface SourceTargetPreflightDocument {
   source_fetch_status?: "live" | "fallback";
   text_chars?: number;
   chunks?: number;
+  observation_drafts?: number;
+  semantic_sections?: number;
+  observation_types?: readonly string[];
+  semantic_section_kinds?: readonly string[];
 }
 
 export interface SourceTargetPreflightMissingCredential {
@@ -49,6 +53,8 @@ export interface SourceTargetPreflightSummary {
   fetched_documents: number;
   normalized_documents: number;
   degraded_documents: number;
+  observation_drafts: number;
+  semantic_sections: number;
   by_source: Record<string, number>;
   by_source_status: Record<string, SourceTargetPreflightSourceSummary>;
 }
@@ -62,6 +68,8 @@ export interface SourceTargetPreflightSourceSummary {
   fetched_documents: number;
   normalized_documents: number;
   degraded_documents: number;
+  observation_drafts: number;
+  semantic_sections: number;
   target_kinds: Record<string, number>;
   issue_kinds: Record<string, number>;
 }
@@ -104,6 +112,8 @@ export function renderSourceTargetPreflightMarkdown(report: SourceTargetPrefligh
     `- Fetched documents: ${report.summary.fetched_documents}`,
     `- Normalized documents: ${report.summary.normalized_documents}`,
     `- Degraded documents: ${report.summary.degraded_documents}`,
+    `- Observation drafts: ${report.summary.observation_drafts}`,
+    `- Semantic sections: ${report.summary.semantic_sections}`,
     "",
     "## By Source",
     ""
@@ -118,7 +128,7 @@ export function renderSourceTargetPreflightMarkdown(report: SourceTargetPrefligh
       .map(([issueKind, count]) => `${issueKind}:${count}`)
       .join(", ");
     lines.push(
-      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}; issue_kinds=${issueKinds.length === 0 ? "none" : issueKinds}`
+      `- ${source}: checked=${summary.checked_targets}; failed=${summary.failed_targets}; skipped=${summary.skipped_targets}; normalized=${summary.normalized_documents}; degraded=${summary.degraded_documents}; observation_drafts=${summary.observation_drafts}; semantic_sections=${summary.semantic_sections}; target_kinds=${targetKinds.length === 0 ? "none" : targetKinds}; issue_kinds=${issueKinds.length === 0 ? "none" : issueKinds}`
     );
   }
   lines.push("", "## Targets", "");
@@ -134,8 +144,14 @@ export function renderSourceTargetPreflightMarkdown(report: SourceTargetPrefligh
     if (item.error_message !== undefined) lines.push(`  Error: ${item.error_message}`);
     for (const document of item.documents.slice(0, 3)) {
       lines.push(
-        `  - ${document.task_id}: ${document.document_type ?? "raw"}${document.source_date === undefined ? "" : ` @ ${document.source_date}`} (${document.text_chars ?? 0} chars)`
+        `  - ${document.task_id}: ${document.document_type ?? "raw"}${document.source_date === undefined ? "" : ` @ ${document.source_date}`} (${document.text_chars ?? 0} chars; observations=${document.observation_drafts ?? 0}; sections=${document.semantic_sections ?? 0})`
       );
+      if (document.observation_types !== undefined && document.observation_types.length > 0) {
+        lines.push(`    Observation types: ${document.observation_types.join(", ")}`);
+      }
+      if (document.semantic_section_kinds !== undefined && document.semantic_section_kinds.length > 0) {
+        lines.push(`    Semantic sections: ${document.semantic_section_kinds.join(", ")}`);
+      }
       lines.push(`    URL: ${document.source_url}`);
     }
     if (item.documents.length > 3) lines.push(`  More documents: ${item.documents.length - 3}`);
@@ -146,6 +162,8 @@ export function renderSourceTargetPreflightMarkdown(report: SourceTargetPrefligh
 function parseSummary(value: unknown, items: readonly SourceTargetPreflightItem[]): SourceTargetPreflightSummary {
   const summary = requireRecord(value, "source target preflight summary");
   const bySourceStatus = optionalSourceSummaryMap(summary["by_source_status"]) ?? summarizeItemsBySource(items);
+  const fallbackObservationDrafts = sumItems(items, sumItemObservationDrafts);
+  const fallbackSemanticSections = sumItems(items, sumItemSemanticSections);
   return {
     requested_targets: requireNonNegativeInteger(summary["requested_targets"], "source target preflight summary requested_targets"),
     selected_targets: requireNonNegativeInteger(summary["selected_targets"], "source target preflight summary selected_targets"),
@@ -156,6 +174,10 @@ function parseSummary(value: unknown, items: readonly SourceTargetPreflightItem[
     fetched_documents: requireNonNegativeInteger(summary["fetched_documents"], "source target preflight summary fetched_documents"),
     normalized_documents: requireNonNegativeInteger(summary["normalized_documents"], "source target preflight summary normalized_documents"),
     degraded_documents: requireNonNegativeInteger(summary["degraded_documents"], "source target preflight summary degraded_documents"),
+    observation_drafts:
+      optionalNonNegativeInteger(summary["observation_drafts"], "source target preflight summary observation_drafts") ?? fallbackObservationDrafts,
+    semantic_sections:
+      optionalNonNegativeInteger(summary["semantic_sections"], "source target preflight summary semantic_sections") ?? fallbackSemanticSections,
     by_source: parseCountMap(summary["by_source"], "source target preflight summary by_source"),
     by_source_status: bySourceStatus
   };
@@ -181,6 +203,8 @@ function parseSourceSummary(value: unknown, label: string): SourceTargetPrefligh
     fetched_documents: requireNonNegativeInteger(summary["fetched_documents"], `${label} fetched_documents`),
     normalized_documents: requireNonNegativeInteger(summary["normalized_documents"], `${label} normalized_documents`),
     degraded_documents: requireNonNegativeInteger(summary["degraded_documents"], `${label} degraded_documents`),
+    observation_drafts: optionalNonNegativeInteger(summary["observation_drafts"], `${label} observation_drafts`) ?? 0,
+    semantic_sections: optionalNonNegativeInteger(summary["semantic_sections"], `${label} semantic_sections`) ?? 0,
     target_kinds: parseCountMap(summary["target_kinds"], `${label} target_kinds`),
     issue_kinds: parseOptionalCountMap(summary["issue_kinds"], `${label} issue_kinds`)
   };
@@ -231,6 +255,10 @@ function parseDocument(value: unknown, label: string): SourceTargetPreflightDocu
   const sourceFetchStatus = optionalSourceFetchStatus(document["source_fetch_status"], `${label} source_fetch_status`);
   const textChars = optionalNonNegativeInteger(document["text_chars"], `${label} text_chars`);
   const chunks = optionalNonNegativeInteger(document["chunks"], `${label} chunks`);
+  const observationDrafts = optionalNonNegativeInteger(document["observation_drafts"], `${label} observation_drafts`);
+  const semanticSections = optionalNonNegativeInteger(document["semantic_sections"], `${label} semantic_sections`);
+  const observationTypes = optionalStringArray(document["observation_types"], `${label} observation_types`);
+  const semanticSectionKinds = optionalStringArray(document["semantic_section_kinds"], `${label} semantic_section_kinds`);
   return {
     task_id: requireString(document["task_id"], `${label} task_id`),
     source_url: requireString(document["source_url"], `${label} source_url`),
@@ -239,8 +267,18 @@ function parseDocument(value: unknown, label: string): SourceTargetPreflightDocu
     ...(sourceDate === undefined ? {} : { source_date: sourceDate }),
     ...(sourceFetchStatus === undefined ? {} : { source_fetch_status: sourceFetchStatus }),
     ...(textChars === undefined ? {} : { text_chars: textChars }),
-    ...(chunks === undefined ? {} : { chunks })
+    ...(chunks === undefined ? {} : { chunks }),
+    ...(observationDrafts === undefined ? {} : { observation_drafts: observationDrafts }),
+    ...(semanticSections === undefined ? {} : { semantic_sections: semanticSections }),
+    ...(observationTypes === undefined ? {} : { observation_types: observationTypes }),
+    ...(semanticSectionKinds === undefined ? {} : { semantic_section_kinds: semanticSectionKinds })
   };
+}
+
+function optionalStringArray(value: unknown, label: string): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  return value.map((item, index) => requireString(item, `${label}[${index}]`));
 }
 
 function parseCountMap(value: unknown, label: string): Record<string, number> {
@@ -272,6 +310,8 @@ function summarizeItemsBySource(items: readonly SourceTargetPreflightItem[]): Re
       fetched_documents: sumItems(sourceItems, (item) => item.fetched_documents),
       normalized_documents: sumItems(sourceItems, (item) => item.normalized_documents),
       degraded_documents: sumItems(sourceItems, (item) => item.degraded_documents),
+      observation_drafts: sumItems(sourceItems, sumItemObservationDrafts),
+      semantic_sections: sumItems(sourceItems, sumItemSemanticSections),
       target_kinds: countItemsBy(sourceItems, (item) => item.target_kind),
       issue_kinds: countItemsBy(
         sourceItems.filter((item) => item.issue_kind !== undefined),
@@ -284,6 +324,14 @@ function summarizeItemsBySource(items: readonly SourceTargetPreflightItem[]): Re
 
 function sumItems(items: readonly SourceTargetPreflightItem[], valueForItem: (item: SourceTargetPreflightItem) => number): number {
   return items.reduce((sum, item) => sum + valueForItem(item), 0);
+}
+
+function sumItemObservationDrafts(item: SourceTargetPreflightItem): number {
+  return item.documents.reduce((sum, document) => sum + (document.observation_drafts ?? 0), 0);
+}
+
+function sumItemSemanticSections(item: SourceTargetPreflightItem): number {
+  return item.documents.reduce((sum, document) => sum + (document.semantic_sections ?? 0), 0);
 }
 
 function countItemsBy(items: readonly SourceTargetPreflightItem[], keyForItem: (item: SourceTargetPreflightItem) => string): Record<string, number> {

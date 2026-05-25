@@ -4,6 +4,7 @@ import type { ChainViewModel, CompanyCardModel, ComponentCardModel } from "@supp
 import type { SourcePlanItem, TradeObservationDirection } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { CorroborationSourcePlan } from "./corroboration-source-plan.js";
+import type { Gate1DataDepthWorkbench, Gate1DataDepthWorkstream } from "./gate1-data-depth-workbench.js";
 import type { Gate1RunLedger } from "./gate1-run-ledger.js";
 import type { InvestigationBacklog } from "./investigation-backlog.js";
 import type { ObservationCoverageReport } from "./observation-coverage.js";
@@ -137,10 +138,30 @@ export interface ResearchPackStats {
   source_target_source_failed_targets: number;
   source_target_failure_kinds: Record<string, number>;
   source_target_targets_with_observations: number;
+  source_target_total_observations: number;
+  source_target_observed_subject_entities: number;
+  source_target_observations_by_source: Record<string, number>;
+  source_target_observations_by_target_kind: Record<string, number>;
+  source_target_observations_by_metric: Record<string, number>;
+  source_target_observation_review_items: number;
+  source_target_observation_review_p0: number;
+  source_target_observation_review_p1: number;
+  source_target_observation_review_p2: number;
+  source_target_observation_review_by_category: Record<string, number>;
+  source_target_observation_calibration_candidates: number;
+  source_target_observation_calibration_by_label: Record<string, number>;
+  source_target_observation_calibration_labeled_candidates: number;
+  source_target_observation_calibration_unlabeled_candidates: number;
+  source_target_observation_calibration_by_persisted_label: Record<string, number>;
+  source_target_observation_calibration_next_labeling_batch: number;
+  source_target_observation_calibration_next_labeling_batch_by_priority: Record<string, number>;
+  source_target_observation_calibration_next_labeling_batch_by_metric: Record<string, number>;
   source_target_preflight_selected_targets: number;
   source_target_preflight_checked_targets: number;
   source_target_preflight_failed_targets: number;
   source_target_preflight_degraded_documents: number;
+  source_target_preflight_observation_drafts: number;
+  source_target_preflight_semantic_sections: number;
   source_target_preflight_issue_kinds: Record<string, number>;
   observation_records: number;
   observation_chain_segments: number;
@@ -197,6 +218,16 @@ export interface ResearchPackStats {
   propagation_contexts_with_source_plan: number;
   propagation_contexts_with_component_leads: number;
   propagation_reasoning_inputs: number;
+  gate1_data_depth_items: number;
+  gate1_data_depth_p0: number;
+  gate1_data_depth_p1: number;
+  gate1_data_depth_p2: number;
+  gate1_data_depth_by_workstream: Record<Gate1DataDepthWorkstream, number>;
+  gate1_data_depth_fact_edge_gap: number;
+  gate1_data_depth_source_blockers: number;
+  gate1_data_depth_strength_missing_edges: number;
+  gate1_data_depth_observation_labeling_batch: number;
+  gate1_data_depth_propagation_contexts_not_ready: number;
 }
 
 export interface ResearchPackClaimBuild {
@@ -236,6 +267,7 @@ export interface ResearchPackModel {
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
   propagation_readiness: PropagationReadinessReport;
+  gate1_data_depth_workbench: Gate1DataDepthWorkbench;
   gate1_run_ledger: Gate1RunLedger;
 }
 
@@ -271,6 +303,7 @@ export interface WorkbenchSnapshotPackModel {
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
   propagation_readiness: PropagationReadinessReport;
+  gate1_data_depth_workbench: Gate1DataDepthWorkbench;
   gate1_run_ledger: Gate1RunLedger;
 }
 

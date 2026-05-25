@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type pg from "pg";
-import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel } from "@supplystrata/core";
+import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel, ObservationCalibrationLabel } from "@supplystrata/core";
 import type { DbClient, DbTxClient } from "./client.js";
 import { toIsoString } from "./time.js";
 
@@ -10,6 +10,17 @@ interface EdgeCalibrationLabelRow extends pg.QueryResultRow {
   evidence_id: string | null;
   label: EdgeCalibrationLabel;
   error_category: EdgeCalibrationErrorCategory | null;
+  reviewer: string;
+  reviewed_at: Date | string;
+  rationale: string | null;
+  attrs: Record<string, unknown>;
+}
+
+interface ObservationCalibrationLabelRow extends pg.QueryResultRow {
+  label_id: string;
+  observation_id: string;
+  candidate_id: string | null;
+  label: ObservationCalibrationLabel;
   reviewer: string;
   reviewed_at: Date | string;
   rationale: string | null;
@@ -34,6 +45,28 @@ export interface UpsertEdgeCalibrationLabelInput {
   evidence_id?: string;
   label: EdgeCalibrationLabel;
   error_category?: EdgeCalibrationErrorCategory;
+  reviewer: string;
+  reviewed_at: string;
+  rationale?: string;
+  attrs?: Record<string, unknown>;
+}
+
+export interface ObservationCalibrationLabelRecord {
+  label_id: string;
+  observation_id: string;
+  candidate_id?: string;
+  label: ObservationCalibrationLabel;
+  reviewer: string;
+  reviewed_at: string;
+  rationale?: string;
+  attrs: Record<string, unknown>;
+}
+
+export interface UpsertObservationCalibrationLabelInput {
+  label_id?: string;
+  observation_id: string;
+  candidate_id?: string;
+  label: ObservationCalibrationLabel;
   reviewer: string;
   reviewed_at: string;
   rationale?: string;
@@ -123,6 +156,74 @@ export async function listEdgeCalibrationLabels(client: DbClient, input: { edge_
   return result.rows.map(edgeCalibrationLabelRowToRecord);
 }
 
+export async function upsertObservationCalibrationLabel(
+  client: DbTxClient,
+  input: UpsertObservationCalibrationLabelInput
+): Promise<{ label_id: string; inserted: boolean }> {
+  const labelId = input.label_id ?? deterministicObservationCalibrationLabelId(input);
+  const result = await client.query<{ label_id: string; inserted: boolean } & pg.QueryResultRow>(
+    `INSERT INTO observation_calibration_labels (
+       label_id, observation_id, candidate_id, label, reviewer, reviewed_at, rationale, attrs
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+     ON CONFLICT (label_id)
+     DO UPDATE SET
+       candidate_id = EXCLUDED.candidate_id,
+       label = EXCLUDED.label,
+       reviewed_at = EXCLUDED.reviewed_at,
+       rationale = EXCLUDED.rationale,
+       attrs = observation_calibration_labels.attrs || EXCLUDED.attrs,
+       updated_at = now()
+     RETURNING label_id, (xmax = 0) AS inserted`,
+    [
+      labelId,
+      input.observation_id,
+      input.candidate_id ?? null,
+      input.label,
+      input.reviewer,
+      input.reviewed_at,
+      input.rationale ?? null,
+      JSON.stringify(input.attrs ?? {})
+    ]
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Failed to upsert observation calibration label for observation ${input.observation_id}`);
+  return { label_id: row.label_id, inserted: row.inserted };
+}
+
+export async function listObservationCalibrationLabels(
+  client: DbClient,
+  input: { observation_id?: string; observation_ids?: readonly string[]; label?: ObservationCalibrationLabel; limit?: number } = {}
+): Promise<ObservationCalibrationLabelRecord[]> {
+  if (input.observation_ids !== undefined && input.observation_ids.length === 0) return [];
+  const params: unknown[] = [];
+  const predicates: string[] = [];
+  if (input.observation_id !== undefined) {
+    params.push(input.observation_id);
+    predicates.push(`observation_id = $${params.length}`);
+  }
+  if (input.observation_ids !== undefined) {
+    params.push([...new Set(input.observation_ids)]);
+    predicates.push(`observation_id = ANY($${params.length}::text[])`);
+  }
+  if (input.label !== undefined) {
+    params.push(input.label);
+    predicates.push(`label = $${params.length}`);
+  }
+  params.push(input.limit ?? 100);
+  const limitParam = `$${params.length}`;
+  const where = predicates.length === 0 ? "" : `WHERE ${predicates.join(" AND ")}`;
+  const result = await client.query<ObservationCalibrationLabelRow>(
+    `SELECT label_id, observation_id, candidate_id, label, reviewer, reviewed_at, rationale, attrs
+     FROM observation_calibration_labels
+     ${where}
+     ORDER BY reviewed_at DESC, label_id
+     LIMIT ${limitParam}`,
+    params
+  );
+  return result.rows.map(observationCalibrationLabelRowToRecord);
+}
+
 export async function replaceEdgeCalibrationRun(client: DbTxClient, input: ReplaceEdgeCalibrationRunInput): Promise<{ run_id: string; items: number }> {
   const result = await client.query<{ run_id: string } & pg.QueryResultRow>(
     `INSERT INTO edge_calibration_runs (
@@ -205,6 +306,19 @@ function edgeCalibrationLabelRowToRecord(row: EdgeCalibrationLabelRow): EdgeCali
   };
 }
 
+function observationCalibrationLabelRowToRecord(row: ObservationCalibrationLabelRow): ObservationCalibrationLabelRecord {
+  return {
+    label_id: row.label_id,
+    observation_id: row.observation_id,
+    ...(row.candidate_id === null ? {} : { candidate_id: row.candidate_id }),
+    label: row.label,
+    reviewer: row.reviewer,
+    reviewed_at: toIsoString(row.reviewed_at),
+    ...(row.rationale === null ? {} : { rationale: row.rationale }),
+    attrs: row.attrs
+  };
+}
+
 function deterministicEdgeCalibrationLabelId(input: UpsertEdgeCalibrationLabelInput): string {
   const digest = createHash("sha256")
     .update([input.edge_id, input.evidence_id ?? "", input.reviewer].join(":"))
@@ -212,4 +326,9 @@ function deterministicEdgeCalibrationLabelId(input: UpsertEdgeCalibrationLabelIn
     .slice(0, 24)
     .toUpperCase();
   return `CAL-LABEL-${digest}`;
+}
+
+function deterministicObservationCalibrationLabelId(input: UpsertObservationCalibrationLabelInput): string {
+  const digest = createHash("sha256").update([input.observation_id, input.reviewer].join(":")).digest("hex").slice(0, 24).toUpperCase();
+  return `OBS-CAL-LABEL-${digest}`;
 }

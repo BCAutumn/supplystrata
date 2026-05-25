@@ -443,7 +443,20 @@ describe("source monitor", () => {
       synced: true,
       match_kind: "check_target_id",
       state: "succeeded",
-      observations: 3
+      observations: 3,
+      observations_by_metric: {
+        backlog: 1,
+        revenue: 2
+      },
+      observation_samples: [
+        expect.objectContaining({
+          observation_id: "OBS-REVENUE",
+          metric_name: "revenue",
+          doc_id: "DOC-SAMSUNG",
+          source_item_id: "SRCITEM-SAMSUNG",
+          source_url: "https://example.com/samsung"
+        })
+      ]
     });
     expect(coverage[0]?.latest_event?.event_type).toBe("DOCUMENT_CHANGED");
     expect(coverage[0]?.latest_job?.status).toBe("succeeded");
@@ -597,6 +610,26 @@ function sourceTargetCoverageRows(value: unknown): pg.QueryResultRow[] {
         event_detected_at: new Date("2026-05-19T00:00:30.000Z"),
         event_caused_by: "pipeline",
         observation_count: "3",
+        observations_by_metric: { backlog: "1", revenue: "2" },
+        observation_samples: [
+          {
+            observation_id: "OBS-REVENUE",
+            observation_type: "FINANCIAL_METRIC_OBSERVATION",
+            metric_name: "revenue",
+            metric_value: "100",
+            metric_unit: "USD",
+            baseline_value: "90",
+            change_percent: 11.1,
+            scope_kind: "company",
+            scope_id: "ENT-SAMSUNG-ELECTRONICS",
+            doc_id: "DOC-SAMSUNG",
+            source_item_id: "SRCITEM-SAMSUNG",
+            source_url: "https://example.com/samsung",
+            time_window_start: "2025-01-01",
+            time_window_end: "2025-12-31",
+            confidence: 0.9
+          }
+        ],
         latest_observation_at: new Date("2026-05-19T00:00:40.000Z"),
         match_rank: 0
       }
@@ -625,6 +658,8 @@ function sourceTargetCoverageRows(value: unknown): pg.QueryResultRow[] {
         event_detected_at: new Date("2026-05-19T00:00:30.000Z"),
         event_caused_by: "source-check.tsmc-ir",
         observation_count: "0",
+        observations_by_metric: {},
+        observation_samples: [],
         latest_observation_at: null,
         match_rank: 0
       }

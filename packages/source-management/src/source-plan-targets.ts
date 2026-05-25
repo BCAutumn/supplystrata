@@ -19,17 +19,20 @@ export function buildSourcePolicyConfigFromPlanTargets(input: SourceTargetsFromP
 export function buildSourceCheckTargetIdsFromPlan(input: SourcePlanTargetIdInput): string[] {
   return buildSourceCheckTargetsFromPlan({
     source_plan: input.source_plan,
-    namespace: input.namespace
+    namespace: input.namespace,
+    ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
   }).map((target) => target.check_target_id);
 }
 
 export function buildSourceCheckTargetsFromPlan(input: SourceTargetsFromPlanInput): SourceManagementTargetInput[] {
   const namespace = normalizeNamespace(input.namespace);
+  const sourceAdapterFilter = input.source_adapter_ids === undefined ? null : new Set(input.source_adapter_ids);
   const targets: SourceManagementTargetInput[] = [];
   const seen = new Set<string>();
   for (const item of input.source_plan) {
     for (const suggestion of item.suggested_check_targets) {
       if (!suggestion.runnable) continue;
+      if (sourceAdapterFilter !== null && !sourceAdapterFilter.has(suggestion.source_adapter_id)) continue;
       const target = toSourceCheckTargetInput(item, suggestion, {
         namespace,
         enabled: input.enabled ?? false,

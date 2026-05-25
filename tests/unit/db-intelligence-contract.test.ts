@@ -6,6 +6,7 @@ import {
   EDGE_CALIBRATION_LABELS,
   EDGE_FRESHNESS_DECAY_MODELS,
   EDGE_STRENGTH_KINDS,
+  OBSERVATION_CALIBRATION_LABELS,
   OBSERVATION_TYPES,
   RISK_METRIC_KINDS
 } from "@supplystrata/core";
@@ -21,6 +22,7 @@ import { sql as migration0020WeightedNodeKnockoutMetricSql } from "../../package
 import { sql as migration0021FinancialMetricObservationTypeSql } from "../../packages/db/src/migration-sql/0021_financial_metric_observation_type.js";
 import { sql as migration0022FinancialPeerMetricKindSql } from "../../packages/db/src/migration-sql/0022_financial_peer_metric_kind.js";
 import { sql as migration0026ClaimHumanEditGuardSql } from "../../packages/db/src/migration-sql/0026_claim_human_edit_guard.js";
+import { sql as migration0027ObservationCalibrationSql } from "../../packages/db/src/migration-sql/0027_observation_calibration.js";
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
@@ -50,6 +52,7 @@ import {
   updateAlertCandidateStatus,
   upsertAlertCandidate,
   upsertEdgeCalibrationLabel,
+  upsertObservationCalibrationLabel,
   replaceEdgeCalibrationRun
 } from "@supplystrata/db/write";
 import {
@@ -61,6 +64,7 @@ import {
   listAlertCandidates,
   listClaimsByScope,
   listLeadObservationsByScope,
+  listObservationCalibrationLabels,
   listObservationsByScope
 } from "@supplystrata/db/read";
 
@@ -237,6 +241,12 @@ describe("db intelligence-network repositories", () => {
     }
     for (const category of EDGE_CALIBRATION_ERROR_CATEGORIES) {
       expect(migration0018EdgeCalibrationSql).toContain(`'${category}'`);
+    }
+  });
+
+  it("keeps DB observation calibration constraints synchronized with core observation labels", () => {
+    for (const label of OBSERVATION_CALIBRATION_LABELS) {
+      expect(migration0027ObservationCalibrationSql).toContain(`'${label}'`);
     }
   });
 
@@ -880,6 +890,38 @@ describe("db intelligence-network repositories", () => {
     expect(client.calls[2]?.sql).toContain("DELETE FROM edge_calibration_run_items");
     expect(client.calls[3]?.sql).toContain("INSERT INTO edge_calibration_run_items");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("records observation calibration labels without mutating observations or fact edges", async () => {
+    const client = new RecordingDbClient();
+
+    const label = await upsertObservationCalibrationLabel(client, {
+      observation_id: "OBS-TEST",
+      candidate_id: "observation-calibration:inventory:OBS-TEST",
+      label: "useful_signal",
+      reviewer: "unit-test",
+      reviewed_at: "2026-05-25T00:00:00.000Z",
+      rationale: "Good calibration seed for inventory context."
+    });
+
+    expect(label.label_id).toMatch(/^OBS-CAL-LABEL-/);
+    expect(client.calls[0]?.sql).toContain("INSERT INTO observation_calibration_labels");
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (label_id)");
+    expect(client.calls.some((call) => call.sql.includes("UPDATE observations"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("lists observation calibration labels by batched observation ids", async () => {
+    const client = new RecordingDbClient();
+
+    await listObservationCalibrationLabels(client, {
+      observation_ids: ["OBS-1", "OBS-2", "OBS-1"],
+      limit: 20
+    });
+
+    expect(client.calls[0]?.sql).toContain("observation_id = ANY");
+    expect(client.calls[0]?.params[0]).toEqual(["OBS-1", "OBS-2"]);
+    expect(client.calls[0]?.params[1]).toBe(20);
   });
 });
 

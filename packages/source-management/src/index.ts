@@ -46,7 +46,7 @@ export function previewSourceCheckTargetsFromPlan(input: SourcePlanTargetPreview
     ...(input.sources === undefined ? {} : { sources: input.sources }),
     ...(input.connector_capabilities === undefined ? {} : { connector_capabilities: input.connector_capabilities })
   });
-  const runnableSuggestions = countRunnableSuggestions(input.source_plan);
+  const runnableSuggestions = countRunnableSuggestions(input.source_plan, input.source_adapter_ids);
   return {
     schema_version: "1.0.0",
     namespace: normalizeSourceTargetNamespace(input.namespace),
@@ -225,8 +225,15 @@ function compareConnectorCapabilities(
   return connectorKey(left).localeCompare(connectorKey(right));
 }
 
-function countRunnableSuggestions(sourcePlan: readonly ManagedSourcePlanItem[]): number {
-  return sourcePlan.reduce((count, item) => count + item.suggested_check_targets.filter((target) => target.runnable).length, 0);
+function countRunnableSuggestions(sourcePlan: readonly ManagedSourcePlanItem[], sourceAdapterIds?: readonly string[]): number {
+  const sourceAdapterFilter = sourceAdapterIds === undefined ? null : new Set(sourceAdapterIds);
+  return sourcePlan.reduce(
+    (count, item) =>
+      count +
+      item.suggested_check_targets.filter((target) => target.runnable && (sourceAdapterFilter === null || sourceAdapterFilter.has(target.source_adapter_id)))
+        .length,
+    0
+  );
 }
 
 function countTargetsRequiringCredentials(

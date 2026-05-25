@@ -46,17 +46,17 @@ function explicitOfficialDisclosureSuggestionsForTargetNodes(
   const suggestions: SourcePlanCheckTargetSuggestion[] = [];
   for (const node of targetNodes) {
     if (!targetIds.has(node.node_id)) continue;
-    const explicitTarget = node.expected_source_targets?.find((target) => target.source_id === sourceId);
-    if (explicitTarget === undefined) continue;
-    const targetConfig = explicitOfficialDisclosureTargetConfig(explicitTarget.target_config, officialDisclosure);
-    if (targetConfig === undefined) continue;
-    suggestions.push({
-      source_adapter_id: sourceId,
-      target_kind: explicitTarget.target_kind,
-      runnable: true,
-      target_config: targetConfig,
-      reason: explicitTarget.reason ?? `${node.node_id} has explicit ${sourceId} target config from the research target profile.`
-    });
+    for (const explicitTarget of node.expected_source_targets?.filter((target) => target.source_id === sourceId) ?? []) {
+      const targetConfig = explicitOfficialDisclosureTargetConfig(explicitTarget.target_config, officialDisclosure);
+      if (targetConfig === undefined) continue;
+      suggestions.push({
+        source_adapter_id: sourceId,
+        target_kind: explicitTarget.target_kind,
+        runnable: true,
+        target_config: targetConfig,
+        reason: explicitTarget.reason ?? `${node.node_id} has explicit ${sourceId} target config from the research target profile.`
+      });
+    }
   }
   return suggestions;
 }

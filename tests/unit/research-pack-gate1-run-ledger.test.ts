@@ -438,7 +438,51 @@ function sourceTargetCoverageFixture(): SourceTargetCoverageReport {
         adapter_error: 0,
         unknown_failure: 0
       },
-      targets_with_observations: 0
+      targets_with_observations: 0,
+      total_observations: 0,
+      observed_subject_entities: 0,
+      observations_by_source: {},
+      observations_by_target_kind: {},
+      observations_by_metric: {}
+    },
+    observation_review: {
+      summary: {
+        review_items: 0,
+        calibration_candidates: 0,
+        labeled_calibration_candidates: 0,
+        unlabeled_calibration_candidates: 0,
+        next_labeling_batch_candidates: 0,
+        p0: 0,
+        p1: 0,
+        p2: 0,
+        by_category: {
+          supply_chain_signal: 0,
+          financial_context: 0,
+          metric_mapping_gap: 0
+        },
+        by_recommended_label: {
+          useful_signal: 0,
+          background_context: 0,
+          needs_context: 0,
+          not_useful: 0
+        },
+        by_persisted_label: {
+          useful_signal: 0,
+          background_context: 0,
+          needs_context: 0,
+          not_useful: 0
+        },
+        next_labeling_batch_by_priority: { P0: 0, P1: 0, P2: 0 },
+        next_labeling_batch_by_metric: {}
+      },
+      items: [],
+      calibration_candidates: [],
+      labeling_plan: {
+        strategy: "stratified_unlabeled_by_priority_metric",
+        review_policy: "review_only_no_fact_mutation",
+        batch_size: 12,
+        candidates: []
+      }
     },
     items: [
       coverageItem("target-dart", "dart-kr", "retry_wait", "SOURCE_FAILED"),
@@ -461,6 +505,8 @@ function sourceTargetPreflightFixture(): SourceTargetPreflightReport {
       fetched_documents: 0,
       normalized_documents: 0,
       degraded_documents: 0,
+      observation_drafts: 0,
+      semantic_sections: 0,
       by_source: { "dart-kr": 1 },
       by_source_status: {
         "dart-kr": {
@@ -472,6 +518,8 @@ function sourceTargetPreflightFixture(): SourceTargetPreflightReport {
           fetched_documents: 0,
           normalized_documents: 0,
           degraded_documents: 0,
+          observation_drafts: 0,
+          semantic_sections: 0,
           target_kinds: { "official-regulatory-disclosure": 1 },
           issue_kinds: { missing_credentials: 1 }
         }
@@ -538,6 +586,8 @@ function coverageItem(
       caused_by: `source-check.${sourceAdapterId}`
     },
     observations: 0,
+    observations_by_metric: {},
+    observation_samples: [],
     latest_observation_at: null
   };
 }

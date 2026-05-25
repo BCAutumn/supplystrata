@@ -8,6 +8,12 @@ import {
   renderCorroborationSourcePlanMarkdown,
   type CorroborationSourcePlan
 } from "./corroboration-source-plan.js";
+import {
+  GATE1_DATA_DEPTH_ACTION_BATCHES,
+  buildGate1DataDepthActionBatch,
+  renderGate1DataDepthWorkbenchMarkdown,
+  type Gate1DataDepthWorkbench
+} from "./gate1-data-depth-workbench.js";
 import type { ResearchPackFile, ResearchPackModel, WorkbenchSnapshotPackModel, WrittenResearchPack } from "./definitions.js";
 import { renderInvestigationBacklogMarkdown } from "./investigation-backlog.js";
 import { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
@@ -67,6 +73,14 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
       renderPropagationReadinessMarkdown(pack.propagation_readiness),
       "Structured propagation reasoning readiness markdown"
     ),
+    await writeJsonFile(outDir, "gate1-data-depth-workbench.json", pack.gate1_data_depth_workbench, "Gate 1 data-depth execution workbench"),
+    await writeMarkdownFile(
+      outDir,
+      "gate1-data-depth-workbench.md",
+      renderGate1DataDepthWorkbenchMarkdown(pack.gate1_data_depth_workbench),
+      "Gate 1 data-depth execution workbench markdown"
+    ),
+    ...(await gate1DataDepthActionBatchFiles(outDir, pack.gate1_data_depth_workbench)),
     await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
     await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
@@ -172,6 +186,14 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
       renderPropagationReadinessMarkdown(pack.propagation_readiness),
       "Structured propagation reasoning readiness markdown"
     ),
+    await writeJsonFile(outDir, "gate1-data-depth-workbench.json", pack.gate1_data_depth_workbench, "Gate 1 data-depth execution workbench"),
+    await writeMarkdownFile(
+      outDir,
+      "gate1-data-depth-workbench.md",
+      renderGate1DataDepthWorkbenchMarkdown(pack.gate1_data_depth_workbench),
+      "Gate 1 data-depth execution workbench markdown"
+    ),
+    ...(await gate1DataDepthActionBatchFiles(outDir, pack.gate1_data_depth_workbench)),
     await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
     await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
@@ -243,6 +265,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
     "- `propagation-readiness.json` and `propagation-readiness.md` prepare demand, capacity, facility, equipment, process-material, price/trade, and policy reasoning inputs for future AI/frontend analysis. They do not write facts.",
+    "- `gate1-data-depth-workbench.json` and `gate1-data-depth-workbench.md` rank the highest-value data-depth moves across L4/L5 growth, counterparty corroboration, source blockers, strength gaps, observation calibration, and propagation context. `gate1-data-depth-p0.json`, `gate1-data-depth-source-blockers.json`, `gate1-data-depth-labeling.json`, `gate1-data-depth-corroboration.json`, and `gate1-data-depth-intelligence-context.json`, when non-empty, split that workbench into frontend-ready review/action batches. They are review-only.",
     "- `gate1-run-ledger.json` and `gate1-run-ledger.md` merge readiness, source-target coverage, corroboration batches, and frontier switching into one deterministic execution ledger.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
@@ -279,6 +302,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
     "- `propagation-readiness.json` and `propagation-readiness.md` prepare demand, capacity, facility, equipment, process-material, price/trade, and policy reasoning inputs for future AI/frontend analysis. They do not write facts.",
+    "- `gate1-data-depth-workbench.json` and `gate1-data-depth-workbench.md` rank the highest-value data-depth moves across L4/L5 growth, counterparty corroboration, source blockers, strength gaps, observation calibration, and propagation context. `gate1-data-depth-p0.json`, `gate1-data-depth-source-blockers.json`, `gate1-data-depth-labeling.json`, `gate1-data-depth-corroboration.json`, and `gate1-data-depth-intelligence-context.json`, when non-empty, split that workbench into frontend-ready review/action batches. They are review-only.",
     "- `gate1-run-ledger.json` and `gate1-run-ledger.md` merge readiness, source-target coverage, corroboration batches, and frontier switching into one deterministic execution ledger.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
@@ -319,6 +343,7 @@ function researchPackStatsLines(
     `- Official disclosure signal correlation hints: ${stats.open_official_disclosure_signal_correlation_hints}/${stats.official_disclosure_signal_correlation_hints} open; dispositions ${stats.official_disclosure_signal_dispositions}`,
     `- Supply-chain expansion plan: ${stats.supply_chain_expansion_frontier_edges} frontier edges, ${stats.supply_chain_expansion_frontier_companies} frontier companies, ${stats.supply_chain_expansion_component_dependency_leads} component leads (${stats.supply_chain_expansion_leads_with_source_path} with source path), ${stats.supply_chain_expansion_stop_conditions} stop conditions`,
     `- Propagation readiness: ${stats.propagation_readiness_ready} ready, ${stats.propagation_readiness_partial} partial, ${stats.propagation_readiness_blocked} blocked; observations ${stats.propagation_contexts_with_observations}, source paths ${stats.propagation_contexts_with_source_plan}, component leads ${stats.propagation_contexts_with_component_leads}, reasoning inputs ${stats.propagation_reasoning_inputs}`,
+    `- Gate 1 data-depth workbench: ${stats.gate1_data_depth_items} items (${stats.gate1_data_depth_p0} P0, ${stats.gate1_data_depth_p1} P1, ${stats.gate1_data_depth_p2} P2); workstreams ${formatStatsCountMap(stats.gate1_data_depth_by_workstream)}; fact edge gap ${stats.gate1_data_depth_fact_edge_gap}; source blockers ${stats.gate1_data_depth_source_blockers}; missing strength ${stats.gate1_data_depth_strength_missing_edges}; labeling batch ${stats.gate1_data_depth_observation_labeling_batch}; propagation not ready ${stats.gate1_data_depth_propagation_contexts_not_ready}`,
     `- Observation records: ${stats.observation_records}`,
     `- Observation types present: ${stats.observation_types_present}`,
     `- Observation series readiness: ${stats.observation_time_series_ready} time-series ready, ${stats.observation_explicit_baseline_ready} explicit-baseline ready, ${stats.observation_sparse_series} sparse`,
@@ -329,9 +354,9 @@ function researchPackStatsLines(
     `- Investigation backlog: ${stats.investigation_backlog_items} open (${stats.investigation_backlog_p0} P0, ${stats.investigation_backlog_p1} P1); ${stats.investigation_backlog_propagation_readiness_items} propagation readiness items; ${stats.investigation_backlog_corroboration_reviews} corroboration reviews (${stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${stats.investigation_backlog_corroboration_review_need_sync} need sync, ${stats.investigation_backlog_corroboration_review_need_enable} need enable, ${stats.investigation_backlog_corroboration_review_due} due, ${stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,
     `- Corroboration source plan: ${stats.corroboration_source_plan_targets} runnable targets across ${stats.corroboration_source_plan_edges} review edges (${stats.corroboration_source_plan_need_sync} need sync, ${stats.corroboration_source_plan_need_enable} need enable, ${stats.corroboration_source_plan_due} due, ${stats.corroboration_source_plan_failed_preflight} failed preflight; next actions ${formatStatsCountMap(stats.corroboration_source_plan_next_actions)})`,
     mode === "truth_store"
-      ? `- Source target coverage: ${stats.source_target_synced_targets}/${stats.source_target_expected_targets} synced; ${stats.source_target_due_targets} due; ${stats.source_target_retry_wait} retry_wait; ${stats.source_target_source_failed_targets} source_failed; failures ${formatStatsCountMap(stats.source_target_failure_kinds)}`
+      ? `- Source target coverage: ${stats.source_target_synced_targets}/${stats.source_target_expected_targets} synced; ${stats.source_target_due_targets} due; ${stats.source_target_retry_wait} retry_wait; ${stats.source_target_source_failed_targets} source_failed; ${stats.source_target_targets_with_observations} targets with ${stats.source_target_total_observations} observations across ${stats.source_target_observed_subject_entities} subjects; observations by source ${formatStatsCountMap(stats.source_target_observations_by_source)}; observations by metric ${formatStatsCountMap(stats.source_target_observations_by_metric)}; review seeds ${stats.source_target_observation_review_items} (${stats.source_target_observation_review_p0} P0, ${stats.source_target_observation_review_p1} P1, ${stats.source_target_observation_review_p2} P2); calibration candidates ${stats.source_target_observation_calibration_candidates} (${formatStatsCountMap(stats.source_target_observation_calibration_by_label)} recommended, ${stats.source_target_observation_calibration_labeled_candidates} labeled, ${stats.source_target_observation_calibration_unlabeled_candidates} unlabeled, persisted ${formatStatsCountMap(stats.source_target_observation_calibration_by_persisted_label)}, next labeling batch ${stats.source_target_observation_calibration_next_labeling_batch} with priority ${formatStatsCountMap(stats.source_target_observation_calibration_next_labeling_batch_by_priority)} and metric ${formatStatsCountMap(stats.source_target_observation_calibration_next_labeling_batch_by_metric)}); failures ${formatStatsCountMap(stats.source_target_failure_kinds)}`
       : `- Source target coverage: ${stats.source_target_synced_targets}/${stats.source_target_expected_targets} synced; ${stats.source_target_not_synced} not synced`,
-    `- Source target preflight: ${stats.source_target_preflight_checked_targets}/${stats.source_target_preflight_selected_targets} checked; ${stats.source_target_preflight_failed_targets} failed; ${stats.source_target_preflight_degraded_documents} degraded documents; issues ${formatStatsCountMap(stats.source_target_preflight_issue_kinds)}`,
+    `- Source target preflight: ${stats.source_target_preflight_checked_targets}/${stats.source_target_preflight_selected_targets} checked; ${stats.source_target_preflight_failed_targets} failed; ${stats.source_target_preflight_degraded_documents} degraded documents; ${stats.source_target_preflight_observation_drafts} observation drafts; ${stats.source_target_preflight_semantic_sections} semantic sections; issues ${formatStatsCountMap(stats.source_target_preflight_issue_kinds)}`,
     `- Source plan items: ${stats.source_plan_items}`,
     `- Runnable suggested source targets: ${stats.runnable_suggested_targets}`
   ];
@@ -386,6 +411,16 @@ async function corroborationSourcePlanActionBatchFiles(outDir: string, plan: Cor
   for (const definition of CORROBORATION_SOURCE_PLAN_ACTION_BATCHES) {
     const batch = buildCorroborationSourcePlanActionBatch(plan, definition);
     if (batch.summary.runnable_targets === 0) continue;
+    files.push(await writeJsonFile(outDir, definition.file_name, batch, definition.description));
+  }
+  return files;
+}
+
+async function gate1DataDepthActionBatchFiles(outDir: string, workbench: Gate1DataDepthWorkbench): Promise<ResearchPackFile[]> {
+  const files: ResearchPackFile[] = [];
+  for (const definition of GATE1_DATA_DEPTH_ACTION_BATCHES) {
+    const batch = buildGate1DataDepthActionBatch(workbench, definition);
+    if (batch.summary.items === 0) continue;
     files.push(await writeJsonFile(outDir, definition.file_name, batch, definition.description));
   }
   return files;

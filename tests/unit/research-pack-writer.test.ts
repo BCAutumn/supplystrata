@@ -24,8 +24,17 @@ describe("research-pack writer", () => {
       expect(readme).toContain("Source target coverage:");
       expect(readme).toContain("not synced");
       expect(readme).not.toContain("Data quality errors:");
+      expect(readme).toContain("`gate1-data-depth-workbench.json` and `gate1-data-depth-workbench.md`");
       expect(readme).toContain("`gate1-run-ledger.json` and `gate1-run-ledger.md`");
       expect(readme).toContain("`evidence-index.json` contains the evidence records carried by the workbench export.");
+      const p0Batch = JSON.parse(await readFile(join(outDir, "gate1-data-depth-p0.json"), "utf8")) as {
+        batch_kind?: string;
+        automatic_fact_mutation_allowed?: boolean;
+        summary?: { items?: number };
+      };
+      expect(p0Batch.batch_kind).toBe("p0");
+      expect(p0Batch.automatic_fact_mutation_allowed).toBe(false);
+      expect(p0Batch.summary?.items).toBeGreaterThan(0);
 
       const ledger = JSON.parse(await readFile(join(outDir, "gate1-run-ledger.json"), "utf8")) as {
         mainline_phase?: string;

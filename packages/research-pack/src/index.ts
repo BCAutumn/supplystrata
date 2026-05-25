@@ -6,6 +6,7 @@ import type { ComponentCardModel } from "@supplystrata/render";
 import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
 import { buildCorroborationSourcePlan } from "./corroboration-source-plan.js";
+import { buildGate1DataDepthWorkbench } from "./gate1-data-depth-workbench.js";
 import { buildGate1RunLedger } from "./gate1-run-ledger.js";
 import { buildInvestigationBacklog } from "./investigation-backlog.js";
 import { emptyStaticDataQualitySummary, manifestFromModel } from "./manifest.js";
@@ -27,6 +28,7 @@ import type { ResearchPackInput, ResearchPackModel, WorkbenchSnapshotPackInput, 
 
 export * from "./investigation-backlog.js";
 export * from "./corroboration-source-plan.js";
+export * from "./gate1-data-depth-workbench.js";
 export * from "./gate1-run-ledger.js";
 export { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
 export * from "./observation-coverage.js";
@@ -36,6 +38,7 @@ export * from "./propagation-readiness.js";
 export * from "./question-readiness.js";
 export * from "./research-target-profile.js";
 export * from "./source-target-coverage.js";
+export * from "./source-target-observation-review.js";
 export * from "./source-target-preflight.js";
 export * from "./supply-chain-expansion-plan.js";
 export { resolveResearchPackWriteSteps } from "./prepare-data.js";
@@ -127,6 +130,14 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_plan: sourcePlan,
     supply_chain_expansion_plan: supplyChainExpansionPlan
   });
+  const gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    official_disclosure_readiness: officialDisclosureReadiness,
+    source_target_coverage: sourceTargetCoverage,
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness
+  });
   const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
@@ -165,6 +176,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     officialDisclosureReadiness,
     supplyChainExpansionPlan,
     propagationReadiness,
+    gate1DataDepthWorkbench,
     claimBuild,
     intelligenceRefresh,
     componentRiskRefresh,
@@ -187,6 +199,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     official_disclosure_readiness: officialDisclosureReadiness,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
     propagation_readiness: propagationReadiness,
+    gate1_data_depth_workbench: gate1DataDepthWorkbench,
     gate1_run_ledger: buildGate1RunLedger({
       generated_at: generatedAt,
       company_id: workbench.selected_company_id,
@@ -286,6 +299,14 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     source_plan: sourcePlan,
     supply_chain_expansion_plan: supplyChainExpansionPlan
   });
+  const gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    official_disclosure_readiness: officialDisclosureReadiness,
+    source_target_coverage: sourceTargetCoverage,
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness
+  });
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
     company_id: input.workbench.selected_company_id,
@@ -323,6 +344,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     officialDisclosureReadiness,
     supplyChainExpansionPlan,
     propagationReadiness,
+    gate1DataDepthWorkbench,
     claimBuild: null,
     intelligenceRefresh: null,
     componentRiskRefresh: null,
@@ -343,6 +365,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     official_disclosure_readiness: officialDisclosureReadiness,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
     propagation_readiness: propagationReadiness,
+    gate1_data_depth_workbench: gate1DataDepthWorkbench,
     gate1_run_ledger: buildGate1RunLedger({
       generated_at: generatedAt,
       company_id: input.workbench.selected_company_id,

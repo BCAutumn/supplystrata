@@ -9,6 +9,7 @@ import {
   materializeSingleSourceDispositionUnknowns,
   parseOfficialDisclosureReadinessProposedUnknowns,
   recordEdgeCalibrationLabel,
+  recordObservationCalibrationLabel,
   refreshAlertCandidates,
   refreshEdgeCalibrationRun,
   refreshComponentRiskView,
@@ -871,6 +872,25 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edge_calibration_run_items"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
+
+  it("records observation calibration labels as review-only gold samples", async () => {
+    const client = new EdgeCalibrationDbClient();
+
+    const result = await recordObservationCalibrationLabel(client, {
+      observation_id: "OBS-PO-1",
+      candidate_id: "observation-calibration:purchase_obligations:OBS-PO-1",
+      label: "useful_signal",
+      reviewer: "unit-test",
+      reviewed_at: "2026-05-25T00:00:00.000Z",
+      rationale: "Purchase obligation sample is useful as a calibration seed, not as a fact edge."
+    });
+
+    expect(result).toEqual({ label_id: "OBS-CAL-LABEL-PO-1", inserted: true });
+    expect(client.calls[0]?.sql).toContain("INSERT INTO observation_calibration_labels");
+    expect(client.calls[0]?.params).toContain("OBS-PO-1");
+    expect(client.calls[0]?.params).toContain("useful_signal");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
 });
 
 function rowsForIntelligence<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
@@ -1054,6 +1074,10 @@ function officialSignalDispositionChange(input: {
 }
 
 function rowsForEdgeCalibration<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("INSERT INTO observation_calibration_labels")) {
+    return [{ label_id: "OBS-CAL-LABEL-PO-1", inserted: true }] as unknown as T[];
+  }
+
   if (sql.includes("INSERT INTO edge_calibration_labels")) {
     return [{ label_id: "CAL-LABEL-EDGE-BAD", inserted: true }] as unknown as T[];
   }

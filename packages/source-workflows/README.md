@@ -7,6 +7,7 @@
 - 注册并运行已支持的 source check connector。
 - 为 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF 等来源提供 workflow 入口。
 - 执行无数据库 `source-plan` connectivity smoke。
+- 在 smoke normalize 成功后运行只读 observation / semantic section 抽取，输出每份文档的抽取潜力计数；这只是数据准备信号，不写库、不生成事实边。
 - 通过窄接口把 document observation 持久化委托给上层注入的 port。
 - 暴露 connector capability 给 source-management / source-monitor。
 
@@ -28,6 +29,10 @@
 ## 手动检查约定
 
 `runManualSourceCheck` 在没有显式 `check_target_id` 时，会登记一个 disabled manual target。这样手动 DB-backed check 仍有稳定的 source event / observation 归属，也能复用统一的 `next_check_at` 计算；但它不会被自动调度，避免一次性研究动作悄悄变成持续监控任务。
+
+## Source-plan smoke
+
+`runSourcePlanConnectivitySmoke` 只执行 `plan / fetch / normalize` 和只读抽取体检。`observation_drafts`、`semantic_sections`、`observation_types`、`semantic_section_kinds` 表示 normalized document 能被现有规则识别出的候选信号，用来判断源跑得够不够深；这些字段不是已持久化 observation，也不能作为 fact edge 或 corroboration 结论。
 
 ## 边界约定
 

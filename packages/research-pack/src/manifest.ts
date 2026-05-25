@@ -3,6 +3,7 @@ import type { EdgeIntelligenceRefreshSummary } from "@supplystrata/evidence-main
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { CorroborationSourcePlan } from "./corroboration-source-plan.js";
+import type { Gate1DataDepthWorkbench } from "./gate1-data-depth-workbench.js";
 import type {
   ResearchPackClaimBuild,
   ResearchPackComponentRiskRefresh,
@@ -37,6 +38,7 @@ export function manifestFromModel(input: {
   officialDisclosureReadiness: OfficialDisclosureReadinessReport;
   supplyChainExpansionPlan: SupplyChainExpansionPlan;
   propagationReadiness: PropagationReadinessReport;
+  gate1DataDepthWorkbench: Gate1DataDepthWorkbench;
   claimBuild: ResearchPackClaimBuild | null;
   intelligenceRefresh: EdgeIntelligenceRefreshSummary | null;
   componentRiskRefresh: ResearchPackComponentRiskRefresh | null;
@@ -115,10 +117,32 @@ export function manifestFromModel(input: {
       source_target_source_failed_targets: input.sourceTargetCoverage?.summary.source_failed_targets ?? 0,
       source_target_failure_kinds: input.sourceTargetCoverage?.summary.source_failure_kinds ?? {},
       source_target_targets_with_observations: input.sourceTargetCoverage?.summary.targets_with_observations ?? 0,
+      source_target_total_observations: input.sourceTargetCoverage?.summary.total_observations ?? 0,
+      source_target_observed_subject_entities: input.sourceTargetCoverage?.summary.observed_subject_entities ?? 0,
+      source_target_observations_by_source: input.sourceTargetCoverage?.summary.observations_by_source ?? {},
+      source_target_observations_by_target_kind: input.sourceTargetCoverage?.summary.observations_by_target_kind ?? {},
+      source_target_observations_by_metric: input.sourceTargetCoverage?.summary.observations_by_metric ?? {},
+      source_target_observation_review_items: input.sourceTargetCoverage?.observation_review.summary.review_items ?? 0,
+      source_target_observation_review_p0: input.sourceTargetCoverage?.observation_review.summary.p0 ?? 0,
+      source_target_observation_review_p1: input.sourceTargetCoverage?.observation_review.summary.p1 ?? 0,
+      source_target_observation_review_p2: input.sourceTargetCoverage?.observation_review.summary.p2 ?? 0,
+      source_target_observation_review_by_category: input.sourceTargetCoverage?.observation_review.summary.by_category ?? {},
+      source_target_observation_calibration_candidates: input.sourceTargetCoverage?.observation_review.summary.calibration_candidates ?? 0,
+      source_target_observation_calibration_by_label: input.sourceTargetCoverage?.observation_review.summary.by_recommended_label ?? {},
+      source_target_observation_calibration_labeled_candidates: input.sourceTargetCoverage?.observation_review.summary.labeled_calibration_candidates ?? 0,
+      source_target_observation_calibration_unlabeled_candidates: input.sourceTargetCoverage?.observation_review.summary.unlabeled_calibration_candidates ?? 0,
+      source_target_observation_calibration_by_persisted_label: input.sourceTargetCoverage?.observation_review.summary.by_persisted_label ?? {},
+      source_target_observation_calibration_next_labeling_batch: input.sourceTargetCoverage?.observation_review.summary.next_labeling_batch_candidates ?? 0,
+      source_target_observation_calibration_next_labeling_batch_by_priority:
+        input.sourceTargetCoverage?.observation_review.summary.next_labeling_batch_by_priority ?? {},
+      source_target_observation_calibration_next_labeling_batch_by_metric:
+        input.sourceTargetCoverage?.observation_review.summary.next_labeling_batch_by_metric ?? {},
       source_target_preflight_selected_targets: input.sourceTargetPreflight?.summary.selected_targets ?? 0,
       source_target_preflight_checked_targets: input.sourceTargetPreflight?.summary.checked_targets ?? 0,
       source_target_preflight_failed_targets: input.sourceTargetPreflight?.summary.failed_targets ?? 0,
       source_target_preflight_degraded_documents: input.sourceTargetPreflight?.summary.degraded_documents ?? 0,
+      source_target_preflight_observation_drafts: input.sourceTargetPreflight?.summary.observation_drafts ?? 0,
+      source_target_preflight_semantic_sections: input.sourceTargetPreflight?.summary.semantic_sections ?? 0,
       source_target_preflight_issue_kinds: countSourceTargetPreflightIssueKinds(input.sourceTargetPreflight ?? null),
       observation_records: input.observationCoverage.summary.typed_observations,
       observation_chain_segments: input.observationCoverage.summary.chain_observation_segments,
@@ -180,7 +204,17 @@ export function manifestFromModel(input: {
       propagation_contexts_with_observations: input.propagationReadiness.summary.contexts_with_observations,
       propagation_contexts_with_source_plan: input.propagationReadiness.summary.contexts_with_source_plan,
       propagation_contexts_with_component_leads: input.propagationReadiness.summary.contexts_with_component_leads,
-      propagation_reasoning_inputs: input.propagationReadiness.summary.reasoning_inputs
+      propagation_reasoning_inputs: input.propagationReadiness.summary.reasoning_inputs,
+      gate1_data_depth_items: input.gate1DataDepthWorkbench.summary.items,
+      gate1_data_depth_p0: input.gate1DataDepthWorkbench.summary.p0,
+      gate1_data_depth_p1: input.gate1DataDepthWorkbench.summary.p1,
+      gate1_data_depth_p2: input.gate1DataDepthWorkbench.summary.p2,
+      gate1_data_depth_by_workstream: input.gate1DataDepthWorkbench.summary.by_workstream,
+      gate1_data_depth_fact_edge_gap: input.gate1DataDepthWorkbench.summary.fact_edge_gap_to_target,
+      gate1_data_depth_source_blockers: input.gate1DataDepthWorkbench.summary.source_blockers,
+      gate1_data_depth_strength_missing_edges: input.gate1DataDepthWorkbench.summary.strength_missing_edges,
+      gate1_data_depth_observation_labeling_batch: input.gate1DataDepthWorkbench.summary.observation_labeling_batch,
+      gate1_data_depth_propagation_contexts_not_ready: input.gate1DataDepthWorkbench.summary.propagation_contexts_not_ready
     },
     claim_build: input.claimBuild,
     intelligence_refresh: input.intelligenceRefresh,

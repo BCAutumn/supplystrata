@@ -4,10 +4,12 @@
 
 ## 负责什么
 
-- 生成 `workbench`、CompanyCard、ChainCard、ComponentCard、question readiness、official disclosure readiness、source plan、source target coverage、investigation backlog、corroboration source plan、supply-chain expansion plan、propagation readiness、Gate 1 run ledger 和 manifest。
+- 生成 `workbench`、CompanyCard、ChainCard、ComponentCard、question readiness、official disclosure readiness、source plan、source target coverage、investigation backlog、corroboration source plan、supply-chain expansion plan、propagation readiness、Gate 1 data-depth workbench、Gate 1 run ledger 和 manifest。
 - 把 Gate 1 的事实覆盖、source path、二源检查、single-source disposition、official signal disposition、monitoring config 和 review workbench 汇总成只读执行账本。
+- 把 L4/L5 fact edge 增长、counterparty corroboration、source blocker、strength 缺口、observation labeling batch 和 propagation context 缺口汇总成只读数据深度工作台，并拆成前端/host app 可消费的 action batch，帮助下一轮跑数和算法校准聚焦高价值缺口。
 - 把需求、扩产、设施建设、设备安装、工艺材料、价格/贸易和政策信号整理成结构化 reasoning inputs，供未来前端研究员或安全 AI 消费。
 - 把 `partial/blocked` propagation readiness 转成 investigation backlog，使补 observation / source target 的动作可排队、可审计。
+- 把 source target 的 metric 覆盖转成只读 observation review seeds、calibration candidates 和下一批分层 labeling plan，并在 truth-store 模式回填已持久化 observation calibration label，给前端/host app 做指标审查、calibration 和 gold label 抽样；这些产物明确禁止自动写事实边。
 - 从 `generatedAt` 派生保守的 source-plan 默认窗口：官方披露和年度材料观测默认取上一 UTC 年，贸易和商品价格观测默认取上一 UTC 月；调用方仍可显式覆盖。
 - 支持 DB-backed `research run` 和无数据库 `from-workbench` snapshot 两条路径。
 - 在显式 `prepare-data` 输入下调用派生刷新步骤。
@@ -26,6 +28,7 @@
 - `buildResearchPackFromWorkbench(input)`：从静态 Workbench snapshot 构建无数据库研究包。
 - `writeResearchPack(...)` / `writeWorkbenchSnapshotPack(...)`：写 JSON/Markdown 文件。
 - `buildGate1RunLedger(...)`：生成 Gate 1 主线执行账本。
+- `buildGate1DataDepthWorkbench(...)`：生成 Gate 1 数据深度工作台，不写事实层。
 - `buildPropagationReadinessReport(...)`：生成产业传导推理输入 readiness，不写事实层。
 
 ## 边界约定

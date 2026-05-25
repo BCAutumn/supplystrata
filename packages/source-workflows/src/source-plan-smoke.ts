@@ -1,6 +1,7 @@
 import { missingSourceCredentialRequirements, type Env } from "@supplystrata/config";
 import { messageFromUnknown } from "@supplystrata/observability";
 import type { FetchTask, NormalizedDocument, RawDocument } from "@supplystrata/core";
+import { extractDisclosureObservations, extractSemanticSections } from "@supplystrata/observation-extractor";
 import type { AdapterContext, SourceAdapter } from "@supplystrata/source-adapter-spec";
 import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
 import { connectorKey } from "@supplystrata/source-connectors";
@@ -46,6 +47,10 @@ export interface SourcePlanSmokeDocument {
   source_fetch_status?: "live" | "fallback";
   text_chars?: number;
   chunks?: number;
+  observation_drafts?: number;
+  semantic_sections?: number;
+  observation_types?: readonly string[];
+  semantic_section_kinds?: readonly string[];
 }
 
 export interface SourcePlanSmokeMissingCredential {
@@ -79,6 +84,8 @@ export interface SourcePlanSmokeSummary {
   fetched_documents: number;
   normalized_documents: number;
   degraded_documents: number;
+  observation_drafts: number;
+  semantic_sections: number;
   by_source: Record<string, number>;
   by_source_status: Record<string, SourcePlanSmokeSourceSummary>;
 }
@@ -92,6 +99,8 @@ export interface SourcePlanSmokeSourceSummary {
   fetched_documents: number;
   normalized_documents: number;
   degraded_documents: number;
+  observation_drafts: number;
+  semantic_sections: number;
   target_kinds: Record<string, number>;
   issue_kinds: Record<string, number>;
 }
@@ -316,6 +325,8 @@ function summarizeSmokeItems(requestedTargets: number, selectedTargets: number, 
     fetched_documents: sumItems(items, (item) => item.fetched_documents),
     normalized_documents: sumItems(items, (item) => item.normalized_documents),
     degraded_documents: sumItems(items, (item) => item.degraded_documents),
+    observation_drafts: sumItems(items, sumItemObservationDrafts),
+    semantic_sections: sumItems(items, sumItemSemanticSections),
     by_source: countItemsBy(items, (item) => item.source_adapter_id),
     by_source_status: summarizeItemsBySource(items)
   };
@@ -339,6 +350,8 @@ function summarizeItemsBySource(items: readonly SourcePlanSmokeItem[]): Record<s
       fetched_documents: sumItems(sourceItems, (item) => item.fetched_documents),
       normalized_documents: sumItems(sourceItems, (item) => item.normalized_documents),
       degraded_documents: sumItems(sourceItems, (item) => item.degraded_documents),
+      observation_drafts: sumItems(sourceItems, sumItemObservationDrafts),
+      semantic_sections: sumItems(sourceItems, sumItemSemanticSections),
       target_kinds: countItemsBy(sourceItems, (item) => item.target_kind),
       issue_kinds: countItemsBy(
         sourceItems.filter((item) => item.issue_kind !== undefined),
@@ -350,12 +363,17 @@ function summarizeItemsBySource(items: readonly SourcePlanSmokeItem[]): Record<s
 }
 
 function normalizedSmokeDocument(task: FetchTask, raw: RawDocument<Uint8Array>, normalized: NormalizedDocument): SourcePlanSmokeDocument {
+  const signal = normalizedObservationSignal(normalized);
   return {
     ...rawSmokeDocument(task, raw),
     document_type: normalized.document_type,
     ...(normalized.source_date === undefined ? {} : { source_date: normalized.source_date }),
     text_chars: normalized.text.length,
-    chunks: normalized.chunks.length
+    chunks: normalized.chunks.length,
+    observation_drafts: signal.observation_drafts,
+    semantic_sections: signal.semantic_sections,
+    observation_types: signal.observation_types,
+    semantic_section_kinds: signal.semantic_section_kinds
   };
 }
 
@@ -377,6 +395,35 @@ function sourceFetchStatus(raw: RawDocument<Uint8Array>): "live" | "fallback" | 
 
 function sumItems(items: readonly SourcePlanSmokeItem[], valueForItem: (item: SourcePlanSmokeItem) => number): number {
   return items.reduce((sum, item) => sum + valueForItem(item), 0);
+}
+
+function sumItemObservationDrafts(item: SourcePlanSmokeItem): number {
+  return item.documents.reduce((sum, document) => sum + (document.observation_drafts ?? 0), 0);
+}
+
+function sumItemSemanticSections(item: SourcePlanSmokeItem): number {
+  return item.documents.reduce((sum, document) => sum + (document.semantic_sections ?? 0), 0);
+}
+
+// smoke 只做只读体检：这里复用 extractor 判断文本是否进入可抽取层，但不持久化 observation，也不提升事实边。
+function normalizedObservationSignal(normalized: NormalizedDocument): {
+  observation_drafts: number;
+  semantic_sections: number;
+  observation_types: readonly string[];
+  semantic_section_kinds: readonly string[];
+} {
+  const observations = extractDisclosureObservations(normalized);
+  const sections = extractSemanticSections(normalized);
+  return {
+    observation_drafts: observations.length,
+    semantic_sections: sections.length,
+    observation_types: uniqueSortedStrings(observations.map((observation) => observation.observation_type)),
+    semantic_section_kinds: uniqueSortedStrings(sections.map((section) => section.section_kind))
+  };
+}
+
+function uniqueSortedStrings(values: readonly string[]): readonly string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
 
 function countItemsBy(items: readonly SourcePlanSmokeItem[], keyForItem: (item: SourcePlanSmokeItem) => string): Record<string, number> {
