@@ -79,6 +79,20 @@
     "observation_targets": []
   },
   {
+    "material_id": "MAT-EPOXY-RESIN",
+    "name": "Epoxy resin",
+    "aliases": ["epoxy resin", "epoxide resin", "laminate resin"],
+    "category": "chemical",
+    "observation_targets": []
+  },
+  {
+    "material_id": "MAT-ELECTRONIC-GLASS-FIBER",
+    "name": "Electronic glass fiber",
+    "aliases": ["electronic glass fiber", "electronic glass cloth", "e-glass cloth"],
+    "category": "mineral",
+    "observation_targets": []
+  },
+  {
     "material_id": "MAT-NEON",
     "name": "Neon",
     "aliases": ["neon", "semiconductor neon"],

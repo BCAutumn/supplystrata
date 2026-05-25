@@ -112,6 +112,8 @@ pnpm --silent cli research run --company nvidia --depth 3 --prepare-data --out r
 
 如果要让 TSMC / Samsung / SK hynix / Micron / ASML 这类已注册官方 IR connector 进入 runnable source target，而不是只停留在 planned backlog，可以给研究包传入披露年份。`company-ir` 的长尾入口还需要 profile/review/host app 提供审计过的显式 HTTPS URL；它不会从公司名自动猜 IR 页面：
 
+当前内置 profile 也会把 AI server / PCB 上游 frontier 带进研究包：server 会展开到 GPU、HBM、manufacturing services、PCB、optical module、power supply 和 cooling，PCB 会展开到 CCL、copper foil、electronic glass cloth 和 laminate resin，wafer/fab 会保留 cleanroom construction context。这些只会出现在 source-plan、coverage、unknown、backlog 和 expansion plan 中；它们不是 fact edge，也不会因为跑 `research run` 自动写入供应关系。
+
 ```bash
 pnpm --silent cli research run --company nvidia --depth 3 --prepare-data --official-year 2025 --source-target-namespace nvidia-memory-2025 --out reports/nvidia-research-pack
 ```

@@ -26,6 +26,7 @@
 - `packages/chain-view`：运行时输出 edge / claim / observation / lead / unknown 分层 ChainViewModel。
 - 语义级 changes 第一版：claim / observation / lead 写入路径会产生确定性的 `change_records`；官方披露文档变化会产生固定 section fingerprint diff；官方披露关系候选会产生 relation fingerprint diff，并进入 review queue。
 - Component-HS-Material taxonomy 第一版：`component-context` 已能输出 HS 代理码、material exposure 和 material observation target；`source-plan` 可据此生成 Census Trade runnable target、World Bank Pink Sheet runnable target、官方 IR runnable target，以及 USGS planned target；`source-management` 可把 research-pack 的 runnable `source-plan.json` suggestions 无数据库预览为稳定 target id / 去重统计 / validation 结果，也可同步成 `source_check_targets`，默认 disabled，审计后可用同一 plan + namespace 受控启用并写入 target 级调度参数；`source-target-coverage` 会把 target 的 sync/enable/due/job/event/degraded/observation 状态和 job failure kind 回流到 research-pack，并让 investigation backlog / Gate 1 ledger action 随状态细化；ComponentCard 会展示贸易代理码、材料暴露和已落库观测。
+- AI server / PCB 上游 frontier 第一版：`component-context` 已把 `COMP-SERVER` 展开到 GPU、HBM、manufacturing services、PCB、optical module、power supply 和 cooling，把 `COMP-PCB` 展开到 CCL，再把 CCL 展开到 copper foil、electronic glass cloth 和 laminate resin；`COMP-WAFER` 也保留 cleanroom construction context。这些都只进入 source-plan、unknown、observation 和 backlog，不写事实边。
 - Edge intelligence refresh 第一版：`@supplystrata/evidence-maintenance` 会刷新 Level 4/5 事实边的新鲜度，从明确 primary evidence 文本写入关系强度，并为缺少 strength 的事实边生成 edge-scoped explicit unknown；`research-pack` 默认只读输出已有 intelligence context，只有显式 `--prepare-data` 或 `--refresh-intelligence` 才会在导出前刷新并写库。
 - Component risk baseline 第一版：`refreshComponentRiskView()` 会从已有 component fact edge、edge strength 和 freshness 生成 `risk_views / risk_metrics`，覆盖 freshness-adjusted HHI、single-source exposure、terminal consumer path redundancy / alternate upstream paths、weighted alternate-path context、directed node knockout reachability、strength/freshness weighted node knockout impact、directed betweenness centrality、weighted path centrality context 和 freshness-adjusted exposure；research-pack 默认只读输出已有 risk view，只有显式 `--prepare-data` 或 `--refresh-component-risk` 才会对当前包里已有 Level 4/5 component fact edge 的 eligible 组件批量刷新 risk baseline，不给只有 taxonomy/source-plan 的组件写空风险结论。ComponentCard / research-pack 会展示 JSON/Markdown 派生风险上下文，CompanyCard 会展示 company-scoped observations，并把相关 component risk metrics 聚合成 top exposure nodes。
 - Risk metric semantic change 第一版：component risk refresh 会把新版 risk view 与上一版同 scope 派生指标做稳定 key 对比，超过阈值时写入 `RISK_METRIC_CHANGED`；changes timeline 已能把 raw source change、semantic change 和 risk change 分开展示。
@@ -84,6 +85,8 @@ company / facility / component / material / equipment / process / geography
 ```
 
 例如 AI compute 不能只停在 `NVIDIA -> TSMC / SK Hynix`。它还要能把 `GPU / HBM / server / PCB / optical module / cleanroom / semiconductor equipment / photoresist / target / CMP / copper foil / resin / electronic glass cloth / high-purity gas` 这类 component、material、equipment 和 process frontier 放进 taxonomy、source-plan、unknown 和 investigation backlog。后端负责把这些节点、来源、证据和缺口准备好；最终“这条传导链意味着什么”的开放式综合分析，留给未来前端研究流程和安全 AI 消费结构化 DTO 完成。
+
+当前已落地的 frontier 仍是方法学和数据准备层：它能告诉系统“下一层该查哪些组件/材料/官方源/贸易或商品观测”，但不能把“GPU 带动 PCB / CCL / 树脂 / 电子布”的行业叙事直接升级成事实关系。事实层仍必须来自 L4/L5 证据或受控 review。
 
 一句话：**图不是事实，证据才是事实；观测不是关系，线索不是证据。**
 

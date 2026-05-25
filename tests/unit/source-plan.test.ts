@@ -33,6 +33,55 @@ describe("source-plan", () => {
     expect(byId.get("import-yeti")?.relation_policy).toBe("lead_only");
   });
 
+  it("routes AI server frontier into official and observation source paths without creating fact authority", () => {
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-SERVER"],
+      maxTierDepth: 1,
+      officialDisclosureYear: "2025",
+      tradeObservationMonth: "2025-12",
+      tradeObservationDirections: ["imports"],
+      materialObservationYear: "2025",
+      commodityObservationMonth: "2025-12"
+    });
+    const byId = new Map(plan.map((item) => [item.source_id, item]));
+    const census = byId.get("census-trade");
+    const copperPrice = byId
+      .get("worldbank-pink")
+      ?.suggested_check_targets.find((item) => item.target_config["component_id"] === "COMP-PCB" && item.target_config["material_id"] === "MAT-COPPER");
+
+    expect(byId.get("sec-edgar")?.relation_policy).toBe("can_create_fact_edge");
+    expect(byId.get("company-ir")?.relation_policy).toBe("can_create_fact_edge");
+    expect(byId.get("twse-mops")?.relation_policy).toBe("can_create_fact_edge");
+    expect(census?.relation_policy).toBe("observation_only");
+    expect(census?.target_ids).toEqual(expect.arrayContaining(["COMP-GPU", "COMP-HBM", "COMP-PCB", "COMP-OPTICAL-MODULE"]));
+    expect(census?.suggested_check_targets.some((item) => item.target_config["component_id"] === "COMP-OPTICAL-MODULE")).toBe(true);
+    expect(copperPrice?.target_kind).toBe("commodity-price-observation");
+    expect(copperPrice?.target_config["period"]).toBe("2025-12");
+  });
+
+  it("routes PCB laminate frontier into material observations and official supplier research paths", () => {
+    const plan = planSourcesForComponents({
+      component_ids: ["COMP-PCB", "COMP-CCL"],
+      maxTierDepth: 2,
+      tradeObservationMonth: "2025-12",
+      tradeObservationDirections: ["imports"],
+      commodityObservationMonth: "2025-12"
+    });
+    const byId = new Map(plan.map((item) => [item.source_id, item]));
+    const census = byId.get("census-trade");
+    const copperPrice = byId
+      .get("worldbank-pink")
+      ?.suggested_check_targets.find((item) => item.target_config["component_id"] === "COMP-COPPER-FOIL" && item.target_config["material_id"] === "MAT-COPPER");
+
+    expect(byId.get("company-ir")?.relation_policy).toBe("can_create_fact_edge");
+    expect(byId.get("twse-mops")?.relation_policy).toBe("can_create_fact_edge");
+    expect(census?.relation_policy).toBe("observation_only");
+    expect(census?.target_ids).toEqual(expect.arrayContaining(["COMP-CCL", "COMP-COPPER-FOIL", "COMP-ELECTRONIC-GLASS-CLOTH", "COMP-LAMINATE-RESIN"]));
+    expect(census?.suggested_check_targets.some((item) => item.target_config["commodity_code"] === "741021")).toBe(true);
+    expect(copperPrice?.target_kind).toBe("commodity-price-observation");
+    expect(copperPrice?.target_config["period"]).toBe("2025-12");
+  });
+
   it("includes Apple Supplier List only when the caller is explicitly planning an Apple chain", () => {
     const plan = planSourcesForComponent("COMP-MANUFACTURING-SERVICES", 3, ["ENT-APPLE"]);
     const apple = plan.find((item) => item.source_id === "apple-suppliers");

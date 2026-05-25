@@ -249,7 +249,7 @@ describe("research-pack official disclosure readiness", () => {
     const profile = getBuiltInResearchTargetProfile("ai-compute-memory.v0");
 
     expect(profiles.map((item) => item.profile_id)).toEqual(["ai-compute-memory.v0"]);
-    expect(profile.target_nodes).toHaveLength(25);
+    expect(profile.target_nodes).toHaveLength(34);
     expect(profile.target_nodes.find((node) => node.node_id === "ENT-NVIDIA")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
     );
@@ -269,6 +269,24 @@ describe("research-pack official disclosure readiness", () => {
     });
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-SERVER")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar", "company-ir"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-PCB")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["company-ir", "twse-mops", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-CCL")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "twse-mops", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-COPPER-FOIL")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "twse-mops", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-ELECTRONIC-GLASS-CLOTH")).toEqual(
+      expect.objectContaining({ priority: "P2", expected_source_ids: ["company-ir", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-LAMINATE-RESIN")).toEqual(
+      expect.objectContaining({ priority: "P2", expected_source_ids: ["company-ir", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-CLEANROOM")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir"] })
     );
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-HBM")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["skhynix-ir", "samsung-ir", "micron-ir"] })

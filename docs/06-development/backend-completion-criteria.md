@@ -179,6 +179,7 @@ packages/risk-view
 
 - Gate 1 已有只读 readiness / backlog / run ledger / data-depth workbench 输出，能量化事实边覆盖、traceability、二源或 single-source disposition、expected source coverage、source target coverage、source blocker、gold label 批次和下一层 frontier research。
 - 官方源路径已覆盖 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF entity lookup 的基础接线；DART/EDINET/TWSE 当前定位为目录/target/readiness/monitor 骨架，不解析正文、不写事实边。
+- `ai-compute-memory.v0` 已从公司/一阶组件覆盖扩展到 AI server 与 PCB 上游 frontier：`COMP-SERVER -> GPU / HBM / manufacturing services / PCB / optical module / power / cooling`，以及 `PCB -> CCL -> copper foil / electronic glass cloth / laminate resin`、`wafer -> cleanroom`。这些都是 source-plan / observation / backlog 输入，不是事实边。
 - 二源检查已形成标准 source-plan 子集和 action-specific 批次，支持 preview、无数据库 smoke、sync、enable、run-due，并能把 preflight / DB-backed failure kind 回流到 Gate 1 action queue。
 - `gate1-run-ledger` 已提供 frontend-ready `monitoring_config` 和 `review_workbench`：前者收口 cadence / jitter / retry / backoff / `next_check_at`，后者收口 source target、edge corroboration、official signal disposition、frontier company research 的 review-only 决策入口。
 - single-source disposition unknown 和 official signal disposition unknown 都有受控物化路径；它们只写 `unknown_items` 与审计 change，不写 evidence、fact edge 或 source target。

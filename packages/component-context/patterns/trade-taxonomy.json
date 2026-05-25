@@ -228,6 +228,124 @@
     ]
   },
   {
+    "component_id": "COMP-CCL",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "741021",
+        "description": "Copper foil backed with insulating material",
+        "confidence": 0.42,
+        "proxy_only": true,
+        "notes": "Broad copper-clad laminate proxy; does not identify PCB grade, laminate supplier, or end customer."
+      },
+      {
+        "system": "HS",
+        "code": "741011",
+        "description": "Refined copper foil not backed",
+        "confidence": 0.34,
+        "proxy_only": true,
+        "notes": "Copper foil proxy that may include non-PCB uses; use only as material context."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-COPPER",
+        "name": "Copper",
+        "role": "copper foil and conductive layer input",
+        "confidence": 0.5,
+        "source_suggestions": ["World Bank Pink Sheet", "USGS Mineral Commodity Summaries"]
+      },
+      {
+        "material_id": "MAT-EPOXY-RESIN",
+        "name": "Epoxy resin",
+        "role": "laminate resin system",
+        "confidence": 0.34,
+        "source_suggestions": ["chemical supplier filings", "trade observations"]
+      },
+      {
+        "material_id": "MAT-ELECTRONIC-GLASS-FIBER",
+        "name": "Electronic glass fiber",
+        "role": "glass cloth reinforcement",
+        "confidence": 0.32,
+        "source_suggestions": ["glass fiber supplier reports", "trade observations"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-COPPER-FOIL",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "741011",
+        "description": "Refined copper foil not backed",
+        "confidence": 0.54,
+        "proxy_only": true,
+        "notes": "Copper foil trade proxy; cannot distinguish PCB-grade foil or customer allocation."
+      },
+      {
+        "system": "HS",
+        "code": "741021",
+        "description": "Copper foil backed with insulating material",
+        "confidence": 0.45,
+        "proxy_only": true,
+        "notes": "Backed copper foil / laminate proxy; use as material context only."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-COPPER",
+        "name": "Copper",
+        "role": "primary metal input",
+        "confidence": 0.62,
+        "source_suggestions": ["World Bank Pink Sheet", "USGS Mineral Commodity Summaries"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-ELECTRONIC-GLASS-CLOTH",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "701959",
+        "description": "Other woven fabrics of glass fibres",
+        "confidence": 0.36,
+        "proxy_only": true,
+        "notes": "Broad glass-fiber fabric proxy; electronic-grade glass cloth is not separately identified."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-ELECTRONIC-GLASS-FIBER",
+        "name": "Electronic glass fiber",
+        "role": "glass cloth input",
+        "confidence": 0.52,
+        "source_suggestions": ["glass fiber supplier reports", "trade observations"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-LAMINATE-RESIN",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "390730",
+        "description": "Epoxide resins, in primary forms",
+        "confidence": 0.4,
+        "proxy_only": true,
+        "notes": "Broad epoxy resin proxy; laminate-grade resin systems require supplier disclosure."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-EPOXY-RESIN",
+        "name": "Epoxy resin",
+        "role": "direct resin input",
+        "confidence": 0.6,
+        "source_suggestions": ["chemical supplier filings", "trade observations"]
+      }
+    ]
+  },
+  {
     "component_id": "COMP-POWER-SUPPLY",
     "hs_codes": [
       {
