@@ -23,6 +23,8 @@ export function readinessSummary(input: {
 }): OfficialDisclosureReadinessSummary {
   const edgeCount = input.edges.length;
   const crossSourceEdges = input.edges.filter((edge) => edge.corroboration_state === "cross_source").length;
+  const recordedDispositionEdges = input.corroborationQueue.filter((item) => item.disposition === "single_source_disposition_recorded").length;
+  const corroborationOrDispositionEdges = Math.min(edgeCount, crossSourceEdges + recordedDispositionEdges);
   const traceableEdges = input.edges.filter((edge) => edge.traceability_state === "complete").length;
   const sourceTargets = input.sourcePlanItems.flatMap((item) => item.source_targets);
   const targetNodes = input.nodes.filter((node) => node.is_target_node);
@@ -50,6 +52,8 @@ export function readinessSummary(input: {
     single_source_edges: input.edges.filter((edge) => edge.corroboration_state === "single_source").length,
     missing_evidence_edges: input.edges.filter((edge) => edge.corroboration_state === "missing_evidence").length,
     corroboration_ratio: edgeCount === 0 ? 0 : roundSix(crossSourceEdges / edgeCount),
+    corroboration_or_disposition_edges: corroborationOrDispositionEdges,
+    corroboration_or_disposition_ratio: edgeCount === 0 ? 0 : roundSix(corroborationOrDispositionEdges / edgeCount),
     corroboration_queue_items: input.corroborationQueue.length,
     corroboration_queue_with_runnable_targets: input.corroborationQueue.filter((item) => item.source_targets.some((target) => target.runnable)).length,
     corroboration_queue_needing_disposition: input.corroborationQueue.filter((item) => item.disposition === "needs_explicit_single_source_disposition").length,

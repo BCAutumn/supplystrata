@@ -10,6 +10,7 @@ import {
   refreshEdgeIntelligenceContext,
   refreshEdgeCalibrationRun,
   refreshFinancialMetricPeerComparisonViews,
+  materializeOfficialSignalDispositionUnknowns,
   listRefreshableComponentRiskComponentIds,
   refreshObservationAnomalyViews
 } from "@supplystrata/evidence-maintenance";
@@ -35,6 +36,29 @@ export function registerIntelligenceCommands(program: Command): void {
             proposed_unknowns: proposedUnknowns,
             generated_by: options.generatedBy,
             require_existing_edges: options.allowMissingEdges === true ? false : true
+          })
+        );
+        writeJson({ ok: true, ...summary });
+      });
+    });
+
+  intelligence
+    .command("official-signal-unknowns")
+    .option("--review <reviewIds>", "comma-separated official disclosure signal review ids to materialize")
+    .option("--edge <edgeIds>", "comma-separated edge ids to materialize")
+    .option("--limit <count>", "max recorded dispositions to scan", "200")
+    .option("--generated-by <name>", "writer identity for unknown_items and semantic changes", "evidence-maintenance.official-signal-disposition.v1")
+    .option("--allow-missing-edges", "write disposition unknowns without checking that current edges still exist")
+    .description("materialize recorded official signal dispositions whose decision is record_single_source_unknown")
+    .action(async (options: { review?: string; edge?: string; limit: string; generatedBy: string; allowMissingEdges?: boolean }) => {
+      await withDatabase(async (store) => {
+        const summary = await store.transaction((client) =>
+          materializeOfficialSignalDispositionUnknowns(client, {
+            limit: parseLimit(options.limit),
+            generated_by: options.generatedBy,
+            require_existing_edges: options.allowMissingEdges === true ? false : true,
+            ...(options.review === undefined ? {} : { review_ids: parseCommaSeparatedOption(options.review, "review") }),
+            ...(options.edge === undefined ? {} : { edge_ids: parseCommaSeparatedOption(options.edge, "edge") })
           })
         );
         writeJson({ ok: true, ...summary });
@@ -273,6 +297,15 @@ function parsePositiveNumber(value: string, label: string): number {
 function parseAlertStatus(value: string): AlertStatus {
   if (value === "open" || value === "acknowledged" || value === "resolved" || value === "suppressed") return value;
   throw new Error(`Unsupported alert status: ${value}`);
+}
+
+function parseCommaSeparatedOption(value: string, label: string): string[] {
+  const items = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (items.length === 0) throw new Error(`Expected at least one ${label} id`);
+  return [...new Set(items)];
 }
 
 function parseCalibrationEvidenceLevel(value: string): EvidenceLevel {

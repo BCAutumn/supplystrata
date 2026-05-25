@@ -35,6 +35,8 @@ export interface OfficialDisclosureReadinessSummary {
   single_source_edges: number;
   missing_evidence_edges: number;
   corroboration_ratio: number;
+  corroboration_or_disposition_edges: number;
+  corroboration_or_disposition_ratio: number;
   corroboration_queue_items: number;
   corroboration_queue_with_runnable_targets: number;
   corroboration_queue_needing_disposition: number;
@@ -86,7 +88,7 @@ export interface OfficialDisclosureGate1ScorecardCriterion {
   criterion_id:
     | "core_node_official_coverage"
     | "level_4_5_fact_edge_coverage"
-    | "cross_source_corroboration"
+    | "corroboration_or_disposition_coverage"
     | "fact_edge_traceability"
     | "expected_source_path_coverage";
   label: string;
@@ -166,7 +168,7 @@ export interface OfficialDisclosureReadinessGap {
     | "level_4_5_edge_coverage"
     | "expected_official_source_coverage"
     | "traceability"
-    | "cross_source_corroboration"
+    | "corroboration_or_disposition_coverage"
     | "edge_strength"
     | "edge_freshness";
   title: string;

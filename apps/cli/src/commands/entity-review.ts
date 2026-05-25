@@ -3,7 +3,14 @@ import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@s
 import { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "@supplystrata/pipeline";
 import { enqueueAppleSupplierReviewCandidates, enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "@supplystrata/source-workflows";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
-import { decideReviewCandidateTransactionally, getReviewCandidate, nextReviewCandidateTransactionally, reviewStats } from "@supplystrata/review-store";
+import {
+  decideReviewCandidateTransactionally,
+  getReviewCandidate,
+  nextReviewCandidateTransactionally,
+  recordOfficialDisclosureSignalDisposition,
+  reviewStats,
+  type OfficialDisclosureSignalDispositionDecision
+} from "@supplystrata/review-store";
 import {
   parseEntityLookupSource,
   parseFormat,
@@ -16,6 +23,7 @@ import {
 } from "../cli-utils.js";
 import { renderEntityLookup } from "../entity-render.js";
 import { renderReviewApplyBatch, renderReviewItemOrEmpty } from "../review-render.js";
+import { explicitOrCurrentIsoTimestamp } from "../cli-clock.js";
 import { sourceWorkflowRuntime } from "../source-workflow-runtime.js";
 
 export function registerEntityAndReviewCommands(program: Command): void {
@@ -228,6 +236,55 @@ function registerReviewCommands(program: Command): void {
       });
     });
 
+  review
+    .command("signal-disposition")
+    .argument("<reviewId>", "official disclosure signal review id")
+    .requiredOption("--edge <edgeId>", "fact edge id this signal was reviewed against")
+    .requiredOption(
+      "--decision <decision>",
+      "supports_existing_edge, needs_more_evidence, not_relevant, record_single_source_unknown, or create_counterparty_source_target"
+    )
+    .requiredOption("--reviewer <name>", "reviewer or automation name")
+    .requiredOption("--reason <reason>", "why this disposition was recorded")
+    .option("--evidence <evidenceId>", "reviewed evidence id, if one was created separately")
+    .option("--unknown <unknownId>", "related unknown id, if one already exists")
+    .option("--check-target <checkTargetId>", "source check target used during review")
+    .option("--recorded-at <date>", "ISO date/time for deterministic replay")
+    .description("record a review-only disposition for an official disclosure signal without mutating fact edges")
+    .action(
+      async (
+        reviewId: string,
+        options: {
+          edge: string;
+          decision: string;
+          reviewer: string;
+          reason: string;
+          evidence?: string;
+          unknown?: string;
+          checkTarget?: string;
+          recordedAt?: string;
+        }
+      ) => {
+        await withDatabase(async (pool) => {
+          const recordedAt = explicitOrCurrentIsoTimestamp(options.recordedAt);
+          const disposition = await pool.transaction((client) =>
+            recordOfficialDisclosureSignalDisposition(client, {
+              reviewId,
+              edgeId: options.edge,
+              decision: parseOfficialSignalDispositionDecision(options.decision),
+              reviewer: options.reviewer,
+              reason: options.reason,
+              recordedAt,
+              ...(options.evidence === undefined ? {} : { evidenceId: options.evidence }),
+              ...(options.unknown === undefined ? {} : { unknownId: options.unknown }),
+              ...(options.checkTarget === undefined ? {} : { checkTargetId: options.checkTarget })
+            })
+          );
+          writeJson({ ok: true, disposition });
+        });
+      }
+    );
+
   const reviewEnqueue = review.command("enqueue").description("enqueue review candidates from sources");
   reviewEnqueue
     .command("apple-suppliers")
@@ -266,4 +323,17 @@ function registerReviewCommands(program: Command): void {
         writeJson({ ok: summary.errors.length === 0, ...summary });
       });
     });
+}
+
+function parseOfficialSignalDispositionDecision(value: string): OfficialDisclosureSignalDispositionDecision {
+  if (
+    value === "supports_existing_edge" ||
+    value === "needs_more_evidence" ||
+    value === "not_relevant" ||
+    value === "record_single_source_unknown" ||
+    value === "create_counterparty_source_target"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported official signal disposition decision: ${value}`);
 }

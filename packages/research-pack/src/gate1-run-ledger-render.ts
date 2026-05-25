@@ -26,6 +26,7 @@ export function renderGate1RunLedgerMarkdown(ledger: Gate1RunLedger): string {
     `- Single-source edges: ${ledger.data_progress.single_source_edges}`,
     `- Corroboration queue: ${ledger.data_progress.corroboration_queue_items}; runnable ${ledger.data_progress.corroboration_queue_with_runnable_targets}; need disposition ${ledger.data_progress.corroboration_queue_needing_disposition}; recorded ${ledger.data_progress.corroboration_queue_recorded_disposition}`,
     `- Proposed single-source unknowns: ${ledger.data_progress.proposed_single_source_unknowns}`,
+    `- Official signal correlation hints: ${ledger.data_progress.open_official_signal_correlation_hints}/${ledger.data_progress.official_signal_correlation_hints} open`,
     `- Next focus: ${ledger.data_progress.next_focus}`,
     "",
     "## Source Paths",

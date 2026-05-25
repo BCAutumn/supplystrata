@@ -143,6 +143,8 @@ export function manifestFromModel(input: {
       official_disclosure_traceable_edges: input.officialDisclosureReadiness.summary.traceable_edges,
       official_disclosure_cross_source_edges: input.officialDisclosureReadiness.summary.cross_source_edges,
       official_disclosure_corroboration_ratio: input.officialDisclosureReadiness.summary.corroboration_ratio,
+      official_disclosure_corroboration_or_disposition_edges: input.officialDisclosureReadiness.summary.corroboration_or_disposition_edges,
+      official_disclosure_corroboration_or_disposition_ratio: input.officialDisclosureReadiness.summary.corroboration_or_disposition_ratio,
       official_disclosure_corroboration_queue_items: input.officialDisclosureReadiness.summary.corroboration_queue_items,
       official_disclosure_corroboration_queue_with_runnable_targets: input.officialDisclosureReadiness.summary.corroboration_queue_with_runnable_targets,
       official_disclosure_corroboration_queue_needing_disposition: input.officialDisclosureReadiness.summary.corroboration_queue_needing_disposition,

@@ -15,7 +15,9 @@ import type {
   Gate1ReviewWorkbench,
   Gate1SourcePathProgressLedger
 } from "./gate1-run-ledger-definitions.js";
+import { gate1DataProgressActions, gate1SourcePathActions } from "./gate1-run-ledger-actions.js";
 import { buildGate1MonitoringConfig, gate1SourcePathProgressFromCoverage } from "./gate1-run-ledger-monitoring.js";
+import { defaultGate1Namespace, safeGate1Segment } from "./gate1-run-ledger-names.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SourceTargetPreflightReport } from "./source-target-preflight.js";
@@ -44,7 +46,7 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
   const mainlinePhase = gate1MainlinePhase({ readiness: input.official_disclosure_readiness, dataProgress, sourcePathProgress });
   const companySwitching = gate1CompanySwitching(input);
   const monitoringConfig = buildGate1MonitoringConfig({
-    namespace: input.research_input.sourceTargetNamespace ?? defaultNamespace(input.company_id),
+    namespace: input.research_input.sourceTargetNamespace ?? defaultGate1Namespace(input.company_id),
     dataProgress,
     sourcePathProgress,
     sourceTargetPreflight: input.source_target_preflight ?? null
@@ -174,7 +176,7 @@ function officialSignalDispositionReviewItems(input: Gate1RunLedgerInput): Gate1
 function frontierCompanyReviewItems(companySwitching: Gate1CompanySwitchingLedger): Gate1ReviewItem[] {
   return companySwitching.next_research_targets.slice(0, 10).map((target, index) =>
     reviewItem({
-      review_item_id: `gate1:frontier-review:${safeSegment(target.company_id)}:${safeSegment(target.component_id)}:${index + 1}`,
+      review_item_id: `gate1:frontier-review:${safeGate1Segment(target.company_id)}:${safeGate1Segment(target.component_id)}:${index + 1}`,
       kind: "frontier_company_research",
       priority: "P2",
       title: `Open frontier research for ${target.company_name}`,
@@ -235,7 +237,7 @@ function gate1RunScorecard(report: OfficialDisclosureReadinessReport): Gate1RunS
     l4_l5_fact_edges: report.summary.level_4_5_fact_edges,
     l4_l5_fact_edge_target: criterionTarget(report, "level_4_5_fact_edge_coverage"),
     cross_source_ratio: report.summary.corroboration_ratio,
-    cross_source_target: criterionTarget(report, "cross_source_corroboration"),
+    cross_source_target: criterionTarget(report, "corroboration_or_disposition_coverage"),
     traceable_edges: report.summary.traceable_edges,
     traceable_edge_target: criterionTarget(report, "fact_edge_traceability")
   };
@@ -254,6 +256,8 @@ function gate1DataProgress(report: OfficialDisclosureReadinessReport): Gate1Data
     corroboration_queue_needing_disposition: report.summary.corroboration_queue_needing_disposition,
     corroboration_queue_recorded_disposition: report.summary.corroboration_queue_with_recorded_disposition,
     proposed_single_source_unknowns: report.summary.corroboration_queue_proposed_unknowns,
+    official_signal_correlation_hints: report.summary.official_disclosure_signal_correlation_hints,
+    open_official_signal_correlation_hints: report.summary.open_official_disclosure_signal_correlation_hints,
     next_focus: dataProgressFocus(report)
   };
 }
@@ -343,125 +347,15 @@ function gate1RunActions(input: {
   companySwitching: Gate1CompanySwitchingLedger;
 }): Gate1RunAction[] {
   return [
-    ...sourcePathActions(input.input, input.sourcePathProgress),
-    ...dataProgressActions(input.input, input.dataProgress),
+    ...gate1SourcePathActions(input.input, input.sourcePathProgress),
+    ...gate1DataProgressActions(input.input, input.dataProgress),
     ...companySwitchingActions(input.companySwitching)
   ].sort(compareActions);
 }
 
-function sourcePathActions(input: Gate1RunLedgerInput, progress: Gate1SourcePathProgressLedger): Gate1RunAction[] {
-  const sourcePlanRef = "source-plan.json";
-  const namespace = input.research_input.sourceTargetNamespace ?? defaultNamespace(input.company_id);
-  const actions: Gate1RunAction[] = [];
-  if (progress.source_failed_targets > 0 || progress.retry_wait_targets > 0 || progress.dead_targets > 0) {
-    actions.push({
-      action_id: "gate1:source-failures:triage",
-      kind: "investigate_source_failures",
-      priority: "P0",
-      title: "Triage failed official source targets",
-      rationale: sourceFailureActionRationale(progress),
-      command_hint: null,
-      refs: ["source-target-coverage.json", "gate1-run-ledger.json"]
-    });
-  }
-  if (progress.runnable_targets > progress.synced_targets) {
-    actions.push({
-      action_id: "gate1:source-targets:sync",
-      kind: "sync_targets",
-      priority: "P0",
-      title: "Sync runnable official source targets",
-      rationale: `${progress.runnable_targets - progress.synced_targets} runnable official targets are not yet synced into source_check_targets.`,
-      command_hint: `supplystrata sources policy sync-plan-targets --source-plan ${sourcePlanRef} --namespace ${namespace}`,
-      refs: [sourcePlanRef, "source-target-coverage.json"]
-    });
-  }
-  if (progress.synced_targets > progress.enabled_targets) {
-    actions.push({
-      action_id: "gate1:source-targets:enable",
-      kind: "enable_targets",
-      priority: "P0",
-      title: "Enable synced official source targets",
-      rationale: `${progress.synced_targets - progress.enabled_targets} synced official targets are disabled; approve cadence and retry policy before due processing.`,
-      command_hint: `supplystrata sources policy enable-plan-targets --source-plan ${sourcePlanRef} --namespace ${namespace}`,
-      refs: [sourcePlanRef, "source-target-coverage.json"]
-    });
-  }
-  if (progress.due_targets > 0) {
-    actions.push({
-      action_id: "gate1:source-targets:run-due",
-      kind: "run_due_targets",
-      priority: "P0",
-      title: "Run due official source targets",
-      rationale: `${progress.due_targets} official source targets are due in the current coverage report.`,
-      command_hint: `supplystrata sources run-due --source-plan ${sourcePlanRef} --namespace ${namespace}`,
-      refs: [sourcePlanRef, "source-target-coverage.json"]
-    });
-  }
-  if (progress.targets_with_observations > 0) {
-    actions.push({
-      action_id: "gate1:observations:review",
-      kind: "review_observations",
-      priority: "P1",
-      title: "Review official observations before fact writes",
-      rationale: `${progress.targets_with_observations} official targets already produced observations; useful disclosures should become reviewable evidence candidates, not automatic edges.`,
-      command_hint: null,
-      refs: ["source-target-coverage.json", "official-disclosure-readiness.json"]
-    });
-  }
-  return actions;
-}
-
-function sourceFailureActionRationale(progress: Gate1SourcePathProgressLedger): string {
-  const failureKinds = Object.entries(progress.source_failure_kinds)
-    .filter(([, count]) => count > 0)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([kind, count]) => `${kind}:${count}`)
-    .join(", ");
-  const details = failureKinds.length === 0 ? "unclassified" : failureKinds;
-  return `${progress.source_failed_targets} official source targets have latest SOURCE_FAILED events; retry_wait=${progress.retry_wait_targets}, dead=${progress.dead_targets}, failure kinds ${details}. Resolve credentials, config, source reachability, rate limits, or adapter errors before rerunning.`;
-}
-
-function dataProgressActions(input: Gate1RunLedgerInput, progress: Gate1DataProgressLedger): Gate1RunAction[] {
-  const actions: Gate1RunAction[] = [];
-  if (progress.corroboration_queue_with_runnable_targets > 0) {
-    actions.push({
-      action_id: "gate1:corroboration:smoke",
-      kind: "smoke_targets",
-      priority: "P0",
-      title: "Smoke counterparty corroboration targets",
-      rationale: `${progress.corroboration_queue_with_runnable_targets} single-source edges have runnable counterparty paths; smoke/sync them before recording final disposition.`,
-      command_hint: "supplystrata sources policy smoke-plan-targets --source-plan corroboration-source-plan-smoke.json",
-      refs: ["corroboration-source-plan.json", "official-disclosure-readiness.json"]
-    });
-  }
-  if (progress.proposed_single_source_unknowns > 0) {
-    actions.push({
-      action_id: "gate1:corroboration:single-source-disposition",
-      kind: "record_single_source_disposition",
-      priority: "P1",
-      title: "Materialize explicit single-source unknowns",
-      rationale: `${progress.proposed_single_source_unknowns} proposed single-source unknowns are ready for controlled materialization if review confirms no second-source path.`,
-      command_hint: "supplystrata intelligence single-source-unknowns --readiness official-disclosure-readiness.json",
-      refs: ["official-disclosure-readiness.json"]
-    });
-  }
-  if (progress.fact_edge_gap > 0) {
-    actions.push({
-      action_id: "gate1:facts:l4-l5-candidates",
-      kind: "create_fact_edge_candidates",
-      priority: "P1",
-      title: "Increase reviewed L4/L5 fact edge coverage",
-      rationale: `Gate 1 still needs ${progress.fact_edge_gap} additional L4/L5 fact edges; only traceable official evidence should enter review/apply.`,
-      command_hint: null,
-      refs: ["investigation-backlog.json", "official-disclosure-readiness.json"]
-    });
-  }
-  return actions;
-}
-
 function companySwitchingActions(companySwitching: Gate1CompanySwitchingLedger): Gate1RunAction[] {
   return companySwitching.next_research_targets.slice(0, 5).map((target, index) => ({
-    action_id: `gate1:frontier:${safeSegment(target.company_id)}:${safeSegment(target.component_id)}:${index + 1}`,
+    action_id: `gate1:frontier:${safeGate1Segment(target.company_id)}:${safeGate1Segment(target.component_id)}:${index + 1}`,
     kind: "expand_frontier_company",
     priority: "P2",
     title: `Run generic research pack for ${target.company_name}`,
@@ -511,8 +405,8 @@ function frontierResearchCommand(input: Gate1RunLedgerInput, companyId: string, 
     `--company ${companyId}`,
     `--component ${componentId}`,
     `--depth ${String(input.research_input.depth ?? 3)}`,
-    `--source-target-namespace ${defaultNamespace(companyId)}`,
-    `--out reports/${safeSegment(companyId)}-${safeSegment(componentId)}-research-pack`
+    `--source-target-namespace ${defaultGate1Namespace(companyId)}`,
+    `--out reports/${safeGate1Segment(companyId)}-${safeGate1Segment(componentId)}-research-pack`
   ];
   if (input.research_input.officialDisclosureYear !== undefined) parts.splice(4, 0, `--official-year ${input.research_input.officialDisclosureYear}`);
   if (input.research_input.researchTargetProfileId !== undefined) parts.splice(4, 0, `--target-profile ${input.research_input.researchTargetProfileId}`);
@@ -527,7 +421,7 @@ function dataProgressFocus(report: OfficialDisclosureReadinessReport): string {
   if (report.summary.level_4_5_fact_edges < criterionTarget(report, "level_4_5_fact_edge_coverage")) {
     return "Increase reviewed L4/L5 fact edge coverage from official evidence.";
   }
-  if (report.summary.corroboration_ratio < criterionTarget(report, "cross_source_corroboration")) {
+  if (report.summary.corroboration_or_disposition_ratio < criterionTarget(report, "corroboration_or_disposition_coverage")) {
     return "Resolve single-source edges through counterparty official checks or explicit disposition.";
   }
   return "Data progress meets the current Gate 1 thresholds.";
@@ -542,10 +436,6 @@ function sourcePathFocus(report: OfficialDisclosureReadinessReport): string {
   }
   if (report.summary.due_official_targets > 0) return "Run due official targets through the source monitor.";
   return "Source paths are ready; focus on reviewed data progress.";
-}
-
-function defaultNamespace(companyId: string): string {
-  return `research-${companyId.toLowerCase()}`;
 }
 
 function compareActions(left: Gate1RunAction, right: Gate1RunAction): number {
@@ -592,14 +482,4 @@ function uniqueDecisions(decisions: readonly Gate1ReviewDecision[]): Gate1Review
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
-}
-
-function safeSegment(value: string): string {
-  const cleaned = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
-  if (cleaned.length === 0) throw new Error(`Cannot create a file segment from empty value: ${value}`);
-  return cleaned;
 }

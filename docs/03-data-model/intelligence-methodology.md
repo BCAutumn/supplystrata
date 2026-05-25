@@ -199,7 +199,7 @@ Observation 不是关系。它回答：
 
 research-pack 会用 `official-disclosure-signal-correlation` 纯函数模块，把 open `official_disclosure_signal` 和 edge-level corroboration queue 做确定性 review hint 关联。第一版只看来源是否命中 candidate source / runnable target、信号文本是否提到边两端公司或组件 token，并输出 `review_policy='review_only_no_fact_mutation'`、分数和原因。这个分数只给研究员排序下一步看什么，不计入 Gate 1 data progress，不把 signal 计为二源 corroboration，也不修改 review candidate / edge / claim / unknown。
 
-official signal disposition 是后续审阅结论，不是证据本身。`review-store.recordOfficialDisclosureSignalDisposition()` 只允许记录 `supports_existing_edge`、`needs_more_evidence`、`not_relevant`、`record_single_source_unknown` 或 `create_counterparty_source_target`，并写入 `change_records.change_type='OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'`。该事件必须带 `fact_write_policy.automatic_fact_mutation_allowed=false` 和 `allowed_edge_mutation='none'`。即使 decision 是 `supports_existing_edge`，也只表示研究员认为这个 signal 可以作为后续 evidence/claim/unknown/source-target 流程的上下文；真正写 evidence、unknown 或 source target 必须走各自受控用例。`record_single_source_unknown` 也不会由 review-store 直接写 unknown，而是由 `@supplystrata/evidence-maintenance` 的 `materializeOfficialSignalDispositionUnknowns()` 读取审计 change、默认确认目标 edge 仍为 `current`，再通过 unknown repository 写入 edge-scoped `unknown_items` 并记录 `UNKNOWN_ADDED/UPDATED`。这条路径只物化“独立官方二源仍缺失”的未知边界，不写 `edges`、不写 `evidence`，也不把 signal 自动升级成 corroboration。
+official signal disposition 是后续审阅结论，不是证据本身。`review-store.recordOfficialDisclosureSignalDisposition()` 只允许记录 `supports_existing_edge`、`needs_more_evidence`、`not_relevant`、`record_single_source_unknown` 或 `create_counterparty_source_target`，并写入 `change_records.change_type='OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED'`；CLI/host app 的薄入口是 `review signal-disposition`。该事件必须带 `fact_write_policy.automatic_fact_mutation_allowed=false` 和 `allowed_edge_mutation='none'`。即使 decision 是 `supports_existing_edge`，也只表示研究员认为这个 signal 可以作为后续 evidence/claim/unknown/source-target 流程的上下文；真正写 evidence、unknown 或 source target 必须走各自受控用例。`record_single_source_unknown` 也不会由 review-store 直接写 unknown，而是由 `@supplystrata/evidence-maintenance` 的 `materializeOfficialSignalDispositionUnknowns()` 读取审计 change、默认确认目标 edge 仍为 `current`，再通过 unknown repository 写入 edge-scoped `unknown_items` 并记录 `UNKNOWN_ADDED/UPDATED`；CLI/host app 的薄入口是 `intelligence official-signal-unknowns`。这条路径只物化“独立官方二源仍缺失”的未知边界，不写 `edges`、不写 `evidence`，也不把 signal 自动升级成 corroboration。
 
 第一版变化检测：
 
@@ -409,6 +409,7 @@ Phase 6+
 [x] research-pack 能输出 investigation backlog，把 gap / unknown / source-plan 转成下一步调查任务
 [x] runnable source-plan target 能在无数据库场景下执行 plan/fetch/normalize smoke，用于同步前发现外部源和凭据问题
 [x] `corroboration-source-plan` 能按 audited next-action 生成非空的 smoke / sync / enable / run-due source-plan 执行批次，避免把仍需预检或排错的二源 target 误混入后续步骤
+[x] Gate 1 run ledger 的 action queue 能消费 `corroboration-source-plan.summary.by_next_action`，在 smoke 回灌后把二源目标分流成 review observations、补凭据、重试 preflight、sync、enable 或 run due，而不是重复提示 smoke
 [x] runnable source-plan target 能同步到 source_check_targets，并进入统一 due/worker 监控链路
 [x] 审计后的 runnable source-plan target 能受控启用，并继续使用统一 target 级 cadence / jitter / retry / next_check_at 配置
 [x] Gate 1 run ledger 能输出 `monitoring_config`，把持续监控 namespace、频率、jitter、重试、退避、初始检查时间和 source-plan 批次建议暴露给后续前端/host app

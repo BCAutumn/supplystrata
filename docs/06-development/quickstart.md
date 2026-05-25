@@ -127,7 +127,7 @@ pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.j
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/gate1-action-batch-check-with-preflight/corroboration-source-plan-sync.json --namespace nvidia-memory-2025 --format markdown
 ```
 
-第一步会根据当前 Workbench、target profile 和官方披露年份生成 `corroboration-source-plan-smoke.json` 等 action-specific 批次。第二步只对需要 `smoke_target` 的二源 target 执行 plan/fetch/normalize 预检，不写数据库。第三步把 smoke 结果回灌进 research-pack，`corroboration-source-plan` 的 next action 会从笼统的 smoke 细化成 `sync_target`、`configure_credentials` 或 `retry_preflight`。第四步只预览已经通过 smoke、下一步确认为 `sync_target` 的目标，输出稳定 `check_target_id` 和 validation 结果；它仍然不写库。这个闭环适合没有 Postgres 的宿主 App 先体检官方源可达性，也适合本地开发时把 DART 凭据缺失、IR 超时、target config 错误这类问题提前暴露出来。只有当 sync batch 预览无 error、且研究员确认目标应该进入持续监控后，才进入后面的 `sync-plan-targets / enable-plan-targets / due / run-due`。
+第一步会根据当前 Workbench、target profile 和官方披露年份生成 `corroboration-source-plan-smoke.json` 等 action-specific 批次。第二步只对需要 `smoke_target` 的二源 target 执行 plan/fetch/normalize 预检，不写数据库。第三步把 smoke 结果回灌进 research-pack，`corroboration-source-plan` 的 next action 会从笼统的 smoke 细化成 `sync_target`、`configure_credentials`、`retry_preflight` 或 `review_observations`；`gate1-run-ledger.action_queue` 也会同步改成 review、补凭据、排查 preflight 或 sync 等精确动作，不会继续提示重复 smoke。第四步只预览已经通过 smoke、下一步确认为 `sync_target` 的目标，输出稳定 `check_target_id` 和 validation 结果；它仍然不写库。这个闭环适合没有 Postgres 的宿主 App 先体检官方源可达性，也适合本地开发时把 DART 凭据缺失、IR 超时、target config 错误这类问题提前暴露出来。只有当 sync batch 预览无 error、且研究员确认目标应该进入持续监控后，才进入后面的 `sync-plan-targets / enable-plan-targets / due / run-due`。
 
 ```bash
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --format markdown
@@ -166,6 +166,18 @@ pnpm --silent cli claims enqueue-conflicts --limit 500
 ```
 
 该命令只写 `review_candidates(kind='claim_conflict_review')`，不修改 `edges`、不修改 claim status、不 resolve unknown。后续仍需通过 `review next/show/approve/reject/block/apply` 路径处理。`review apply` 对 approved claim conflict review 只写 `CLAIM_CONFLICT_REVIEW_APPLIED` / `REVIEW_APPLIED` 审计事件并标记 review applied，不会自动 deprecate edge，也不会自动关闭 unknown。
+
+official disclosure signal 也走 review-only 写路径。`review apply` 对 `official_disclosure_signal` 只 acknowledge，不写 fact edge / evidence；如果研究员或未来安全 agent 已经判断某个 signal 与某条 edge 的关系，用 disposition 记录结论：
+
+```bash
+pnpm --silent cli review signal-disposition REV-OFFICIAL-SIGNAL-EXAMPLE --edge EDGE-EXAMPLE --decision needs_more_evidence --reviewer analyst --reason "Signal confirms category context but not a bilateral supply relation."
+pnpm --silent cli review signal-disposition REV-OFFICIAL-SIGNAL-EXAMPLE --edge EDGE-EXAMPLE --decision record_single_source_unknown --reviewer analyst --reason "Reviewed counterparty disclosure still does not name an independent official second source."
+pnpm --silent cli intelligence official-signal-unknowns --review REV-OFFICIAL-SIGNAL-EXAMPLE
+```
+
+`review signal-disposition` 只写 `OFFICIAL_DISCLOSURE_SIGNAL_DISPOSITION_RECORDED` change，并带 `fact_write_policy.automatic_fact_mutation_allowed=false`；`intelligence official-signal-unknowns` 只把 `record_single_source_unknown` disposition 物化为 edge-scoped unknown。二者都不写 `edges`，不写 `evidence`，也不把 signal 自动算作 corroboration。
+
+当研究包里还有 open official signal correlation hints 时，`gate1-run-ledger.action_queue` 会输出 `gate1:official-signals:disposition`。前端或宿主 App 可以把这个 action 和 `review_workbench.items[kind="official_signal_disposition"]` 对齐，展示批准/驳回/记录 unknown 的受控入口；这仍然只是审阅入口，不会自动写事实边。
 
 人工处理 claim conflict 时，用 `claims resolve-conflict` 记录明确 resolution action：
 

@@ -19,6 +19,7 @@ export function renderOfficialDisclosureReadinessMarkdown(report: OfficialDisclo
     `- Level 4/5 fact edges: ${report.summary.level_4_5_fact_edges}/${report.targets.level_4_5_fact_edges}`,
     `- Traceable edges: ${report.summary.traceable_edges}/${report.summary.level_4_5_fact_edges}`,
     `- Cross-source edges: ${report.summary.cross_source_edges}/${report.summary.level_4_5_fact_edges} (${formatPercent(report.summary.corroboration_ratio)})`,
+    `- Corroboration/disposition coverage: ${report.summary.corroboration_or_disposition_edges}/${report.summary.level_4_5_fact_edges} (${formatPercent(report.summary.corroboration_or_disposition_ratio)})`,
     `- Single-source disposition: ${report.summary.corroboration_queue_with_recorded_disposition} recorded; ${report.summary.corroboration_queue_proposed_unknowns} proposed unknowns`,
     `- Intelligence context: ${report.summary.edges_with_strength} strength, ${report.summary.edges_with_freshness} freshness`,
     `- Explicit unknowns in pack: ${report.summary.explicit_unknowns}`,

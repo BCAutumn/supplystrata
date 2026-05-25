@@ -39,12 +39,11 @@ export function gateStatuses(targets: OfficialDisclosureReadinessTargets, summar
       rationale: "Backend Gate 1 expects enough Level 4/5 fact edges before downstream risk and monitoring claims are mature."
     },
     {
-      gate_id: "official_disclosure.cross_source_ratio",
-      status: thresholdStatus(summary.corroboration_ratio, targets.corroboration_ratio),
-      measured: summary.corroboration_ratio,
+      gate_id: "official_disclosure.corroboration_or_disposition_ratio",
+      status: thresholdStatus(summary.corroboration_or_disposition_ratio, targets.corroboration_ratio),
+      measured: summary.corroboration_or_disposition_ratio,
       target: targets.corroboration_ratio,
-      rationale:
-        "The conservative baseline counts only distinct source-adapter corroboration; explicit single-source disposition is reported as a gap instead of being inferred from silence."
+      rationale: "Counts distinct source-adapter corroboration plus recorded single-source disposition unknowns; unreviewed silence is never counted."
     },
     {
       gate_id: "official_disclosure.traceability",
@@ -89,12 +88,12 @@ export function gate1Scorecard(input: {
       rationale: "Counts only auditable Level 4/5 fact edges visible in the current workbench pack."
     }),
     scorecardCriterion({
-      criterion_id: "cross_source_corroboration",
-      label: "Cross-source corroboration",
+      criterion_id: "corroboration_or_disposition_coverage",
+      label: "Corroboration or single-source disposition coverage",
       kind: "completion",
-      measured: input.summary.corroboration_ratio,
+      measured: input.summary.corroboration_or_disposition_ratio,
       target: input.targets.corroboration_ratio,
-      rationale: "Uses a conservative distinct source-adapter ratio; single-source silence is not treated as corroboration."
+      rationale: "Counts distinct second-source corroboration plus explicit single-source disposition unknowns; unreviewed silence is not treated as coverage."
     }),
     scorecardCriterion({
       criterion_id: "fact_edge_traceability",
@@ -216,13 +215,13 @@ export function readinessGaps(input: {
       source_targets: []
     });
   }
-  if (input.summary.corroboration_ratio < input.targets.corroboration_ratio && input.corroborationQueue.length > 0) {
+  if (input.summary.corroboration_or_disposition_ratio < input.targets.corroboration_ratio && input.corroborationQueue.length > 0) {
     gaps.push({
-      gap_id: "official-disclosure:cross-source-corroboration",
+      gap_id: "official-disclosure:corroboration-or-disposition",
       priority: "P1",
-      kind: "cross_source_corroboration",
+      kind: "corroboration_or_disposition_coverage",
       title: "Add second-source corroboration or explicit single-source disposition",
-      rationale: `Cross-source ratio is ${formatPercent(input.summary.corroboration_ratio)}; target is ${formatPercent(input.targets.corroboration_ratio)}.`,
+      rationale: `Corroboration/disposition coverage is ${formatPercent(input.summary.corroboration_or_disposition_ratio)}; target is ${formatPercent(input.targets.corroboration_ratio)}. Strict cross-source ratio remains ${formatPercent(input.summary.corroboration_ratio)}.`,
       action:
         "For single-source edges, check counterparty official disclosures first; if no second source is expected, record an explicit unknown/disposition instead of treating silence as corroboration.",
       edge_ids: input.corroborationQueue.map((item) => item.edge_id),
@@ -311,7 +310,8 @@ const SCORECARD_NEXT_ACTIONS: Readonly<Partial<Record<OfficialDisclosureGate1Sco
   core_node_official_coverage: "Close target-node official coverage gaps before expanding into lower-confidence signal sources.",
   level_4_5_fact_edge_coverage:
     "Convert useful official disclosures into reviewable evidence candidates, keeping observations and leads out of the fact layer.",
-  cross_source_corroboration: "Check counterparty official disclosures for single-source edges or record explicit single-source unknown/disposition.",
+  corroboration_or_disposition_coverage:
+    "Check counterparty official disclosures for single-source edges or record explicit single-source unknown/disposition.",
   fact_edge_traceability: "Backfill cite text, source URL, source adapter, and fingerprint/snapshot context for every Level 4/5 edge."
 };
 

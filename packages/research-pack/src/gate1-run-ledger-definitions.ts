@@ -15,6 +15,7 @@ export type Gate1RunActionKind =
   | "investigate_source_failures"
   | "review_observations"
   | "record_single_source_disposition"
+  | "record_official_signal_dispositions"
   | "create_fact_edge_candidates"
   | "expand_frontier_company";
 
@@ -58,6 +59,8 @@ export interface Gate1DataProgressLedger {
   corroboration_queue_needing_disposition: number;
   corroboration_queue_recorded_disposition: number;
   proposed_single_source_unknowns: number;
+  official_signal_correlation_hints: number;
+  open_official_signal_correlation_hints: number;
   next_focus: string;
 }
 

@@ -405,7 +405,7 @@ describe("research-pack", () => {
     expect(pack.official_disclosure_readiness.scorecard.criteria.map((criterion) => criterion.criterion_id)).toEqual([
       "core_node_official_coverage",
       "level_4_5_fact_edge_coverage",
-      "cross_source_corroboration",
+      "corroboration_or_disposition_coverage",
       "fact_edge_traceability",
       "expected_source_path_coverage"
     ]);
@@ -501,7 +501,7 @@ describe("research-pack", () => {
     expect(report.source_plan_items[0]?.source_targets[0]?.state).toBe("due");
     expect(report.nodes.find((node) => node.node_id === "COMP-DRAM")?.coverage_state).toBe("official_target_synced");
     expect(report.nodes.find((node) => node.node_id === "ENT-SAMSUNG-ELECTRONICS")?.coverage_state).toBe("official_target_synced");
-    expect(report.gaps.map((gap) => gap.kind)).toContain("cross_source_corroboration");
+    expect(report.gaps.map((gap) => gap.kind)).toContain("corroboration_or_disposition_coverage");
     expect(report.gaps.map((gap) => gap.kind)).toContain("edge_strength");
     expect(report.gaps.find((gap) => gap.kind === "level_4_5_edge_coverage")?.action).toContain("Run due official disclosure targets");
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("Add second-source corroboration or explicit single-source disposition");
@@ -563,6 +563,8 @@ describe("research-pack", () => {
     expect(report.summary.corroboration_queue_items).toBe(1);
     expect(report.summary.corroboration_queue_needing_disposition).toBe(0);
     expect(report.summary.corroboration_queue_with_recorded_disposition).toBe(1);
+    expect(report.summary.corroboration_or_disposition_edges).toBe(1);
+    expect(report.summary.corroboration_or_disposition_ratio).toBe(1);
     expect(report.summary.corroboration_queue_proposed_unknowns).toBe(0);
     expect(report.corroboration_queue[0]).toEqual(
       expect.objectContaining({

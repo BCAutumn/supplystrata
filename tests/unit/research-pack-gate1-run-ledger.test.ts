@@ -76,6 +76,16 @@ describe("Gate 1 run ledger", () => {
     expect(
       ledger.review_workbench.items.some((item) => item.kind === "official_signal_disposition" && item.allowed_decisions.includes("supports_existing_edge"))
     ).toBe(true);
+    expect(ledger.data_progress.open_official_signal_correlation_hints).toBe(1);
+    expect(ledger.action_queue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action_id: "gate1:official-signals:disposition",
+          kind: "record_official_signal_dispositions",
+          priority: "P1"
+        })
+      ])
+    );
     expect(
       ledger.review_workbench.items.some(
         (item) =>
@@ -142,6 +152,13 @@ describe("Gate 1 run ledger", () => {
   });
 
   it("does not force smoke-first when corroboration preflight already failed", () => {
+    const corroborationPlan = corroborationSourcePlanFixture();
+    corroborationPlan.summary = {
+      ...corroborationPlan.summary,
+      targets_failed_preflight: 1,
+      targets_missing_credentials: 1,
+      by_next_action: { configure_credentials: 1 }
+    };
     const ledger = buildGate1RunLedger({
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
@@ -152,7 +169,7 @@ describe("Gate 1 run ledger", () => {
         sourceTargetNamespace: "gate1-review-test"
       },
       official_disclosure_readiness: officialDisclosureReadinessFixture(),
-      corroboration_source_plan: corroborationSourcePlanFixture(),
+      corroboration_source_plan: corroborationPlan,
       supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
       source_target_preflight: sourceTargetPreflightFixture()
     });
@@ -174,6 +191,51 @@ describe("Gate 1 run ledger", () => {
         missing_credentials: 1
       })
     );
+    expect(ledger.action_queue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action_id: "gate1:corroboration:preflight-triage",
+          kind: "investigate_source_failures",
+          priority: "P0"
+        })
+      ])
+    );
+    expect(ledger.action_queue.some((action) => action.action_id === "gate1:corroboration:smoke")).toBe(false);
+  });
+
+  it("turns smoke-cleared corroboration targets into observation review actions", () => {
+    const corroborationPlan = corroborationSourcePlanFixture();
+    corroborationPlan.summary = {
+      ...corroborationPlan.summary,
+      by_next_action: { review_observations: 3 },
+      targets_failed_preflight: 0,
+      targets_missing_credentials: 0
+    };
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: officialDisclosureReadinessFixture(),
+      corroboration_source_plan: corroborationPlan,
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
+      source_target_preflight: sourceTargetPreflightFixture()
+    });
+
+    expect(ledger.action_queue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action_id: "gate1:corroboration:review-observations",
+          kind: "review_observations",
+          priority: "P0"
+        })
+      ])
+    );
+    expect(ledger.action_queue.some((action) => action.action_id === "gate1:corroboration:smoke")).toBe(false);
   });
 });
 
@@ -199,7 +261,7 @@ function officialDisclosureReadinessFixture(): OfficialDisclosureReadinessReport
       criteria: [
         criterion("core_node_official_coverage", "completion", 10, 25),
         criterion("level_4_5_fact_edge_coverage", "completion", 1, 100),
-        criterion("cross_source_corroboration", "completion", 0, 0.7),
+        criterion("corroboration_or_disposition_coverage", "completion", 0, 0.7),
         criterion("fact_edge_traceability", "completion", 1, 1),
         criterion("expected_source_path_coverage", "operability", 8, 10)
       ],
@@ -228,6 +290,8 @@ function officialDisclosureReadinessFixture(): OfficialDisclosureReadinessReport
       single_source_edges: 1,
       missing_evidence_edges: 0,
       corroboration_ratio: 0,
+      corroboration_or_disposition_edges: 0,
+      corroboration_or_disposition_ratio: 0,
       corroboration_queue_items: 1,
       corroboration_queue_with_runnable_targets: 1,
       corroboration_queue_needing_disposition: 1,
