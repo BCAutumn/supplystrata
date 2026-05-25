@@ -1,0 +1,169 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildObservationCoverageReport,
+  buildPropagationReadinessReport,
+  buildSupplyChainExpansionPlan,
+  renderPropagationReadinessMarkdown,
+  renderSupplyChainExpansionPlanMarkdown
+} from "@supplystrata/research-pack";
+import {
+  commoditySourcePlanItem,
+  edgeFixture,
+  edgeSegmentFixture,
+  emptyWorkbench,
+  observationFixture,
+  officialSourcePlanItem
+} from "./research-pack-fixtures.js";
+
+describe("research-pack expansion and propagation", () => {
+  it("builds a deterministic recursive expansion plan without creating fact edges", () => {
+    const workbench = {
+      ...emptyWorkbench(),
+      companies: [
+        { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" as const },
+        { entity_id: "ENT-SKHYNIX", name: "SK Hynix", role: "counterparty" as const },
+        { entity_id: "ENT-UNKNOWN", name: "Unknown Counterparty", role: "counterparty" as const },
+        { entity_id: "ENT-DEEP", name: "Deep Supplier", role: "counterparty" as const }
+      ],
+      chain_segments: [
+        edgeSegmentFixture("EDGE-MEMORY", 1, "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY"),
+        edgeSegmentFixture("EDGE-NOCOMP", 1, "ENT-NVIDIA", "NVIDIA", "ENT-UNKNOWN", "Unknown Counterparty", null),
+        edgeSegmentFixture("EDGE-DEEP", 7, "ENT-SKHYNIX", "SK Hynix", "ENT-DEEP", "Deep Supplier", "COMP-HBM")
+      ],
+      edges: [
+        edgeFixture("EDGE-MEMORY", "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY"),
+        edgeFixture("EDGE-NOCOMP", "ENT-NVIDIA", "NVIDIA", "ENT-UNKNOWN", "Unknown Counterparty", null),
+        edgeFixture("EDGE-DEEP", "ENT-SKHYNIX", "SK Hynix", "ENT-DEEP", "Deep Supplier", "COMP-HBM")
+      ],
+      unknown_items: [
+        {
+          unknown_id: "UNK-MEMORY-SHARE",
+          scope_kind: "edge",
+          scope_id: "EDGE-MEMORY",
+          question: "What share does this memory relationship represent?",
+          why_unknown: "No allocation disclosure is visible.",
+          blocking_data_sources: ["supplier official disclosure"],
+          proxies: [],
+          status: "open"
+        }
+      ]
+    };
+
+    const plan = buildSupplyChainExpansionPlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      component_ids: ["COMP-MEMORY"],
+      source_plan: [officialSourcePlanItem()],
+      max_depth: 7
+    });
+
+    expect(plan.summary).toEqual(
+      expect.objectContaining({
+        fact_edges_considered: 3,
+        frontier_edges: 3,
+        blocked_frontier_edges: 2,
+        explicit_unknown_refs: 1
+      })
+    );
+    expect(plan.frontier.find((item) => item.edge_id === "EDGE-MEMORY")).toEqual(
+      expect.objectContaining({
+        expansion_state: "expand_candidate",
+        next_company_id: "ENT-SKHYNIX",
+        unknown_ids: ["UNK-MEMORY-SHARE"]
+      })
+    );
+    expect(plan.frontier.find((item) => item.edge_id === "EDGE-NOCOMP")?.expansion_state).toBe("needs_component_context");
+    expect(plan.frontier.find((item) => item.edge_id === "EDGE-DEEP")?.expansion_state).toBe("stop_depth_limit");
+    expect(plan.component_dependency_leads.find((lead) => lead.dependency_id === "CDEP-MEMORY-DRAM")).toEqual(
+      expect.objectContaining({
+        state: "source_path_runnable",
+        expansion_policy: "lead_only_no_fact_mutation",
+        source_plan_refs: ["source_plan:samsung-ir"]
+      })
+    );
+    expect(plan.component_dependency_leads.find((lead) => lead.dependency_id === "CDEP-MEMORY-HBM")?.state).toBe("fact_covered");
+    expect(plan.stop_conditions.map((item) => item.reason)).toEqual(expect.arrayContaining(["depth_limit", "missing_component_context"]));
+    expect(renderSupplyChainExpansionPlanMarkdown(plan)).toContain("does not create fact edges");
+    expect(renderSupplyChainExpansionPlanMarkdown(plan)).toContain("COMP-MEMORY -> COMP-DRAM");
+  });
+
+  it("builds propagation readiness as reasoning inputs without fact mutation", () => {
+    const workbench = {
+      ...emptyWorkbench(),
+      companies: [
+        { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" as const },
+        { entity_id: "ENT-SKHYNIX", name: "SK Hynix", role: "counterparty" as const }
+      ],
+      chain_segments: [edgeSegmentFixture("EDGE-MEMORY", 1, "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY")],
+      edges: [edgeFixture("EDGE-MEMORY", "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY")]
+    };
+    const observationCoverage = buildObservationCoverageReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      company: {
+        related_observations: [
+          observationFixture("OBS-BACKLOG", "BACKLOG_OBSERVATION", {
+            metric_name: "backlog",
+            time_window_end: "2025-12-31T00:00:00.000Z"
+          }),
+          observationFixture("OBS-CAPEX", "CAPEX_OBSERVATION", {
+            metric_name: "capex",
+            time_window_end: "2025-12-31T00:00:00.000Z"
+          }),
+          observationFixture("OBS-COPPER", "COMMODITY_PRICE_OBSERVATION", {
+            scope_kind: "material",
+            scope_id: "MAT-COPPER",
+            metric_name: "copper_price",
+            metric_unit: "USD/t",
+            time_window_end: "2025-12-31T00:00:00.000Z"
+          })
+        ]
+      },
+      components: []
+    });
+    const sourcePlan = [officialSourcePlanItem(), commoditySourcePlanItem()];
+    const expansionPlan = buildSupplyChainExpansionPlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      component_ids: ["COMP-MEMORY", "COMP-WAFER"],
+      source_plan: sourcePlan,
+      max_depth: 7
+    });
+
+    const report = buildPropagationReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      observation_coverage: observationCoverage,
+      source_plan: sourcePlan,
+      supply_chain_expansion_plan: expansionPlan
+    });
+
+    expect(report.summary.contexts_total).toBe(7);
+    expect(report.summary.no_fact_mutation_policy).toBe("reasoning_input_only_no_fact_mutation");
+    expect(report.items.find((item) => item.context_kind === "demand_signal")).toEqual(
+      expect.objectContaining({
+        status: "ready",
+        policy: "reasoning_input_only_no_fact_mutation",
+        observation_types: ["BACKLOG_OBSERVATION"]
+      })
+    );
+    expect(report.items.find((item) => item.context_kind === "process_material_consumption_signal")).toEqual(
+      expect.objectContaining({
+        status: "ready",
+        policy: "reasoning_input_only_no_fact_mutation"
+      })
+    );
+    expect(report.items.find((item) => item.context_kind === "policy_or_export_control_signal")).toEqual(
+      expect.objectContaining({
+        status: "partial",
+        source_plan_refs: ["source_plan:samsung-ir"]
+      })
+    );
+    expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");
+  });
+});

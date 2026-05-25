@@ -1,7 +1,8 @@
-import { CORROBORATION_SOURCE_PLAN_ACTION_BATCHES } from "@supplystrata/research-pack";
+import { CORROBORATION_SOURCE_PLAN_ACTION_BATCHES, GATE1_DATA_DEPTH_ACTION_BATCHES } from "@supplystrata/research-pack";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { ObservationCoverageObservation, QuestionReadinessMatrix, SourceTargetCoverageReport } from "@supplystrata/research-pack";
+import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 export function edgeSegmentFixture(
   edgeId: string,
@@ -56,6 +57,66 @@ export function actionBatchDefinition(kind: "smoke" | "sync" | "enable" | "run_d
   const definition = CORROBORATION_SOURCE_PLAN_ACTION_BATCHES.find((item) => item.kind === kind);
   if (definition === undefined) throw new Error(`Missing action batch definition: ${kind}`);
   return definition;
+}
+
+export function gate1DataDepthActionBatchDefinition(kind: (typeof GATE1_DATA_DEPTH_ACTION_BATCHES)[number]["kind"]) {
+  const definition = GATE1_DATA_DEPTH_ACTION_BATCHES.find((item) => item.kind === kind);
+  if (definition === undefined) throw new Error(`Missing Gate 1 data-depth action batch definition: ${kind}`);
+  return definition;
+}
+
+export function officialSourcePlanItem(): SourcePlanItem {
+  return {
+    source_id: "samsung-ir",
+    source_name: "Samsung Electronics Investor Relations",
+    purpose: "official_disclosure",
+    priority: "P0",
+    status: "preview",
+    automation: "allowed",
+    requires_key: false,
+    expected_output_layer: "edge",
+    relation_policy: "can_create_fact_edge",
+    parent_component_ids: ["COMP-MEMORY"],
+    target_ids: ["COMP-DRAM"],
+    trigger_dependency_ids: ["CDEP-MEMORY-DRAM"],
+    reasons: ["Samsung IR can disclose memory supplier context."],
+    suggested_check_targets: [
+      {
+        source_adapter_id: "samsung-ir",
+        target_kind: "official-html-disclosure",
+        runnable: true,
+        target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 },
+        reason: "Samsung IR has a registered official disclosure connector for 2025."
+      }
+    ]
+  };
+}
+
+export function commoditySourcePlanItem(): SourcePlanItem {
+  return {
+    source_id: "worldbank-pink",
+    source_name: "World Bank Pink Sheet",
+    purpose: "commodity",
+    priority: "P1",
+    status: "preview",
+    automation: "allowed",
+    requires_key: false,
+    expected_output_layer: "observation",
+    relation_policy: "observation_only",
+    parent_component_ids: ["COMP-WAFER"],
+    target_ids: ["MAT-COPPER"],
+    trigger_dependency_ids: ["material-taxonomy:COMP-WAFER:MAT-COPPER"],
+    reasons: ["Copper price is material context only; it cannot prove company-level sourcing."],
+    suggested_check_targets: [
+      {
+        source_adapter_id: "worldbank-pink",
+        target_kind: "commodity-price-observation",
+        runnable: true,
+        target_config: { commodity: "copper", material_id: "MAT-COPPER", month: "2025-12" },
+        reason: "World Bank Pink Sheet can provide copper price context."
+      }
+    ]
+  };
 }
 
 export function officialSourceTargetCoverage(state: SourceTargetCoverageReport["items"][number]["state"]): SourceTargetCoverageReport {
