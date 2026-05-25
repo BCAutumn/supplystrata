@@ -8,6 +8,7 @@ import type { Gate1RunLedger } from "./gate1-run-ledger.js";
 import type { InvestigationBacklog } from "./investigation-backlog.js";
 import type { ObservationCoverageReport } from "./observation-coverage.js";
 import type { OfficialDisclosureReadinessReport, OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
+import type { PropagationReadinessReport } from "./propagation-readiness.js";
 import type { QuestionReadinessMatrix } from "./question-readiness.js";
 import type { ResearchTargetProfileOption } from "./research-target-profile.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
@@ -188,6 +189,13 @@ export interface ResearchPackStats {
   supply_chain_expansion_leads_with_source_path: number;
   supply_chain_expansion_blocked_frontier_edges: number;
   supply_chain_expansion_stop_conditions: number;
+  propagation_readiness_ready: number;
+  propagation_readiness_partial: number;
+  propagation_readiness_blocked: number;
+  propagation_contexts_with_observations: number;
+  propagation_contexts_with_source_plan: number;
+  propagation_contexts_with_component_leads: number;
+  propagation_reasoning_inputs: number;
 }
 
 export interface ResearchPackClaimBuild {
@@ -226,6 +234,7 @@ export interface ResearchPackModel {
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
+  propagation_readiness: PropagationReadinessReport;
   gate1_run_ledger: Gate1RunLedger;
 }
 
@@ -260,6 +269,7 @@ export interface WorkbenchSnapshotPackModel {
   observation_coverage: ObservationCoverageReport;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
+  propagation_readiness: PropagationReadinessReport;
   gate1_run_ledger: Gate1RunLedger;
 }
 

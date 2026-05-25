@@ -13,6 +13,7 @@ import { renderInvestigationBacklogMarkdown } from "./investigation-backlog.js";
 import { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
 import { renderObservationCoverageMarkdown } from "./observation-coverage.js";
 import { renderOfficialDisclosureReadinessMarkdown } from "./official-disclosure-readiness.js";
+import { renderPropagationReadinessMarkdown } from "./propagation-readiness.js";
 import { renderQuestionReadinessMarkdown } from "./question-readiness.js";
 import { renderSourceTargetCoverageMarkdown } from "./source-target-coverage.js";
 import { renderSourceTargetPreflightMarkdown, type SourceTargetPreflightReport } from "./source-target-preflight.js";
@@ -58,6 +59,13 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
       "supply-chain-expansion-plan.md",
       renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
       "Recursive supply-chain expansion plan markdown"
+    ),
+    await writeJsonFile(outDir, "propagation-readiness.json", pack.propagation_readiness, "Structured propagation reasoning readiness"),
+    await writeMarkdownFile(
+      outDir,
+      "propagation-readiness.md",
+      renderPropagationReadinessMarkdown(pack.propagation_readiness),
+      "Structured propagation reasoning readiness markdown"
     ),
     await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
     await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
@@ -157,6 +165,13 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
       renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan),
       "Recursive supply-chain expansion plan markdown"
     ),
+    await writeJsonFile(outDir, "propagation-readiness.json", pack.propagation_readiness, "Structured propagation reasoning readiness"),
+    await writeMarkdownFile(
+      outDir,
+      "propagation-readiness.md",
+      renderPropagationReadinessMarkdown(pack.propagation_readiness),
+      "Structured propagation reasoning readiness markdown"
+    ),
     await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
     await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
@@ -227,6 +242,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage and methodology gaps.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
+    "- `propagation-readiness.json` and `propagation-readiness.md` prepare demand, capacity, facility, equipment, process-material, price/trade, and policy reasoning inputs for future AI/frontend analysis. They do not write facts.",
     "- `gate1-run-ledger.json` and `gate1-run-ledger.md` merge readiness, source-target coverage, corroboration batches, and frontier switching into one deterministic execution ledger.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
@@ -262,6 +278,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `observation-coverage.json` and `observation-coverage.md` summarize typed signal coverage visible from the snapshot.",
     "- `official-disclosure-readiness.json` and `official-disclosure-readiness.md` show Gate 1 node/source coverage, traceability, corroboration, and intelligence-context gaps.",
     "- `supply-chain-expansion-plan.json` and `supply-chain-expansion-plan.md` turn the current L4/L5 fact frontier into the next evidence-first recursive research plan. It does not write facts.",
+    "- `propagation-readiness.json` and `propagation-readiness.md` prepare demand, capacity, facility, equipment, process-material, price/trade, and policy reasoning inputs for future AI/frontend analysis. They do not write facts.",
     "- `gate1-run-ledger.json` and `gate1-run-ledger.md` merge readiness, source-target coverage, corroboration batches, and frontier switching into one deterministic execution ledger.",
     "- `investigation-backlog.json` and `investigation-backlog.md` turn readiness gaps and unknowns into auditable next investigation steps.",
     "- `corroboration-source-plan.json` and `corroboration-source-plan.md` filter the source plan down to edge-level corroboration targets that can be previewed, smoked, synced, or enabled by the existing source commands. When non-empty, `corroboration-source-plan-smoke.json`, `corroboration-source-plan-sync.json`, `corroboration-source-plan-enable.json`, and `corroboration-source-plan-run-due.json` split that plan by audited next action.",
@@ -301,6 +318,7 @@ function researchPackStatsLines(
     `- Official disclosure review signals: ${stats.open_official_disclosure_signal_review_candidates}/${stats.official_disclosure_signal_review_candidates} open`,
     `- Official disclosure signal correlation hints: ${stats.open_official_disclosure_signal_correlation_hints}/${stats.official_disclosure_signal_correlation_hints} open; dispositions ${stats.official_disclosure_signal_dispositions}`,
     `- Supply-chain expansion plan: ${stats.supply_chain_expansion_frontier_edges} frontier edges, ${stats.supply_chain_expansion_frontier_companies} frontier companies, ${stats.supply_chain_expansion_component_dependency_leads} component leads (${stats.supply_chain_expansion_leads_with_source_path} with source path), ${stats.supply_chain_expansion_stop_conditions} stop conditions`,
+    `- Propagation readiness: ${stats.propagation_readiness_ready} ready, ${stats.propagation_readiness_partial} partial, ${stats.propagation_readiness_blocked} blocked; observations ${stats.propagation_contexts_with_observations}, source paths ${stats.propagation_contexts_with_source_plan}, component leads ${stats.propagation_contexts_with_component_leads}, reasoning inputs ${stats.propagation_reasoning_inputs}`,
     `- Observation records: ${stats.observation_records}`,
     `- Observation types present: ${stats.observation_types_present}`,
     `- Observation series readiness: ${stats.observation_time_series_ready} time-series ready, ${stats.observation_explicit_baseline_ready} explicit-baseline ready, ${stats.observation_sparse_series} sparse`,

@@ -15,6 +15,7 @@ import {
   type OfficialDisclosureReadinessProfile,
   type OfficialDisclosureReadinessTargetNode
 } from "./official-disclosure-readiness.js";
+import { buildPropagationReadinessReport } from "./propagation-readiness.js";
 import { buildQuestionReadinessMatrix } from "./question-readiness.js";
 import { selectResearchTargetProfile, type ResearchTargetProfile, type ResearchTargetProfileSelection } from "./research-target-profile.js";
 import { maybeBuildClaims, maybeRefreshComponentRiskViews, maybeRefreshIntelligence, resolveResearchPackWriteSteps } from "./prepare-data.js";
@@ -30,6 +31,7 @@ export { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
 export * from "./observation-coverage.js";
 export * from "./official-disclosure-readiness.js";
 export * from "./official-disclosure-signal-correlation.js";
+export * from "./propagation-readiness.js";
 export * from "./question-readiness.js";
 export * from "./research-target-profile.js";
 export * from "./source-target-coverage.js";
@@ -115,6 +117,14 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     official_disclosure_readiness: officialDisclosureReadiness,
     max_depth: input.supplyChainExpansionMaxDepth ?? 7
   });
+  const propagationReadiness = buildPropagationReadinessReport({
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    workbench,
+    observation_coverage: observationCoverage,
+    source_plan: sourcePlan,
+    supply_chain_expansion_plan: supplyChainExpansionPlan
+  });
   const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
@@ -151,6 +161,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     observationCoverage,
     officialDisclosureReadiness,
     supplyChainExpansionPlan,
+    propagationReadiness,
     claimBuild,
     intelligenceRefresh,
     componentRiskRefresh,
@@ -172,6 +183,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness,
     gate1_run_ledger: buildGate1RunLedger({
       generated_at: generatedAt,
       company_id: workbench.selected_company_id,
@@ -262,6 +274,14 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     official_disclosure_readiness: officialDisclosureReadiness,
     max_depth: input.supplyChainExpansionMaxDepth ?? 7
   });
+  const propagationReadiness = buildPropagationReadinessReport({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    workbench: input.workbench,
+    observation_coverage: observationCoverage,
+    source_plan: sourcePlan,
+    supply_chain_expansion_plan: supplyChainExpansionPlan
+  });
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
     company_id: input.workbench.selected_company_id,
@@ -297,6 +317,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     observationCoverage,
     officialDisclosureReadiness,
     supplyChainExpansionPlan,
+    propagationReadiness,
     claimBuild: null,
     intelligenceRefresh: null,
     componentRiskRefresh: null,
@@ -316,6 +337,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     observation_coverage: observationCoverage,
     official_disclosure_readiness: officialDisclosureReadiness,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness,
     gate1_run_ledger: buildGate1RunLedger({
       generated_at: generatedAt,
       company_id: input.workbench.selected_company_id,

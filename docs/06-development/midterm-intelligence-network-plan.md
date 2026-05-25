@@ -46,7 +46,7 @@
 - 通知通道。
 - USGS / IEA 等原材料源 adapter，把 planned material target 进一步变成 runnable connector，并落成 mineral / critical-minerals observations。
 - DART-KR / EDINET / TWSE 等官方披露源，把二级/三级事实边继续做厚。当前 DART 已先接到 disclosure list monitor / source-check / readiness；EDINET 已先接到 `documents.json` daily-filings monitor / source-check / readiness，并在 profile 中覆盖 silicon wafer / ABF substrate 的日本官方目录监控；TWSE MOPS 已接到 `electronic-documents` 目录 monitor / source-check / readiness，先覆盖 Foxconn / Quanta 这类台湾 AI server ODM 节点的官方披露入口。正文下载、XBRL ZIP / PDF 和韩文/HWP 解析继续后排。
-- Propagation readiness 输出仍未落地：需要把需求信号、扩产信号、设施建设、设备安装、工艺材料消耗、原材料价格/贸易/政策信号汇总成 `ready / partial / blocked` 推理输入。它只服务前端/AI 研究，不直接生成事实边或自然语言结论。
+- Propagation readiness 第一版已落地：research-pack 会把需求信号、扩产信号、设施建设、设备安装、工艺材料消耗、原材料价格/贸易/政策信号汇总成 `ready / partial / blocked` 推理输入，并带 `reasoning_input_only_no_fact_mutation` policy。它只服务前端/AI 研究，不直接生成事实边或自然语言结论；后续仍需把更多真实 typed observations 和 source target coverage 接入这些 context。
 - 需要 key 的公开源必须走统一 source credential 配置：key 定义集中在 `@supplystrata/config`，本地真实值集中到 git 忽略的 `config/source-credentials.local.json`，`.env` / 环境变量只作为覆盖入口。未配置 key 时，source-plan smoke / backlog 标记 `missing_credentials`，research-pack 仍能输出当前可审计数据和缺口。
 
 ## 2. 目标形态

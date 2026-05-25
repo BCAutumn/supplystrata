@@ -398,12 +398,14 @@ PROCESS_MATERIAL_OBSERVATION
 [x] research-pack 能输出 observation coverage，列出 present types 与 methodology gaps
 [x] research-pack 能输出 observation series readiness，区分 sparse / explicit-baseline ready / time-series ready
 [x] investigation-backlog 能把 sparse observation series 转成可执行的数据积累任务
-[ ] research-pack 能输出 propagation readiness，把需求、扩产、设施建设、设备安装、材料消耗、原材料/贸易/价格信号拆成 ready / partial / blocked
+[x] research-pack 能输出 propagation readiness，把需求、扩产、设施建设、设备安装、材料消耗、原材料/贸易/价格信号拆成 ready / partial / blocked
 [ ] component-context / source-plan 能覆盖 AI compute 上游材料与设备 frontier，例如 PCB、光模块、电源/冷却、树脂、电子布、铜箔、高纯气体、光刻胶、靶材、CMP、洁净室、半导体设备
 [ ] 上游材料和工程建设信号默认只生成 observation / lead / backlog，不自动生成公司 fact edge
 ```
 
 当前状态：observation-store 已形成统一写入边界，`FINANCIAL_METRIC_OBSERVATION` 由 SEC companyfacts 结构化 JSON 写入，`TRADE_FLOW_OBSERVATION` 由 Census Trade target 写入，`COMMODITY_PRICE_OBSERVATION` 由 World Bank Pink Sheet target 写入，官方披露语义抽取器可生成 `INVENTORY_OBSERVATION` / `BACKLOG_OBSERVATION` / `CAPEX_OBSERVATION` / `CUSTOMER_CONCENTRATION_OBSERVATION` / `PROCUREMENT_OBSERVATION`，OSH 路径可生成 `FACILITY_PROFILE_OBSERVATION`。这些路径都必须保留 `source_item / doc / time_window / metric / scope / geography / component_id / provenance` 语义，不进入 graph-builder，不生成事实边。
+
+`@supplystrata/research-pack` 已新增 `propagation-readiness.json/md`：它只读消费 observation coverage、source-plan 和 supply-chain expansion plan，把 `demand_signal`、`capacity_expansion_signal`、`facility_construction_signal`、`equipment_installation_signal`、`process_material_consumption_signal`、`material_price_or_trade_signal`、`policy_or_export_control_signal` 统一标为 `ready / partial / blocked`。每个 item 都带 `reasoning_input_only_no_fact_mutation` policy、ready signals、missing requirements、observation/source-plan/frontier/component lead refs。它不写 DB、不生成 fact edge、不关闭 unknown，也不输出最终产业结论。
 
 `@supplystrata/research-pack` 已新增 `observation-coverage.json/md`：它从 CompanyCard / ComponentCard / linked company observations 和 ChainView observation segments 汇总本研究包内可见的 typed observation、source adapter、scope、component、geography、metric、样本 id 和缺失 methodology type。它还会按 `observation_type / scope / geography / component_id / metric / unit` 生成 series readiness：有 `baseline_value + change_percent` 的序列标为 `explicit_baseline_ready`；至少 6 个同序列数值窗口点的序列标为 `time_series_ready`；其余保持 `sparse`。ChainView 仍只负责分层 context lane；正式类型覆盖以 observation DTO / card / coverage JSON 为准，避免靠 label 猜类型。
 
@@ -583,7 +585,7 @@ POST /review/:id/reject
 [x] `corroboration-source-plan` 能为每个 filtered target 输出确定性 `next_action`，把 preflight/coverage 状态收口成配置凭据、修配置、smoke、sync、enable、run due、等待、排错或 review observation
 [x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
 [x] research-pack 能输出 `gate1-run-ledger.json/md`，把 Gate 1 data progress、source path progress、corroboration 批次和 supply-chain frontier company switching 合成一个只读执行账本
-[ ] research-pack 能输出 `propagation-readiness.json/md` 或等价 DTO，作为 AI/前端分析产业传导链路的结构化输入，不直接生成结论或事实边
+[x] research-pack 能输出 `propagation-readiness.json/md` 或等价 DTO，作为 AI/前端分析产业传导链路的结构化输入，不直接生成结论或事实边
 [x] `gate1-run-ledger` 能输出 frontend-ready `monitoring_config`，把 source policy / source target 的 cadence、jitter、retry、backoff、初始 `next_check_at` 和 source-plan 批次建议统一暴露给后续前端配置
 [x] `gate1-run-ledger.monitoring_config.batches[]` 能输出 state counts、attention hint 和 recommended operational action，区分 sync、enable、run due、wait、investigate failure、review observation
 [x] `gate1-run-ledger.action_queue` 能消费 `corroboration-source-plan.summary.by_next_action`，在 smoke 回灌后输出 review observations / configure credentials / retry preflight / sync / enable / run due 等精确动作，避免重复提示 smoke

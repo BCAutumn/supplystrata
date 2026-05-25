@@ -5,6 +5,7 @@ import {
   buildInvestigationBacklog,
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
+  buildPropagationReadinessReport,
   buildResearchPackFromWorkbench,
   buildSupplyChainExpansionPlan,
   getBuiltInResearchTargetProfile,
@@ -14,6 +15,7 @@ import {
   renderCorroborationSourcePlanMarkdown,
   renderObservationCoverageMarkdown,
   renderOfficialDisclosureReadinessMarkdown,
+  renderPropagationReadinessMarkdown,
   renderQuestionReadinessMarkdown,
   renderSourceTargetPreflightMarkdown,
   renderSourceTargetCoverageMarkdown,
@@ -106,6 +108,80 @@ describe("research-pack", () => {
     expect(plan.stop_conditions.map((item) => item.reason)).toEqual(expect.arrayContaining(["depth_limit", "missing_component_context"]));
     expect(renderSupplyChainExpansionPlanMarkdown(plan)).toContain("does not create fact edges");
     expect(renderSupplyChainExpansionPlanMarkdown(plan)).toContain("COMP-MEMORY -> COMP-DRAM");
+  });
+
+  it("builds propagation readiness as reasoning inputs without fact mutation", () => {
+    const workbench = {
+      ...emptyWorkbench(),
+      companies: [
+        { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" as const },
+        { entity_id: "ENT-SKHYNIX", name: "SK Hynix", role: "counterparty" as const }
+      ],
+      chain_segments: [edgeSegmentFixture("EDGE-MEMORY", 1, "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY")],
+      edges: [edgeFixture("EDGE-MEMORY", "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY")]
+    };
+    const observationCoverage = buildObservationCoverageReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      company: {
+        related_observations: [
+          observationFixture("OBS-BACKLOG", "BACKLOG_OBSERVATION", {
+            metric_name: "backlog",
+            time_window_end: "2025-12-31T00:00:00.000Z"
+          }),
+          observationFixture("OBS-CAPEX", "CAPEX_OBSERVATION", {
+            metric_name: "capex",
+            time_window_end: "2025-12-31T00:00:00.000Z"
+          }),
+          observationFixture("OBS-COPPER", "COMMODITY_PRICE_OBSERVATION", {
+            scope_kind: "material",
+            scope_id: "MAT-COPPER",
+            metric_name: "copper_price",
+            metric_unit: "USD/t",
+            time_window_end: "2025-12-31T00:00:00.000Z"
+          })
+        ]
+      },
+      components: []
+    });
+    const sourcePlan = [officialSourcePlanItem(), commoditySourcePlanItem()];
+    const expansionPlan = buildSupplyChainExpansionPlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      component_ids: ["COMP-MEMORY", "COMP-WAFER"],
+      source_plan: sourcePlan,
+      max_depth: 7
+    });
+
+    const report = buildPropagationReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      observation_coverage: observationCoverage,
+      source_plan: sourcePlan,
+      supply_chain_expansion_plan: expansionPlan
+    });
+
+    expect(report.summary.contexts_total).toBe(7);
+    expect(report.summary.no_fact_mutation_policy).toBe("reasoning_input_only_no_fact_mutation");
+    expect(report.items.find((item) => item.context_kind === "demand_signal")).toEqual(
+      expect.objectContaining({
+        status: "ready",
+        policy: "reasoning_input_only_no_fact_mutation",
+        observation_types: ["BACKLOG_OBSERVATION"]
+      })
+    );
+    expect(report.items.find((item) => item.context_kind === "process_material_consumption_signal")).toEqual(
+      expect.objectContaining({
+        status: "ready",
+        policy: "reasoning_input_only_no_fact_mutation"
+      })
+    );
+    expect(report.items.find((item) => item.context_kind === "policy_or_export_control_signal")?.status).toBe("blocked");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");
   });
 
   it("builds a no-database research snapshot from a workbench export", () => {
@@ -319,6 +395,7 @@ describe("research-pack", () => {
     expect(pack.observation_coverage.generated_at).toBe("2026-05-23T00:00:00.000Z");
     expect(pack.official_disclosure_readiness.generated_at).toBe("2026-05-23T00:00:00.000Z");
     expect(pack.supply_chain_expansion_plan.generated_at).toBe("2026-05-23T00:00:00.000Z");
+    expect(pack.propagation_readiness.generated_at).toBe("2026-05-23T00:00:00.000Z");
     expect(pack.manifest.research_target_profile?.profile_id).toBe("ai-compute-memory.v0");
     expect(pack.manifest.stats.official_disclosure_target_nodes).toBe(25);
     expect(pack.manifest.stats.fact_edges).toBe(1);
@@ -363,6 +440,8 @@ describe("research-pack", () => {
     expect(pack.manifest.stats.supply_chain_expansion_frontier_edges).toBe(1);
     expect(pack.manifest.stats.supply_chain_expansion_frontier_companies).toBe(1);
     expect(pack.manifest.stats.supply_chain_expansion_component_dependency_leads).toBeGreaterThan(0);
+    expect(pack.manifest.stats.propagation_readiness_ready).toBe(pack.propagation_readiness.summary.ready);
+    expect(pack.manifest.stats.propagation_reasoning_inputs).toBe(pack.propagation_readiness.summary.reasoning_inputs);
     expect(pack.supply_chain_expansion_plan.frontier[0]).toEqual(
       expect.objectContaining({
         edge_id: "EDGE-1",
@@ -427,6 +506,7 @@ describe("research-pack", () => {
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Official disclosure signal correlation hints");
     expect(renderOfficialDisclosureReadinessMarkdown(pack.official_disclosure_readiness)).toContain("Target profile: ai-compute-memory.v0");
     expect(renderSupplyChainExpansionPlanMarkdown(pack.supply_chain_expansion_plan)).toContain("Supply Chain Expansion Plan");
+    expect(renderPropagationReadinessMarkdown(pack.propagation_readiness)).toContain("Propagation Readiness");
   });
 
   it("reports official disclosure readiness gaps without inferring corroboration from silence", () => {
@@ -1553,6 +1633,33 @@ function officialSourcePlanItem(): SourcePlanItem {
         runnable: true,
         target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2025 },
         reason: "Samsung IR has a registered official disclosure connector for 2025."
+      }
+    ]
+  };
+}
+
+function commoditySourcePlanItem(): SourcePlanItem {
+  return {
+    source_id: "worldbank-pink",
+    source_name: "World Bank Pink Sheet",
+    purpose: "commodity",
+    priority: "P1",
+    status: "preview",
+    automation: "allowed",
+    requires_key: false,
+    expected_output_layer: "observation",
+    relation_policy: "observation_only",
+    parent_component_ids: ["COMP-WAFER"],
+    target_ids: ["MAT-COPPER"],
+    trigger_dependency_ids: ["material-taxonomy:COMP-WAFER:MAT-COPPER"],
+    reasons: ["Copper price is material context only; it cannot prove company-level sourcing."],
+    suggested_check_targets: [
+      {
+        source_adapter_id: "worldbank-pink",
+        target_kind: "commodity-price-observation",
+        runnable: true,
+        target_config: { commodity: "copper", material_id: "MAT-COPPER", month: "2025-12" },
+        reason: "World Bank Pink Sheet can provide copper price context."
       }
     ]
   };

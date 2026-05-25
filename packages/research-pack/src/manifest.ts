@@ -13,6 +13,7 @@ import type {
 import type { InvestigationBacklog } from "./investigation-backlog.js";
 import type { ObservationCoverageReport } from "./observation-coverage.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
+import type { PropagationReadinessReport } from "./propagation-readiness.js";
 import type { QuestionReadinessMatrix } from "./question-readiness.js";
 import type { ResearchTargetProfileSelection } from "./research-target-profile.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
@@ -35,6 +36,7 @@ export function manifestFromModel(input: {
   observationCoverage: ObservationCoverageReport;
   officialDisclosureReadiness: OfficialDisclosureReadinessReport;
   supplyChainExpansionPlan: SupplyChainExpansionPlan;
+  propagationReadiness: PropagationReadinessReport;
   claimBuild: ResearchPackClaimBuild | null;
   intelligenceRefresh: EdgeIntelligenceRefreshSummary | null;
   componentRiskRefresh: ResearchPackComponentRiskRefresh | null;
@@ -170,7 +172,14 @@ export function manifestFromModel(input: {
       supply_chain_expansion_component_dependency_leads: input.supplyChainExpansionPlan.summary.component_dependency_leads,
       supply_chain_expansion_leads_with_source_path: input.supplyChainExpansionPlan.summary.leads_with_source_path,
       supply_chain_expansion_blocked_frontier_edges: input.supplyChainExpansionPlan.summary.blocked_frontier_edges,
-      supply_chain_expansion_stop_conditions: input.supplyChainExpansionPlan.summary.stop_conditions
+      supply_chain_expansion_stop_conditions: input.supplyChainExpansionPlan.summary.stop_conditions,
+      propagation_readiness_ready: input.propagationReadiness.summary.ready,
+      propagation_readiness_partial: input.propagationReadiness.summary.partial,
+      propagation_readiness_blocked: input.propagationReadiness.summary.blocked,
+      propagation_contexts_with_observations: input.propagationReadiness.summary.contexts_with_observations,
+      propagation_contexts_with_source_plan: input.propagationReadiness.summary.contexts_with_source_plan,
+      propagation_contexts_with_component_leads: input.propagationReadiness.summary.contexts_with_component_leads,
+      propagation_reasoning_inputs: input.propagationReadiness.summary.reasoning_inputs
     },
     claim_build: input.claimBuild,
     intelligence_refresh: input.intelligenceRefresh,
