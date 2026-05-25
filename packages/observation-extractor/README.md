@@ -4,7 +4,7 @@
 
 ## 负责什么
 
-- 对 10-K、10-Q、20-F、8-K、annual report 等 normalized document 做确定性句子规则匹配。
+- 对 10-K、10-Q、20-F、8-K、annual report 等 normalized document 做确定性句子规则匹配；网页文本没有清晰句界时，会退到邻近 citation window。
 - 生成 inventory、backlog、capex、customer concentration、procurement 等 observation draft。
 - 生成 semantic section fingerprint，用于变化检测。
 

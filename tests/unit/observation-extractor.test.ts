@@ -46,6 +46,20 @@ describe("observation-extractor", () => {
     expect(extractDisclosureObservations(doc).map((item) => item.observation_type)).not.toContain("CUSTOMER_CONCENTRATION_OBSERVATION");
   });
 
+  it("uses a nearby citation window when web disclosure text is not sentence-delimited", () => {
+    const longWebText = [
+      "Annual Report Website ".repeat(90),
+      "management described capital expenditures for advanced packaging capacity and AI infrastructure",
+      " investor navigation ".repeat(90)
+    ].join(" ");
+
+    const observations = extractDisclosureObservations(normalizedFixture(longWebText));
+    const capex = observations.find((item) => item.observation_type === "CAPEX_OBSERVATION");
+
+    expect(capex?.metric_name).toBe("official_capex_mention");
+    expect(String(capex?.provenance["cite_text"])).toContain("capital expenditures for advanced packaging capacity");
+  });
+
   it("extracts deterministic semantic section fingerprints for change detection", () => {
     const doc = normalizedFixture("Customer A accounted for 14% of total revenue during fiscal 2026 and remained a named demand concentration.");
 

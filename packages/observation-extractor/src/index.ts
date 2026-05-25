@@ -1,5 +1,5 @@
 import type { DocumentType, NormalizedDocument, ObservationType } from "@supplystrata/core";
-import { candidateSentences } from "@supplystrata/parsers-text";
+import { candidateSentences, findNearbySnippet } from "@supplystrata/parsers-text";
 
 export type DisclosureObservationScopeKind = "company" | "component";
 export type SemanticSectionKind = "inventory" | "backlog" | "capex" | "customer_concentration" | "procurement";
@@ -103,7 +103,7 @@ export function extractDisclosureObservations(document: NormalizedDocument): Dis
   const seen = new Set<string>();
 
   for (const pattern of DISCLOSURE_OBSERVATION_PATTERNS) {
-    const citeText = findSentence(sentences, pattern);
+    const citeText = findCiteText(document.text, sentences, pattern);
     if (citeText === undefined) continue;
     const componentId = inferComponentId(citeText);
     const scope =
@@ -127,7 +127,7 @@ export function extractSemanticSections(document: NormalizedDocument): SemanticS
   const seen = new Set<string>();
 
   for (const pattern of DISCLOSURE_OBSERVATION_PATTERNS) {
-    const citeText = findSentence(sentences, pattern);
+    const citeText = findCiteText(document.text, sentences, pattern);
     if (citeText === undefined) continue;
     const componentId = inferComponentId(citeText);
     const scope =
@@ -203,8 +203,12 @@ function splitCandidateSentences(text: string): string[] {
   return candidateSentences(text, { minLength: 40, maxLength: 1200 });
 }
 
-function findSentence(sentences: readonly string[], pattern: DisclosureObservationPattern): string | undefined {
-  return sentences.find((sentence) => pattern.patterns.every((item) => item.test(sentence)) && !hasExcludedContext(sentence, pattern));
+function findCiteText(text: string, sentences: readonly string[], pattern: DisclosureObservationPattern): string | undefined {
+  const sentence = sentences.find((item) => pattern.patterns.every((regex) => regex.test(item)) && !hasExcludedContext(item, pattern));
+  if (sentence !== undefined) return sentence;
+  const snippet = findNearbySnippet(text, pattern.patterns, { beforeChars: 280, afterChars: 640, minLength: 40 });
+  if (snippet === undefined || hasExcludedContext(snippet, pattern)) return undefined;
+  return snippet;
 }
 
 function hasExcludedContext(sentence: string, pattern: DisclosureObservationPattern): boolean {
