@@ -111,7 +111,7 @@ const PROPAGATION_RULES: readonly PropagationContextRule[] = [
     question: "Can the pack describe policy, sanction, or export-control pressure along the chain?",
     ready_observation_types: ["POLICY_OBSERVATION"],
     supporting_observation_types: ["PROCUREMENT_OBSERVATION"],
-    source_purposes: ["policy"],
+    source_purposes: ["policy", "official_disclosure"],
     action_ready: "Use policy observations as external risk context and keep relation changes in review paths.",
     action_partial: "Collect policy observations from registered official or policy sources before deriving alerts.",
     action_blocked: "Add policy source targets for jurisdictions, materials, equipment, or counterparties in scope."

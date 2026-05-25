@@ -121,19 +121,19 @@ pnpm --silent cli research run --company nvidia --depth 3 --prepare-data --offic
 如果要先用无数据库路径跑 Gate 1 二源检查闭环，可以从已有 Workbench snapshot 开始。注意：当命令输出要重定向成 JSON 文件时，用 `pnpm --silent cli ...`，否则 pnpm 的脚本横幅会一起写进文件头，导致后续 `--source-target-preflight` 不能按纯 JSON 解析。
 
 ```bash
-pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --trade-month 2025-12 --commodity-month 2025-12 --source-target-namespace nvidia-memory-2025 --out reports/gate1-action-batch-check
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --source-target-namespace nvidia-memory-2025 --out reports/gate1-action-batch-check
 pnpm --silent cli sources policy smoke-plan-targets --source-plan reports/gate1-action-batch-check/corroboration-source-plan-smoke.json --namespace nvidia-memory-2025 --limit 5 --format json > reports/gate1-action-batch-check/corroboration-source-plan-smoke-result.json
-pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --trade-month 2025-12 --commodity-month 2025-12 --source-target-namespace nvidia-memory-2025 --source-target-preflight reports/gate1-action-batch-check/corroboration-source-plan-smoke-result.json --out reports/gate1-action-batch-check-with-preflight
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --source-target-namespace nvidia-memory-2025 --source-target-preflight reports/gate1-action-batch-check/corroboration-source-plan-smoke-result.json --out reports/gate1-action-batch-check-with-preflight
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/gate1-action-batch-check-with-preflight/corroboration-source-plan-sync.json --namespace nvidia-memory-2025 --format markdown
 ```
 
-第一步会根据当前 Workbench、target profile 和官方披露年份生成 `corroboration-source-plan-smoke.json` 等 action-specific 批次。第二步只对需要 `smoke_target` 的二源 target 执行 plan/fetch/normalize 预检，不写数据库。第三步把 smoke 结果回灌进 research-pack，`corroboration-source-plan` 的 next action 会从笼统的 smoke 细化成 `sync_target`、`configure_credentials`、`retry_preflight` 或 `review_observations`；`gate1-run-ledger.action_queue` 也会同步改成 review、补凭据、排查 preflight 或 sync 等精确动作，不会继续提示重复 smoke。第四步只预览已经通过 smoke、下一步确认为 `sync_target` 的目标，输出稳定 `check_target_id` 和 validation 结果；它仍然不写库。这个闭环适合没有 Postgres 的宿主 App 先体检官方源可达性，也适合本地开发时把 DART 凭据缺失、IR 超时、target config 错误这类问题提前暴露出来。只有当 sync batch 预览无 error、且研究员确认目标应该进入持续监控后，才进入后面的 `sync-plan-targets / enable-plan-targets / due / run-due`。
+第一步会根据当前 Workbench、target profile 和默认 source-plan 窗口生成 `corroboration-source-plan-smoke.json` 等 action-specific 批次；默认窗口由 `generatedAt` 派生：官方披露和年度材料观测取上一 UTC 年，贸易和商品价格观测取上一 UTC 月。需要复现历史研究时仍可显式传 `--official-year`、`--trade-month`、`--commodity-month` 或 `--material-year` 覆盖。第二步只对需要 `smoke_target` 的二源 target 执行 plan/fetch/normalize 预检，不写数据库。第三步把 smoke 结果回灌进 research-pack，`corroboration-source-plan` 的 next action 会从笼统的 smoke 细化成 `sync_target`、`configure_credentials`、`retry_preflight` 或 `review_observations`；`gate1-run-ledger.action_queue` 也会同步改成 review、补凭据、排查 preflight 或 sync 等精确动作，不会继续提示重复 smoke。第四步只预览已经通过 smoke、下一步确认为 `sync_target` 的目标，输出稳定 `check_target_id` 和 validation 结果；它仍然不写库。这个闭环适合没有 Postgres 的宿主 App 先体检官方源可达性，也适合本地开发时把 DART 凭据缺失、IR 超时、target config 错误这类问题提前暴露出来。只有当 sync batch 预览无 error、且研究员确认目标应该进入持续监控后，才进入后面的 `sync-plan-targets / enable-plan-targets / due / run-due`。
 
 ```bash
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --format markdown
 pnpm --silent cli sources policy preview-plan-targets --source-plan reports/nvidia-research-pack/corroboration-source-plan.json --namespace nvidia-memory-2025 --format markdown
 pnpm --silent cli sources policy smoke-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --source sec-edgar --limit 2 --format json > reports/nvidia-research-pack/source-target-preflight.json
-pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --source-target-namespace nvidia-memory-2025 --source-target-preflight reports/nvidia-research-pack/source-target-preflight.json --out reports/nvidia-monitoring-loop-snapshot
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --source-target-namespace nvidia-memory-2025 --source-target-preflight reports/nvidia-research-pack/source-target-preflight.json --out reports/nvidia-monitoring-loop-snapshot
 pnpm --silent cli sources policy sync-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025
 pnpm --silent cli sources policy sync-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --enable --check-cadence-minutes 10080 --jitter-minutes 120
 pnpm --silent cli sources policy enable-plan-targets --source-plan reports/nvidia-research-pack/source-plan.json --namespace nvidia-memory-2025 --next-check-at 2026-05-19T00:00:00.000Z --check-cadence-minutes 10080 --jitter-minutes 120
@@ -152,7 +152,7 @@ DB-backed `sources run-due` 的 Markdown summary 会显示每份文档产生的 
 如果当前环境没有 SQL truth store，也可以先用静态 Workbench 跑同一套 source-plan / readiness 输出：
 
 ```bash
-pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --official-year 2025 --source-target-namespace nvidia-memory-2025 --out reports/nvidia-monitoring-loop-snapshot
+pnpm --silent cli research from-workbench --workbench reports/nvidia-workbench.json --component COMP-HBM,COMP-MEMORY --source-target-namespace nvidia-memory-2025 --out reports/nvidia-monitoring-loop-snapshot
 ```
 
 静态 snapshot 不连接 Postgres，因此 `source-target-coverage.json/md` 会把 expected targets 全部标为 `not_synced`。这不是假闭环，而是迁入宿主 App 前的可审计准备态：它明确告诉调用方“source-plan 已生成稳定 target id，但还没有进入 source_check_targets”。真正持久化闭环仍要由上面的 `sync-plan-targets / enable-plan-targets / due / run-due` 在可达 SQL truth store 上执行。

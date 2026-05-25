@@ -179,7 +179,12 @@ describe("research-pack", () => {
         policy: "reasoning_input_only_no_fact_mutation"
       })
     );
-    expect(report.items.find((item) => item.context_kind === "policy_or_export_control_signal")?.status).toBe("blocked");
+    expect(report.items.find((item) => item.context_kind === "policy_or_export_control_signal")).toEqual(
+      expect.objectContaining({
+        status: "partial",
+        source_plan_refs: ["source_plan:samsung-ir"]
+      })
+    );
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
     expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");
   });
@@ -409,6 +414,16 @@ describe("research-pack", () => {
       })
     );
     expect(secTargets.some((target) => target.target_config["cik"] === "0001045810" && target.target_config["entity_id"] === "ENT-NVIDIA")).toBe(true);
+    const censusTargets = pack.source_plan.find((item) => item.source_id === "census-trade")?.suggested_check_targets ?? [];
+    const defaultWindowTradeTarget = censusTargets.find((target) => target.target_config["time"] === "2026-04");
+    expect(defaultWindowTradeTarget?.source_adapter_id).toBe("census-trade");
+    expect(defaultWindowTradeTarget?.target_kind).toBe("trade-flow-observation");
+    expect(defaultWindowTradeTarget?.runnable).toBe(true);
+    const samsungTargets = pack.source_plan.find((item) => item.source_id === "samsung-ir")?.suggested_check_targets ?? [];
+    const defaultWindowOfficialTarget = samsungTargets.find((target) => target.target_config["year"] === 2025);
+    expect(defaultWindowOfficialTarget?.source_adapter_id).toBe("samsung-ir");
+    expect(defaultWindowOfficialTarget?.target_kind).toBe("official-html-disclosure");
+    expect(defaultWindowOfficialTarget?.runnable).toBe(true);
     expect(pack.source_target_coverage.namespace).toBe("nvidia-memory-2025");
     expect(pack.source_target_coverage.summary.expected_targets).toBeGreaterThan(0);
     expect(pack.source_target_coverage.summary.not_synced).toBe(pack.source_target_coverage.summary.expected_targets);

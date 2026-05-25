@@ -20,6 +20,7 @@ import { buildQuestionReadinessMatrix } from "./question-readiness.js";
 import { selectResearchTargetProfile, type ResearchTargetProfile, type ResearchTargetProfileSelection } from "./research-target-profile.js";
 import { maybeBuildClaims, maybeRefreshComponentRiskViews, maybeRefreshIntelligence, resolveResearchPackWriteSteps } from "./prepare-data.js";
 import { buildExpectedSourceTargetCoverageReport, buildSourceTargetCoverageReport } from "./source-target-coverage.js";
+import { withSourcePlanWindowDefaults } from "./source-plan-windows.js";
 import { buildSupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 export type * from "./definitions.js";
 import type { ResearchPackInput, ResearchPackModel, WorkbenchSnapshotPackInput, WorkbenchSnapshotPackModel } from "./definitions.js";
@@ -42,6 +43,7 @@ export { safeFileSegment, writeResearchPack, writeWorkbenchSnapshotPack } from "
 
 export async function buildResearchPack(client: DatabaseStore, input: ResearchPackInput): Promise<ResearchPackModel> {
   const generatedAt = input.generatedAt;
+  const sourcePlanInputWithDefaults = withSourcePlanWindowDefaults(input, generatedAt);
   const depth = input.depth ?? 3;
   const writeSteps = resolveResearchPackWriteSteps(input);
   const claimBuild = await maybeBuildClaims(client, writeSteps, input);
@@ -64,7 +66,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   const sourcePlan =
     components.length === 0 && officialDisclosureTargetNodes.length === 0
       ? []
-      : planSourcesForComponents(sourcePlanInput(input, components, depth, officialDisclosureTargetNodes));
+      : planSourcesForComponents(sourcePlanInput(sourcePlanInputWithDefaults, components, depth, officialDisclosureTargetNodes));
   const sourceTargetCoverage = await buildSourceTargetCoverageReport({
     client: client.read,
     generated_at: generatedAt,
@@ -148,7 +150,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   });
   const manifest = manifestFromModel({
     generatedAt,
-    input,
+    input: sourcePlanInputWithDefaults,
     depth,
     workbench,
     components,
@@ -188,7 +190,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     gate1_run_ledger: buildGate1RunLedger({
       generated_at: generatedAt,
       company_id: workbench.selected_company_id,
-      research_input: input,
+      research_input: sourcePlanInputWithDefaults,
       official_disclosure_readiness: officialDisclosureReadiness,
       corroboration_source_plan: corroborationSourcePlan,
       supply_chain_expansion_plan: supplyChainExpansionPlan,
@@ -201,6 +203,8 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
 export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput): WorkbenchSnapshotPackModel {
   const depth = input.depth ?? input.workbench.chain.max_depth;
   const components = collectResearchComponentIds(input.workbench, input.components ?? []);
+  const generatedAt = input.generatedAt ?? input.workbench.generated_at;
+  const sourcePlanInputWithDefaults = withSourcePlanWindowDefaults(input, generatedAt);
   const targetProfileSelection = selectResearchTargetProfile({
     ...(input.researchTargetProfileId === undefined ? {} : { profile_id: input.researchTargetProfileId }),
     company_id: input.workbench.selected_company_id,
@@ -210,26 +214,25 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
   const sourcePlan =
     components.length === 0 && officialDisclosureTargetNodes.length === 0
       ? input.workbench.source_plan
-      : planSourcesForComponents(sourcePlanInput(input, components, depth, officialDisclosureTargetNodes));
-  const generatedAt = input.generatedAt ?? input.workbench.generated_at;
+      : planSourcesForComponents(sourcePlanInput(sourcePlanInputWithDefaults, components, depth, officialDisclosureTargetNodes));
   const dataQuality = emptyStaticDataQualitySummary(generatedAt);
   const staticInput: ResearchPackInput = {
     company: input.workbench.selected_company_id,
     components,
     depth,
     generatedAt,
-    ...(input.tradeObservationMonth === undefined
+    tradeObservationMonth: sourcePlanInputWithDefaults.tradeObservationMonth,
+    ...(sourcePlanInputWithDefaults.tradeObservationCountryCode === undefined
       ? {}
-      : {
-          tradeObservationMonth: input.tradeObservationMonth,
-          ...(input.tradeObservationCountryCode === undefined ? {} : { tradeObservationCountryCode: input.tradeObservationCountryCode }),
-          ...(input.tradeObservationDirections === undefined ? {} : { tradeObservationDirections: input.tradeObservationDirections })
-        }),
-    ...(input.officialDisclosureYear === undefined ? {} : { officialDisclosureYear: input.officialDisclosureYear }),
+      : { tradeObservationCountryCode: sourcePlanInputWithDefaults.tradeObservationCountryCode }),
+    ...(sourcePlanInputWithDefaults.tradeObservationDirections === undefined
+      ? {}
+      : { tradeObservationDirections: sourcePlanInputWithDefaults.tradeObservationDirections }),
+    officialDisclosureYear: sourcePlanInputWithDefaults.officialDisclosureYear,
     ...(input.researchTargetProfileId === undefined ? {} : { researchTargetProfileId: input.researchTargetProfileId }),
     ...(input.officialDisclosureTargetNodes === undefined ? {} : { officialDisclosureTargetNodes: input.officialDisclosureTargetNodes }),
-    ...(input.materialObservationYear === undefined ? {} : { materialObservationYear: input.materialObservationYear }),
-    ...(input.commodityObservationMonth === undefined ? {} : { commodityObservationMonth: input.commodityObservationMonth }),
+    materialObservationYear: sourcePlanInputWithDefaults.materialObservationYear,
+    commodityObservationMonth: sourcePlanInputWithDefaults.commodityObservationMonth,
     ...(input.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: input.sourceTargetNamespace }),
     ...(input.supplyChainExpansionMaxDepth === undefined ? {} : { supplyChainExpansionMaxDepth: input.supplyChainExpansionMaxDepth })
   };
