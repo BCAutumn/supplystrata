@@ -117,6 +117,16 @@ describe("Gate 1 data-depth AI compute propagation", () => {
         failure_kind: null
       })
     ]);
+    expect(item?.source_target_status_summary).toEqual({
+      targets: 1,
+      runnable_targets: 1,
+      blocked_targets: 0,
+      degraded_targets: 0,
+      missing_credentials: 0,
+      source_failed_targets: 0,
+      by_state: { scheduled: 1 },
+      by_failure_kind: {}
+    });
     expect(item?.evidence_layer_summary?.map((summary) => [summary.layer_kind, summary.count])).toEqual([
       ["unknown", 2],
       ["source_target", 2],
@@ -175,6 +185,16 @@ describe("Gate 1 data-depth AI compute propagation", () => {
         failure_kind: "missing_credentials"
       })
     ]);
+    expect(blockedItem?.source_target_status_summary).toEqual({
+      targets: 1,
+      runnable_targets: 0,
+      blocked_targets: 1,
+      degraded_targets: 0,
+      missing_credentials: 1,
+      source_failed_targets: 0,
+      by_state: { retry_wait: 1 },
+      by_failure_kind: { missing_credentials: 1 }
+    });
     expect(workbenchModel.summary.ai_compute_propagation_blocked_source).toBe(1);
 
     const batch = buildGate1DataDepthActionBatch(workbenchModel, gate1DataDepthActionBatchDefinition("intelligence_context"));
@@ -190,6 +210,9 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Action source groups: official_evidence");
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
       'Official evidence gaps: official_source_not_reviewed:source_group:official_evidence action="Run this source target through review paths."'
+    );
+    expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
+      "Source target status summary: targets=1; runnable=1; blocked=0; degraded=0; missing_credentials=0; source_failed=0; by_state=scheduled=1; by_failure=none"
     );
   });
 });

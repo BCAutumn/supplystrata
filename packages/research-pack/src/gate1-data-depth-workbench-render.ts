@@ -55,6 +55,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     if (item.official_evidence_gaps !== undefined && item.official_evidence_gaps.length > 0) {
       lines.push(`- Official evidence gaps: ${item.official_evidence_gaps.map(formatOfficialEvidenceGap).join("; ")}`);
     }
+    if (item.source_target_status_summary !== undefined && item.source_target_status_summary.targets > 0) {
+      lines.push(`- Source target status summary: ${formatSourceTargetStatusSummary(item.source_target_status_summary)}`);
+    }
     if (item.command_hints.length > 0) {
       lines.push("- Command hints:");
       for (const hint of item.command_hints) {
@@ -108,6 +111,28 @@ function formatEvidenceLayerSummary(value: { layer_kind: string; count: number; 
 
 function formatOfficialEvidenceGap(value: { gap_kind: string; target_kind: string; target_id: string; recommended_action: string }): string {
   return `${value.gap_kind}:${value.target_kind}:${value.target_id} action="${value.recommended_action}"`;
+}
+
+function formatSourceTargetStatusSummary(value: {
+  targets: number;
+  runnable_targets: number;
+  blocked_targets: number;
+  degraded_targets: number;
+  missing_credentials: number;
+  source_failed_targets: number;
+  by_state: Record<string, number>;
+  by_failure_kind: Record<string, number>;
+}): string {
+  return [
+    `targets=${value.targets}`,
+    `runnable=${value.runnable_targets}`,
+    `blocked=${value.blocked_targets}`,
+    `degraded=${value.degraded_targets}`,
+    `missing_credentials=${value.missing_credentials}`,
+    `source_failed=${value.source_failed_targets}`,
+    `by_state=${formatCountMap(value.by_state)}`,
+    `by_failure=${formatCountMap(value.by_failure_kind)}`
+  ].join("; ");
 }
 
 function formatCountMap(counts: Record<string, number>): string {
