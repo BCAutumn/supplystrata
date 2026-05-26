@@ -64,7 +64,8 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         edge_ids: layer.fact_edge_refs.map((ref) => ref.replace("edge:", "")),
         component_ids: layer.component_ids,
         source_adapters: sourceAdaptersForLayer(layer),
-        source_targets: sourceTargetsForLayer(layer)
+        source_targets: sourceTargetsForLayer(layer),
+        evidence_layer_summary: layer.evidence_layer_summary
       })
     );
 }
@@ -260,6 +261,7 @@ function workItem(
     component_ids: uniqueSorted(input.component_ids).slice(0, 40),
     source_adapters: uniqueSorted(input.source_adapters).slice(0, 20),
     source_targets: input.source_targets.slice(0, 40),
+    evidence_layer_summary: input.evidence_layer_summary ?? [],
     allowed_decisions: uniquePreserveOrder(input.allowed_decisions),
     command_hints: input.command_hints.slice(0, 8),
     ranking_contexts: [],

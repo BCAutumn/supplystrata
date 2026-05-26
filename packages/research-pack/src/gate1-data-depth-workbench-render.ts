@@ -46,6 +46,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     lines.push(`- Recommended decision: ${item.recommended_decision}`);
     lines.push(`- Allowed decisions: ${item.allowed_decisions.join(", ")}`);
     lines.push(`- Write impact: ${item.write_impact}`);
+    if (item.evidence_layer_summary !== undefined && item.evidence_layer_summary.length > 0) {
+      lines.push(`- Evidence layer summary: ${item.evidence_layer_summary.map(formatEvidenceLayerSummary).join("; ")}`);
+    }
     if (item.command_hints.length > 0) {
       lines.push("- Command hints:");
       for (const hint of item.command_hints) {
@@ -91,6 +94,10 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     lines.push("");
   }
   return lines.join("\n");
+}
+
+function formatEvidenceLayerSummary(value: { layer_kind: string; count: number; prohibited_truth_store_writes: readonly string[] }): string {
+  return `${value.layer_kind}=${value.count} prohibited=${value.prohibited_truth_store_writes.join("|")}`;
 }
 
 function formatCountMap(counts: Record<string, number>): string {

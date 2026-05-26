@@ -3,6 +3,7 @@ import {
   buildPropagationReadinessReport,
   buildGate1DataDepthActionBatch,
   buildGate1DataDepthWorkbench,
+  renderGate1DataDepthWorkbenchMarkdown,
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
   type Gate1AdjacentOfficialFactsReport,
@@ -115,6 +116,14 @@ describe("Gate 1 data-depth AI compute propagation", () => {
         failure_kind: null
       })
     ]);
+    expect(item?.evidence_layer_summary?.map((summary) => [summary.layer_kind, summary.count])).toEqual([
+      ["unknown", 2],
+      ["source_target", 2],
+      ["official_evidence_gap", 3]
+    ]);
+    expect(item?.evidence_layer_summary?.find((summary) => summary.layer_kind === "source_target")?.prohibited_truth_store_writes).toEqual([
+      "create_fact_edge"
+    ]);
     expect(item?.command_hints[0]?.command).toContain("--source asml-ir");
     expect(workbenchModel.summary.ai_compute_propagation_layers_not_covered).toBe(2);
     expect(workbenchModel.summary.ai_compute_propagation_unknown_open).toBe(0);
@@ -161,6 +170,10 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     const batch = buildGate1DataDepthActionBatch(workbenchModel, gate1DataDepthActionBatchDefinition("intelligence_context"));
     expect(batch.items.some((candidate) => candidate.item_id === "gate1-ai-compute-propagation:construction_to_equipment")).toBe(true);
     expect(batch.items.some((candidate) => candidate.item_id === "gate1-ai-compute-propagation:equipment_to_process_inputs")).toBe(true);
+    expect(batch.items.find((candidate) => candidate.item_id === "gate1-ai-compute-propagation:construction_to_equipment")?.evidence_layer_summary).toEqual(
+      item?.evidence_layer_summary
+    );
+    expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Evidence layer summary: unknown=2");
   });
 });
 
