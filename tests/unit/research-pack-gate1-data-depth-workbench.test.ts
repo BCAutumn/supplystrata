@@ -178,6 +178,16 @@ describe("Gate 1 data-depth entity context", () => {
     expect(item?.command_hints[0]?.command).toContain("--source-target-namespace research-ent-ibiden");
     expect(item?.command_hints[0]?.command).toContain("--out reports/ent-ibiden-comp-pcb-research-pack");
     expect(item?.command_hints.some((hint) => hint.command.includes("--company ENT-NVIDIA"))).toBe(false);
+    const factGrowthItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-gap:official-disclosure:l4-l5-edge-coverage");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("--company ENT-NVIDIA");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("--component");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("COMP-PCB");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("--depth 4");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("--target-profile ai-compute-memory.v0");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("--official-year 2025");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("--source-target-namespace research-ent-nvidia");
+    expect(factGrowthItem?.command_hints[0]?.command).toContain("--out reports/ent-nvidia-");
+    expect(factGrowthItem?.command_hints[0]?.command).not.toContain("<research-pack-out>");
     expect(item?.ranking_contexts[0]).toEqual(
       expect.objectContaining({
         context_id: "ranking:adjacent-company:COMP-PCB:adjacent-company-ranking.v1",
@@ -211,6 +221,43 @@ describe("Gate 1 data-depth entity context", () => {
     const batch = buildGate1DataDepthActionBatch(workbenchModel, gate1DataDepthActionBatchDefinition("adjacent_facts"));
     expect(batch.summary.items).toBe(1);
     expect(batch.items[0]?.write_impact).toContain("No fact edge mutation");
+  });
+
+  it("uses runnable company frontier commands and skips blocked facility frontier candidates", () => {
+    const sourceTargetCoverage = officialSourceTargetCoverage("succeeded");
+    const readiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: workbenchWithSamsungMemoryEdge(),
+      component_ids: ["COMP-WAFER"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: sourceTargetCoverage
+    });
+
+    const workbenchModel = buildGate1DataDepthWorkbench({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_context: {
+        depth: 4,
+        official_disclosure_year: "2025",
+        research_target_profile_id: "ai-compute-memory.v0"
+      },
+      official_disclosure_readiness: readiness,
+      source_target_coverage: sourceTargetCoverage,
+      supply_chain_expansion_plan: expansionPlanWithBlockedFacilityAndReadyCompany(),
+      propagation_readiness: emptyPropagationReadinessReport(),
+      adjacent_official_facts: adjacentOfficialFactsReport(),
+      entity_affiliation_contexts: []
+    });
+
+    const frontierItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-frontier:recursive-depth");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--company ENT-TSMC");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--component COMP-WAFER");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--target-profile ai-compute-memory.v0");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--official-year 2025");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--source-target-namespace research-ent-tsmc");
+    expect(frontierItem?.command_hints[0]?.command).not.toContain("ENT-FAC-");
+    expect(frontierItem?.command_hints[0]?.command).not.toContain("<research-pack-out>");
   });
 });
 
@@ -469,6 +516,60 @@ function emptySupplyChainExpansionPlan(): SupplyChainExpansionPlan {
     frontier: [],
     component_dependency_leads: [],
     stop_conditions: []
+  };
+}
+
+function expansionPlanWithBlockedFacilityAndReadyCompany(): SupplyChainExpansionPlan {
+  const empty = emptySupplyChainExpansionPlan();
+  return {
+    ...empty,
+    summary: {
+      ...empty.summary,
+      fact_edges_considered: 2,
+      frontier_edges: 2,
+      frontier_companies: 2,
+      blocked_frontier_edges: 1
+    },
+    frontier: [
+      {
+        frontier_id: "SCF-FACILITY",
+        edge_id: "EDGE-FACILITY",
+        path_depth: 1,
+        expansion_state: "needs_component_context",
+        from_id: "ENT-NVIDIA",
+        from_name: "NVIDIA",
+        to_id: "ENT-FAC-UNIT-TEST",
+        to_name: "Facility test node",
+        next_company_id: "ENT-FAC-UNIT-TEST",
+        next_company_name: "Facility test node",
+        relation: "facility",
+        component_id: null,
+        evidence_level: 4,
+        unknown_ids: [],
+        source_plan_refs: [],
+        rationale: "Missing component context.",
+        action: "Backfill component context."
+      },
+      {
+        frontier_id: "SCF-TSMC",
+        edge_id: "EDGE-TSMC",
+        path_depth: 1,
+        expansion_state: "expand_candidate",
+        from_id: "ENT-NVIDIA",
+        from_name: "NVIDIA",
+        to_id: "ENT-TSMC",
+        to_name: "TSMC",
+        next_company_id: "ENT-TSMC",
+        next_company_name: "TSMC",
+        relation: "supplier",
+        component_id: "COMP-WAFER",
+        evidence_level: 5,
+        unknown_ids: [],
+        source_plan_refs: [],
+        rationale: "Ready company frontier.",
+        action: "Run recursive company research."
+      }
+    ]
   };
 }
 

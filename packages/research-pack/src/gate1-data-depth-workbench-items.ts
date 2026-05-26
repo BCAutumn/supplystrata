@@ -23,6 +23,14 @@ import {
   rankAdjacentOfficialFactCompanyCandidates,
   type AdjacentCompanyCandidate
 } from "./gate1-adjacent-company-ranking.js";
+import {
+  adjacentOfficialFactResearchCommand,
+  focusedResearchComponents,
+  frontierResearchCommand,
+  researchNamespace,
+  researchOutDir,
+  researchRunCommand
+} from "./gate1-data-depth-research-commands.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
@@ -31,14 +39,14 @@ const REVIEW_POLICY = "review_only_no_fact_mutation";
 
 export function buildGate1DataDepthItems(input: Gate1DataDepthWorkbenchInput): Gate1DataDepthWorkbenchItem[] {
   return [
-    ...gapWorkItems(input.official_disclosure_readiness.gaps),
+    ...gapWorkItems(input.official_disclosure_readiness.gaps, input.company_id, input.research_context),
     ...sourceBlockerItems(input.source_target_coverage),
-    ...entityAffiliationWorkItems(input.entity_affiliation_contexts ?? [], input.official_disclosure_readiness),
+    ...entityAffiliationWorkItems(input.entity_affiliation_contexts ?? [], input.official_disclosure_readiness, input.research_context),
     ...adjacentOfficialFactItems(input.adjacent_official_facts.edges, input.company_id, input.ranking_calibration_labels ?? [], input.research_context),
     ...corroborationWorkItems(input.official_disclosure_readiness.corroboration_queue),
     ...observationCalibrationItems(input.source_target_coverage),
     ...propagationWorkItems(input.propagation_readiness),
-    ...frontierWorkItems(input.supply_chain_expansion_plan)
+    ...frontierWorkItems(input.supply_chain_expansion_plan, input.research_context)
   ];
 }
 
@@ -87,7 +95,11 @@ function adjacentOfficialFactItems(
   });
 }
 
-function gapWorkItems(gaps: readonly OfficialDisclosureReadinessGap[]): Gate1DataDepthWorkbenchItem[] {
+function gapWorkItems(
+  gaps: readonly OfficialDisclosureReadinessGap[],
+  companyId: string,
+  researchContext: Gate1DataDepthResearchContext | undefined
+): Gate1DataDepthWorkbenchItem[] {
   return gaps.map((gap) =>
     workItem({
       item_id: `gate1-gap:${gap.gap_id}`,
@@ -100,7 +112,7 @@ function gapWorkItems(gaps: readonly OfficialDisclosureReadinessGap[]): Gate1Dat
       recommended_decision: decisionForGap(gap.kind),
       allowed_decisions: allowedDecisionsForGap(gap.kind),
       write_impact: writeImpactForGap(gap.kind),
-      command_hints: commandHintsForGap(gap),
+      command_hints: commandHintsForGap(gap, companyId, researchContext),
       refs: gapRefs(gap),
       edge_ids: gap.edge_ids,
       component_ids: gap.component_ids,
@@ -174,7 +186,8 @@ function corroborationWorkItems(queue: readonly OfficialDisclosureCorroborationQ
 
 function entityAffiliationWorkItems(
   contexts: readonly Gate1EntityAffiliationContext[],
-  report: Gate1DataDepthWorkbenchInput["official_disclosure_readiness"]
+  report: Gate1DataDepthWorkbenchInput["official_disclosure_readiness"],
+  researchContext: Gate1DataDepthResearchContext | undefined
 ): Gate1DataDepthWorkbenchItem[] {
   return contexts.map((context) => {
     const parentNode = report.nodes.find((node) => node.node_id === context.parent_entity_id);
@@ -196,7 +209,7 @@ function entityAffiliationWorkItems(
       recommended_decision: "review_entity_affiliation",
       allowed_decisions: ["review_entity_affiliation", "run_recursive_company_research", "keep_unknown_open", "defer"],
       write_impact: "May record review disposition or choose a research scope; must not merge entities or propagate fact edges automatically.",
-      command_hints: entityContextCommandHints(context),
+      command_hints: entityContextCommandHints(context, researchContext),
       refs: uniqueSorted([
         `entity:${context.subject_entity_id}`,
         `entity:${context.parent_entity_id}`,
@@ -268,7 +281,7 @@ function propagationWorkItems(report: Gate1DataDepthWorkbenchInput["propagation_
     );
 }
 
-function frontierWorkItems(plan: SupplyChainExpansionPlan): Gate1DataDepthWorkbenchItem[] {
+function frontierWorkItems(plan: SupplyChainExpansionPlan, researchContext: Gate1DataDepthResearchContext | undefined): Gate1DataDepthWorkbenchItem[] {
   if (plan.summary.blocked_frontier_edges === 0 && plan.summary.component_dependency_leads === 0) return [];
   return [
     workItem({
@@ -284,7 +297,7 @@ function frontierWorkItems(plan: SupplyChainExpansionPlan): Gate1DataDepthWorkbe
       allowed_decisions: ["run_recursive_company_research", "defer"],
       write_impact:
         "Running research may refresh derived context and source targets when explicitly prepared; component leads remain non-fact until review-approved evidence exists.",
-      command_hints: frontierCommandHints(plan),
+      command_hints: frontierCommandHints(plan, researchContext),
       refs: uniqueSorted([
         ...plan.frontier.slice(0, 20).map((item) => `supply_chain_frontier:${item.frontier_id}`),
         ...plan.component_dependency_leads.slice(0, 20).map((lead) => `component_dependency:${lead.dependency_id}`)
@@ -357,14 +370,25 @@ function writeImpactForGap(kind: OfficialDisclosureReadinessGap["kind"]): string
   return "May run another research/export loop; any new relation still requires review-approved evidence before it becomes a fact edge.";
 }
 
-function commandHintsForGap(gap: OfficialDisclosureReadinessGap): Gate1DataDepthCommandHint[] {
+function commandHintsForGap(
+  gap: OfficialDisclosureReadinessGap,
+  companyId: string,
+  researchContext: Gate1DataDepthResearchContext | undefined
+): Gate1DataDepthCommandHint[] {
   if (gap.kind === "expected_official_source_coverage" || gap.kind === "traceability") return sourcePlanCommandHints(gap.source_adapters);
   if (gap.kind === "corroboration_or_disposition_coverage") return corroborationCommandHints();
   if (gap.kind === "core_node_coverage" || gap.kind === "level_4_5_edge_coverage") {
+    const componentIds = focusedResearchComponents(gap.component_ids);
     return [
       commandHint(
         "Run next company research loop",
-        "pnpm --silent cli research run --company <next-company-id> --depth 3 --prepare-data --out <research-pack-out>",
+        researchRunCommand({
+          company_id: companyId,
+          component_ids: componentIds,
+          research_context: researchContext,
+          source_target_namespace: researchNamespace(companyId),
+          out_dir: researchOutDir(companyId, componentIds)
+        }),
         true,
         true
       )
@@ -437,16 +461,9 @@ function corroborationCommandHints(item?: OfficialDisclosureCorroborationQueueIt
   ];
 }
 
-function frontierCommandHints(plan: SupplyChainExpansionPlan): Gate1DataDepthCommandHint[] {
-  const nextCompanyId = plan.frontier.find((item) => item.next_company_id !== null)?.next_company_id ?? "<next-company-id>";
-  return [
-    commandHint(
-      "Run recursive company research",
-      `pnpm --silent cli research run --company ${nextCompanyId} --depth 3 --prepare-data --out <research-pack-out>`,
-      true,
-      true
-    )
-  ];
+function frontierCommandHints(plan: SupplyChainExpansionPlan, researchContext: Gate1DataDepthResearchContext | undefined): Gate1DataDepthCommandHint[] {
+  const command = frontierResearchCommand(plan, researchContext);
+  return command === null ? [] : [commandHint("Run recursive company research", command, true, true)];
 }
 
 function adjacentOfficialFactCommandHints(
@@ -454,16 +471,7 @@ function adjacentOfficialFactCommandHints(
   componentId: string,
   researchContext: Gate1DataDepthResearchContext | undefined
 ): Gate1DataDepthCommandHint[] {
-  if (candidates.length === 0) {
-    return [
-      commandHint(
-        "Run adjacent official-fact company research",
-        adjacentOfficialFactResearchCommand("<adjacent-company-id>", componentId, researchContext),
-        true,
-        true
-      )
-    ];
-  }
+  if (candidates.length === 0) return [];
   return candidates.map((candidate) =>
     commandHint(
       `Run adjacent official-fact research for ${candidate.company_name}`,
@@ -472,31 +480,6 @@ function adjacentOfficialFactCommandHints(
       true
     )
   );
-}
-
-function adjacentOfficialFactResearchCommand(companyId: string, componentId: string, researchContext: Gate1DataDepthResearchContext | undefined): string {
-  const depth = researchContext?.depth ?? 3;
-  const parts = ["pnpm --silent cli research run", `--company ${companyId}`, `--component ${componentId}`, `--depth ${depth}`, "--prepare-data"];
-  if (researchContext?.research_target_profile_id !== undefined) parts.push(`--target-profile ${researchContext.research_target_profile_id}`);
-  if (researchContext?.official_disclosure_year !== undefined) parts.push(`--official-year ${researchContext.official_disclosure_year}`);
-  parts.push(`--source-target-namespace ${adjacentResearchNamespace(companyId)}`);
-  parts.push(`--out ${adjacentResearchOutDir(companyId, componentId)}`);
-  return parts.join(" ");
-}
-
-function adjacentResearchNamespace(companyId: string): string {
-  return `research-${slugForCommand(companyId)}`;
-}
-
-function adjacentResearchOutDir(companyId: string, componentId: string): string {
-  return `reports/${slugForCommand(companyId)}-${slugForCommand(componentId)}-research-pack`;
-}
-
-function slugForCommand(value: string): string {
-  return value
-    .toLocaleLowerCase("en-US")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
 }
 
 function adjacentOfficialFactRankingContexts(
@@ -562,7 +545,10 @@ function latestFirst<T extends { reviewed_at: string; label_id: string }>(labels
   });
 }
 
-function entityContextCommandHints(context: Gate1EntityAffiliationContext): Gate1DataDepthCommandHint[] {
+function entityContextCommandHints(
+  context: Gate1EntityAffiliationContext,
+  researchContext: Gate1DataDepthResearchContext | undefined
+): Gate1DataDepthCommandHint[] {
   const dispositionHint = commandHint(
     "Record affiliation disposition",
     `pnpm --silent cli review entity-affiliation-disposition ${context.context_id} --subject ${context.subject_entity_id} --parent ${context.parent_entity_id} --decision research_parent_entity --reviewer <reviewer> --reason "<why the parent legal-entity scope is appropriate>"${entityContextOptionalRefFlags(
@@ -576,7 +562,13 @@ function entityContextCommandHints(context: Gate1EntityAffiliationContext): Gate
   return [
     commandHint(
       "Run reviewed parent entity research loop",
-      `pnpm --silent cli research run --company ${context.parent_entity_id} --depth 3 --prepare-data --out <research-pack-out>`,
+      researchRunCommand({
+        company_id: context.parent_entity_id,
+        component_ids: context.component_ids,
+        research_context: researchContext,
+        source_target_namespace: researchNamespace(context.parent_entity_id),
+        out_dir: researchOutDir(context.parent_entity_id, context.component_ids)
+      }),
       true,
       true
     )
