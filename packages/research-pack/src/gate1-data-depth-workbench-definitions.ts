@@ -1,7 +1,7 @@
 import type { RankingCalibrationLabel } from "@supplystrata/core";
 import type { SourceTargetCoverageState } from "@supplystrata/source-monitor";
 import type { Gate1AdjacentOfficialFactsReport } from "./gate1-adjacent-official-facts.js";
-import type { AiComputePropagationEvidenceLayerSummary } from "./ai-compute-propagation-readiness-definitions.js";
+import type { AiComputePropagationEvidenceLayerSummary, AiComputePropagationSourceTargetGroupKind } from "./ai-compute-propagation-readiness-definitions.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { PropagationReadinessReport } from "./propagation-readiness.js";
@@ -152,6 +152,7 @@ export interface Gate1DataDepthWorkbenchItem {
   component_ids: string[];
   source_adapters: string[];
   source_targets: Gate1DataDepthSourceTargetRef[];
+  action_source_groups?: AiComputePropagationSourceTargetGroupKind[];
   evidence_layer_summary?: AiComputePropagationEvidenceLayerSummary[];
 }
 

@@ -46,6 +46,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     lines.push(`- Recommended decision: ${item.recommended_decision}`);
     lines.push(`- Allowed decisions: ${item.allowed_decisions.join(", ")}`);
     lines.push(`- Write impact: ${item.write_impact}`);
+    if (item.action_source_groups !== undefined && item.action_source_groups.length > 0) {
+      lines.push(`- Action source groups: ${item.action_source_groups.join(", ")}`);
+    }
     if (item.evidence_layer_summary !== undefined && item.evidence_layer_summary.length > 0) {
       lines.push(`- Evidence layer summary: ${item.evidence_layer_summary.map(formatEvidenceLayerSummary).join("; ")}`);
     }

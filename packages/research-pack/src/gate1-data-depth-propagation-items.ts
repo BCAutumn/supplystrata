@@ -8,7 +8,8 @@ import type {
 import type {
   AiComputePropagationLayer,
   AiComputePropagationLayerStatus,
-  AiComputePropagationOfficialEvidenceGap
+  AiComputePropagationOfficialEvidenceGap,
+  AiComputePropagationSourceTargetGroupKind
 } from "./ai-compute-propagation-readiness.js";
 import type { PropagationReadinessReport } from "./propagation-readiness.js";
 
@@ -44,8 +45,11 @@ function propagationContextWorkItems(report: PropagationReadinessReport): Gate1D
 function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): Gate1DataDepthWorkbenchItem[] {
   return layers
     .filter((layer) => layer.status !== "covered_fact" || layer.official_evidence_gaps.length > 0)
-    .map((layer) =>
-      workItem({
+    .map((layer) => {
+      const actionSourceGroups = actionSourceGroupKindsForLayer(layer);
+      const sourceAdapters = sourceAdaptersForLayer(layer, actionSourceGroups);
+      const sourceTargets = sourceTargetsForLayer(layer, actionSourceGroups);
+      return workItem({
         item_id: `gate1-ai-compute-propagation:${layer.layer_id}`,
         priority: priorityForLayer(layer),
         title: titleForLayer(layer),
@@ -59,15 +63,16 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         allowed_decisions: allowedDecisionsForLayer(layer),
         write_impact:
           "No fact-layer write is authorized from this item. Use the refs as frontend/AI research input; only review-approved evidence may later create fact edges or close unknowns.",
-        command_hints: sourcePlanCommandHints(sourceAdaptersForLayer(layer)),
+        command_hints: sourcePlanCommandHints(sourceAdapters),
         refs: layerRefs(layer),
         edge_ids: layer.fact_edge_refs.map((ref) => ref.replace("edge:", "")),
         component_ids: layer.component_ids,
-        source_adapters: sourceAdaptersForLayer(layer),
-        source_targets: sourceTargetsForLayer(layer),
+        source_adapters: sourceAdapters,
+        source_targets: sourceTargets,
+        action_source_groups: actionSourceGroups,
         evidence_layer_summary: layer.evidence_layer_summary
-      })
-    );
+      });
+    });
 }
 
 function priorityForLayer(layer: AiComputePropagationLayer): Gate1DataDepthPriority {
@@ -154,28 +159,66 @@ function sourcePlanCommandHints(sourceAdapters: readonly string[]): Gate1DataDep
   ];
 }
 
-function sourceAdaptersForLayer(layer: AiComputePropagationLayer): string[] {
+function sourceAdaptersForLayer(layer: AiComputePropagationLayer, groupKinds: readonly AiComputePropagationSourceTargetGroupKind[]): string[] {
   return uniqueSorted([
-    ...layer.source_plan_refs.map((ref) => ref.replace("source_plan:", "")).filter((value) => value.length > 0),
-    ...layer.source_target_groups.flatMap((group) => group.source_adapters),
-    ...layer.source_target_statuses.map((item) => item.source_adapter_id)
+    ...layer.source_target_groups.filter((group) => groupKinds.includes(group.group_kind)).flatMap((group) => group.source_adapters),
+    ...layer.source_target_statuses
+      .filter((status) => sourceTargetStatusInGroups(layer, status.source_adapter_id, status.target_kind, groupKinds))
+      .map((item) => item.source_adapter_id)
   ]);
 }
 
-function sourceTargetsForLayer(layer: AiComputePropagationLayer): Gate1DataDepthSourceTargetRef[] {
+function sourceTargetsForLayer(
+  layer: AiComputePropagationLayer,
+  groupKinds: readonly AiComputePropagationSourceTargetGroupKind[]
+): Gate1DataDepthSourceTargetRef[] {
   return uniqueSourceTargets(
-    layer.source_target_statuses.map((status) => ({
-      check_target_id: checkTargetIdFromSourceTargetRef(status.ref),
-      source_adapter_id: status.source_adapter_id,
-      target_kind: status.target_kind ?? "unknown",
-      state: status.state,
-      latest_event_type: status.latest_event_type,
-      failure_kind: status.failure_kind,
-      observations: null,
-      target_entity_id: null,
-      target_component_id: null
-    }))
+    layer.source_target_statuses
+      .filter((status) => sourceTargetStatusInGroups(layer, status.source_adapter_id, status.target_kind, groupKinds))
+      .map((status) => ({
+        check_target_id: checkTargetIdFromSourceTargetRef(status.ref),
+        source_adapter_id: status.source_adapter_id,
+        target_kind: status.target_kind ?? "unknown",
+        state: status.state,
+        latest_event_type: status.latest_event_type,
+        failure_kind: status.failure_kind,
+        observations: null,
+        target_entity_id: null,
+        target_component_id: null
+      }))
   ).slice(0, 40);
+}
+
+function actionSourceGroupKindsForLayer(layer: AiComputePropagationLayer): AiComputePropagationSourceTargetGroupKind[] {
+  const kinds: AiComputePropagationSourceTargetGroupKind[] = [];
+  if (
+    layer.status === "blocked_source" ||
+    layer.status === "official_target_runnable" ||
+    layer.official_evidence_gaps.some(
+      (gap) => gap.gap_kind === "component_without_l4_l5_fact" || gap.gap_kind === "official_source_blocked" || gap.gap_kind === "official_source_not_reviewed"
+    )
+  ) {
+    kinds.push("official_evidence");
+  }
+  if (layer.official_evidence_gaps.some((gap) => gap.gap_kind === "material_or_process_without_l4_l5_fact" || gap.gap_kind === "observation_only")) {
+    kinds.push("observation_proxy");
+  }
+  if (kinds.length === 0) return ["official_evidence", "observation_proxy", "entity_or_facility_context", "lead_or_manual_review"];
+  return uniquePreserveOrder(kinds);
+}
+
+function sourceTargetStatusInGroups(
+  layer: AiComputePropagationLayer,
+  sourceAdapterId: string,
+  targetKind: string | null,
+  groupKinds: readonly AiComputePropagationSourceTargetGroupKind[]
+): boolean {
+  return layer.source_target_groups.some(
+    (group) =>
+      groupKinds.includes(group.group_kind) &&
+      group.source_adapters.includes(sourceAdapterId) &&
+      (targetKind === null || group.target_kinds.length === 0 || group.target_kinds.includes(targetKind))
+  );
 }
 
 function checkTargetIdFromSourceTargetRef(ref: string): string | null {
@@ -261,6 +304,7 @@ function workItem(
     component_ids: uniqueSorted(input.component_ids).slice(0, 40),
     source_adapters: uniqueSorted(input.source_adapters).slice(0, 20),
     source_targets: input.source_targets.slice(0, 40),
+    action_source_groups: input.action_source_groups ?? [],
     evidence_layer_summary: input.evidence_layer_summary ?? [],
     allowed_decisions: uniquePreserveOrder(input.allowed_decisions),
     command_hints: input.command_hints.slice(0, 8),

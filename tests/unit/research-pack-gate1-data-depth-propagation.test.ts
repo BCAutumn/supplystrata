@@ -107,6 +107,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.refs).toContain("unknown_seed:AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT");
     expect(item?.rationale).toContain("AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT run_source_target");
     expect(item?.source_adapters).toEqual(["asml-ir"]);
+    expect(item?.action_source_groups).toEqual(["official_evidence"]);
     expect(item?.source_targets).toEqual([
       expect.objectContaining({
         check_target_id: "CHK-ASML",
@@ -125,6 +126,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       "create_fact_edge"
     ]);
     expect(item?.command_hints[0]?.command).toContain("--source asml-ir");
+    expect(item?.command_hints[0]?.command).not.toContain("census-trade");
     expect(workbenchModel.summary.ai_compute_propagation_layers_not_covered).toBe(2);
     expect(workbenchModel.summary.ai_compute_propagation_unknown_open).toBe(0);
     expect(workbenchModel.summary.ai_compute_official_evidence_gaps).toBe(3);
@@ -174,6 +176,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       item?.evidence_layer_summary
     );
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Evidence layer summary: unknown=2");
+    expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Action source groups: official_evidence");
   });
 });
 
@@ -340,6 +343,15 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               target_kinds: ["official-html-disclosure"],
               states: ["scheduled"],
               failure_kinds: []
+            },
+            {
+              group_kind: "observation_proxy",
+              source_plan_refs: ["source_plan:census-trade"],
+              source_target_refs: ["source_target:CHK-CENSUS:not_synced"],
+              source_adapters: ["census-trade"],
+              target_kinds: ["trade-flow-observation"],
+              states: ["not_synced"],
+              failure_kinds: []
             }
           ],
           source_target_statuses: [
@@ -348,6 +360,14 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               source_adapter_id: "asml-ir",
               target_kind: "official-html-disclosure",
               state: "scheduled",
+              failure_kind: null,
+              latest_event_type: null
+            },
+            {
+              ref: "source_target:CHK-CENSUS:not_synced",
+              source_adapter_id: "census-trade",
+              target_kind: "trade-flow-observation",
+              state: "not_synced",
               failure_kind: null,
               latest_event_type: null
             }
