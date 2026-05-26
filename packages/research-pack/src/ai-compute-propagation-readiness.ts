@@ -11,7 +11,8 @@ import type {
   AiComputePropagationLayerStatus,
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
-  AiComputePropagationSourceTargetStatus
+  AiComputePropagationSourceTargetStatus,
+  AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
 
 export type {
@@ -20,7 +21,8 @@ export type {
   AiComputePropagationLayerStatus,
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
-  AiComputePropagationReadinessSummary
+  AiComputePropagationReadinessSummary,
+  AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
 
 export interface AiComputePropagationReadinessInput {
@@ -184,6 +186,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     component_dependency_refs: refs.component_dependency_refs,
     frontier_refs: refs.frontier_refs,
     unknown_refs: refs.unknown_refs,
+    unknown_backlog_seeds: unknownBacklogSeedsFor(rule, status, refs),
     missing_official_evidence: missingOfficialEvidenceFor(status),
     allowed_research_outputs: allowedResearchOutputsFor(status),
     prohibited_truth_store_writes: prohibitedTruthStoreWritesFor(status),
@@ -289,6 +292,54 @@ function prohibitedTruthStoreWritesFor(status: AiComputePropagationLayerStatus):
     return ["raise_evidence_level_without_review", "close_unknown_without_review"];
   }
   return ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"];
+}
+
+function unknownBacklogSeedsFor(
+  rule: AiComputePropagationLayerRule,
+  status: AiComputePropagationLayerStatus,
+  refs: LayerRefs
+): AiComputePropagationUnknownBacklogSeed[] {
+  if (status === "covered_fact" || status === "observation_ready") return [];
+  return [
+    {
+      seed_id: `AI-COMPUTE-UNKNOWN-SEED-${rule.layer_id.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+      question: unknownSeedQuestionFor(rule, status),
+      why_unknown: unknownSeedReasonFor(status),
+      target_scope_refs: uniqueSorted([
+        ...rule.component_ids.map((componentId) => `component:${componentId}`),
+        ...refs.material_or_process_refs.map((ref) => `material_or_process:${ref}`)
+      ]),
+      existing_unknown_refs: refs.unknown_refs,
+      source_plan_refs: refs.source_plan_refs,
+      source_target_refs: refs.source_target_refs,
+      recommended_review_action: unknownSeedActionFor(status, refs),
+      truth_store_write_policy: "review_only_no_automatic_write"
+    }
+  ];
+}
+
+function unknownSeedQuestionFor(rule: AiComputePropagationLayerRule, status: AiComputePropagationLayerStatus): string {
+  if (status === "blocked_source") return `Which official source target must be repaired before the ${rule.title} layer can be researched?`;
+  if (status === "official_target_runnable") return `Which reviewed citation from the planned official source can answer: ${rule.question}`;
+  if (status === "lead_only") return `Which official evidence would turn the current ${rule.title} lead into a reviewable fact candidate?`;
+  return `What official source can establish or explicitly reject the ${rule.title} propagation layer?`;
+}
+
+function unknownSeedReasonFor(status: AiComputePropagationLayerStatus): string {
+  if (status === "blocked_source") return "A relevant source target exists, but its current operational state prevents evidence collection.";
+  if (status === "official_target_runnable") return "A source path exists, but no reviewed citation has been accepted into the evidence layer yet.";
+  if (status === "lead_only") return "Only taxonomy or frontier leads are visible, so the relation must stay outside the fact layer.";
+  return "No fact, observation, lead, or runnable official source path currently covers this AI compute propagation layer.";
+}
+
+function unknownSeedActionFor(
+  status: AiComputePropagationLayerStatus,
+  refs: Pick<LayerRefs, "unknown_refs" | "source_target_refs">
+): AiComputePropagationUnknownBacklogSeed["recommended_review_action"] {
+  if (status === "blocked_source") return "repair_source_target";
+  if (status === "official_target_runnable") return "run_source_target";
+  if (refs.unknown_refs.length > 0) return "keep_existing_unknown_open";
+  return "create_explicit_unknown";
 }
 
 function sourcePlanItemsForRule(rule: AiComputePropagationLayerRule, sourcePlan: readonly SourcePlanItem[]): SourcePlanItem[] {

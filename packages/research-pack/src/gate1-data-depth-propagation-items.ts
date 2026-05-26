@@ -46,7 +46,7 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         title: `Close AI compute propagation layer: ${layer.title}`,
         rationale: `${layer.question} Current status is ${layer.status}: ${layer.status_reason} Missing official evidence: ${formatSentenceList(
           layer.missing_official_evidence
-        )}`,
+        )} Unknown/backlog seed: ${formatUnknownSeedList(layer.unknown_backlog_seeds.map((seed) => `${seed.seed_id} ${seed.recommended_review_action}`))}`,
         recommended_action: layer.next_actions.join(" "),
         recommended_decision: decisionForLayerStatus(layer.status),
         allowed_decisions: allowedDecisionsForLayerStatus(layer.status),
@@ -117,12 +117,17 @@ function layerRefs(layer: AiComputePropagationLayer): string[] {
     ...layer.component_dependency_refs,
     ...layer.frontier_refs,
     ...layer.unknown_refs,
+    ...layer.unknown_backlog_seeds.map((seed) => `unknown_seed:${seed.seed_id}`),
     ...layer.material_or_process_refs.map((ref) => `material_or_process:${ref}`)
   ]);
 }
 
 function formatSentenceList(values: readonly string[]): string {
   return values.length === 0 ? "none." : values.join(" ");
+}
+
+function formatUnknownSeedList(values: readonly string[]): string {
+  return values.length === 0 ? "none." : values.join("; ");
 }
 
 function workItem(

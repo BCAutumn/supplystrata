@@ -89,6 +89,8 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.refs).toContain("source_plan:asml-ir");
     expect(item?.refs).toContain("source_target:CHK-ASML:scheduled");
     expect(item?.refs).toContain("unknown:UNK-EQUIPMENT");
+    expect(item?.refs).toContain("unknown_seed:AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT");
+    expect(item?.rationale).toContain("AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT run_source_target");
     expect(item?.source_adapters).toEqual(["asml-ir"]);
     expect(item?.command_hints[0]?.command).toContain("--source asml-ir");
     expect(workbenchModel.summary.ai_compute_propagation_layers_not_covered).toBe(2);
@@ -225,6 +227,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           component_dependency_refs: [],
           frontier_refs: [],
           unknown_refs: [],
+          unknown_backlog_seeds: [],
           missing_official_evidence: [],
           allowed_research_outputs: ["chain_anchor", "corroboration_review", "strength_freshness_review"],
           prohibited_truth_store_writes: ["raise_evidence_level_without_review", "close_unknown_without_review"],
@@ -256,6 +259,20 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           component_dependency_refs: [],
           frontier_refs: [],
           unknown_refs: ["unknown:UNK-EQUIPMENT"],
+          unknown_backlog_seeds: [
+            {
+              seed_id: "AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT",
+              question:
+                "Which reviewed citation from the planned official source can answer: Can the pack identify equipment delivery or qualification frontier?",
+              why_unknown: "A source path exists, but no reviewed citation has been accepted into the evidence layer yet.",
+              target_scope_refs: ["component:COMP-SEMICONDUCTOR-EQUIPMENT"],
+              existing_unknown_refs: ["unknown:UNK-EQUIPMENT"],
+              source_plan_refs: ["source_plan:asml-ir"],
+              source_target_refs: ["source_target:CHK-ASML:scheduled"],
+              recommended_review_action: "run_source_target",
+              truth_store_write_policy: "review_only_no_automatic_write"
+            }
+          ],
           missing_official_evidence: [
             "Run or sync the listed official source targets, then review extracted citations through the existing review/apply path."
           ],
@@ -289,6 +306,19 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           component_dependency_refs: [],
           frontier_refs: [],
           unknown_refs: [],
+          unknown_backlog_seeds: [
+            {
+              seed_id: "AI-COMPUTE-UNKNOWN-SEED-EQUIPMENT-TO-PROCESS-INPUTS",
+              question: "Which official source target must be repaired before the Equipment to process inputs layer can be researched?",
+              why_unknown: "A relevant source target exists, but its current operational state prevents evidence collection.",
+              target_scope_refs: ["component:COMP-PHOTORESIST"],
+              existing_unknown_refs: [],
+              source_plan_refs: [],
+              source_target_refs: ["source_target:CHK-MATERIALS:retry_wait"],
+              recommended_review_action: "repair_source_target",
+              truth_store_write_policy: "review_only_no_automatic_write"
+            }
+          ],
           missing_official_evidence: ["Repair the blocked/degraded official source target and rerun it before relying on this layer."],
           allowed_research_outputs: ["source_repair_action", "operational_backlog"],
           prohibited_truth_store_writes: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"],

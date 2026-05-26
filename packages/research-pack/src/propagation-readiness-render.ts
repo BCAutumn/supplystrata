@@ -45,6 +45,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
     lines.push(`  Leads/frontier: ${formatList([...layer.component_dependency_refs, ...layer.frontier_refs])}`);
     lines.push(`  Unknowns: ${formatList(layer.unknown_refs)}`);
+    lines.push(`  Unknown/backlog seeds: ${formatList(layer.unknown_backlog_seeds.map(formatUnknownBacklogSeed))}`);
     lines.push(`  Missing official evidence: ${formatList(layer.missing_official_evidence)}`);
     lines.push(`  Allowed outputs: ${formatList(layer.allowed_research_outputs)}`);
     lines.push(`  Prohibited writes: ${formatList(layer.prohibited_truth_store_writes)}`);
@@ -81,4 +82,8 @@ function formatSourceTargetStatus(value: { ref: string; failure_kind: string | n
   const failure = value.failure_kind === null ? "" : ` failure=${value.failure_kind}`;
   const event = value.latest_event_type === null ? "" : ` event=${value.latest_event_type}`;
   return `${value.ref}${failure}${event}`;
+}
+
+function formatUnknownBacklogSeed(value: { seed_id: string; recommended_review_action: string; question: string }): string {
+  return `${value.seed_id} action=${value.recommended_review_action} question="${value.question}"`;
 }

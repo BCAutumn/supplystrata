@@ -26,6 +26,18 @@ export interface AiComputePropagationSourceTargetStatus {
   latest_event_type: string | null;
 }
 
+export interface AiComputePropagationUnknownBacklogSeed {
+  seed_id: string;
+  question: string;
+  why_unknown: string;
+  target_scope_refs: string[];
+  existing_unknown_refs: string[];
+  source_plan_refs: string[];
+  source_target_refs: string[];
+  recommended_review_action: "create_explicit_unknown" | "keep_existing_unknown_open" | "repair_source_target" | "run_source_target";
+  truth_store_write_policy: "review_only_no_automatic_write";
+}
+
 export interface AiComputePropagationReadinessMatrix {
   schema_version: "1.0.0";
   matrix_id: "ai_compute_propagation.v0";
@@ -65,6 +77,7 @@ export interface AiComputePropagationLayer {
   component_dependency_refs: string[];
   frontier_refs: string[];
   unknown_refs: string[];
+  unknown_backlog_seeds: AiComputePropagationUnknownBacklogSeed[];
   missing_official_evidence: string[];
   allowed_research_outputs: string[];
   prohibited_truth_store_writes: string[];
