@@ -259,6 +259,8 @@ Gate 1 data-depth workbench 中的 propagation item 必须透传同一份 `evide
 
 同一个 layer 可能同时拥有 official disclosure、trade/commodity observation、facility context 和 manual lead source。workbench action 必须输出 `action_source_groups`，并按当前 gap 类型收窄命令提示和 `source_targets[]`：官方证据缺口优先 official evidence source group；材料/工艺观测缺口才带 observation proxy；facility/manual source 只能在对应动作中出现。这样可以避免“看起来有很多 source target”被误读成“这些 source 都能修同一个事实缺口”。
 
+workbench action 还必须透传结构化 `official_evidence_gaps[]`。`refs` 可以用于追溯，但前端/host app 不能从字符串 refs 反推 gap 类型、target 或推荐动作；正式审查入口应该直接消费 gap 的 `gap_kind / target_kind / target_id / recommended_action / truth_store_write_policy`。
+
 硬边界：
 
 - 如果没有公司级官方证据，不能把 `process_material_consumption_signal` 写成 `Company A -> Company B` fact edge。

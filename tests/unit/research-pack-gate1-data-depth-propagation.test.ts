@@ -125,6 +125,14 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.evidence_layer_summary?.find((summary) => summary.layer_kind === "source_target")?.prohibited_truth_store_writes).toEqual([
       "create_fact_edge"
     ]);
+    expect(item?.official_evidence_gaps).toEqual([
+      expect.objectContaining({
+        gap_kind: "official_source_not_reviewed",
+        target_kind: "source_group",
+        target_id: "official_evidence",
+        truth_store_write_policy: "review_only_no_automatic_write"
+      })
+    ]);
     expect(item?.command_hints[0]?.command).toContain("--source asml-ir");
     expect(item?.command_hints[0]?.command).not.toContain("census-trade");
     expect(workbenchModel.summary.ai_compute_propagation_layers_not_covered).toBe(2);
@@ -175,8 +183,14 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(batch.items.find((candidate) => candidate.item_id === "gate1-ai-compute-propagation:construction_to_equipment")?.evidence_layer_summary).toEqual(
       item?.evidence_layer_summary
     );
+    expect(batch.items.find((candidate) => candidate.item_id === "gate1-ai-compute-propagation:construction_to_equipment")?.official_evidence_gaps).toEqual(
+      item?.official_evidence_gaps
+    );
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Evidence layer summary: unknown=2");
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Action source groups: official_evidence");
+    expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
+      'Official evidence gaps: official_source_not_reviewed:source_group:official_evidence action="Run this source target through review paths."'
+    );
   });
 });
 

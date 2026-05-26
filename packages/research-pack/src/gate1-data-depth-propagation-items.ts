@@ -70,7 +70,8 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         source_adapters: sourceAdapters,
         source_targets: sourceTargets,
         action_source_groups: actionSourceGroups,
-        evidence_layer_summary: layer.evidence_layer_summary
+        evidence_layer_summary: layer.evidence_layer_summary,
+        official_evidence_gaps: layer.official_evidence_gaps
       });
     });
 }
@@ -306,6 +307,7 @@ function workItem(
     source_targets: input.source_targets.slice(0, 40),
     action_source_groups: input.action_source_groups ?? [],
     evidence_layer_summary: input.evidence_layer_summary ?? [],
+    official_evidence_gaps: input.official_evidence_gaps ?? [],
     allowed_decisions: uniquePreserveOrder(input.allowed_decisions),
     command_hints: input.command_hints.slice(0, 8),
     ranking_contexts: [],

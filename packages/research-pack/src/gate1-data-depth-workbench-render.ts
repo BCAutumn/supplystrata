@@ -52,6 +52,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     if (item.evidence_layer_summary !== undefined && item.evidence_layer_summary.length > 0) {
       lines.push(`- Evidence layer summary: ${item.evidence_layer_summary.map(formatEvidenceLayerSummary).join("; ")}`);
     }
+    if (item.official_evidence_gaps !== undefined && item.official_evidence_gaps.length > 0) {
+      lines.push(`- Official evidence gaps: ${item.official_evidence_gaps.map(formatOfficialEvidenceGap).join("; ")}`);
+    }
     if (item.command_hints.length > 0) {
       lines.push("- Command hints:");
       for (const hint of item.command_hints) {
@@ -101,6 +104,10 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
 
 function formatEvidenceLayerSummary(value: { layer_kind: string; count: number; prohibited_truth_store_writes: readonly string[] }): string {
   return `${value.layer_kind}=${value.count} prohibited=${value.prohibited_truth_store_writes.join("|")}`;
+}
+
+function formatOfficialEvidenceGap(value: { gap_kind: string; target_kind: string; target_id: string; recommended_action: string }): string {
+  return `${value.gap_kind}:${value.target_kind}:${value.target_id} action="${value.recommended_action}"`;
 }
 
 function formatCountMap(counts: Record<string, number>): string {
