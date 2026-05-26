@@ -251,6 +251,8 @@ fab expansion -> cleanroom -> equipment delivery / installation / qualification 
 
 Gate 1 action workbench 必须消费这些 gap：`covered_fact` layer 如果仍有未覆盖组件、材料或 source group，也要进入 review-only 行动队列。优先级只表示研究运营顺序：blocked official source 优先修复，可运行 official source 优先同步/审查，component/material gap 保持 unknown/backlog 或触发受控 source target，不允许直接生成事实边。
 
+这些 workbench item 还必须携带结构化 `source_targets[]`。字符串 refs 只适合追溯；正式消费方应该读 `state`、`failure_kind`、`latest_event_type`、`source_adapter_id` 和 `target_kind` 来决定是 run、sync、repair credential 还是 keep unknown open，避免用文本解析来推断监控状态。
+
 硬边界：
 
 - 如果没有公司级官方证据，不能把 `process_material_consumption_signal` 写成 `Company A -> Company B` fact edge。

@@ -2,6 +2,7 @@ import type {
   Gate1DataDepthCommandHint,
   Gate1DataDepthPriority,
   Gate1DataDepthReviewDecision,
+  Gate1DataDepthSourceTargetRef,
   Gate1DataDepthWorkbenchItem
 } from "./gate1-data-depth-workbench-definitions.js";
 import type {
@@ -63,7 +64,7 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         edge_ids: layer.fact_edge_refs.map((ref) => ref.replace("edge:", "")),
         component_ids: layer.component_ids,
         source_adapters: sourceAdaptersForLayer(layer),
-        source_targets: []
+        source_targets: sourceTargetsForLayer(layer)
       })
     );
 }
@@ -158,6 +159,63 @@ function sourceAdaptersForLayer(layer: AiComputePropagationLayer): string[] {
     ...layer.source_target_groups.flatMap((group) => group.source_adapters),
     ...layer.source_target_statuses.map((item) => item.source_adapter_id)
   ]);
+}
+
+function sourceTargetsForLayer(layer: AiComputePropagationLayer): Gate1DataDepthSourceTargetRef[] {
+  return uniqueSourceTargets(
+    layer.source_target_statuses.map((status) => ({
+      check_target_id: checkTargetIdFromSourceTargetRef(status.ref),
+      source_adapter_id: status.source_adapter_id,
+      target_kind: status.target_kind ?? "unknown",
+      state: status.state,
+      latest_event_type: status.latest_event_type,
+      failure_kind: status.failure_kind,
+      observations: null,
+      target_entity_id: null,
+      target_component_id: null
+    }))
+  ).slice(0, 40);
+}
+
+function checkTargetIdFromSourceTargetRef(ref: string): string | null {
+  if (!ref.startsWith("source_target:")) return null;
+  const body = ref.slice("source_target:".length);
+  const lastSeparator = body.lastIndexOf(":");
+  if (lastSeparator <= 0) return body.length === 0 ? null : body;
+  return body.slice(0, lastSeparator);
+}
+
+function uniqueSourceTargets(values: readonly Gate1DataDepthSourceTargetRef[]): Gate1DataDepthSourceTargetRef[] {
+  const byKey = new Map<string, Gate1DataDepthSourceTargetRef>();
+  for (const value of values) {
+    const key = `${value.check_target_id ?? "planned"}:${value.source_adapter_id}:${value.target_kind}:${value.state ?? "none"}`;
+    const existing = byKey.get(key);
+    byKey.set(key, existing === undefined ? value : mergeSourceTarget(existing, value));
+  }
+  return [...byKey.values()].sort((left, right) => sourceTargetSortKey(left).localeCompare(sourceTargetSortKey(right)));
+}
+
+function mergeSourceTarget(left: Gate1DataDepthSourceTargetRef, right: Gate1DataDepthSourceTargetRef): Gate1DataDepthSourceTargetRef {
+  return {
+    ...left,
+    latest_event_type: left.latest_event_type ?? right.latest_event_type,
+    failure_kind: left.failure_kind ?? right.failure_kind,
+    observations: left.observations ?? right.observations,
+    target_entity_id: left.target_entity_id ?? right.target_entity_id,
+    target_component_id: left.target_component_id ?? right.target_component_id
+  };
+}
+
+function sourceTargetSortKey(value: Gate1DataDepthSourceTargetRef): string {
+  return `${sourceTargetPriority(value)}:${value.source_adapter_id}:${value.target_kind}:${value.check_target_id ?? "planned"}`;
+}
+
+function sourceTargetPriority(value: Gate1DataDepthSourceTargetRef): number {
+  if (value.failure_kind !== null) return 0;
+  if (value.latest_event_type === "SOURCE_FAILED") return 1;
+  if (value.state === "retry_wait" || value.state === "degraded" || value.state === "dead") return 2;
+  if (value.state === "due" || value.state === "not_synced" || value.state === "scheduled") return 3;
+  return 4;
 }
 
 function layerRefs(layer: AiComputePropagationLayer): string[] {

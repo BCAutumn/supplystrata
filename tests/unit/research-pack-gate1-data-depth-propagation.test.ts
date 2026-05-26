@@ -105,6 +105,15 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.refs).toContain("unknown_seed:AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT");
     expect(item?.rationale).toContain("AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT run_source_target");
     expect(item?.source_adapters).toEqual(["asml-ir"]);
+    expect(item?.source_targets).toEqual([
+      expect.objectContaining({
+        check_target_id: "CHK-ASML",
+        source_adapter_id: "asml-ir",
+        target_kind: "official-html-disclosure",
+        state: "scheduled",
+        failure_kind: null
+      })
+    ]);
     expect(item?.command_hints[0]?.command).toContain("--source asml-ir");
     expect(workbenchModel.summary.ai_compute_propagation_layers_not_covered).toBe(2);
     expect(workbenchModel.summary.ai_compute_propagation_unknown_open).toBe(0);
@@ -137,6 +146,15 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(blockedItem?.refs).toContain("source_target_group:official_evidence");
     expect(blockedItem?.refs).toContain("official_evidence_gap:official_source_blocked:source_group:official_evidence");
     expect(blockedItem?.source_adapters).toEqual(["materials-ir"]);
+    expect(blockedItem?.source_targets).toEqual([
+      expect.objectContaining({
+        check_target_id: "CHK-MATERIALS",
+        source_adapter_id: "materials-ir",
+        target_kind: "official-html-disclosure",
+        state: "retry_wait",
+        failure_kind: "missing_credentials"
+      })
+    ]);
     expect(workbenchModel.summary.ai_compute_propagation_blocked_source).toBe(1);
 
     const batch = buildGate1DataDepthActionBatch(workbenchModel, gate1DataDepthActionBatchDefinition("intelligence_context"));
