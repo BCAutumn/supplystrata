@@ -108,6 +108,22 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.command_hints[0]?.command).toContain("--source asml-ir");
     expect(workbenchModel.summary.ai_compute_propagation_layers_not_covered).toBe(2);
     expect(workbenchModel.summary.ai_compute_propagation_unknown_open).toBe(0);
+    expect(workbenchModel.summary.ai_compute_official_evidence_gaps).toBe(3);
+    expect(workbenchModel.summary.ai_compute_official_evidence_gaps_by_kind).toEqual({
+      component_without_l4_l5_fact: 1,
+      official_source_blocked: 1,
+      official_source_not_reviewed: 1
+    });
+
+    const coveredGapItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-ai-compute-propagation:demand_to_compute");
+    expect(coveredGapItem).toEqual(
+      expect.objectContaining({
+        priority: "P2",
+        recommended_decision: "keep_unknown_open",
+        title: "Close partial AI compute evidence gaps: Demand to compute"
+      })
+    );
+    expect(coveredGapItem?.refs).toContain("official_evidence_gap:component_without_l4_l5_fact:component:COMP-HBM");
 
     const blockedItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-ai-compute-propagation:equipment_to_process_inputs");
     expect(blockedItem).toEqual(
@@ -246,7 +262,18 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           frontier_refs: [],
           unknown_refs: [],
           unknown_backlog_seeds: [],
-          official_evidence_gaps: [],
+          official_evidence_gaps: [
+            {
+              gap_kind: "component_without_l4_l5_fact",
+              target_kind: "component",
+              target_id: "COMP-HBM",
+              label: "HBM",
+              reason: "HBM has no visible direct fact edge.",
+              refs: ["component:COMP-HBM"],
+              recommended_action: "Keep HBM as an open official evidence gap.",
+              truth_store_write_policy: "review_only_no_automatic_write"
+            }
+          ],
           missing_official_evidence: [],
           allowed_research_outputs: ["chain_anchor", "corroboration_review", "strength_freshness_review"],
           prohibited_truth_store_writes: ["raise_evidence_level_without_review", "close_unknown_without_review"],

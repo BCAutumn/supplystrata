@@ -249,6 +249,8 @@ fab expansion -> cleanroom -> equipment delivery / installation / qualification 
 
 每一层还必须输出结构化 `official_evidence_gaps`。`covered_fact` 只能说明该层至少有一个 L4/L5 anchor，不能说明层内每个组件、材料、工艺或 source path 都已经被官方证据覆盖。因此 gap 必须按 `component_without_l4_l5_fact`、`material_or_process_without_l4_l5_fact`、`official_source_not_reviewed`、`official_source_blocked`、`observation_only` 这类可审计原因列出，并带 refs 和 review-only write policy。未来 AI / 前端必须优先读这些结构化 gap，不能从 layer status 直接推断“整层已完整覆盖”。
 
+Gate 1 action workbench 必须消费这些 gap：`covered_fact` layer 如果仍有未覆盖组件、材料或 source group，也要进入 review-only 行动队列。优先级只表示研究运营顺序：blocked official source 优先修复，可运行 official source 优先同步/审查，component/material gap 保持 unknown/backlog 或触发受控 source target，不允许直接生成事实边。
+
 硬边界：
 
 - 如果没有公司级官方证据，不能把 `process_material_consumption_signal` 写成 `Company A -> Company B` fact edge。

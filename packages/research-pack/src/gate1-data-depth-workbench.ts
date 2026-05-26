@@ -156,11 +156,24 @@ function summarizeWorkbench(input: Gate1DataDepthWorkbenchInput, items: readonly
       input.propagation_readiness.ai_compute_matrix.summary.layers_total - input.propagation_readiness.ai_compute_matrix.summary.covered_fact,
     ai_compute_propagation_blocked_source: input.propagation_readiness.ai_compute_matrix.summary.blocked_source,
     ai_compute_propagation_unknown_open: input.propagation_readiness.ai_compute_matrix.summary.unknown_open,
+    ai_compute_official_evidence_gaps: input.propagation_readiness.ai_compute_matrix.layers.reduce(
+      (count, layer) => count + layer.official_evidence_gaps.length,
+      0
+    ),
+    ai_compute_official_evidence_gaps_by_kind: countOfficialEvidenceGaps(input.propagation_readiness.ai_compute_matrix.layers),
     ranking_calibration_candidates: rankingCandidates(items).length,
     ranking_labeled_candidates: rankingCandidates(items).filter((candidate) => candidate.review_status === "labeled").length,
     ranking_unlabeled_candidates: rankingCandidates(items).filter((candidate) => candidate.review_status === "unlabeled").length,
     ranking_labels_by_persisted_label: countRankingLabels(items)
   };
+}
+
+function countOfficialEvidenceGaps(layers: readonly { official_evidence_gaps: readonly { gap_kind: string }[] }[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const gap of layers.flatMap((layer) => layer.official_evidence_gaps)) counts[gap.gap_kind] = (counts[gap.gap_kind] ?? 0) + 1;
+  const sorted: Record<string, number> = {};
+  for (const [kind, count] of Object.entries(counts).sort(([left], [right]) => left.localeCompare(right))) sorted[kind] = count;
+  return sorted;
 }
 
 function rankingCandidates(items: readonly Gate1DataDepthWorkbenchItem[]): Gate1DataDepthWorkbenchItem["ranking_contexts"][number]["candidates"] {

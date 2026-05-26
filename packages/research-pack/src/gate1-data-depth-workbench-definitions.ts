@@ -123,6 +123,8 @@ export interface Gate1DataDepthSummary {
   ai_compute_propagation_layers_not_covered: number;
   ai_compute_propagation_blocked_source: number;
   ai_compute_propagation_unknown_open: number;
+  ai_compute_official_evidence_gaps: number;
+  ai_compute_official_evidence_gaps_by_kind: Record<string, number>;
   ranking_calibration_candidates: number;
   ranking_labeled_candidates: number;
   ranking_unlabeled_candidates: number;

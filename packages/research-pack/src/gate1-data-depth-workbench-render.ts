@@ -22,6 +22,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     `- Strength missing edges: ${workbench.summary.strength_missing_edges}`,
     `- Next observation labeling batch: ${workbench.summary.observation_labeling_batch}`,
     `- Propagation contexts not ready: ${workbench.summary.propagation_contexts_not_ready}`,
+    `- AI compute official evidence gaps: ${workbench.summary.ai_compute_official_evidence_gaps}; by kind ${formatCountMap(
+      workbench.summary.ai_compute_official_evidence_gaps_by_kind
+    )}`,
     `- Ranking calibration candidates: ${workbench.summary.ranking_calibration_candidates}; labeled ${workbench.summary.ranking_labeled_candidates}; unlabeled ${workbench.summary.ranking_unlabeled_candidates}; persisted labels ${formatCountMap(workbench.summary.ranking_labels_by_persisted_label)}`,
     "",
     "## Items",

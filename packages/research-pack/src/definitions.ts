@@ -231,6 +231,8 @@ export interface ResearchPackStats {
   ai_compute_propagation_lead_only: number;
   ai_compute_propagation_unknown_open: number;
   ai_compute_propagation_blocked_source: number;
+  ai_compute_official_evidence_gaps: number;
+  ai_compute_official_evidence_gaps_by_kind: Record<string, number>;
   gate1_data_depth_items: number;
   gate1_data_depth_p0: number;
   gate1_data_depth_p1: number;

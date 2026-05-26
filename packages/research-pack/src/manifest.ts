@@ -216,6 +216,8 @@ export function manifestFromModel(input: {
       ai_compute_propagation_lead_only: input.propagationReadiness.ai_compute_matrix.summary.lead_only,
       ai_compute_propagation_unknown_open: input.propagationReadiness.ai_compute_matrix.summary.unknown_open,
       ai_compute_propagation_blocked_source: input.propagationReadiness.ai_compute_matrix.summary.blocked_source,
+      ai_compute_official_evidence_gaps: input.gate1DataDepthWorkbench.summary.ai_compute_official_evidence_gaps,
+      ai_compute_official_evidence_gaps_by_kind: input.gate1DataDepthWorkbench.summary.ai_compute_official_evidence_gaps_by_kind,
       gate1_data_depth_items: input.gate1DataDepthWorkbench.summary.items,
       gate1_data_depth_p0: input.gate1DataDepthWorkbench.summary.p0,
       gate1_data_depth_p1: input.gate1DataDepthWorkbench.summary.p1,

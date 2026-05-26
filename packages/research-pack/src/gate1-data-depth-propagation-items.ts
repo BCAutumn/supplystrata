@@ -4,7 +4,11 @@ import type {
   Gate1DataDepthReviewDecision,
   Gate1DataDepthWorkbenchItem
 } from "./gate1-data-depth-workbench-definitions.js";
-import type { AiComputePropagationLayer, AiComputePropagationLayerStatus } from "./ai-compute-propagation-readiness.js";
+import type {
+  AiComputePropagationLayer,
+  AiComputePropagationLayerStatus,
+  AiComputePropagationOfficialEvidenceGap
+} from "./ai-compute-propagation-readiness.js";
 import type { PropagationReadinessReport } from "./propagation-readiness.js";
 
 const REVIEW_POLICY = "review_only_no_fact_mutation";
@@ -38,20 +42,20 @@ function propagationContextWorkItems(report: PropagationReadinessReport): Gate1D
 
 function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): Gate1DataDepthWorkbenchItem[] {
   return layers
-    .filter((layer) => layer.status !== "covered_fact")
+    .filter((layer) => layer.status !== "covered_fact" || layer.official_evidence_gaps.length > 0)
     .map((layer) =>
       workItem({
         item_id: `gate1-ai-compute-propagation:${layer.layer_id}`,
-        priority: priorityForLayerStatus(layer.status),
-        title: `Close AI compute propagation layer: ${layer.title}`,
+        priority: priorityForLayer(layer),
+        title: titleForLayer(layer),
         rationale: `${layer.question} Current status is ${layer.status}: ${layer.status_reason} Missing official evidence: ${formatSentenceList(
           layer.missing_official_evidence
         )} Official evidence gaps: ${formatEvidenceGapList(
           layer.official_evidence_gaps.map((gap) => `${gap.gap_kind} ${gap.target_kind}:${gap.target_id}`)
         )} Unknown/backlog seed: ${formatUnknownSeedList(layer.unknown_backlog_seeds.map((seed) => `${seed.seed_id} ${seed.recommended_review_action}`))}`,
-        recommended_action: layer.next_actions.join(" "),
-        recommended_decision: decisionForLayerStatus(layer.status),
-        allowed_decisions: allowedDecisionsForLayerStatus(layer.status),
+        recommended_action: recommendedActionForLayer(layer),
+        recommended_decision: decisionForLayer(layer),
+        allowed_decisions: allowedDecisionsForLayer(layer),
         write_impact:
           "No fact-layer write is authorized from this item. Use the refs as frontend/AI research input; only review-approved evidence may later create fact edges or close unknowns.",
         command_hints: sourcePlanCommandHints(sourceAdaptersForLayer(layer)),
@@ -64,22 +68,68 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
     );
 }
 
+function priorityForLayer(layer: AiComputePropagationLayer): Gate1DataDepthPriority {
+  const highestGapPriority = highestOfficialEvidenceGapPriority(layer.official_evidence_gaps);
+  if (highestGapPriority !== null) return highestGapPriority;
+  return priorityForLayerStatus(layer.status);
+}
+
 function priorityForLayerStatus(status: AiComputePropagationLayerStatus): Gate1DataDepthPriority {
   if (status === "blocked_source" || status === "unknown_open") return "P1";
   if (status === "official_target_runnable") return "P1";
   return "P2";
 }
 
-function decisionForLayerStatus(status: AiComputePropagationLayerStatus): Gate1DataDepthReviewDecision {
-  if (status === "blocked_source") return "rerun_source_check";
-  if (status === "official_target_runnable") return "sync_or_enable_source_target";
+function titleForLayer(layer: AiComputePropagationLayer): string {
+  if (layer.status === "covered_fact" && layer.official_evidence_gaps.length > 0) return `Close partial AI compute evidence gaps: ${layer.title}`;
+  return `Close AI compute propagation layer: ${layer.title}`;
+}
+
+function recommendedActionForLayer(layer: AiComputePropagationLayer): string {
+  const gapAction = recommendedActionForOfficialEvidenceGaps(layer.official_evidence_gaps);
+  if (gapAction !== null) return gapAction;
+  return layer.next_actions.join(" ");
+}
+
+function decisionForLayer(layer: AiComputePropagationLayer): Gate1DataDepthReviewDecision {
+  const gapDecision = decisionForOfficialEvidenceGaps(layer.official_evidence_gaps);
+  if (gapDecision !== null) return gapDecision;
+  if (layer.status === "blocked_source") return "rerun_source_check";
+  if (layer.status === "official_target_runnable") return "sync_or_enable_source_target";
   return "keep_unknown_open";
 }
 
-function allowedDecisionsForLayerStatus(status: AiComputePropagationLayerStatus): Gate1DataDepthReviewDecision[] {
-  if (status === "blocked_source") return ["rerun_source_check", "sync_or_enable_source_target", "keep_unknown_open", "defer"];
-  if (status === "official_target_runnable") return ["sync_or_enable_source_target", "rerun_source_check", "keep_unknown_open", "defer"];
+function allowedDecisionsForLayer(layer: AiComputePropagationLayer): Gate1DataDepthReviewDecision[] {
+  if (layer.official_evidence_gaps.some((gap) => gap.gap_kind === "official_source_blocked")) {
+    return ["rerun_source_check", "sync_or_enable_source_target", "keep_unknown_open", "defer"];
+  }
+  if (layer.official_evidence_gaps.some((gap) => gap.gap_kind === "official_source_not_reviewed")) {
+    return ["sync_or_enable_source_target", "rerun_source_check", "keep_unknown_open", "defer"];
+  }
+  if (layer.status === "blocked_source") return ["rerun_source_check", "sync_or_enable_source_target", "keep_unknown_open", "defer"];
+  if (layer.status === "official_target_runnable") return ["sync_or_enable_source_target", "rerun_source_check", "keep_unknown_open", "defer"];
   return ["keep_unknown_open", "defer"];
+}
+
+function highestOfficialEvidenceGapPriority(gaps: readonly AiComputePropagationOfficialEvidenceGap[]): Gate1DataDepthPriority | null {
+  if (gaps.some((gap) => gap.gap_kind === "official_source_blocked")) return "P1";
+  if (gaps.some((gap) => gap.gap_kind === "official_source_not_reviewed")) return "P1";
+  if (gaps.some((gap) => gap.gap_kind === "component_without_l4_l5_fact" || gap.gap_kind === "material_or_process_without_l4_l5_fact")) return "P2";
+  if (gaps.some((gap) => gap.gap_kind === "observation_only")) return "P2";
+  return null;
+}
+
+function decisionForOfficialEvidenceGaps(gaps: readonly AiComputePropagationOfficialEvidenceGap[]): Gate1DataDepthReviewDecision | null {
+  if (gaps.some((gap) => gap.gap_kind === "official_source_blocked")) return "rerun_source_check";
+  if (gaps.some((gap) => gap.gap_kind === "official_source_not_reviewed")) return "sync_or_enable_source_target";
+  if (gaps.length > 0) return "keep_unknown_open";
+  return null;
+}
+
+function recommendedActionForOfficialEvidenceGaps(gaps: readonly AiComputePropagationOfficialEvidenceGap[]): string | null {
+  if (gaps.length === 0) return null;
+  const topActions = uniquePreserveOrder(gaps.map((gap) => gap.recommended_action)).slice(0, 3);
+  return topActions.join(" ");
 }
 
 function sourcePlanCommandHints(sourceAdapters: readonly string[]): Gate1DataDepthCommandHint[] {
@@ -147,7 +197,7 @@ function workItem(
     ...input,
     workstream: "propagation_context",
     frontend_action_kind: "review_intelligence_context",
-    refs: uniqueSorted(input.refs).slice(0, 40),
+    refs: prioritySortedRefs(input.refs).slice(0, 40),
     edge_ids: uniqueSorted(input.edge_ids).slice(0, 40),
     component_ids: uniqueSorted(input.component_ids).slice(0, 40),
     source_adapters: uniqueSorted(input.source_adapters).slice(0, 20),
@@ -166,6 +216,28 @@ function commandHint(label: string, command: string, writesTruthStore: boolean, 
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+function prioritySortedRefs(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((left, right) => {
+    const priority = refPriority(left) - refPriority(right);
+    if (priority !== 0) return priority;
+    return left.localeCompare(right);
+  });
+}
+
+function refPriority(value: string): number {
+  if (value.startsWith("official_evidence_gap:")) return 0;
+  if (value.startsWith("unknown_seed:")) return 1;
+  if (value.startsWith("source_target_group:")) return 2;
+  if (value.startsWith("source_target:")) return 3;
+  if (value.startsWith("source_plan:")) return 4;
+  if (value.startsWith("next_research_target:")) return 5;
+  if (value.startsWith("unknown:")) return 6;
+  if (value.startsWith("component:") || value.startsWith("material_or_process:")) return 7;
+  if (value.startsWith("edge:")) return 8;
+  if (value.startsWith("observation:") || value.startsWith("observation_series:")) return 9;
+  return 10;
 }
 
 function uniquePreserveOrder<T extends string>(values: readonly T[]): T[] {
