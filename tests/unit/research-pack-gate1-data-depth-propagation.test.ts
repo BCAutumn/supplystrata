@@ -330,6 +330,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           source_target_refs: [],
           source_target_groups: [],
           source_target_statuses: [],
+          source_target_status_summary: sourceTargetStatusSummary({ targets: 0, runnable: 0, blocked: 0, degraded: 0, missingCredentials: 0, sourceFailed: 0 }),
           next_research_targets: [],
           component_dependency_refs: [],
           frontier_refs: [],
@@ -409,6 +410,15 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               latest_event_type: null
             }
           ],
+          source_target_status_summary: sourceTargetStatusSummary({
+            targets: 2,
+            runnable: 2,
+            blocked: 0,
+            degraded: 0,
+            missingCredentials: 0,
+            sourceFailed: 0,
+            byState: { not_synced: 1, scheduled: 1 }
+          }),
           next_research_targets: [
             {
               target_kind: "source_group",
@@ -495,6 +505,16 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               latest_event_type: null
             }
           ],
+          source_target_status_summary: sourceTargetStatusSummary({
+            targets: 1,
+            runnable: 0,
+            blocked: 1,
+            degraded: 0,
+            missingCredentials: 1,
+            sourceFailed: 0,
+            byState: { retry_wait: 1 },
+            byFailureKind: { missing_credentials: 1 }
+          }),
           next_research_targets: [
             {
               target_kind: "source_group",
@@ -622,6 +642,28 @@ function evidenceLayerSummary(
     interpretation: `${layerKind} fixture summary`,
     allowed_research_outputs: ["reasoning_input"],
     prohibited_truth_store_writes: ["create_fact_edge"]
+  };
+}
+
+function sourceTargetStatusSummary(input: {
+  targets: number;
+  runnable: number;
+  blocked: number;
+  degraded: number;
+  missingCredentials: number;
+  sourceFailed: number;
+  byState?: Record<string, number>;
+  byFailureKind?: Record<string, number>;
+}): PropagationReadinessReport["ai_compute_matrix"]["layers"][number]["source_target_status_summary"] {
+  return {
+    targets: input.targets,
+    runnable_targets: input.runnable,
+    blocked_targets: input.blocked,
+    degraded_targets: input.degraded,
+    missing_credentials: input.missingCredentials,
+    source_failed_targets: input.sourceFailed,
+    by_state: input.byState ?? {},
+    by_failure_kind: input.byFailureKind ?? {}
   };
 }
 

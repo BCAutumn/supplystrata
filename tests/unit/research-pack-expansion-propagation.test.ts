@@ -253,6 +253,15 @@ describe("research-pack expansion and propagation", () => {
     );
     expect(boardMaterialsLayer?.next_research_targets.map((item) => `${item.target_kind}:${item.target_id}`)).toContain("component:COMP-CCL");
     expect(boardMaterialsLayer?.next_research_targets.map((item) => `${item.target_kind}:${item.target_id}`)).toContain("source_group:observation_proxy");
+    expect(boardMaterialsLayer?.source_target_status_summary).toEqual(
+      expect.objectContaining({
+        targets: 0,
+        runnable_targets: 0,
+        blocked_targets: 0,
+        by_state: {},
+        by_failure_kind: {}
+      })
+    );
     expect(boardMaterialsLayer?.official_evidence_gaps.map((item) => `${item.gap_kind}:${item.target_kind}:${item.target_id}`)).toEqual(
       expect.arrayContaining([
         "component_without_l4_l5_fact:component:COMP-CCL",
@@ -260,6 +269,15 @@ describe("research-pack expansion and propagation", () => {
         "material_or_process_without_l4_l5_fact:material_or_process:MAT-COPPER",
         "observation_only:layer:server_to_board_materials"
       ])
+    );
+    expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "compute_to_fab_capacity")?.source_target_status_summary).toEqual(
+      expect.objectContaining({
+        targets: 1,
+        runnable_targets: 1,
+        blocked_targets: 0,
+        by_state: { succeeded: 1 },
+        by_failure_kind: {}
+      })
     );
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(
       expect.objectContaining({
@@ -276,6 +294,7 @@ describe("research-pack expansion and propagation", () => {
     expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Evidence layer summary");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Source target groups");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Source target status summary");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Next research targets");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Official evidence gaps");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Missing official evidence");

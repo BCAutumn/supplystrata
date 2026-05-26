@@ -43,6 +43,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Observations: ${formatList([...layer.observation_refs, ...layer.observation_series_refs])}`);
     lines.push(`  Source targets: ${formatList(layer.source_target_refs)}`);
     lines.push(`  Source target groups: ${formatList(layer.source_target_groups.map(formatSourceTargetGroup))}`);
+    lines.push(`  Source target status summary: ${formatSourceTargetStatusSummary(layer.source_target_status_summary)}`);
     lines.push(`  Source target states: ${formatList(layer.source_target_statuses.map(formatSourceTargetStatus))}`);
     lines.push(`  Next research targets: ${formatList(layer.next_research_targets.map(formatNextResearchTarget))}`);
     lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
@@ -82,10 +83,41 @@ function formatList(values: readonly string[]): string {
   return values.length === 0 ? "(none)" : values.slice(0, 20).join(", ");
 }
 
+function formatCountMap(counts: Record<string, number>): string {
+  const entries = Object.entries(counts).filter(([, count]) => count > 0);
+  if (entries.length === 0) return "none";
+  return entries
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => `${key}=${count}`)
+    .join(",");
+}
+
 function formatSourceTargetStatus(value: { ref: string; failure_kind: string | null; latest_event_type: string | null }): string {
   const failure = value.failure_kind === null ? "" : ` failure=${value.failure_kind}`;
   const event = value.latest_event_type === null ? "" : ` event=${value.latest_event_type}`;
   return `${value.ref}${failure}${event}`;
+}
+
+function formatSourceTargetStatusSummary(value: {
+  targets: number;
+  runnable_targets: number;
+  blocked_targets: number;
+  degraded_targets: number;
+  missing_credentials: number;
+  source_failed_targets: number;
+  by_state: Record<string, number>;
+  by_failure_kind: Record<string, number>;
+}): string {
+  return [
+    `targets=${value.targets}`,
+    `runnable=${value.runnable_targets}`,
+    `blocked=${value.blocked_targets}`,
+    `degraded=${value.degraded_targets}`,
+    `missing_credentials=${value.missing_credentials}`,
+    `source_failed=${value.source_failed_targets}`,
+    `by_state=${formatCountMap(value.by_state)}`,
+    `by_failure=${formatCountMap(value.by_failure_kind)}`
+  ].join("; ");
 }
 
 function formatSourceTargetGroup(value: {

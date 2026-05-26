@@ -3,7 +3,6 @@ import type {
   Gate1DataDepthPriority,
   Gate1DataDepthReviewDecision,
   Gate1DataDepthSourceTargetRef,
-  Gate1DataDepthSourceTargetStatusSummary,
   Gate1DataDepthWorkbenchItem
 } from "./gate1-data-depth-workbench-definitions.js";
 import type {
@@ -13,6 +12,7 @@ import type {
   AiComputePropagationSourceTargetGroupKind
 } from "./ai-compute-propagation-readiness.js";
 import type { PropagationReadinessReport } from "./propagation-readiness.js";
+import { buildAiComputePropagationSourceTargetStatusSummary } from "./ai-compute-propagation-source-target-summary.js";
 
 const REVIEW_POLICY = "review_only_no_fact_mutation";
 
@@ -306,7 +306,7 @@ function workItem(
     component_ids: uniqueSorted(input.component_ids).slice(0, 40),
     source_adapters: uniqueSorted(input.source_adapters).slice(0, 20),
     source_targets: input.source_targets.slice(0, 40),
-    source_target_status_summary: summarizeSourceTargetStatus(input.source_targets.slice(0, 40)),
+    source_target_status_summary: buildAiComputePropagationSourceTargetStatusSummary(input.source_targets.slice(0, 40)),
     action_source_groups: input.action_source_groups ?? [],
     evidence_layer_summary: input.evidence_layer_summary ?? [],
     official_evidence_gaps: input.official_evidence_gaps ?? [],
@@ -320,41 +320,6 @@ function workItem(
 
 function commandHint(label: string, command: string, writesTruthStore: boolean, requiresDatabase: boolean): Gate1DataDepthCommandHint {
   return { label, command, writes_truth_store: writesTruthStore, requires_database: requiresDatabase };
-}
-
-function summarizeSourceTargetStatus(values: readonly Gate1DataDepthSourceTargetRef[]): Gate1DataDepthSourceTargetStatusSummary {
-  return {
-    targets: values.length,
-    runnable_targets: values.filter(isRunnableSourceTarget).length,
-    blocked_targets: values.filter(isBlockedSourceTarget).length,
-    degraded_targets: values.filter((value) => value.state === "degraded").length,
-    missing_credentials: values.filter((value) => value.failure_kind === "missing_credentials").length,
-    source_failed_targets: values.filter((value) => value.latest_event_type === "SOURCE_FAILED").length,
-    by_state: countBy(values, (value) => value.state ?? "unknown"),
-    by_failure_kind: countBy(
-      values.filter((value) => value.failure_kind !== null),
-      (value) => value.failure_kind ?? "unknown_failure"
-    )
-  };
-}
-
-function isRunnableSourceTarget(value: Gate1DataDepthSourceTargetRef): boolean {
-  if (value.failure_kind !== null || value.latest_event_type === "SOURCE_FAILED") return false;
-  return value.state === "not_synced" || value.state === "due" || value.state === "scheduled" || value.state === "succeeded";
-}
-
-function isBlockedSourceTarget(value: Gate1DataDepthSourceTargetRef): boolean {
-  if (value.failure_kind !== null || value.latest_event_type === "SOURCE_FAILED") return true;
-  return value.state === "retry_wait" || value.state === "degraded" || value.state === "dead";
-}
-
-function countBy<T>(values: readonly T[], keyFor: (value: T) => string): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const value of values) {
-    const key = keyFor(value);
-    counts[key] = (counts[key] ?? 0) + 1;
-  }
-  return counts;
 }
 
 function uniqueSorted(values: readonly string[]): string[] {

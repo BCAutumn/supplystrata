@@ -17,11 +17,13 @@ import type {
   AiComputePropagationSourceTargetGroup,
   AiComputePropagationSourceTargetGroupKind,
   AiComputePropagationSourceTargetStatus,
+  AiComputePropagationSourceTargetStatusSummary,
   AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
 import { buildAiComputePropagationEvidenceLayerSummary } from "./ai-compute-propagation-evidence-summary.js";
 import { buildAiComputePropagationNextResearchTargets } from "./ai-compute-propagation-next-targets.js";
 import { buildAiComputePropagationOfficialEvidenceGaps } from "./ai-compute-propagation-official-evidence-gaps.js";
+import { buildAiComputePropagationSourceTargetStatusSummary } from "./ai-compute-propagation-source-target-summary.js";
 
 export type {
   AiComputePropagationLayer,
@@ -35,6 +37,7 @@ export type {
   AiComputePropagationOfficialEvidenceGap,
   AiComputePropagationSourceTargetGroup,
   AiComputePropagationSourceTargetGroupKind,
+  AiComputePropagationSourceTargetStatusSummary,
   AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
 
@@ -64,6 +67,7 @@ interface LayerRefs {
   source_target_refs: string[];
   source_target_groups: AiComputePropagationSourceTargetGroup[];
   source_target_statuses: AiComputePropagationSourceTargetStatus[];
+  source_target_status_summary: AiComputePropagationSourceTargetStatusSummary;
   next_research_targets: AiComputePropagationNextResearchTarget[];
   component_dependency_refs: string[];
   frontier_refs: string[];
@@ -185,6 +189,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     source_target_refs: refs.source_target_refs,
     source_target_groups: refs.source_target_groups,
     source_target_statuses: refs.source_target_statuses,
+    source_target_status_summary: refs.source_target_status_summary,
     next_research_targets: refs.next_research_targets,
     component_dependency_refs: refs.component_dependency_refs,
     frontier_refs: refs.frontier_refs,
@@ -234,6 +239,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
   const unknownIds = unknownRefsFor(rule, input, frontier, leads);
   const sourceTargetStatuses = sourceTargetStatusesFor(coverageItems, officialNodes);
   const sourceTargetGroups = sourceTargetGroupsFor(sourcePlanItems, sourceTargetStatuses);
+  const sourceTargetStatusSummary = buildAiComputePropagationSourceTargetStatusSummary(sourceTargetStatuses);
   const materialOrProcessRefs = uniqueSorted([
     ...sourcePlanItems.flatMap((item) => item.target_ids.filter((targetId) => materialOrProcessMatchesRule(targetId, rule))),
     ...leads.map((lead) => lead.target_id).filter((targetId) => materialOrProcessMatchesRule(targetId, rule))
@@ -257,6 +263,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
     source_target_refs: uniqueSorted(sourceTargetStatuses.map((item) => item.ref)),
     source_target_groups: sourceTargetGroups,
     source_target_statuses: sourceTargetStatuses,
+    source_target_status_summary: sourceTargetStatusSummary,
     next_research_targets: nextResearchTargets,
     component_dependency_refs: uniqueSorted(leads.map((lead) => `component_dependency:${lead.dependency_id}`)),
     frontier_refs: uniqueSorted(frontier.map((item) => `supply_chain_frontier:${item.frontier_id}`)),

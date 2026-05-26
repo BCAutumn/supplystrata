@@ -4,7 +4,8 @@ import type { Gate1AdjacentOfficialFactsReport } from "./gate1-adjacent-official
 import type {
   AiComputePropagationEvidenceLayerSummary,
   AiComputePropagationOfficialEvidenceGap,
-  AiComputePropagationSourceTargetGroupKind
+  AiComputePropagationSourceTargetGroupKind,
+  AiComputePropagationSourceTargetStatusSummary
 } from "./ai-compute-propagation-readiness-definitions.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
@@ -156,7 +157,7 @@ export interface Gate1DataDepthWorkbenchItem {
   component_ids: string[];
   source_adapters: string[];
   source_targets: Gate1DataDepthSourceTargetRef[];
-  source_target_status_summary?: Gate1DataDepthSourceTargetStatusSummary;
+  source_target_status_summary?: AiComputePropagationSourceTargetStatusSummary;
   action_source_groups?: AiComputePropagationSourceTargetGroupKind[];
   evidence_layer_summary?: AiComputePropagationEvidenceLayerSummary[];
   official_evidence_gaps?: AiComputePropagationOfficialEvidenceGap[];
@@ -221,15 +222,4 @@ export interface Gate1DataDepthSourceTargetRef {
   observations: number | null;
   target_entity_id: string | null;
   target_component_id: string | null;
-}
-
-export interface Gate1DataDepthSourceTargetStatusSummary {
-  targets: number;
-  runnable_targets: number;
-  blocked_targets: number;
-  degraded_targets: number;
-  missing_credentials: number;
-  source_failed_targets: number;
-  by_state: Record<string, number>;
-  by_failure_kind: Record<string, number>;
 }

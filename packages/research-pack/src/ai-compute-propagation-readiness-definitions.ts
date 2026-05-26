@@ -38,6 +38,17 @@ export interface AiComputePropagationSourceTargetStatus {
   latest_event_type: string | null;
 }
 
+export interface AiComputePropagationSourceTargetStatusSummary {
+  targets: number;
+  runnable_targets: number;
+  blocked_targets: number;
+  degraded_targets: number;
+  missing_credentials: number;
+  source_failed_targets: number;
+  by_state: Record<string, number>;
+  by_failure_kind: Record<string, number>;
+}
+
 export type AiComputePropagationSourceTargetGroupKind = "official_evidence" | "observation_proxy" | "entity_or_facility_context" | "lead_or_manual_review";
 
 export interface AiComputePropagationSourceTargetGroup {
@@ -131,6 +142,7 @@ export interface AiComputePropagationLayer {
   source_target_refs: string[];
   source_target_groups: AiComputePropagationSourceTargetGroup[];
   source_target_statuses: AiComputePropagationSourceTargetStatus[];
+  source_target_status_summary: AiComputePropagationSourceTargetStatusSummary;
   next_research_targets: AiComputePropagationNextResearchTarget[];
   component_dependency_refs: string[];
   frontier_refs: string[];

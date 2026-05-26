@@ -261,7 +261,7 @@ Gate 1 data-depth workbench 中的 propagation item 必须透传同一份 `evide
 
 workbench action 还必须透传结构化 `official_evidence_gaps[]`。`refs` 可以用于追溯，但前端/host app 不能从字符串 refs 反推 gap 类型、target 或推荐动作；正式审查入口应该直接消费 gap 的 `gap_kind / target_kind / target_id / recommended_action / truth_store_write_policy`。
 
-同一 action 还必须输出 `source_target_status_summary`，把当前 action 范围内的 source target 分成 runnable、blocked、degraded、missing credentials、source failed 和 by-state / by-failure 计数。这样前端或安全 AI 可以直接判断“现在该跑、该补 key、该排查 degraded source，还是先保持 unknown”，不需要自己重算 source monitor 状态，也不会把一个 blocked target 误读成可用证据。
+matrix layer 本体和同一 action 都必须输出 `source_target_status_summary`，把当前 layer/action 范围内的 source target 分成 runnable、blocked、degraded、missing credentials、source failed 和 by-state / by-failure 计数。这样前端或安全 AI 可以直接判断“现在该跑、该补 key、该排查 degraded source，还是先保持 unknown”，不需要自己重算 source monitor 状态，也不会把一个 blocked target 误读成可用证据。
 
 硬边界：
 
