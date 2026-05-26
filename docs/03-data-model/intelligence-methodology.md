@@ -216,14 +216,30 @@ Observation 不是关系。它回答：
 ```text
 GPU demand -> data center -> PCB / optical module / power / cooling
 PCB -> resin / electronic glass cloth / copper foil -> upstream materials
-fab expansion -> cleanroom -> equipment install -> process materials
+fab expansion -> cleanroom -> equipment delivery / installation / qualification -> process materials
 ```
+
+这类问题必须按“研究问题 readiness”组织，而不是按事实边数量堆砌。以 AI compute 为例，后端至少要能把下面几层拆成结构化对象：
+
+| layer                         | 需要准备的数据                                         | 允许输出                                     |
+| ----------------------------- | ------------------------------------------------------ | -------------------------------------------- |
+| `demand_to_compute`           | GPU / accelerator 需求、云厂商 capex、订单或收入观测   | demand observation、claim、unknown           |
+| `compute_to_server`           | AI server、ODM、power/cooling、optical module frontier | fact edge、source target、component lead     |
+| `server_to_board_materials`   | PCB、substrate、CCL、铜箔、电子布、树脂                | component/material frontier、trade/price obs |
+| `compute_to_fab_capacity`     | foundry、wafer、advanced packaging、capacity expansion | fact edge、capex/facility observation        |
+| `fab_to_construction`         | cleanroom、facility buildout、hook-up 工程             | facility / construction observation          |
+| `construction_to_equipment`   | lithography、etch、deposition、test、metrology         | equipment frontier、official source target   |
+| `equipment_to_process_inputs` | photoresist、target、CMP slurry/pad、高纯气体、化学品  | material frontier、commodity/trade obs       |
+| `process_to_raw_materials`    | 铜、玻纤、树脂上游、稀有气体、金属矿物                 | raw-material source target、unknown backlog  |
+
+每一层都必须输出明确状态：`covered_fact`、`observation_ready`、`official_target_runnable`、`lead_only`、`unknown_open` 或 `blocked_source`。如果某层只有行业常识，没有可引用的事实或观测，正确输出是 `lead_only / unknown_open`，不是把口头传导链写成事实边。
 
 硬边界：
 
 - 如果没有公司级官方证据，不能把 `process_material_consumption_signal` 写成 `Company A -> Company B` fact edge。
 - 建设进度、设备进场、材料价格和贸易流只能作为 propagation context，不能提升 `evidence_level`。
 - 后端可以输出 `ready / partial / blocked` 的 propagation readiness，但不能把它包装成最终投资判断。
+- L4/L5 fact edge 数量只能衡量证据厚度，不能替代问题 readiness。为了凑数量去扩无关公司、无关行业或单一官方名单，只能算广度样本，不能算 AI compute 主链变深。
 - AI/前端只能消费 `claims / evidence / observations / risk_views / unknowns / source targets` 等结构化输入；任何写入 truth-store 的新事实仍必须走 review/apply。
 
 research-pack 会用 `official-disclosure-signal-correlation` 纯函数模块，把 open `official_disclosure_signal` 和 edge-level corroboration queue 做确定性 review hint 关联。第一版只看来源是否命中 candidate source / runnable target、信号文本是否提到边两端公司或组件 token，并输出 `review_policy='review_only_no_fact_mutation'`、分数和原因。这个分数只给研究员排序下一步看什么，不计入 Gate 1 data progress，不把 signal 计为二源 corroboration，也不修改 review candidate / edge / claim / unknown。
@@ -249,7 +265,7 @@ z_like_score = (current - baseline) / max(mad, epsilon)
 - research-pack 会输出 `observation-coverage.json/md`，按本研究包可见的 typed observation 汇总 source adapter、scope、component、geography、metric、样本 id 和 methodology gap；它还会按同一 `observation_type / scope / geography / component / metric / unit` 汇总 series readiness，区分 `sparse`、`explicit_baseline_ready` 和 `time_series_ready`。`investigation-backlog` 会把 `sparse` series 转成数据积累任务，提示继续积累同序列窗口点或寻找 explicit baseline/change。它只描述数据准备覆盖和下一步调查，不给风险结论，也不把 observation 升级为事实边。
 - research-pack 会输出 `supply-chain-expansion-plan.json/md`，把当前 L4/L5 fact edge frontier、component-context taxonomy、source-plan、official-disclosure readiness 和 edge unknown map 组合成确定性递归展开计划。它回答“下一层应该研究哪个 counterparty / component / route，为什么，现有 source path 是否可跑，在哪里停止”，但只生成 planning/backlog context，不写 fact edge、evidence、claim、observation 或 unknown。递归展开必须带 component/process 语义；没有 `component_id` 的事实边只进入 `needs_component_context`，到达 `max_depth`、catalog boundary 或 logistics/route observation layer 时显式停止，避免把公司级供应商列表无限外推成事实图。component dependency lead 会显式输出 `source_path_authority`、source relation policy 和 output layer；只有命中具体 dependency、target，或锚定到 target component 的 source-plan item 才能让 lead 进入 source path 状态，不能把 parent component 的泛化 source-plan 借给所有下游材料。
 - 当前 `component-context` 已把 AI server frontier 拆到 GPU、HBM、manufacturing services、PCB、optical module、power supply 和 cooling；PCB frontier 继续拆到 copper clad laminate、copper foil、electronic glass cloth 和 laminate resin；fab/wafer frontier 也保留 cleanroom construction context。`source-plan` 会把这些节点连到官方披露、贸易、商品价格或材料观测路径，但它们仍是 research lead / observation context，不能自动变成公司级供应关系。
-- `propagation-readiness` 在同一原则下输出：它把 demand、capacity、facility、equipment、process material、raw material、policy signal 组合成结构化推理输入；但它只描述“证据和观测是否够回答问题”，不生成自然语言结论，不写事实边，也不关闭 unknown。每个 context item 必须带 `reasoning_input_only_no_fact_mutation` policy、ready signals、missing requirements 和 observation/source-plan/frontier refs；`investigation-backlog` 只把 `partial/blocked` context 转成补 observation / source target 的任务，供未来 AI/前端研究消费。research-pack 默认从 `generatedAt` 派生可审计 source-plan 窗口：官方披露/年度材料取上一 UTC 年，贸易/商品价格取上一 UTC 月；这些默认只影响 target planning 和 backlog，不代表观测已存在。policy / export-control context 可以继承 SEC/IR/DART/EDINET/TWSE 等官方披露路径，用于后续抽取政策观测，但不能把 source path 当成政策结论。
+- `propagation-readiness` 在同一原则下输出：它把 demand、capacity、facility、equipment、process material、raw material、policy signal 组合成结构化推理输入；同时内置 `ai_compute_propagation.v0` matrix，把 demand、server、PCB/materials、fab capacity、cleanroom、equipment、process inputs、raw materials 逐层标成 `covered_fact / observation_ready / official_target_runnable / lead_only / unknown_open / blocked_source`。它只描述“证据和观测是否够回答问题”，不生成自然语言结论，不写事实边，也不关闭 unknown。每个 context item 和 matrix layer 必须带 `reasoning_input_only_no_fact_mutation` policy、ready signals / status reason、missing requirements 或 refs；`investigation-backlog` 只把 `partial/blocked` context 转成补 observation / source target 的任务，供未来 AI/前端研究消费。research-pack 默认从 `generatedAt` 派生可审计 source-plan 窗口：官方披露/年度材料取上一 UTC 年，贸易/商品价格观测默认上一 UTC 月；这些默认只影响 target planning 和 backlog，不代表观测已存在。policy / export-control context 可以继承 SEC/IR/DART/EDINET/TWSE 等官方披露路径，用于后续抽取政策观测，但不能把 source path 当成政策结论。
 - `gate1-data-depth-workbench` 在 readiness 和 run ledger 之上输出：它把 L4/L5 fact edge gap、counterparty corroboration queue、source blocker、edge strength gap、observation calibration labeling batch 和 propagation context 缺口合成 `review_only_no_fact_mutation` 优先级清单。每个 item 都显式列出 frontend action kind、推荐决策、允许决策、写入影响和命令提示；这些字段只帮助下一轮跑数、排障和 gold label 扩样，不写 `edges / evidence / unknown_items / observations`，也不把 observation 或 official signal 升级成事实证据。
 - `adjacent_official_facts` 的 company ranking 只是候选生成，不是概率结论。排序必须先抑制披露中心节点、品牌方和高频 source-subject 带来的中心性偏差：组件/行业相关性和 likely upstream role 优先，edge frequency 只能作为弱 tie-breaker。每个 `ranking_context` 必须输出稳定 `context_id`、候选 `candidate_id`、`model_version`、assumptions 和 score breakdown，让前端/host app 能把候选标注为 `useful_target / wrong_direction / brand_center_bias / needs_more_context / not_relevant`。没有足够 ranking gold label / calibration run 前，任何 rank 都不能解释成“更可能是真实上游关系”；它只能生成下一轮研究目标。未来若输出概率，必须记录 features、score breakdown、假设、样本来源、gold label 覆盖、precision / recall 或 reliability bucket，并标明未校准输出为 `experimental`。
 - research-pack 会输出 `gate1-run-ledger.json/md`，把 Gate 1 scorecard、data progress、source path progress、edge-level corroboration 批次和下一层 company switching 计划合成一个可重复执行账本。它只给出当前 mainline phase、下一步 action queue、source-management 命令提示和通用 `research run --company ... --component ...` frontier 建议，不抓源、不写库、不生成事实边。全量官方 source path 的同步/运行继续使用 `source-plan.json`；逐 edge 二源检查使用 `corroboration-source-plan*.json`，避免把全量监控目标和 corroboration 子集混在一起。账本会输出 `monitoring_config`，把 namespace、默认 cadence / jitter / retry / backoff / `next_check_at` 字段、前端控件类型和 source-plan 批次建议收口到同一个可配置契约；这些字段只写 `source_policy_config` / `source_check_targets` 调度状态，不代表研究结论，也不能触发事实层变更。`monitoring_config.batches[]` 会回流 source target coverage / preflight 状态，输出 not_synced、disabled、due、retry_wait、degraded、dead、source_failed、observation、preflight issue 和 DB-backed source failure kind 计数，并给出 `recommended_operational_action`，让宿主 App 区分同步、启用、运行、等待、补凭据、排查源响应/限流/adapter 失败或 review observation。账本还会输出 `review_workbench`：这是后续前端/host app 的审查队列契约，每个 item 都显式列出推荐决策、允许决策、引用对象、写入影响和 `review_policy='review_only_no_fact_mutation'`；系统可以自动排序和准备命令，但不能借此自动生成事实边、自动关闭 unknown 或自动把官方 signal 升级成 corroboration。
@@ -451,6 +467,7 @@ Phase 6+
 [x] Gate 1 run ledger 的 `monitoring_config.batches[]` 能消费 source target coverage / preflight 汇总，把 retry_wait、degraded、source_failed、disabled、due、observation 等状态转成确定性 operational action
 [x] source-target coverage 能把 DB-backed source-check job error 归类为 `missing_credentials / target_config_invalid / source_unreachable / source_response_error / rate_limited / adapter_error / unknown_failure`，让 Gate 1 排障不依赖人工读错误字符串
 [x] research-pack 能输出 source target coverage，把 target 级 job/event/observation 状态回流到数据准备进度
+[x] research-pack 能输出 AI compute propagation readiness matrix，把 demand、server、PCB/materials、fab capacity、cleanroom、equipment、process inputs、raw materials 逐层标成 covered_fact / observation_ready / official_target_runnable / lead_only / unknown_open / blocked_source，并列出 refs 与下一步 source target
 [x] source target coverage 能把 metric 覆盖转成 deterministic observation review seeds 和只读 calibration candidates，用于前端/host app 审查和 calibration 小样本准备，且 policy 明确禁止自动写事实边；candidate 会携带 observation/doc/source item 样本、推荐标签、已持久化 label 状态和下一批分层 labeling plan，方便从聚合指标回到可审计来源并追踪 gold set 进度
 [x] source target coverage 能把 SOURCE_DEGRADED 标为 degraded，避免把缓存回退或源退化误读成完全成功
 [x] Workbench / research-pack 能输出 attention queue，统一 claim conflict、claim lifecycle、alert、source degraded 和 requires-attention change

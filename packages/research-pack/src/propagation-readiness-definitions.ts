@@ -1,6 +1,7 @@
 import type { ComponentDependencyCategory } from "@supplystrata/component-context";
 import type { ObservationType } from "@supplystrata/core";
 import type { ResearchSourcePurpose } from "@supplystrata/source-plan";
+import type { AiComputePropagationReadinessMatrix } from "./ai-compute-propagation-readiness-definitions.js";
 
 export type PropagationContextKind =
   | "demand_signal"
@@ -19,6 +20,7 @@ export interface PropagationReadinessReport {
   generated_at: string;
   company_id: string;
   summary: PropagationReadinessSummary;
+  ai_compute_matrix: AiComputePropagationReadinessMatrix;
   items: PropagationReadinessItem[];
 }
 

@@ -58,21 +58,22 @@ Risk / Intelligence Layer
 
 ## 数据准备与推理边界
 
-后端完成标准衡量的是“数据和关系网是否足够可靠”，不是“系统是否已经能自动写出完整产业判断”。类似下面这种链式问题：
+后端完成标准衡量的是“数据和关系网是否足够可靠”，不是“系统是否已经能自动写出完整产业判断”。真正要服务的问题不是“有多少条边”，而是类似下面这种链式研究：
 
 ```text
 AI demand -> GPU -> data center -> PCB / optical module / power / cooling
 PCB -> copper clad laminate -> resin / electronic glass cloth / copper foil -> upstream materials
-fab expansion -> cleanroom -> equipment install -> process materials -> raw material constraints
+fab expansion -> cleanroom construction -> equipment delivery / installation / qualification
+equipment ramp -> process materials -> photoresist / target / CMP / high-purity gas -> raw material constraints
 ```
 
-后端必须准备好结构化输入，让未来前端研究员或安全 AI 能回答这类问题；但后端本身不应把开放式推理、投资叙事或时间滞后判断硬编码成事实。
+后端必须准备好结构化输入，让未来前端研究员或安全 AI 能回答这类问题，而且要比“GPU 火了，所以 PCB、电子布、树脂、洁净室、设备、材料依次受益”这种口头推理更深：每一跳都要能说明已有证据、观测窗口、缺失证据、候选上游、可运行 source target 和不能自动断言的 unknown。但后端本身不应把开放式推理、投资叙事或时间滞后判断硬编码成事实。
 
 因此后端完成前必须具备三类可消费数据：
 
-- `relationship_network`：公司、设施、组件、材料、设备、工艺、地区之间的事实边、claim、unknown 和 source coverage。
+- `relationship_network`：公司、设施、组件、材料、设备、工艺、地区之间的事实边、claim、unknown、source coverage 和 frontier path。
 - `propagation_context`：需求、扩产、建设、设备进场、调试、材料消耗、价格/贸易/政策变化等 observation 与 time window。
-- `reasoning_inputs`：frontier expansion plan、source target gaps、corroboration/disposition state、calibration/gold labels、risk/intelligence derived metrics。
+- `reasoning_inputs`：question readiness matrix、frontier expansion plan、source target gaps、corroboration/disposition state、calibration/gold labels、risk/intelligence derived metrics。
 
 边界如下：
 
@@ -81,7 +82,7 @@ fab expansion -> cleanroom -> equipment install -> process materials -> raw mate
 | 把 `GPU -> HBM -> DRAM equipment/materials` 拆成可追踪 component/material frontier         | 直接断言“某材料明年必涨”                                    |
 | 把 cleanroom、equipment install、process material 作为 facility/capex/process observations | 把工程进度 observation 自动写成供应商 fact edge             |
 | 把铜、树脂、电子布、光刻胶、靶材、CMP、高纯气体等上游材料做成 taxonomy/source targets      | 没有证据时用行业常识补齐公司级买卖关系                      |
-| 输出 `ready / partial / blocked` 的 question readiness 和缺口                              | 自动替用户完成最终综合判断并写入 truth store                |
+| 输出 `ready / partial / blocked` 的 question readiness、链路 coverage 和缺口               | 自动替用户完成最终综合判断并写入 truth store                |
 | 为 AI/前端提供 schema 化、可审计、可引用的输入                                             | 让 LLM 直接写 fact edge、提高 evidence_level 或关闭 unknown |
 
 一句话：**后端先把“事实、观测、缺口、候选路径、时间窗口、证据引用”准备到足够厚；最终综合推理由未来 AI 和前端研究流程读取这些结构化输入完成。**
@@ -151,9 +152,9 @@ packages/risk-view
 
 任何一个 gate 未完成，都不能说 SupplyStrata 后端完成。
 
-### Gate 1 — 官方披露事实边覆盖
+### Gate 1 — AI Compute 研究链路覆盖
 
-目标：事实图谱不只靠 NVIDIA 10-K。
+目标：事实图谱不只靠 NVIDIA 10-K，也不靠机械凑边数；它必须能围绕 AI compute / memory 研究问题，把官方事实、观测、unknown、source target 和下一层 frontier 组织成可递归展开的研究链路。
 
 必须完成：
 
@@ -168,17 +169,22 @@ packages/risk-view
 
 ```text
 [ ] 至少 25 个核心研究节点有官方披露 source coverage
-[ ] 当前 Gate 1 research target profile / research-pack 可见链路内至少 100 条 Level 4/5 fact edge；全库其它链路的 L4/L5 边只能作为广度进展，不能替代 NVIDIA / AI compute 主链深度
+[ ] 当前 Gate 1 research target profile / research-pack 对 AI compute propagation question 输出 relationship / observation / unknown / source-target / frontier readiness matrix，覆盖 GPU、HBM、AI server、PCB、光模块、电源/冷却、晶圆/封装、洁净室、设备、工艺材料和上游原材料
+[ ] Level 4/5 fact edge 数量只作为证据厚度健康指标；必须按每个 propagation layer 统计，不允许用全库总数、Apple 广度边或单一公司专题替代 NVIDIA / AI compute 主链深度
+[ ] 每个核心 propagation layer 至少有一种明确状态：covered_fact、official_target_runnable、observation_ready、lead_only、unknown_open 或 blocked_source，并能解释为什么
 [ ] 至少 30% fact edge 有第二来源 corroboration 或明确标为 single-source
 [ ] 任一 fact edge 都能追到 evidence_id、doc_id、source_url、cite_text、offset/fingerprint
 [ ] AI compute / memory profile 不只覆盖公司，还覆盖核心 component / material / equipment / process frontier，并为缺失上游材料节点生成 explicit backlog
 [ ] 任意上市公司入口仍走通用 entity/source-plan/research loop，不新增 `<company>-suppliers` 这类公司专用 workflow
 ```
 
+说明：早期可以继续保留 “100 条 profile-visible L4/L5 fact edge” 作为压力测试目标，但它不是后端完成的充分条件，也不是优先级排序器。更重要的是：围绕一个问题能否逐层说明“已有事实是什么、哪些只是观测或线索、缺哪些证据、下一步该查谁和哪个 source”。如果系统为了凑 L4/L5 数量转向无关公司或无关链路，即使超过 100 条也不能算 Gate 1 完成。
+
 当前完成态：
 
 - Gate 1 已有只读 readiness / backlog / run ledger / data-depth workbench 输出，能量化事实边覆盖、traceability、二源或 single-source disposition、expected source coverage、source target coverage、source blocker、gold label 批次、相邻官方事实池和下一层 frontier research。
 - 官方源路径已覆盖 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF entity lookup 的基础接线；DART/EDINET/TWSE 当前定位为目录/target/readiness/monitor 骨架，不解析正文、不写事实边。
+- `propagation-readiness.json/md` 已内置 `ai_compute_propagation.v0` matrix，把 demand、server、PCB/materials、fab capacity、cleanroom、equipment、process inputs、raw materials 逐层标成 `covered_fact / observation_ready / official_target_runnable / lead_only / unknown_open / blocked_source`，并列出 fact、observation、source target、source-plan、frontier、lead、unknown refs 和下一步动作。该 matrix 是 reasoning input，不写 fact edge、不提升 evidence level、不关闭 unknown。
 - `ai-compute-memory.v0` 已从公司/一阶组件覆盖扩展到 AI server 与 PCB 上游 frontier：`COMP-SERVER -> GPU / HBM / manufacturing services / PCB / optical module / power / cooling`，以及 `PCB -> CCL -> copper foil / electronic glass cloth / laminate resin`、`wafer -> cleanroom`。这些都是 source-plan / observation / backlog 输入，不是事实边。
 - `supply-chain-expansion-plan` 已区分 component dependency lead 的 source path authority：fact-capable official path、observation-only trade/commodity path、lead-only path 会分别统计和渲染；只有命中具体 dependency、target，或锚定到 target component 的 source-plan item 才能改变 lead 状态，parent component 的泛化 source-plan 不会被借给所有下游材料。
 - 二源检查已形成标准 source-plan 子集和 action-specific 批次，支持 preview、无数据库 smoke、sync、enable、run-due，并能把 preflight / DB-backed failure kind 回流到 Gate 1 action queue。action batch 会携带已匹配到的 `check_target_ids`，因此 enable / run-due 会优先操作真实已同步 target；只有普通 source-plan 才按 namespace 重新生成 target id。
@@ -194,7 +200,7 @@ packages/risk-view
 
 仍未完成：
 
-- 全库 L4/L5 current fact edge 已超过 100 条，说明 review / evidence / graph 写入闭环跑通；但 NVIDIA research-pack 可见 L4/L5 仍只有 23 条，因此 Gate 1 目标链路深度尚未完成，不能用全库总数替代 profile 内验收。
+- 全库 L4/L5 current fact edge 已超过 100 条，说明 review / evidence / graph 写入闭环跑通；但 NVIDIA research-pack 可见 L4/L5 仍只有 23 条，且 AI compute propagation layer 仍缺足够的 observation/source target/frontier readiness，因此 Gate 1 主链深度尚未完成，不能用全库总数、Apple supplier 广度边或 Samsung 单点递归替代问题驱动验收。
 - target profile 中仍只有 7 个 target nodes 有 fact edge；34 个 target nodes 中还有 3 个缺官方 coverage，source path progress 仍约 0.67。
 - counterparty 官方披露还缺足够的人工/规则裁决样本；最新报告中 open official signal correlation hints 和 open official signal review candidates 都已降为 0，corroboration action queue 还剩 5 个 review-observation target 和 2 个 wait-for-job target，但这些 disposition / job states 只是 review-only 研究结论或监控状态，不能把它们当成 evidence 或二源 corroboration。
 - EDINET / DART / TWSE 正文下载、正文解析和可审计 evidence 提取仍是后续阶段。
@@ -414,7 +420,7 @@ PROCESS_MATERIAL_OBSERVATION
 
 当前状态：observation-store 已形成统一写入边界，`FINANCIAL_METRIC_OBSERVATION` 由 SEC companyfacts 结构化 JSON 写入，`TRADE_FLOW_OBSERVATION` 由 Census Trade target 写入，`COMMODITY_PRICE_OBSERVATION` 由 World Bank Pink Sheet target 写入，官方披露语义抽取器可生成 `INVENTORY_OBSERVATION` / `BACKLOG_OBSERVATION` / `CAPEX_OBSERVATION` / `CUSTOMER_CONCENTRATION_OBSERVATION` / `PROCUREMENT_OBSERVATION`，OSH 路径可生成 `FACILITY_PROFILE_OBSERVATION`。这些路径都必须保留 `source_item / doc / time_window / metric / scope / geography / component_id / provenance` 语义，不进入 graph-builder，不生成事实边。
 
-`@supplystrata/research-pack` 已新增 `propagation-readiness.json/md`：它只读消费 observation coverage、source-plan 和 supply-chain expansion plan，把 `demand_signal`、`capacity_expansion_signal`、`facility_construction_signal`、`equipment_installation_signal`、`process_material_consumption_signal`、`material_price_or_trade_signal`、`policy_or_export_control_signal` 统一标为 `ready / partial / blocked`。每个 item 都带 `reasoning_input_only_no_fact_mutation` policy、ready signals、missing requirements、observation/source-plan/frontier/component lead refs。`investigation-backlog` 会把 `partial/blocked` context 转成 `propagation_readiness` backlog item，并继承 source target coverage，让后续前端/host app 能排队补 observation 或 source target。research-pack 会从 `generatedAt` 派生默认 source-plan 窗口：官方披露和年度材料观测默认上一 UTC 年，贸易和商品价格观测默认上一 UTC 月；这些默认只让 target 可排队，调用方仍可显式覆盖窗口。policy / export-control context 可以消费官方披露 source-plan 路径作为待抽取政策观测的来源，但不能把披露沉默或 source-plan runnable 解释成风险结论。它不写 DB、不生成 fact edge、不关闭 unknown，也不输出最终产业结论。
+`@supplystrata/research-pack` 已新增 `propagation-readiness.json/md`：它只读消费 observation coverage、source-plan、source target coverage、official disclosure readiness 和 supply-chain expansion plan，把 `demand_signal`、`capacity_expansion_signal`、`facility_construction_signal`、`equipment_installation_signal`、`process_material_consumption_signal`、`material_price_or_trade_signal`、`policy_or_export_control_signal` 统一标为 `ready / partial / blocked`。同时它输出 `ai_compute_propagation.v0` matrix，逐层说明 AI compute 传导链目前是 fact-covered、observation-ready、source-target-runnable、lead-only、unknown-open 还是 blocked-source。每个 item/layer 都带 `reasoning_input_only_no_fact_mutation` policy、ready signals/status reason、missing requirements 或 fact/observation/source/lead/frontier/unknown refs。`investigation-backlog` 会把 `partial/blocked` context 转成 `propagation_readiness` backlog item，并继承 source target coverage，让后续前端/host app 能排队补 observation 或 source target。research-pack 会从 `generatedAt` 派生默认 source-plan 窗口：官方披露和年度材料观测默认上一 UTC 年，贸易和商品价格观测默认上一 UTC 月；这些默认只让 target 可排队，调用方仍可显式覆盖窗口。policy / export-control context 可以消费官方披露 source-plan 路径作为待抽取政策观测的来源，但不能把披露沉默或 source-plan runnable 解释成风险结论。它不写 DB、不生成 fact edge、不关闭 unknown，也不输出最终产业结论。
 
 `@supplystrata/research-pack` 已新增 `observation-coverage.json/md`：它从 CompanyCard / ComponentCard / linked company observations 和 ChainView observation segments 汇总本研究包内可见的 typed observation、source adapter、scope、component、geography、metric、样本 id 和缺失 methodology type。它还会按 `observation_type / scope / geography / component_id / metric / unit` 生成 series readiness：有 `baseline_value + change_percent` 的序列标为 `explicit_baseline_ready`；至少 6 个同序列数值窗口点的序列标为 `time_series_ready`；其余保持 `sparse`。ChainView 仍只负责分层 context lane；正式类型覆盖以 observation DTO / card / coverage JSON 为准，避免靠 label 猜类型。
 

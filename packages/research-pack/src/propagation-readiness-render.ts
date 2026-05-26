@@ -18,9 +18,36 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     `- Reasoning inputs: ${report.summary.reasoning_inputs}`,
     `- Policy: ${report.summary.no_fact_mutation_policy}`,
     "",
-    "## Contexts",
+    "## AI Compute Propagation Matrix",
+    "",
+    `- Matrix: ${report.ai_compute_matrix.matrix_id}`,
+    `- Layers: ${report.ai_compute_matrix.summary.layers_total}`,
+    `- Status: covered_fact ${report.ai_compute_matrix.summary.covered_fact}; observation_ready ${report.ai_compute_matrix.summary.observation_ready}; official_target_runnable ${report.ai_compute_matrix.summary.official_target_runnable}; lead_only ${report.ai_compute_matrix.summary.lead_only}; unknown_open ${report.ai_compute_matrix.summary.unknown_open}; blocked_source ${report.ai_compute_matrix.summary.blocked_source}`,
+    `- Layers with facts: ${report.ai_compute_matrix.summary.layers_with_fact_refs}`,
+    `- Layers with observations: ${report.ai_compute_matrix.summary.layers_with_observation_refs}`,
+    `- Layers with source targets: ${report.ai_compute_matrix.summary.layers_with_source_targets}`,
+    `- Policy: ${report.ai_compute_matrix.policy}`,
+    "",
+    "### Layers",
     ""
   ];
+
+  for (const layer of report.ai_compute_matrix.layers) {
+    lines.push(`- ${layer.status} ${layer.layer_id}: ${layer.title}`);
+    lines.push(`  Question: ${layer.question}`);
+    lines.push(`  Why: ${layer.status_reason}`);
+    lines.push(`  Components: ${formatList(layer.component_ids)}`);
+    lines.push(`  Materials/process: ${formatList(layer.material_or_process_refs)}`);
+    lines.push(`  Facts: ${formatList(layer.fact_edge_refs)}`);
+    lines.push(`  Observations: ${formatList([...layer.observation_refs, ...layer.observation_series_refs])}`);
+    lines.push(`  Source targets: ${formatList(layer.source_target_refs)}`);
+    lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
+    lines.push(`  Leads/frontier: ${formatList([...layer.component_dependency_refs, ...layer.frontier_refs])}`);
+    lines.push(`  Unknowns: ${formatList(layer.unknown_refs)}`);
+    lines.push(`  Next: ${formatList(layer.next_actions)}`);
+  }
+
+  lines.push("", "## Contexts", "");
 
   for (const item of report.items) {
     lines.push(`- ${item.status} ${item.context_kind}: ${item.title}`);

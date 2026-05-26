@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildObservationCoverageReport,
+  buildOfficialDisclosureReadinessReport,
   buildPropagationReadinessReport,
   buildSupplyChainExpansionPlan,
   renderPropagationReadinessMarkdown,
@@ -12,7 +13,8 @@ import {
   edgeSegmentFixture,
   emptyWorkbench,
   observationFixture,
-  officialSourcePlanItem
+  officialSourcePlanItem,
+  officialSourceTargetCoverage
 } from "./research-pack-fixtures.js";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
@@ -128,6 +130,15 @@ describe("research-pack expansion and propagation", () => {
       components: []
     });
     const sourcePlan = [officialSourcePlanItem(), commoditySourcePlanItem()];
+    const sourceTargetCoverage = officialSourceTargetCoverage("succeeded");
+    const officialDisclosureReadiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench,
+      component_ids: ["COMP-MEMORY", "COMP-WAFER"],
+      source_plan: sourcePlan,
+      source_target_coverage: sourceTargetCoverage
+    });
     const expansionPlan = buildSupplyChainExpansionPlan({
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
@@ -142,7 +153,9 @@ describe("research-pack expansion and propagation", () => {
       company_id: "ENT-NVIDIA",
       workbench,
       observation_coverage: observationCoverage,
+      official_disclosure_readiness: officialDisclosureReadiness,
       source_plan: sourcePlan,
+      source_target_coverage: sourceTargetCoverage,
       supply_chain_expansion_plan: expansionPlan
     });
 
@@ -167,7 +180,21 @@ describe("research-pack expansion and propagation", () => {
         source_plan_refs: ["source_plan:samsung-ir"]
       })
     );
+    expect(report.ai_compute_matrix.summary.layers_total).toBe(8);
+    expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "demand_to_compute")).toEqual(
+      expect.objectContaining({
+        status: "covered_fact",
+        fact_edge_refs: ["edge:EDGE-MEMORY"]
+      })
+    );
+    expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(
+      expect.objectContaining({
+        status: "observation_ready",
+        material_or_process_refs: ["MAT-COPPER"]
+      })
+    );
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
     expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");
   });
 

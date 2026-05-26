@@ -46,6 +46,7 @@ export { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
 export * from "./observation-coverage.js";
 export * from "./official-disclosure-readiness.js";
 export * from "./official-disclosure-signal-correlation.js";
+export * from "./ai-compute-propagation-readiness.js";
 export * from "./propagation-readiness.js";
 export * from "./question-readiness.js";
 export * from "./research-target-profile.js";
@@ -155,7 +156,9 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     company_id: workbench.selected_company_id,
     workbench,
     observation_coverage: observationCoverage,
+    official_disclosure_readiness: officialDisclosureReadiness,
     source_plan: sourcePlan,
+    source_target_coverage: sourceTargetCoverage,
     supply_chain_expansion_plan: supplyChainExpansionPlan
   });
   const entityAffiliationContexts = await loadGate1EntityAffiliationContexts(client.read, { workbench });
@@ -357,7 +360,9 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     company_id: input.workbench.selected_company_id,
     workbench: input.workbench,
     observation_coverage: observationCoverage,
+    official_disclosure_readiness: officialDisclosureReadiness,
     source_plan: sourcePlan,
+    source_target_coverage: sourceTargetCoverage,
     supply_chain_expansion_plan: supplyChainExpansionPlan
   });
   const gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({

@@ -1,6 +1,8 @@
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
+import { buildAiComputePropagationReadinessMatrix } from "./ai-compute-propagation-readiness.js";
 import type { ObservationCoverageReport, ObservationSeriesReadiness } from "./observation-coverage.js";
+import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type {
   PropagationContextRule,
   PropagationReadinessItem,
@@ -18,14 +20,17 @@ export {
   type PropagationReadinessStatus,
   type PropagationReadinessSummary
 } from "./propagation-readiness-definitions.js";
+import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 export { renderPropagationReadinessMarkdown } from "./propagation-readiness-render.js";
 
 export interface PropagationReadinessInput {
   generated_at: string;
   company_id: string;
-  workbench: Pick<WorkbenchModel, "edges" | "chain_segments">;
+  workbench: Pick<WorkbenchModel, "edges" | "chain_segments" | "unknown_items">;
   observation_coverage: ObservationCoverageReport;
+  official_disclosure_readiness: OfficialDisclosureReadinessReport;
   source_plan: readonly SourcePlanItem[];
+  source_target_coverage: SourceTargetCoverageReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
 }
 
@@ -120,6 +125,14 @@ const PROPAGATION_RULES: readonly PropagationContextRule[] = [
 
 export function buildPropagationReadinessReport(input: PropagationReadinessInput): PropagationReadinessReport {
   const items = PROPAGATION_RULES.map((rule) => buildItem(rule, input)).sort((left, right) => left.context_id.localeCompare(right.context_id));
+  const aiComputeMatrix = buildAiComputePropagationReadinessMatrix({
+    workbench: input.workbench,
+    observation_coverage: input.observation_coverage,
+    official_disclosure_readiness: input.official_disclosure_readiness,
+    source_plan: input.source_plan,
+    source_target_coverage: input.source_target_coverage,
+    supply_chain_expansion_plan: input.supply_chain_expansion_plan
+  });
   return {
     schema_version: "1.0.0",
     generated_at: input.generated_at,
@@ -135,6 +148,7 @@ export function buildPropagationReadinessReport(input: PropagationReadinessInput
       reasoning_inputs: items.reduce((count, item) => count + item.ready_signals.length, 0),
       no_fact_mutation_policy: NO_FACT_MUTATION_POLICY
     },
+    ai_compute_matrix: aiComputeMatrix,
     items
   };
 }

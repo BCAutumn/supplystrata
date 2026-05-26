@@ -224,6 +224,13 @@ export interface ResearchPackStats {
   propagation_contexts_with_source_plan: number;
   propagation_contexts_with_component_leads: number;
   propagation_reasoning_inputs: number;
+  ai_compute_propagation_layers_total: number;
+  ai_compute_propagation_covered_fact: number;
+  ai_compute_propagation_observation_ready: number;
+  ai_compute_propagation_official_target_runnable: number;
+  ai_compute_propagation_lead_only: number;
+  ai_compute_propagation_unknown_open: number;
+  ai_compute_propagation_blocked_source: number;
   gate1_data_depth_items: number;
   gate1_data_depth_p0: number;
   gate1_data_depth_p1: number;

@@ -587,6 +587,25 @@ function emptyPropagationReadinessReport(): PropagationReadinessReport {
       reasoning_inputs: 0,
       no_fact_mutation_policy: "reasoning_input_only_no_fact_mutation"
     },
+    ai_compute_matrix: {
+      schema_version: "1.0.0",
+      matrix_id: "ai_compute_propagation.v0",
+      policy: "reasoning_input_only_no_fact_mutation",
+      summary: {
+        layers_total: 0,
+        covered_fact: 0,
+        observation_ready: 0,
+        official_target_runnable: 0,
+        lead_only: 0,
+        unknown_open: 0,
+        blocked_source: 0,
+        layers_with_fact_refs: 0,
+        layers_with_observation_refs: 0,
+        layers_with_source_targets: 0,
+        layers_with_frontier_refs: 0
+      },
+      layers: []
+    },
     items: []
   };
 }
