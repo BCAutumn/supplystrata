@@ -1,6 +1,10 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DueSourceCheckRow } from "@supplystrata/source-monitor";
 import { formatCliError, parseJsonObject, parseTradeDirections } from "../../apps/cli/src/cli-utils.js";
+import { buildSourceCheckTargetIdsFromSourcePlanFile } from "../../apps/cli/src/source-check-options.js";
 import { renderDueSources } from "../../apps/cli/src/source-render.js";
 
 describe("CLI error formatting", () => {
@@ -33,6 +37,30 @@ describe("CLI option parsing", () => {
 
   it("rejects non-object JSON config without type assertions", () => {
     expect(() => parseJsonObject("[]", "--config")).toThrow("--config must be a JSON object");
+  });
+
+  it("prefers embedded check target ids when a source-plan batch targets already-synced rows", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "supplystrata-source-plan-"));
+    const sourcePlanPath = join(dir, "batch.json");
+    await writeFile(
+      sourcePlanPath,
+      JSON.stringify({
+        schema_version: "1.0.0",
+        check_target_ids: [
+          "plan:gate1-db-monitoring-config-check:micron-ir:official-html-disclosure:64939e541a7ec958",
+          "plan:nvidia-memory-2025:sec-edgar:sec-company-facts:5c40fc865f66f81f"
+        ],
+        source_plan: []
+      })
+    );
+
+    await expect(buildSourceCheckTargetIdsFromSourcePlanFile({ sourcePlan: sourcePlanPath })).resolves.toEqual([
+      "plan:gate1-db-monitoring-config-check:micron-ir:official-html-disclosure:64939e541a7ec958",
+      "plan:nvidia-memory-2025:sec-edgar:sec-company-facts:5c40fc865f66f81f"
+    ]);
+    await expect(buildSourceCheckTargetIdsFromSourcePlanFile({ sourcePlan: sourcePlanPath, sourceAdapterIds: ["micron-ir"] })).resolves.toEqual([
+      "plan:gate1-db-monitoring-config-check:micron-ir:official-html-disclosure:64939e541a7ec958"
+    ]);
   });
 });
 

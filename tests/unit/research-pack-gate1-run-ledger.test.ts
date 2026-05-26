@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildGate1RunLedger, renderGate1RunLedgerMarkdown } from "@supplystrata/research-pack";
 import type {
   CorroborationSourcePlan,
+  Gate1EntityAffiliationContext,
   OfficialDisclosureReadinessReport,
   SourceTargetCoverageReport,
   SourceTargetPreflightReport,
@@ -63,6 +64,8 @@ describe("Gate 1 run ledger", () => {
     expect(ledger.review_workbench.summary.human_approval_required_items).toBe(4);
     expect(ledger.review_workbench.items.every((item) => item.policy.automatic_fact_mutation_allowed === false)).toBe(true);
     expect(ledger.review_workbench.items.every((item) => item.policy.allowed_edge_mutation === "none")).toBe(true);
+    expect(ledger.scorecard.fact_edge_scope).toBe("research_pack_visible_target_profile_l4_l5_edges");
+    expect(ledger.data_progress.fact_edge_scope).toBe("research_pack_visible_target_profile_l4_l5_edges");
     expect(ledger.review_workbench.items.some((item) => item.kind === "source_target_batch" && item.recommended_decision === "approve_smoke")).toBe(true);
     expect(ledger.review_workbench.items.some((item) => item.kind === "source_target_batch" && item.recommended_decision === "approve_sync")).toBe(true);
     expect(
@@ -75,6 +78,14 @@ describe("Gate 1 run ledger", () => {
     ).toBe(true);
     expect(
       ledger.review_workbench.items.some((item) => item.kind === "official_signal_disposition" && item.allowed_decisions.includes("supports_existing_edge"))
+    ).toBe(true);
+    expect(
+      ledger.review_workbench.items.some(
+        (item) =>
+          item.kind === "official_signal_disposition" &&
+          item.command_hint?.includes("review signal-disposition") === true &&
+          item.command_hint.includes("--decision record_single_source_unknown")
+      )
     ).toBe(true);
     expect(ledger.data_progress.open_official_signal_correlation_hints).toBe(1);
     expect(ledger.action_queue).toEqual(
@@ -96,6 +107,7 @@ describe("Gate 1 run ledger", () => {
     ).toBe(true);
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Review Workbench");
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Monitoring Config");
+    expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Fact edge scope: research_pack_visible_target_profile_l4_l5_edges");
     expect(renderGate1RunLedgerMarkdown(ledger)).toContain("fact mutation: false");
   });
 
@@ -211,6 +223,23 @@ describe("Gate 1 run ledger", () => {
       targets_failed_preflight: 0,
       targets_missing_credentials: 0
     };
+    corroborationPlan.target_refs = [
+      {
+        backlog_id: "BACKLOG-CORROB-1",
+        edge_ids: ["EDGE-1"],
+        unknown_ids: ["UNK-EDGE-1-SINGLE-SOURCE"],
+        source_adapter_id: "samsung-ir",
+        target_kind: "official-html-disclosure",
+        target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: "2025" },
+        coverage_state: "succeeded",
+        check_target_id: "CHK-SAMSUNG-IR",
+        preflight_status: null,
+        preflight_issue_kind: null,
+        preflight_missing_credential_env_keys: [],
+        next_action: "review_observations",
+        next_action_reason: "Source target already produced normalized observations."
+      }
+    ];
     const ledger = buildGate1RunLedger({
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
@@ -231,11 +260,151 @@ describe("Gate 1 run ledger", () => {
         expect.objectContaining({
           action_id: "gate1:corroboration:review-observations",
           kind: "review_observations",
-          priority: "P0"
+          priority: "P0",
+          command_hint:
+            'supplystrata review edge-corroboration-disposition EDGE-1 --decision needs_more_evidence --reviewer <name> --reason "Reviewed produced observations; not enough to promote into fact evidence yet." --check-target CHK-SAMSUNG-IR'
         })
       ])
     );
     expect(ledger.action_queue.some((action) => action.action_id === "gate1:corroboration:smoke")).toBe(false);
+  });
+
+  it("turns official target observations into calibration review command hints", () => {
+    const readiness = officialDisclosureReadinessFixture();
+    readiness.summary.official_targets_with_observations = 2;
+    const coverage = sourceTargetCoverageFixture();
+    coverage.summary.targets_with_observations = 2;
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: readiness,
+      corroboration_source_plan: corroborationSourcePlanFixture(),
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
+      source_target_coverage: coverage
+    });
+
+    const action = ledger.action_queue.find((item) => item.action_id === "gate1:observations:review");
+    expect(action?.kind).toBe("review_observations");
+    expect(action?.command_hint).toContain("intelligence observation-calibration-label <OBS-id>");
+  });
+
+  it("includes the source target namespace in executable corroboration action hints", () => {
+    const corroborationPlan = corroborationSourcePlanFixture();
+    corroborationPlan.summary = {
+      ...corroborationPlan.summary,
+      by_next_action: { sync_target: 1, enable_target: 1, run_due_target: 1 },
+      targets_need_sync: 1,
+      targets_need_enable: 1,
+      targets_due: 1
+    };
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: officialDisclosureReadinessFixture(),
+      corroboration_source_plan: corroborationPlan,
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture()
+    });
+
+    const corroborationCommands = ledger.action_queue
+      .filter((action) => action.action_id.startsWith("gate1:corroboration:"))
+      .map((action) => action.command_hint)
+      .filter((command): command is string => command !== null);
+
+    expect(corroborationCommands).toEqual(
+      expect.arrayContaining([
+        "supplystrata sources policy sync-plan-targets --source-plan corroboration-source-plan-sync.json --namespace gate1-review-test",
+        "supplystrata sources policy enable-plan-targets --source-plan corroboration-source-plan-enable.json --namespace gate1-review-test",
+        "supplystrata sources run-due --source-plan corroboration-source-plan-run-due.json --namespace gate1-review-test"
+      ])
+    );
+  });
+
+  it("asks for entity affiliation disposition before opening parent legal-entity research", () => {
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: officialDisclosureReadinessFixture(),
+      corroboration_source_plan: corroborationSourcePlanFixture(),
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
+      entity_affiliation_contexts: [samsungMemoryAffiliation()]
+    });
+
+    expect(ledger.review_workbench.summary.entity_affiliation_disposition_items).toBe(1);
+    expect(
+      ledger.review_workbench.items.some(
+        (item) =>
+          item.kind === "entity_affiliation_disposition" &&
+          item.recommended_decision === "review_entity_affiliation" &&
+          item.command_hint?.includes("review entity-affiliation-disposition")
+      )
+    ).toBe(true);
+    expect(ledger.company_switching.next_research_targets.every((target) => target.scope_kind !== "affiliation_parent_entity")).toBe(true);
+    expect(renderGate1RunLedgerMarkdown(ledger)).toContain("Entity affiliation dispositions: 1");
+  });
+
+  it("does not ask for entity affiliation disposition again after a reviewed parent decision is recorded", () => {
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: officialDisclosureReadinessFixture(),
+      corroboration_source_plan: corroborationSourcePlanFixture(),
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
+      entity_affiliation_contexts: [samsungMemoryAffiliationWithDisposition("research_parent_entity")]
+    });
+
+    expect(ledger.review_workbench.summary.entity_affiliation_disposition_items).toBe(0);
+    expect(ledger.review_workbench.items.some((item) => item.kind === "entity_affiliation_disposition")).toBe(false);
+    expect(ledger.company_switching.next_research_targets[0]).toEqual(
+      expect.objectContaining({
+        company_id: "ENT-SAMSUNG-ELECTRONICS",
+        scope_kind: "affiliation_parent_entity"
+      })
+    );
+    expect(ledger.company_switching.next_research_targets[0]?.rationale).toContain("CHG-ENTITY-AFFILIATION-1");
+  });
+
+  it("removes parent legal-entity research targets when the affiliation disposition rejects that scope", () => {
+    const ledger = buildGate1RunLedger({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_input: {
+        company: "ENT-NVIDIA",
+        depth: 3,
+        officialDisclosureYear: "2025",
+        sourceTargetNamespace: "gate1-review-test"
+      },
+      official_disclosure_readiness: officialDisclosureReadinessFixture(),
+      corroboration_source_plan: corroborationSourcePlanFixture(),
+      supply_chain_expansion_plan: supplyChainExpansionPlanFixture(),
+      entity_affiliation_contexts: [samsungMemoryAffiliationWithDisposition("research_child_entity")]
+    });
+
+    expect(ledger.review_workbench.summary.entity_affiliation_disposition_items).toBe(0);
+    expect(ledger.company_switching.next_research_targets.every((target) => target.scope_kind !== "affiliation_parent_entity")).toBe(true);
   });
 });
 
@@ -325,6 +494,7 @@ function officialDisclosureReadinessFixture(): OfficialDisclosureReadinessReport
     profile_expansion_candidates: [],
     expected_source_coverage: [],
     official_disclosure_signals: [],
+    edge_corroboration_dispositions: [],
     official_disclosure_signal_correlation_hints: [
       {
         review_id: "REV-1",
@@ -359,6 +529,7 @@ function officialDisclosureReadinessFixture(): OfficialDisclosureReadinessReport
         source_plan_refs: ["source-plan:item:samsung-ir"],
         source_targets: [sourceTargetFixture()],
         unknown_ids: [],
+        latest_disposition: null,
         proposed_unknown: {
           unknown_id: "UNK-EDGE-1-SINGLE-SOURCE",
           scope_kind: "edge",
@@ -660,5 +831,39 @@ function supplyChainExpansionPlanFixture(): SupplyChainExpansionPlan {
     ],
     component_dependency_leads: [],
     stop_conditions: []
+  };
+}
+
+function samsungMemoryAffiliation(): Gate1EntityAffiliationContext {
+  return {
+    context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
+    subject_entity_id: "ENT-SAMSUNG-MEMORY",
+    subject_name: "Samsung Memory",
+    subject_kind: "business_unit",
+    parent_entity_id: "ENT-SAMSUNG-ELECTRONICS",
+    parent_name: "Samsung Electronics",
+    parent_kind: "company",
+    parent_unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"],
+    edge_ids: ["EDGE-1"],
+    component_ids: ["COMP-MEMORY"],
+    latest_disposition: null
+  };
+}
+
+function samsungMemoryAffiliationWithDisposition(
+  decision: NonNullable<Gate1EntityAffiliationContext["latest_disposition"]>["decision"]
+): Gate1EntityAffiliationContext {
+  return {
+    ...samsungMemoryAffiliation(),
+    latest_disposition: {
+      change_id: "CHG-ENTITY-AFFILIATION-1",
+      decision,
+      reviewer: "unit-test",
+      reason: "fixture disposition",
+      recorded_at: "2026-05-26T00:00:00.000Z",
+      edge_ids: ["EDGE-1"],
+      component_ids: ["COMP-MEMORY"],
+      unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"]
+    }
   };
 }

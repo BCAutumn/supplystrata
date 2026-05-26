@@ -5,8 +5,10 @@ export {
   replaceEdgeCalibrationRun,
   upsertEdgeCalibrationLabel,
   upsertObservationCalibrationLabel,
+  upsertRankingCalibrationLabel,
   type UpsertEdgeCalibrationLabelInput,
-  type UpsertObservationCalibrationLabelInput
+  type UpsertObservationCalibrationLabelInput,
+  type UpsertRankingCalibrationLabelInput
 } from "./calibration.js";
 export { insertChainSegment, insertChainSegments, insertChainView, type NewChainSegmentInput, type NewChainViewInput } from "./chain-views.js";
 export {

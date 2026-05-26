@@ -33,7 +33,7 @@ export function buildCorroborationSourcePlan(input: CorroborationSourcePlanInput
       source_plan_items: sourcePlan.length,
       runnable_targets: targetRefs.length,
       targets_need_sync: targetRefs.filter((target) => target.coverage_state === "not_synced").length,
-      targets_need_enable: targetRefs.filter((target) => target.coverage_state === "disabled").length,
+      targets_need_enable: targetRefs.filter(hasDisabledSourceTargetCoverage).length,
       targets_due: targetRefs.filter((target) => target.coverage_state === "due").length,
       targets_failed_preflight: targetRefs.filter((target) => target.preflight_status === "failed").length,
       targets_missing_credentials: targetRefs.filter((target) => target.preflight_issue_kind === "missing_credentials").length,
@@ -59,6 +59,7 @@ export function buildCorroborationSourcePlanActionBatch(
     company_id: plan.company_id,
     batch_kind: definition.kind,
     next_actions: definition.next_actions,
+    check_target_ids: uniqueSorted(targetRefs.flatMap((target) => (target.check_target_id === null ? [] : [target.check_target_id]))),
     summary: {
       source_plan_items: sourcePlan.length,
       runnable_targets: sourcePlan.reduce((count, item) => count + item.suggested_check_targets.length, 0),
@@ -68,6 +69,10 @@ export function buildCorroborationSourcePlanActionBatch(
     },
     source_plan: sourcePlan
   };
+}
+
+function hasDisabledSourceTargetCoverage(target: { coverage_state: string | null }): boolean {
+  return target.coverage_state === "disabled" || target.coverage_state === "policy_disabled";
 }
 
 function countBy<T>(items: readonly T[], keyFn: (item: T) => string): Record<string, number> {

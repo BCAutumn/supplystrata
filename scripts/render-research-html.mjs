@@ -1,159 +1,74 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
-const [inputPath, outputPath] = process.argv.slice(2);
-if (inputPath === undefined || outputPath === undefined) {
-  console.error("Usage: node scripts/render-research-html.mjs <input.json> <output.html>");
+const [packDir, outputPath, previousPackDir] = process.argv.slice(2);
+if (packDir === undefined || outputPath === undefined) {
+  console.error("Usage: node scripts/render-research-html.mjs <research-pack-dir> <output.html> [previous-pack-dir]");
   process.exit(1);
 }
 
-const payload = JSON.parse(await readFile(inputPath, "utf8"));
-const report = payload.report;
-if (report === undefined || report.nvidia === undefined) {
-  throw new Error("Expected preview report JSON with report.nvidia");
-}
+const pack = await loadPack(packDir);
+const previous = previousPackDir === undefined ? null : await loadPack(previousPackDir);
+await writeFile(outputPath, renderHtml(pack, previous), "utf8");
 
-const candidates = report.nvidia.candidates ?? [];
-const edgeRows = candidates.map((candidate, index) => ({
-  id: `edge-${index + 1}`,
-  subject: candidate.subject_name ?? candidate.subject_surface,
-  relation: candidate.relation,
-  object: candidate.object_name ?? candidate.object_surface,
-  component: candidate.component ?? "unspecified",
-  level: candidate.evidence_level,
-  confidence: candidate.confidence,
-  cite: candidate.cite_text,
-  locator: candidate.cite_locator,
-  extractorId: candidate.extractor_id,
-  category: edgeCategory(candidate)
-}));
-const signals = [
-  ...sourceSignals("TSMC", report.tsmc),
-  ...sourceSignals("Samsung", report.samsung),
-  ...sourceSignals("SK hynix", report.skhynix),
-  ...sourceSignals("ASML", report.asml)
-];
-const sourceCards = [
-  sourceCard("NVIDIA SEC 10-K", report.nvidia.fetched_url, report.nvidia.source_date, report.nvidia.chunks, `${candidates.length} edges`),
-  sourceCard("TSMC IR", report.tsmc?.fetched_url, report.tsmc?.source_date, report.tsmc?.chunks, `${report.tsmc?.signals?.length ?? 0} signals`),
-  sourceCard("Samsung IR", report.samsung?.fetched_url, report.samsung?.source_date, report.samsung?.chunks, `${report.samsung?.signals?.length ?? 0} signals`),
-  sourceCard(
-    "SK hynix IR",
-    report.skhynix?.fetched_url,
-    report.skhynix?.source_date,
-    report.skhynix?.chunks,
-    `${report.skhynix?.signals?.length ?? 0} signals`
-  ),
-  sourceCard("ASML IR", report.asml?.fetched_url, report.asml?.source_date, report.asml?.chunks, `${report.asml?.signals?.length ?? 0} signals`)
-];
-
-const unknowns = [
-  {
-    type: "PRIVATE_CONTRACT",
-    title: "具体 HBM / memory allocation",
-    body: "公开 10-K 可确认 memory supplier，但不能确认每家供应商的具体代际、季度份额和订单量。"
-  },
-  {
-    type: "ORDER_VOLUME_UNOBSERVABLE",
-    title: "采购量与合同价格",
-    body: "公开披露没有给出 NVIDIA 对每个供应商的采购金额、价格条款和容量预留细节。"
-  },
-  {
-    type: "LOGISTICS_ATTRIBUTION_UNOBSERVABLE",
-    title: "运输路线与承运商",
-    body: "SEC 披露不能推出具体物流路线、库存位置或承运商；这些只能作为后续弱信号/观测层。"
-  },
-  {
-    type: "FACILITY_UNCONFIRMED",
-    title: "具体制造设施",
-    body: "供应商公司级关系已确认，但对应到 wafer fab、OSAT、EMS 工厂仍需要 Apple/OSH/IR 等来源交叉验证。"
-  },
-  {
-    type: "COMPONENT_AMBIGUITY",
-    title: "memory 不能自动升级为 HBM",
-    body: "没有出现 HBM / High Bandwidth Memory 等原文时，图上必须保持 memory 粒度，避免伪精确。"
+async function loadPack(dir) {
+  const entry = await stat(dir);
+  if (!entry.isDirectory()) {
+    throw new Error(`Expected a research-pack directory, got: ${dir}`);
   }
-];
-
-const graph = buildGraph(edgeRows, signals);
-
-await writeFile(outputPath, html(), "utf8");
-
-function sourceSignals(source, item) {
-  return (item?.signals ?? []).map((signal, index) => ({ source, id: `${source.toLowerCase().replaceAll(" ", "-")}-${index + 1}`, ...signal }));
-}
-
-function sourceCard(name, url, date, chunks, summary) {
   return {
-    name,
-    url: url ?? "",
-    date: date ?? "unknown",
-    chunks: chunks ?? 0,
-    summary
+    dir,
+    manifest: await readJson(dir, "manifest.json"),
+    readiness: await readJson(dir, "official-disclosure-readiness.json"),
+    expansion: await readJson(dir, "supply-chain-expansion-plan.json"),
+    workbench: await readJson(dir, "gate1-data-depth-workbench.json"),
+    ledger: await readJson(dir, "gate1-run-ledger.json"),
+    coverage: await readJson(dir, "source-target-coverage.json"),
+    propagation: await readJson(dir, "propagation-readiness.json"),
+    questions: await readJson(dir, "question-readiness.json"),
+    quality: await readJson(dir, "quality.json")
   };
 }
 
-function edgeCategory(candidate) {
-  const relation = candidate.relation ?? "";
-  const component = candidate.component ?? "";
-  if (relation === "USES_FOUNDRY") return "foundry";
-  if (component.toLowerCase().includes("memory")) return "memory";
-  if (component.toLowerCase().includes("manufacturing")) return "manufacturing";
-  return "other";
+async function readJson(dir, file) {
+  return JSON.parse(await readFile(join(dir, file), "utf8"));
 }
 
-function buildGraph(edges, signalRows) {
-  const rows = edges.map((edge, index) => ({
-    ...edge,
-    y: 116 + index * 72,
-    color: categoryColor(edge.category),
-    categoryLabel: categoryLabel(edge.category)
-  }));
-  const signalNodes = signalRows.map((signal, index) => ({
-    ...signal,
-    y: 102 + index * 48,
-    sourceKey: canonicalName(signal.source)
-  }));
-  const height = Math.max(720, Math.max(rows.length * 72 + 210, signalNodes.length * 48 + 210));
-  return { rows, signalNodes, height, width: 1240 };
-}
+function renderHtml(pack, previous) {
+  const stats = pack.manifest.stats;
+  const score = pack.ledger.scorecard;
+  const source = pack.ledger.source_path_progress;
+  const data = pack.ledger.data_progress;
+  const profile = pack.manifest.research_target_profile;
+  const actions = pack.ledger.action_queue ?? [];
+  const leads = pack.expansion.component_dependency_leads ?? [];
+  const edges = pack.readiness.edges ?? [];
+  const qualityIssues = pack.quality.issues ?? [];
 
-function categoryColor(category) {
-  if (category === "foundry") return "#2758c4";
-  if (category === "memory") return "#0f766e";
-  if (category === "manufacturing") return "#9a5b13";
-  return "#596579";
-}
-
-function categoryLabel(category) {
-  if (category === "foundry") return "Wafer Foundry";
-  if (category === "memory") return "Memory";
-  if (category === "manufacturing") return "Manufacturing Services";
-  return "Other";
-}
-
-function html() {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SupplyStrata NVIDIA Chain Graph Preview</title>
+  <title>SupplyStrata Gate 1 NVIDIA Research Report</title>
   <style>
     :root {
       color-scheme: light;
-      --ink: #17212b;
-      --muted: #667085;
-      --soft: #eef2f7;
-      --line: #d7dee8;
+      --page: #f4f7fb;
       --panel: #ffffff;
-      --page: #f5f7fb;
-      --evidence: #0f766e;
-      --blue: #2758c4;
-      --gold: #9a5b13;
-      --danger: #b42318;
-      --good: #087443;
-      --shadow: 0 14px 35px rgba(21, 31, 46, 0.08);
+      --ink: #162033;
+      --muted: #65748b;
+      --line: #d8e0eb;
+      --blue: #2358c8;
+      --green: #0d766e;
+      --gold: #9f620f;
+      --red: #b42318;
+      --soft-blue: #edf4ff;
+      --soft-green: #ebf7f4;
+      --soft-gold: #fff6e6;
+      --soft-red: #fff0ed;
+      --shadow: 0 10px 28px rgba(24, 36, 58, 0.08);
     }
     * { box-sizing: border-box; }
     body {
@@ -163,538 +78,546 @@ function html() {
       background: var(--page);
     }
     header {
-      padding: 26px 32px 18px;
-      background: #ffffff;
+      background: #fff;
       border-bottom: 1px solid var(--line);
+      padding: 26px 32px 18px;
     }
     main {
-      padding: 20px 32px 40px;
-      max-width: 1500px;
+      width: min(1500px, calc(100vw - 48px));
       margin: 0 auto;
+      padding: 22px 0 42px;
     }
-    h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
-    h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }
+    h1 { margin: 0 0 8px; font-size: 30px; line-height: 1.15; letter-spacing: 0; }
+    h2 { margin: 0 0 14px; font-size: 19px; letter-spacing: 0; }
     h3 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0; }
     p { margin: 0; line-height: 1.55; }
     a { color: var(--blue); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    button {
-      font: inherit;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--ink);
-      border-radius: 6px;
-      min-height: 32px;
-      padding: 0 10px;
-      cursor: pointer;
+    .muted { color: var(--muted); }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+      gap: 16px;
+      align-items: stretch;
     }
-    button:hover { border-color: var(--blue); }
-    .subhead { color: var(--muted); max-width: 1080px; }
-    .toolbar { display: flex; gap: 10px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      min-height: 30px;
-      padding: 0 10px;
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 6px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .grid { display: grid; gap: 16px; }
-    .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 16px;
       box-shadow: var(--shadow);
+      padding: 16px;
     }
-    .metric strong { display: block; font-size: 26px; margin-bottom: 4px; }
-    .metric span { color: var(--muted); font-size: 13px; }
-    .chain-shell {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 390px;
-      gap: 16px;
-      align-items: stretch;
-    }
-    .chain-panel { padding: 0; overflow: hidden; }
-    .chain-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      align-items: flex-start;
-      padding: 16px 16px 10px;
-      border-bottom: 1px solid var(--line);
-    }
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: flex-end;
-      color: var(--muted);
+    .grid { display: grid; gap: 16px; }
+    .metrics { grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 16px 0; }
+    .metric strong { display: block; font-size: 25px; line-height: 1.1; }
+    .metric span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border-radius: 6px;
+      padding: 0 8px;
       font-size: 12px;
-    }
-    .legend-item { display: inline-flex; align-items: center; gap: 6px; }
-    .swatch { width: 20px; height: 3px; border-radius: 999px; background: var(--ink); }
-    .swatch.dashed { border-top: 2px dashed #8a95a5; height: 0; background: transparent; }
-    .chain-canvas {
-      width: 100%;
-      overflow: auto;
-      background:
-        linear-gradient(90deg, rgba(247,249,252,0.98), rgba(255,255,255,0.94)),
-        repeating-linear-gradient(0deg, transparent 0, transparent 47px, rgba(215,222,232,0.45) 48px);
-    }
-    svg { display: block; min-width: 1120px; width: 100%; height: auto; }
-    .lane-title { font-size: 13px; font-weight: 700; fill: #344054; }
-    .lane-subtitle { font-size: 11px; fill: #667085; }
-    .node-rect {
-      fill: #ffffff;
-      stroke: #cdd5e1;
-      stroke-width: 1;
-      filter: drop-shadow(0 6px 14px rgba(21,31,46,0.08));
-    }
-    .node-title { fill: #17212b; font-size: 13px; font-weight: 800; }
-    .node-meta { fill: #667085; font-size: 11px; }
-    .edge-line {
-      fill: none;
-      stroke-linecap: round;
-      stroke-width: 3.5;
-      cursor: pointer;
-    }
-    .edge-hit {
-      fill: none;
-      stroke: transparent;
-      stroke-width: 18;
-      cursor: pointer;
-    }
-    .edge-line.active { stroke-width: 6; }
-    .signal-link {
-      fill: none;
-      stroke: #8a95a5;
-      stroke-width: 2;
-      stroke-dasharray: 5 6;
-    }
-    .unknown-boundary {
-      fill: #fff7ed;
-      stroke: #f0b56d;
-      stroke-width: 1;
-    }
-    .unknown-line {
-      stroke: #d97d13;
-      stroke-width: 2;
-      stroke-dasharray: 6 7;
-    }
-    .pill { fill: #f8fafc; stroke: #d7dee8; }
-    .pill-text { fill: #344054; font-size: 11px; font-weight: 700; }
-    .side-panel {
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
-      gap: 14px;
-    }
-    .detail-card {
+      font-weight: 700;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      background: #fbfcfe;
-    }
-    .detail-label {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .detail-title { margin-top: 4px; font-weight: 800; font-size: 18px; }
-    .detail-meta { margin-top: 8px; color: var(--muted); font-size: 13px; }
-    .quote {
-      margin-top: 12px;
-      padding: 12px;
-      border-left: 3px solid var(--evidence);
-      background: #ffffff;
-      color: #475467;
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .unknown-list {
-      display: grid;
-      gap: 9px;
-      max-height: 330px;
-      overflow: auto;
-      padding-right: 4px;
-    }
-    .unknown-item {
-      border: 1px solid #f1c48b;
-      border-radius: 8px;
-      padding: 10px;
-      background: #fffaf3;
-    }
-    .unknown-item strong { display: block; font-size: 13px; }
-    .unknown-item span { display: block; color: #7a4b13; font-size: 12px; margin-top: 3px; line-height: 1.45; }
-    .source-list { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 16px; }
-    .source-card { min-height: 120px; box-shadow: none; }
-    .source-card .name { font-weight: 800; margin-bottom: 6px; }
-    .source-card .meta { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.4; }
-    .lower-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
-      gap: 16px;
-      margin-top: 16px;
-      align-items: start;
-    }
-    .edge-table, .signal-table { display: grid; gap: 10px; }
-    .row-card {
-      padding: 12px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
       background: #fff;
     }
-    .row-card.active { outline: 2px solid var(--blue); outline-offset: 1px; }
-    .row-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: flex-start;
-      margin-bottom: 6px;
+    .status.pass, .status.ready { color: var(--green); background: var(--soft-green); border-color: #b7e3d8; }
+    .status.partial, .status.retry_wait, .status.smoke_first { color: var(--gold); background: var(--soft-gold); border-color: #f3d79b; }
+    .status.fail, .status.blocked { color: var(--red); background: var(--soft-red); border-color: #f5c2ba; }
+    .bar {
+      height: 8px;
+      background: #e8eef6;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 8px;
     }
-    .row-top strong { overflow-wrap: anywhere; }
-    .badge {
+    .bar > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--green)); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #e7edf5; text-align: left; vertical-align: top; }
+    th { color: #42526a; font-size: 12px; font-weight: 800; background: #f8fafc; }
+    .two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .section { margin-top: 16px; }
+    .callout { background: var(--soft-blue); border-color: #c8dcff; }
+    .callout strong { display: block; margin-bottom: 6px; }
+    .list { display: grid; gap: 10px; }
+    .item {
+      border: 1px solid #e4ebf4;
+      border-radius: 8px;
+      padding: 11px;
+      background: #fff;
+    }
+    .item-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: #334155; }
+    .command-list { display: grid; gap: 6px; margin-top: 10px; }
+    .command-list p { padding: 8px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; overflow-wrap: anywhere; }
+    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 0 8px;
+      background: #f3f6fa;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      font-size: 12px;
+    }
+    .trace-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .trace-box { border: 1px solid #e1e8f2; border-radius: 8px; padding: 11px; background: #fbfdff; }
+    .trace-box strong { display: block; font-size: 18px; }
+    .layer-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .layer-card {
+      border: 1px solid #e3eaf4;
+      border-radius: 8px;
+      padding: 11px;
+      background: #fbfdff;
+      min-height: 132px;
+    }
+    .layer-card.fact {
+      background: var(--soft-green);
+      border-color: #b7e3d8;
+    }
+    .layer-card.context {
+      background: var(--soft-gold);
+      border-color: #f3d79b;
+    }
+    .layer-card.lead {
+      background: #f8fafc;
+    }
+    .layer-level {
       display: inline-flex;
       align-items: center;
       min-height: 24px;
       padding: 0 8px;
-      border-radius: 999px;
-      background: #ecfdf3;
-      color: var(--good);
-      font-size: 12px;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-    .muted { color: var(--muted); }
-    .small { font-size: 12px; line-height: 1.45; }
-    .product-note {
-      margin-top: 16px;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-    .note-card {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
       background: #fff;
-    }
-    .note-card strong { display: block; margin-bottom: 6px; }
-    footer {
-      color: var(--muted);
-      padding: 0 32px 28px;
-      max-width: 1500px;
-      margin: 0 auto;
+      font-weight: 800;
       font-size: 12px;
+      margin-bottom: 8px;
     }
-    @media (max-width: 1120px) {
-      main, header, footer { padding-left: 18px; padding-right: 18px; }
-      .metrics, .chain-shell, .source-list, .lower-grid, .product-note { grid-template-columns: 1fr; }
-      .chain-header { display: block; }
-      .legend { justify-content: flex-start; margin-top: 10px; }
+    .layer-card strong { display: block; font-size: 13px; margin-bottom: 6px; }
+    .layer-card p { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .spark { color: var(--green); }
+    .down { color: var(--red); }
+    .svg-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fcfdff; }
+    svg { min-width: 960px; display: block; width: 100%; height: auto; }
+    .node { fill: #fff; stroke: #cbd6e4; stroke-width: 1; filter: drop-shadow(0 4px 9px rgba(24,36,58,0.08)); }
+    .node-title { font-size: 12px; font-weight: 800; fill: var(--ink); }
+    .node-meta { font-size: 10px; fill: var(--muted); }
+    .edge { stroke: #94a3b8; stroke-width: 1.5; marker-end: url(#arrow); }
+    .edge.fact { stroke: var(--green); stroke-width: 2.2; }
+    .edge.lead { stroke-dasharray: 6 5; }
+    @media (max-width: 1100px) {
+      .hero, .two, .three { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .layer-grid { grid-template-columns: 1fr; }
+      .trace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      main { width: min(100vw - 24px, 1500px); }
+      header { padding: 22px 18px 16px; }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>SupplyStrata NVIDIA 供应链链路图</h1>
-    <p class="subhead">这版把“链”放在第一屏：左侧是 NVIDIA，中间是直接披露的一级供应商，右侧是供应侧官方信号与未知边界。实线是可入图的高等级证据边，虚线只是观测信号，不偷偷升级成供应链事实。</p>
-    <div class="toolbar">
-      <span class="chip">NVIDIA 10-K: ${escapeHtml(report.nvidia.source_date ?? "unknown")}</span>
-      <span class="chip">文档 chunks: ${escapeHtml(String(report.nvidia.chunks))}</span>
-      <span class="chip">Level 4/5 边: ${escapeHtml(String(candidates.filter((candidate) => candidate.evidence_level >= 4).length))}</span>
-      <span class="chip">官方信号: ${escapeHtml(String(signals.length))}</span>
-      <span class="chip">Generated: ${escapeHtml(new Date().toISOString())}</span>
-    </div>
+    <h1>SupplyStrata Gate 1 NVIDIA 供应链情报报告</h1>
+    <p class="muted">生成时间 ${escapeHtml(pack.manifest.generated_at)} · depth ${pack.manifest.depth} · ${escapeHtml(profile?.title ?? "no profile")} · 静态 HTML 来自 <span class="code">${escapeHtml(pack.dir)}</span></p>
   </header>
   <main>
+    <section class="hero">
+      <div class="panel">
+        <h2>结论</h2>
+        <p>${summarySentence(pack)}</p>
+        <div class="pill-row">
+          <span class="status ${escapeAttr(score.status)}">Gate 1 ${escapeHtml(score.status)}</span>
+          <span class="pill">整体 ${pct(score.overall_progress)}</span>
+          <span class="pill">数据 ${pct(score.data_progress)}</span>
+          <span class="pill">source path ${pct(score.source_path_progress)}</span>
+        </div>
+      </div>
+      <div class="panel callout">
+        <strong>边界声明</strong>
+        <p>这份报告没有让模型编事实边。Observation、lead、source-path 只作为研究输入；L4/L5 fact edge 仍必须来自可追溯 evidence 和 review/disposition。</p>
+      </div>
+    </section>
+
+    <section class="panel section">
+      <h2>Evidence Layer Legend</h2>
+      <p class="muted">L 是 evidence_level，只说明证据来源强度，不说明关系重要性或风险大小。默认 fact graph 只展示 L4/L5；L1-L3 会进入 lead / observation / review backlog，避免弱信号污染事实层。</p>
+      <div class="layer-grid" style="margin-top:12px">
+        ${renderEvidenceLayerLegend()}
+      </div>
+    </section>
+
     <section class="grid metrics">
-      ${metric("证据边", candidates.length, "直接供应链边")}
-      ${metric("一级供应商", new Set(edgeRows.map((edge) => edge.object)).size, "公司级节点")}
-      ${metric("官方信号", signals.length, "供应侧观测")}
-      ${metric("Unknowns", unknowns.length, "显式边界")}
+      ${metric(profile?.target_nodes ?? stats.official_disclosure_target_nodes, "目标节点", diff(previous, "official_disclosure_target_nodes", stats.official_disclosure_target_nodes))}
+      ${metric(stats.official_disclosure_l4_l5_edges, "L4/L5 fact edges", `目标 ${score.l4_l5_fact_edge_target}`)}
+      ${metric(stats.official_disclosure_expected_source_links_with_coverage, "已覆盖 source links", `共 ${stats.official_disclosure_expected_source_links}`)}
+      ${metric(stats.source_target_total_observations, "结构化 observations", `${stats.source_target_targets_with_observations} 个 targets 有观察值`)}
+      ${metric(stats.supply_chain_expansion_component_dependency_leads, "递归上游 leads", `${stats.supply_chain_expansion_leads_with_fact_capable_source_path} 条 fact-capable path`)}
+      ${metric(stats.gate1_data_depth_adjacent_official_fact_edges ?? 0, "相邻官方事实", `${stats.gate1_data_depth_adjacent_official_fact_companies ?? 0} 个相关公司`)}
+      ${metric(stats.gate1_data_depth_p0, "P0 下一步", `${stats.gate1_data_depth_items} 个 workbench items`)}
     </section>
 
-    <section class="chain-shell">
-      <div class="panel chain-panel">
-        <div class="chain-header">
-          <div>
-            <h2>Chain Graph</h2>
-            <p class="muted small">点击任意实线或边列表，可在右侧查看对应证据。ASML 等供应侧信号保持为虚线观测层，避免把宏观/行业信息误写成公司边。</p>
-          </div>
-          <div class="legend" aria-label="legend">
-            <span class="legend-item"><span class="swatch" style="background:#2758c4"></span>foundry</span>
-            <span class="legend-item"><span class="swatch" style="background:#0f766e"></span>memory</span>
-            <span class="legend-item"><span class="swatch" style="background:#9a5b13"></span>manufacturing</span>
-            <span class="legend-item"><span class="swatch dashed"></span>official signal</span>
-          </div>
-        </div>
-        <div class="chain-canvas">
-          ${renderGraphSvg(graph)}
-        </div>
-      </div>
-
-      <aside class="panel side-panel">
-        <div>
-          <h2>Evidence Card</h2>
-          <div class="detail-card" id="edge-detail">
-            ${renderInitialDetail(edgeRows[0])}
-          </div>
-        </div>
-        <div>
-          <h2>Unknown Boundary</h2>
-          <div class="unknown-list">
-            ${unknowns.map(renderUnknown).join("")}
-          </div>
-        </div>
-        <div class="detail-card">
-          <div class="detail-label">Product rule</div>
-          <p class="small muted" style="margin-top:6px">前端必须默认展示证据强度、source health、unknown map。未来投资/金融决策层可以消费这些事实 API，但不能污染事实图谱。</p>
-        </div>
-      </aside>
-    </section>
-
-    <section class="grid source-list">
-      ${sourceCards.map(renderSourceCard).join("")}
-    </section>
-
-    <section class="lower-grid">
+    <section class="grid two section">
       <div class="panel">
-        <h2>直接证据边</h2>
-        <div class="edge-table">${edgeRows.map(renderEdgeRow).join("")}</div>
+        <h2>Gate 1 Scorecard</h2>
+        <table>
+          <thead><tr><th>Criterion</th><th>Status</th><th>Progress</th><th>Measured / Target</th></tr></thead>
+          <tbody>${(pack.readiness.scorecard.criteria ?? []).map(renderCriterion).join("")}</tbody>
+        </table>
       </div>
       <div class="panel">
-        <h2>供应侧官方信号</h2>
-        <div class="signal-table">${signals.map(renderSignal).join("")}</div>
+        <h2>Source Monitoring</h2>
+        <div class="trace-grid">
+          ${traceBox(source.expected_source_links, "expected links")}
+          ${traceBox(source.synced_targets, "synced targets")}
+          ${traceBox(source.retry_wait_targets, "retry wait")}
+          ${traceBox(source.targets_with_observations, "with observations")}
+        </div>
+        <div class="list" style="margin-top:12px">${(pack.ledger.monitoring_config.batches ?? []).map(renderMonitoringBatch).join("")}</div>
       </div>
     </section>
 
-    <section class="product-note">
-      <div class="note-card">
-        <strong>参考后的产品判断</strong>
-        <p class="small muted">供应链软件的核心不是漂亮卡片，而是多层网络、证据链、持续监控和风险/未知边界。</p>
+    <section class="panel section">
+      <h2>递归供应链 Frontier</h2>
+      <p class="muted">实线是已经进入 L4/L5 图谱的事实边，虚线是“可研究但不能自动写 fact edge”的上游 lead。</p>
+      <div class="svg-wrap" style="margin-top:12px">${renderFrontierSvg(edges, leads)}</div>
+    </section>
+
+    <section class="grid two section">
+      <div class="panel">
+        <h2>L4/L5 Fact Edges</h2>
+        <table>
+          <thead><tr><th>Subject</th><th>Relation</th><th>Object</th><th>Evidence</th><th>State</th></tr></thead>
+          <tbody>${edges.slice(0, 14).map(renderEdge).join("")}</tbody>
+        </table>
       </div>
-      <div class="note-card">
-        <strong>下一步 UI 契约</strong>
-        <p class="small muted">后续正式前端应提供 CompanyGraph、ComponentGraph、EvidenceDrawer、SourceHealthPanel、UnknownMapPanel 五个独立视图模块。</p>
+      <div class="panel">
+        <h2>上游 Leads</h2>
+        <table>
+          <thead><tr><th>From</th><th>To</th><th>Authority</th><th>Policy</th></tr></thead>
+          <tbody>${leads.slice(0, 16).map(renderLead).join("")}</tbody>
+        </table>
       </div>
-      <div class="note-card">
-        <strong>诚实边界</strong>
-        <p class="small muted">当前公开官方源只确认公司级一级边；二级/三级链路需要更多文件、供应商名单、设施数据和监控事件逐步填充。</p>
+    </section>
+
+    <section class="grid two section">
+      <div class="panel">
+        <h2>Data-depth Workbench</h2>
+        <div class="trace-grid">
+          ${traceBox(pack.workbench.summary.fact_edge_gap_to_target, "fact edge gap")}
+          ${traceBox(pack.workbench.summary.adjacent_official_fact_edges ?? 0, "adjacent facts")}
+          ${traceBox(pack.workbench.summary.source_blockers, "source blockers")}
+          ${traceBox(pack.workbench.summary.entity_context_items ?? 0, "entity context")}
+          ${traceBox(pack.workbench.summary.strength_missing_edges, "missing strength")}
+          ${traceBox(pack.workbench.summary.observation_labeling_batch, "labeling batch")}
+        </div>
+        <div class="list" style="margin-top:12px">${(pack.workbench.items ?? []).slice(0, 6).map(renderWorkbenchItem).join("")}</div>
       </div>
+      <div class="panel">
+        <h2>质量与可解释性</h2>
+        <div class="trace-grid">
+          ${traceBox(pack.quality.counts?.error ?? 0, "quality errors")}
+          ${traceBox(pack.quality.counts?.warn ?? 0, "quality warnings")}
+          ${traceBox(data.corroboration_queue_recorded_disposition, "recorded dispositions")}
+          ${traceBox(stats.unknown_items, "explicit unknowns")}
+        </div>
+        <div class="list" style="margin-top:12px">${qualityIssues.slice(0, 5).map(renderQualityIssue).join("")}</div>
+      </div>
+    </section>
+
+    <section class="grid two section">
+      <div class="panel">
+        <h2>现在能回答什么</h2>
+        <table>
+          <thead><tr><th>Question</th><th>Status</th><th>Confidence</th><th>Missing</th></tr></thead>
+          <tbody>${(pack.questions.items ?? []).map(renderQuestion).join("")}</tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h2>Propagation Readiness</h2>
+        <table>
+          <thead><tr><th>Context</th><th>Status</th><th>Confidence</th><th>Policy</th></tr></thead>
+          <tbody>${(pack.propagation.items ?? []).map(renderPropagation).join("")}</tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel section">
+      <h2>下一步行动队列</h2>
+      <div class="list">${actions.slice(0, 8).map(renderAction).join("")}</div>
+    </section>
+
+    <section class="panel section">
+      <h2>和上一版相比</h2>
+      ${renderComparison(pack, previous)}
     </section>
   </main>
-  <footer>Source JSON: ${escapeHtml(inputPath)} · HTML generated by scripts/render-research-html.mjs</footer>
-  <script>
-    const edgeRows = ${JSON.stringify(edgeRows)};
-    const detail = document.getElementById("edge-detail");
-    const cards = Array.from(document.querySelectorAll("[data-edge-card]"));
-    const paths = Array.from(document.querySelectorAll("[data-edge-path]"));
-
-    function renderDetail(edge) {
-      return [
-        '<div class="detail-label">' + escapeHtml(edge.categoryLabel ?? edge.category) + '</div>',
-        '<div class="detail-title">' + escapeHtml(edge.subject) + ' → ' + escapeHtml(edge.object) + '</div>',
-        '<div class="detail-meta">' + escapeHtml(edge.relation) + ' · ' + escapeHtml(edge.component) + ' · Level ' + edge.level + ' · confidence ' + Math.round(edge.confidence * 100) + '%</div>',
-        '<div class="quote">' + escapeHtml(edge.cite) + '<br><span class="muted">Locator: ' + escapeHtml(edge.locator) + ' · Extractor: ' + escapeHtml(edge.extractorId) + '</span></div>'
-      ].join("");
-    }
-
-    function selectEdge(edgeId) {
-      const edge = edgeRows.find((item) => item.id === edgeId);
-      if (!edge || !detail) return;
-      detail.innerHTML = renderDetail(edge);
-      for (const card of cards) card.classList.toggle("active", card.dataset.edgeCard === edgeId);
-      for (const path of paths) path.classList.toggle("active", path.dataset.edgePath === edgeId);
-    }
-
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-    }
-
-    for (const card of cards) {
-      card.addEventListener("click", () => selectEdge(card.dataset.edgeCard));
-    }
-    for (const path of paths) {
-      path.addEventListener("click", () => selectEdge(path.dataset.edgePath));
-    }
-  </script>
 </body>
 </html>`;
 }
 
-function renderGraphSvg(model) {
-  const { width, height, rows, signalNodes } = model;
-  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="NVIDIA supply chain graph">
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a95a5"></path>
-      </marker>
-    </defs>
-    ${renderLane(24, 26, 244, height - 52, "Demand anchor", "研究对象")}
-    ${renderLane(304, 26, 314, height - 52, "Tier 1 official edges", "可入图关系")}
-    ${renderLane(676, 26, 288, height - 52, "Supplier official signals", "观测层，不直接入边")}
-    ${renderUnknownLane(1010, 26, 200, height - 52)}
-    ${renderAnchorNode(82, height / 2 - 40)}
-    ${rows.map((edge) => renderEdgePath(edge, height / 2, 318, edge.y, 448)).join("")}
-    ${rows.map((edge) => renderSupplierNode(edge, 420, edge.y - 24)).join("")}
-    ${signalNodes.map((signal) => renderSignalNode(signal, 704, signal.y - 18)).join("")}
-    ${signalNodes.map((signal) => renderSignalLink(signal, rows)).join("")}
-    ${rows.map((edge, index) => renderUnknownProbe(edge, index, 1010)).join("")}
-    ${renderUnknownLabels(1032, 120)}
+function summarySentence(pack) {
+  const stats = pack.manifest.stats;
+  return [
+    `这版已经把 NVIDIA 示例从“供应商列表预览”推进到 Gate 1 研究执行面板：${stats.official_disclosure_target_nodes} 个目标节点、${stats.official_disclosure_l4_l5_edges} 条 L4/L5 fact edge、${stats.source_target_total_observations} 条结构化 observation。`,
+    `但距离 Gate 1 完成还差 ${stats.gate1_data_depth_fact_edge_gap} 条 L4/L5 边，cross-source corroboration 仍为 ${pct(stats.official_disclosure_corroboration_ratio)}；${stats.gate1_data_depth_adjacent_official_fact_edges ?? 0} 条相邻官方事实会作为递归研究入口展示，不会被伪装成 NVIDIA 已确认链路。`
+  ].join(" ");
+}
+
+function renderCriterion(item) {
+  return `<tr>
+    <td><strong>${escapeHtml(item.label)}</strong><br><span class="muted">${escapeHtml(item.rationale ?? "")}</span></td>
+    <td><span class="status ${escapeAttr(item.status)}">${escapeHtml(item.status)}</span></td>
+    <td>${pct(item.progress)}<div class="bar"><span style="width:${Math.min(100, Math.round((item.progress ?? 0) * 100))}%"></span></div></td>
+    <td>${escapeHtml(String(item.measured ?? "-"))} / ${escapeHtml(String(item.target ?? "-"))}</td>
+  </tr>`;
+}
+
+function renderMonitoringBatch(batch) {
+  return `<div class="item">
+    <div class="item-head"><strong>${escapeHtml(batch.batch_id)}</strong><span class="status ${escapeAttr(batch.current_state)}">${escapeHtml(batch.current_state)}</span></div>
+    <p class="muted">${escapeHtml(batch.attention_hint ?? "No immediate attention item.")}</p>
+    <div class="pill-row">
+      <span class="pill">${escapeHtml(batch.recommended_operational_action)}</span>
+      <span class="pill">${escapeHtml(batch.target_count)} targets</span>
+      <span class="pill">observations ${escapeHtml(String(batch.state_counts?.targets_with_observations ?? 0))}</span>
+    </div>
+  </div>`;
+}
+
+function renderEvidenceLayerLegend() {
+  const layers = [
+    {
+      level: "L5",
+      kind: "fact",
+      title: "Regulatory direct disclosure",
+      body: "监管文件直接明文披露的公司关系；默认进入 fact graph。"
+    },
+    {
+      level: "L4",
+      kind: "fact",
+      title: "Official disclosure / supplier list",
+      body: "官方供应商名单、公司官方报告或严格官方交叉验证；默认进入 fact graph。"
+    },
+    {
+      level: "L3",
+      kind: "context",
+      title: "Repeated customs / reviewed inference",
+      body: "海关/BOL 反复出现或多源一致推断；默认进入 review queue，不直接画成事实边。"
+    },
+    {
+      level: "L2",
+      kind: "context",
+      title: "Trend evidence",
+      body: "贸易流、价格、新闻和行业报告组成的趋势证据；进入 observation / propagation context。"
+    },
+    {
+      level: "L1",
+      kind: "lead",
+      title: "Single lead",
+      body: "单条新闻、论坛、招聘或爆料；只进入 hypothesis / lead，不进入事实图谱。"
+    }
+  ];
+  return layers
+    .map(
+      (layer) => `<div class="layer-card ${layer.kind}">
+        <span class="layer-level">${escapeHtml(layer.level)}</span>
+        <strong>${escapeHtml(layer.title)}</strong>
+        <p>${escapeHtml(layer.body)}</p>
+      </div>`
+    )
+    .join("");
+}
+
+function renderFrontierSvg(edges, leads) {
+  const factRows = edges
+    .slice(0, 8)
+    .map((edge, index) => ({ type: "fact", index, left: edge.from_name, right: edge.to_name, meta: edge.component_id ?? edge.relation }));
+  const leadRows = leads.slice(0, 10).map((lead, index) => ({
+    type: "lead",
+    index: index + factRows.length,
+    left: lead.parent_component_id,
+    right: lead.target_name,
+    meta: lead.source_path_authority
+  }));
+  const rows = [...factRows, ...leadRows];
+  const height = Math.max(220, rows.length * 54 + 60);
+  return `<svg viewBox="0 0 1040 ${height}" role="img" aria-label="Gate 1 frontier graph">
+    <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#64748b" /></marker></defs>
+    <text x="32" y="28" class="node-title">Current fact frontier</text>
+    <text x="610" y="28" class="node-title">Next upstream research leads</text>
+    ${rows.map(renderSvgRow).join("")}
   </svg>`;
 }
 
-function renderLane(x, y, width, height, title, subtitle) {
-  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" fill="#f8fafc" stroke="#e3e8ef"></rect>
-    <text x="${x + 16}" y="${y + 28}" class="lane-title">${escapeHtml(title)}</text>
-    <text x="${x + 16}" y="${y + 46}" class="lane-subtitle">${escapeHtml(subtitle)}</text>`;
-}
-
-function renderUnknownLane(x, y, width, height) {
-  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" class="unknown-boundary"></rect>
-    <line x1="${x + 18}" y1="${y + 62}" x2="${x + 18}" y2="${y + height - 24}" class="unknown-line"></line>
-    <text x="${x + 36}" y="${y + 28}" class="lane-title">Unknown boundary</text>
-    <text x="${x + 36}" y="${y + 46}" class="lane-subtitle">不能公开确认的部分</text>`;
-}
-
-function renderAnchorNode(x, y) {
+function renderSvgRow(row) {
+  const y = 54 + row.index * 54;
+  const lineClass = row.type === "fact" ? "fact" : "lead";
+  const x1 = row.type === "fact" ? 70 : 640;
+  const x2 = row.type === "fact" ? 430 : 940;
+  const mid = row.type === "fact" ? 250 : 790;
   return `<g>
-    <rect x="${x}" y="${y}" width="152" height="80" rx="10" class="node-rect"></rect>
-    <text x="${x + 18}" y="${y + 30}" class="node-title">NVIDIA</text>
-    <text x="${x + 18}" y="${y + 50}" class="node-meta">SEC 10-K disclosed buyer</text>
-    <rect x="${x + 18}" y="${y + 58}" width="70" height="18" rx="9" class="pill"></rect>
-    <text x="${x + 32}" y="${y + 71}" class="pill-text">anchor</text>
+    <rect class="node" x="${x1 - 38}" y="${y - 21}" width="210" height="42" rx="7" />
+    <text class="node-title" x="${x1 - 26}" y="${y - 4}">${escapeSvg(short(row.left, 24))}</text>
+    <text class="node-meta" x="${x1 - 26}" y="${y + 12}">${escapeSvg(row.type === "fact" ? "fact edge" : "component lead")}</text>
+    <line class="edge ${lineClass}" x1="${mid}" y1="${y}" x2="${x2 - 48}" y2="${y}" />
+    <rect class="node" x="${x2 - 38}" y="${y - 21}" width="210" height="42" rx="7" />
+    <text class="node-title" x="${x2 - 26}" y="${y - 4}">${escapeSvg(short(row.right, 24))}</text>
+    <text class="node-meta" x="${x2 - 26}" y="${y + 12}">${escapeSvg(short(row.meta, 28))}</text>
   </g>`;
 }
 
-function renderEdgePath(edge, anchorY, startX, targetY, endX) {
-  const path = `M ${startX} ${anchorY} C ${startX + 88} ${anchorY}, ${endX - 90} ${targetY}, ${endX} ${targetY}`;
-  return `<path d="${path}" class="edge-line" data-edge-path="${escapeAttr(edge.id)}" stroke="${edge.color}" opacity="0.82"></path>
-    <path d="${path}" class="edge-hit" data-edge-path="${escapeAttr(edge.id)}"></path>`;
+function renderEdge(edge) {
+  return `<tr>
+    <td>${escapeHtml(edge.from_name)}</td>
+    <td>${escapeHtml(edge.relation)}<br><span class="muted">${escapeHtml(edge.component_id ?? "component unknown")}</span></td>
+    <td>${escapeHtml(edge.to_name)}</td>
+    <td>L${escapeHtml(String(edge.evidence_level))} · ${escapeHtml((edge.source_adapters ?? []).join(", "))}</td>
+    <td>${escapeHtml(edge.traceability_state)} / ${escapeHtml(edge.corroboration_state)}<br><span class="muted">fresh ${edge.has_freshness ? "yes" : "no"} · strength ${edge.has_strength ? "yes" : "unknown"}</span></td>
+  </tr>`;
 }
 
-function renderSupplierNode(edge, x, y) {
-  const title = trimLabel(edge.object, 23);
-  return `<g data-edge-path="${escapeAttr(edge.id)}">
-    <rect x="${x}" y="${y}" width="178" height="52" rx="9" class="node-rect"></rect>
-    <circle cx="${x + 18}" cy="${y + 26}" r="5" fill="${edge.color}"></circle>
-    <text x="${x + 32}" y="${y + 21}" class="node-title">${escapeHtml(title)}</text>
-    <text x="${x + 32}" y="${y + 39}" class="node-meta">${escapeHtml(edge.categoryLabel)} · L${escapeHtml(String(edge.level))}</text>
-  </g>`;
+function renderLead(lead) {
+  return `<tr>
+    <td>${escapeHtml(lead.parent_component_id)}</td>
+    <td>${escapeHtml(lead.target_name)}<br><span class="muted">${escapeHtml(lead.category)}</span></td>
+    <td>${escapeHtml(lead.source_path_authority)}<br><span class="muted">${escapeHtml(lead.state)}</span></td>
+    <td>${escapeHtml(lead.expansion_policy)}<br><span class="muted">${escapeHtml((lead.source_ids ?? []).slice(0, 4).join(", "))}</span></td>
+  </tr>`;
 }
 
-function renderSignalNode(signal, x, y) {
-  const source = trimLabel(signal.source, 18);
-  const title = trimLabel(signal.title, 32);
-  return `<g>
-    <rect x="${x}" y="${y}" width="230" height="42" rx="9" class="node-rect"></rect>
-    <text x="${x + 14}" y="${y + 17}" class="node-title">${escapeHtml(source)}</text>
-    <text x="${x + 14}" y="${y + 34}" class="node-meta">${escapeHtml(title)}</text>
-  </g>`;
+function renderWorkbenchItem(item) {
+  return `<div class="item">
+    <div class="item-head"><strong>${escapeHtml(item.title)}</strong><span class="status ${escapeAttr(item.priority.toLowerCase())}">${escapeHtml(item.priority)}</span></div>
+    <p class="muted">${escapeHtml(item.rationale)}</p>
+    ${renderCommandHints(item.command_hints ?? [])}
+    <div class="pill-row"><span class="pill">${escapeHtml(item.workstream)}</span><span class="pill">${escapeHtml(item.frontend_action_kind)}</span><span class="pill">${escapeHtml(item.review_policy)}</span></div>
+  </div>`;
 }
 
-function renderSignalLink(signal, rows) {
-  const matched = rows.find((edge) => canonicalName(edge.object).includes(signal.sourceKey) || signal.sourceKey.includes(canonicalName(edge.object)));
-  const fromX = matched === undefined ? 598 : 598;
-  const fromY = matched === undefined ? signal.y : matched.y;
-  const path = `M ${fromX} ${fromY} C 640 ${fromY}, 664 ${signal.y}, 704 ${signal.y}`;
-  return `<path d="${path}" class="signal-link" marker-end="url(#arrow)"></path>`;
+function renderCommandHints(commandHints) {
+  const hints = commandHints.slice(0, 2);
+  if (hints.length === 0) return "";
+  return `<div class="command-list">${hints
+    .map(
+      (hint) =>
+        `<p><strong>${escapeHtml(hint.label)}</strong><br><span class="code">${escapeHtml(hint.command)}</span><br><span class="muted">writes truth store: ${escapeHtml(
+          String(hint.writes_truth_store)
+        )} · requires database: ${escapeHtml(String(hint.requires_database))}</span></p>`
+    )
+    .join("")}</div>`;
 }
 
-function renderUnknownProbe(edge, index, unknownX) {
-  if (index > 4) return "";
-  const y = 124 + index * 72;
-  const path = `M 598 ${edge.y} C 762 ${edge.y}, 882 ${y}, ${unknownX} ${y}`;
-  return `<path d="${path}" fill="none" stroke="#d97d13" stroke-width="1.5" stroke-dasharray="4 7" opacity="0.55"></path>`;
+function renderQualityIssue(issue) {
+  return `<div class="item">
+    <div class="item-head"><strong>${escapeHtml(issue.rule_id)}</strong><span class="status ${issue.severity === "error" ? "fail" : "partial"}">${escapeHtml(issue.severity)}</span></div>
+    <p class="muted">${escapeHtml(issue.message)}</p>
+    <span class="code">${escapeHtml(issue.scope_id ?? "")}</span>
+  </div>`;
 }
 
-function renderUnknownLabels(x, y) {
-  return `<text x="${x}" y="${y}" class="node-title">仍未知</text>
-    <text x="${x}" y="${y + 22}" class="node-meta">allocation</text>
-    <text x="${x}" y="${y + 42}" class="node-meta">volume / price</text>
-    <text x="${x}" y="${y + 62}" class="node-meta">facility mapping</text>
-    <text x="${x}" y="${y + 82}" class="node-meta">logistics route</text>
-    <text x="${x}" y="${y + 102}" class="node-meta">contract terms</text>`;
+function renderQuestion(item) {
+  return `<tr>
+    <td>${escapeHtml(item.question)}</td>
+    <td><span class="status ${escapeAttr(item.status)}">${escapeHtml(item.status)}</span></td>
+    <td>${pct(item.confidence)}</td>
+    <td>${escapeHtml((item.missing_requirements ?? []).slice(0, 2).join("; ") || "none")}</td>
+  </tr>`;
 }
 
-function renderInitialDetail(edge) {
-  if (edge === undefined) {
-    return `<div class="detail-label">No edge</div><div class="detail-title">没有可展示的供应链边</div>`;
-  }
-  return `<div class="detail-label">${escapeHtml(categoryLabel(edge.category))}</div>
-    <div class="detail-title">${escapeHtml(edge.subject)} → ${escapeHtml(edge.object)}</div>
-    <div class="detail-meta">${escapeHtml(edge.relation)} · ${escapeHtml(edge.component)} · Level ${escapeHtml(String(edge.level))} · confidence ${(edge.confidence * 100).toFixed(0)}%</div>
-    <div class="quote">${escapeHtml(edge.cite)}<br><span class="muted">Locator: ${escapeHtml(edge.locator)} · Extractor: ${escapeHtml(edge.extractorId)}</span></div>`;
+function renderPropagation(item) {
+  return `<tr>
+    <td>${escapeHtml(item.title)}<br><span class="muted">${escapeHtml(item.question)}</span></td>
+    <td><span class="status ${escapeAttr(item.status)}">${escapeHtml(item.status)}</span></td>
+    <td>${pct(item.confidence)}</td>
+    <td>${escapeHtml(item.policy)}</td>
+  </tr>`;
 }
 
-function metric(label, value, sublabel) {
-  return `<div class="panel metric"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)} · ${escapeHtml(sublabel)}</span></div>`;
+function renderAction(action) {
+  return `<div class="item">
+    <div class="item-head"><strong>${escapeHtml(action.title)}</strong><span class="status ${escapeAttr(action.priority.toLowerCase())}">${escapeHtml(action.priority)}</span></div>
+    <p class="muted">${escapeHtml(action.rationale)}</p>
+    ${action.command_hint === null ? "" : `<p class="code" style="margin-top:8px">${escapeHtml(action.command_hint)}</p>`}
+  </div>`;
 }
 
-function renderSourceCard(source) {
-  const link = source.url.length > 0 ? `<a href="${escapeAttr(source.url)}">${escapeHtml(shortUrl(source.url))}</a>` : `<span class="muted">no url</span>`;
-  return `<article class="panel source-card">
-    <div class="name">${escapeHtml(source.name)}</div>
-    ${link}
-    <div class="meta">date ${escapeHtml(source.date)} · chunks ${escapeHtml(String(source.chunks))} · ${escapeHtml(source.summary)}</div>
-  </article>`;
+function renderComparison(pack, previous) {
+  if (previous === null) return `<p class="muted">没有提供上一版 research-pack；当前 HTML 只展示本次结果。</p>`;
+  const rows = [
+    ["target nodes", "official_disclosure_target_nodes"],
+    ["expected source links", "official_disclosure_expected_source_links"],
+    ["covered source links", "official_disclosure_expected_source_links_with_coverage"],
+    ["runnable suggested targets", "runnable_suggested_targets"],
+    ["component dependency leads", "supply_chain_expansion_component_dependency_leads"],
+    ["fact-capable leads", "supply_chain_expansion_leads_with_fact_capable_source_path"],
+    ["Gate 1 overall progress", "official_disclosure_gate1_overall_progress", true]
+  ];
+  return `<table><thead><tr><th>Metric</th><th>Previous</th><th>Current</th><th>Delta</th></tr></thead><tbody>${rows
+    .map(([label, key, percent]) => {
+      const oldValue = previous.manifest.stats[key] ?? 0;
+      const newValue = pack.manifest.stats[key] ?? 0;
+      const delta = newValue - oldValue;
+      return `<tr><td>${escapeHtml(label)}</td><td>${formatValue(oldValue, percent)}</td><td>${formatValue(newValue, percent)}</td><td class="${delta >= 0 ? "spark" : "down"}">${delta >= 0 ? "+" : ""}${formatValue(delta, percent)}</td></tr>`;
+    })
+    .join("")}</tbody></table>`;
 }
 
-function renderEdgeRow(edge) {
-  return `<article class="row-card" data-edge-card="${escapeAttr(edge.id)}">
-    <div class="row-top">
-      <strong>${escapeHtml(edge.subject)} → ${escapeHtml(edge.object)}</strong>
-      <span class="badge">L${escapeHtml(String(edge.level))} · ${(edge.confidence * 100).toFixed(0)}%</span>
-    </div>
-    <p class="small muted">${escapeHtml(edge.relation)} · ${escapeHtml(edge.component)} · ${escapeHtml(categoryLabel(edge.category))}</p>
-    <p class="small muted" style="margin-top:6px">${escapeHtml(edge.cite)}</p>
-  </article>`;
+function metric(value, label, sub) {
+  return `<div class="panel metric"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}${sub === "" ? "" : `<br>${escapeHtml(sub)}`}</span></div>`;
 }
 
-function renderSignal(signal) {
-  return `<article class="row-card">
-    <div class="row-top">
-      <strong>${escapeHtml(signal.source)} · ${escapeHtml(signal.title)}</strong>
-      <span class="badge">L${escapeHtml(String(signal.evidence_level))}</span>
-    </div>
-    <p class="small muted">${escapeHtml(signal.cite_text)}</p>
-  </article>`;
+function traceBox(value, label) {
+  return `<div class="trace-box"><strong>${escapeHtml(String(value))}</strong><span class="muted">${escapeHtml(label)}</span></div>`;
 }
 
-function renderUnknown(item) {
-  return `<article class="unknown-item">
-    <strong>${escapeHtml(item.title)}</strong>
-    <span>${escapeHtml(item.type)} · ${escapeHtml(item.body)}</span>
-  </article>`;
+function diff(previous, key, current) {
+  if (previous === null) return "";
+  const oldValue = previous.manifest.stats[key] ?? 0;
+  const delta = current - oldValue;
+  return `${delta >= 0 ? "+" : ""}${delta} vs previous`;
 }
 
-function shortUrl(url) {
-  if (url.length <= 48) return url;
-  return `${url.slice(0, 44)}...`;
+function formatValue(value, percent) {
+  if (percent === true) return pct(value);
+  return escapeHtml(String(value));
 }
 
-function trimLabel(value, maxLength) {
-  const text = String(value);
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 1)}…`;
+function pct(value) {
+  const number = Number(value ?? 0);
+  return `${Math.round(number * 1000) / 10}%`;
 }
 
-function canonicalName(value) {
-  return String(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
+function short(value, max) {
+  const text = String(value ?? "");
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function escapeAttr(value) {
+  return escapeHtml(
+    String(value ?? "")
+      .replace(/[^a-z0-9_-]+/giu, "-")
+      .toLowerCase()
+  );
+}
+
+function escapeSvg(value) {
   return escapeHtml(value);
 }

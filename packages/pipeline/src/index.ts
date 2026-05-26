@@ -7,5 +7,25 @@ export type { OfficialDisclosureSignalCandidateResult } from "./official-disclos
 export { locateSupplierListRowContext } from "./review-apply-supplier-list.js";
 export { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "./review-apply.js";
 export type { AppliedReviewEdgeResult, ReviewApplyBatchItem, ReviewApplyBatchSummary, ReviewApplyResult } from "./review-apply.js";
+export {
+  assessGate1EntitySourceReviewCandidate,
+  runGate1EntitySourceReviewBatch,
+  unsafeGate1EntitySourceReviewReason
+} from "./gate1-entity-source-review-batch.js";
+export type {
+  Gate1EntitySourceReviewBatchInput,
+  Gate1EntitySourceReviewBatchItem,
+  Gate1EntitySourceReviewBatchSummary
+} from "./gate1-entity-source-review-batch.js";
+export {
+  buildGate1SupplierEntityResolutionBacklog,
+  runGate1SupplierListReviewBatch,
+  unsafeSupplierListReviewReason
+} from "./gate1-supplier-list-review-batch.js";
+export type {
+  Gate1SupplierListEntityResolutionBacklogItem,
+  Gate1SupplierListReviewBatchItem,
+  Gate1SupplierListReviewBatchSummary
+} from "./gate1-supplier-list-review-batch.js";
 export { isValidCandidate, runSupplyChainPipelineFromNormalized } from "./run.js";
 export type { NormalizedPipelineInput, PipelineSummary } from "./types.js";

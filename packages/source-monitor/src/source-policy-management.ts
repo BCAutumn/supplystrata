@@ -45,13 +45,22 @@ export async function enableSourceCheckTargets(client: DbClient, input: SourceCh
        LEFT JOIN source_health h ON h.source_adapter_id = t.source_adapter_id
      ),
      eligible AS (
-       SELECT check_target_id
+       SELECT check_target_id, source_adapter_id
        FROM matched
        WHERE source_adapter_id IS NOT NULL
          AND automation IS NOT NULL
          AND registry_status IS NOT NULL
          AND automation <> 'manual_only'
          AND registry_status <> 'rejected'
+     ),
+     updated_policies AS (
+       UPDATE source_policies p
+       SET enabled = true,
+           config_source = $8,
+           updated_at = now()
+       FROM (SELECT DISTINCT source_adapter_id FROM eligible) e
+       WHERE p.source_adapter_id = e.source_adapter_id
+       RETURNING p.source_adapter_id
      ),
      updated AS (
        UPDATE source_check_targets t

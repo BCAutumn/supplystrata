@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import type pg from "pg";
-import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel, ObservationCalibrationLabel } from "@supplystrata/core";
+import type {
+  EdgeCalibrationErrorCategory,
+  EdgeCalibrationLabel,
+  EvidenceLevel,
+  ObservationCalibrationLabel,
+  RankingCalibrationLabel
+} from "@supplystrata/core";
 import type { DbClient, DbTxClient } from "./client.js";
 import { toIsoString } from "./time.js";
 
@@ -24,6 +30,21 @@ interface ObservationCalibrationLabelRow extends pg.QueryResultRow {
   reviewer: string;
   reviewed_at: Date | string;
   rationale: string | null;
+  attrs: Record<string, unknown>;
+}
+
+interface RankingCalibrationLabelRow extends pg.QueryResultRow {
+  label_id: string;
+  ranking_context_id: string;
+  ranking_kind: string;
+  model_version: string;
+  candidate_entity_id: string;
+  candidate_rank: number;
+  label: RankingCalibrationLabel;
+  reviewer: string;
+  reviewed_at: Date | string;
+  rationale: string | null;
+  score_breakdown: Record<string, unknown>;
   attrs: Record<string, unknown>;
 }
 
@@ -62,6 +83,21 @@ export interface ObservationCalibrationLabelRecord {
   attrs: Record<string, unknown>;
 }
 
+export interface RankingCalibrationLabelRecord {
+  label_id: string;
+  ranking_context_id: string;
+  ranking_kind: string;
+  model_version: string;
+  candidate_entity_id: string;
+  candidate_rank: number;
+  label: RankingCalibrationLabel;
+  reviewer: string;
+  reviewed_at: string;
+  rationale?: string;
+  score_breakdown: Record<string, unknown>;
+  attrs: Record<string, unknown>;
+}
+
 export interface UpsertObservationCalibrationLabelInput {
   label_id?: string;
   observation_id: string;
@@ -70,6 +106,21 @@ export interface UpsertObservationCalibrationLabelInput {
   reviewer: string;
   reviewed_at: string;
   rationale?: string;
+  attrs?: Record<string, unknown>;
+}
+
+export interface UpsertRankingCalibrationLabelInput {
+  label_id?: string;
+  ranking_context_id: string;
+  ranking_kind: string;
+  model_version: string;
+  candidate_entity_id: string;
+  candidate_rank: number;
+  label: RankingCalibrationLabel;
+  reviewer: string;
+  reviewed_at: string;
+  rationale?: string;
+  score_breakdown?: Record<string, unknown>;
   attrs?: Record<string, unknown>;
 }
 
@@ -224,6 +275,83 @@ export async function listObservationCalibrationLabels(
   return result.rows.map(observationCalibrationLabelRowToRecord);
 }
 
+export async function upsertRankingCalibrationLabel(
+  client: DbTxClient,
+  input: UpsertRankingCalibrationLabelInput
+): Promise<{ label_id: string; inserted: boolean }> {
+  const labelId = input.label_id ?? deterministicRankingCalibrationLabelId(input);
+  const result = await client.query<{ label_id: string; inserted: boolean } & pg.QueryResultRow>(
+    `INSERT INTO ranking_calibration_labels (
+       label_id, ranking_context_id, ranking_kind, model_version, candidate_entity_id,
+       candidate_rank, label, reviewer, reviewed_at, rationale, score_breakdown, attrs
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb)
+     ON CONFLICT (label_id)
+     DO UPDATE SET
+       ranking_kind = EXCLUDED.ranking_kind,
+       model_version = EXCLUDED.model_version,
+       candidate_rank = EXCLUDED.candidate_rank,
+       label = EXCLUDED.label,
+       reviewed_at = EXCLUDED.reviewed_at,
+       rationale = EXCLUDED.rationale,
+       score_breakdown = EXCLUDED.score_breakdown,
+       attrs = ranking_calibration_labels.attrs || EXCLUDED.attrs,
+       updated_at = now()
+     RETURNING label_id, (xmax = 0) AS inserted`,
+    [
+      labelId,
+      input.ranking_context_id,
+      input.ranking_kind,
+      input.model_version,
+      input.candidate_entity_id,
+      input.candidate_rank,
+      input.label,
+      input.reviewer,
+      input.reviewed_at,
+      input.rationale ?? null,
+      JSON.stringify(input.score_breakdown ?? {}),
+      JSON.stringify(input.attrs ?? {})
+    ]
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Failed to upsert ranking calibration label for ${input.ranking_context_id}/${input.candidate_entity_id}`);
+  return { label_id: row.label_id, inserted: row.inserted };
+}
+
+export async function listRankingCalibrationLabels(
+  client: DbClient,
+  input: { ranking_context_id?: string; ranking_context_ids?: readonly string[]; label?: RankingCalibrationLabel; limit?: number } = {}
+): Promise<RankingCalibrationLabelRecord[]> {
+  if (input.ranking_context_ids !== undefined && input.ranking_context_ids.length === 0) return [];
+  const params: unknown[] = [];
+  const predicates: string[] = [];
+  if (input.ranking_context_id !== undefined) {
+    params.push(input.ranking_context_id);
+    predicates.push(`ranking_context_id = $${params.length}`);
+  }
+  if (input.ranking_context_ids !== undefined) {
+    params.push([...new Set(input.ranking_context_ids)]);
+    predicates.push(`ranking_context_id = ANY($${params.length}::text[])`);
+  }
+  if (input.label !== undefined) {
+    params.push(input.label);
+    predicates.push(`label = $${params.length}`);
+  }
+  params.push(input.limit ?? 100);
+  const limitParam = `$${params.length}`;
+  const where = predicates.length === 0 ? "" : `WHERE ${predicates.join(" AND ")}`;
+  const result = await client.query<RankingCalibrationLabelRow>(
+    `SELECT label_id, ranking_context_id, ranking_kind, model_version, candidate_entity_id,
+            candidate_rank, label, reviewer, reviewed_at, rationale, score_breakdown, attrs
+     FROM ranking_calibration_labels
+     ${where}
+     ORDER BY reviewed_at DESC, label_id
+     LIMIT ${limitParam}`,
+    params
+  );
+  return result.rows.map(rankingCalibrationLabelRowToRecord);
+}
+
 export async function replaceEdgeCalibrationRun(client: DbTxClient, input: ReplaceEdgeCalibrationRunInput): Promise<{ run_id: string; items: number }> {
   const result = await client.query<{ run_id: string } & pg.QueryResultRow>(
     `INSERT INTO edge_calibration_runs (
@@ -319,6 +447,23 @@ function observationCalibrationLabelRowToRecord(row: ObservationCalibrationLabel
   };
 }
 
+function rankingCalibrationLabelRowToRecord(row: RankingCalibrationLabelRow): RankingCalibrationLabelRecord {
+  return {
+    label_id: row.label_id,
+    ranking_context_id: row.ranking_context_id,
+    ranking_kind: row.ranking_kind,
+    model_version: row.model_version,
+    candidate_entity_id: row.candidate_entity_id,
+    candidate_rank: row.candidate_rank,
+    label: row.label,
+    reviewer: row.reviewer,
+    reviewed_at: toIsoString(row.reviewed_at),
+    ...(row.rationale === null ? {} : { rationale: row.rationale }),
+    score_breakdown: row.score_breakdown,
+    attrs: row.attrs
+  };
+}
+
 function deterministicEdgeCalibrationLabelId(input: UpsertEdgeCalibrationLabelInput): string {
   const digest = createHash("sha256")
     .update([input.edge_id, input.evidence_id ?? "", input.reviewer].join(":"))
@@ -331,4 +476,13 @@ function deterministicEdgeCalibrationLabelId(input: UpsertEdgeCalibrationLabelIn
 function deterministicObservationCalibrationLabelId(input: UpsertObservationCalibrationLabelInput): string {
   const digest = createHash("sha256").update([input.observation_id, input.reviewer].join(":")).digest("hex").slice(0, 24).toUpperCase();
   return `OBS-CAL-LABEL-${digest}`;
+}
+
+function deterministicRankingCalibrationLabelId(input: UpsertRankingCalibrationLabelInput): string {
+  const digest = createHash("sha256")
+    .update([input.ranking_context_id, input.candidate_entity_id, input.reviewer].join(":"))
+    .digest("hex")
+    .slice(0, 24)
+    .toUpperCase();
+  return `RANK-CAL-LABEL-${digest}`;
 }

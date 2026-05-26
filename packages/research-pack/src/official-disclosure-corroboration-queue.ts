@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   OfficialDisclosureCorroborationDisposition,
   OfficialDisclosureCorroborationQueueItem,
+  OfficialDisclosureEdgeCorroborationDispositionSummary,
   OfficialDisclosureProposedUnknown,
   OfficialDisclosureNodeCoverageState,
   OfficialDisclosureReadinessEdge,
@@ -30,7 +31,7 @@ const DISPOSITION_ACTIONS = {
   needs_counterparty_source_target: () =>
     "Create node-specific source-plan targets for the candidate official sources, then run them before changing corroboration state.",
   single_source_disposition_recorded: () =>
-    "Review the linked single-source disposition unknown during research updates; do not count it as cross-source corroboration.",
+    "Review the linked or proposed single-source disposition unknown during research updates; do not count it as cross-source corroboration.",
   needs_explicit_single_source_disposition: (input) => {
     const suffix = input.proposedUnknown === null ? "" : ` Proposed unknown: ${input.proposedUnknown.unknown_id}.`;
     return `Record an explicit single-source unknown/disposition so the edge is not silently treated as corroborated.${suffix}`;
@@ -65,17 +66,20 @@ const CORROBORATION_PRIORITY_ORDER = {
 export function buildCorroborationQueue(input: {
   edges: readonly OfficialDisclosureReadinessEdge[];
   nodes: readonly OfficialDisclosureReadinessNode[];
+  edgeCorroborationDispositions?: readonly OfficialDisclosureEdgeCorroborationDispositionSummary[];
 }): OfficialDisclosureCorroborationQueueItem[] {
   const nodesById = new Map(input.nodes.map((node) => [node.node_id, node]));
+  const dispositionsByEdge = latestDispositionByEdge(input.edgeCorroborationDispositions ?? []);
   return input.edges
     .filter((edge) => edge.corroboration_state !== "cross_source")
-    .map((edge) => corroborationQueueItemForEdge(edge, nodesById))
+    .map((edge) => corroborationQueueItemForEdge(edge, nodesById, dispositionsByEdge.get(edge.edge_id) ?? null))
     .sort(compareCorroborationQueueItems);
 }
 
 function corroborationQueueItemForEdge(
   edge: OfficialDisclosureReadinessEdge,
-  nodesById: ReadonlyMap<string, OfficialDisclosureReadinessNode>
+  nodesById: ReadonlyMap<string, OfficialDisclosureReadinessNode>,
+  latestDisposition: OfficialDisclosureEdgeCorroborationDispositionSummary | null
 ): OfficialDisclosureCorroborationQueueItem {
   const candidateNodes = corroborationCandidateNodes(edge, nodesById);
   const existingSources = new Set(edge.source_adapters);
@@ -84,13 +88,17 @@ function corroborationQueueItemForEdge(
     candidateNodes.flatMap((node) => node.source_targets).filter((target) => !existingSources.has(target.source_adapter_id))
   );
   const sourcePlanRefs = uniqueSorted(candidateNodes.flatMap((node) => node.source_plan_refs));
-  const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets });
-  const proposedUnknown = disposition === "needs_explicit_single_source_disposition" ? proposedSingleSourceDispositionUnknown(edge) : null;
+  const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets, latestDisposition });
+  const proposedUnknown =
+    disposition === "needs_explicit_single_source_disposition" ||
+    (latestDisposition?.decision === "record_single_source_unknown" && latestDisposition.unknown_id === null)
+      ? proposedSingleSourceDispositionUnknown(edge)
+      : null;
   return {
     edge_id: edge.edge_id,
     priority: corroborationPriority({ edge, candidateNodes, sourceTargets }),
     disposition,
-    reason: corroborationReason(edge, candidateSourceIds, sourceTargets),
+    reason: corroborationReason(edge, candidateSourceIds, sourceTargets, latestDisposition),
     from_id: edge.from_id,
     from_name: edge.from_name,
     to_id: edge.to_id,
@@ -102,6 +110,7 @@ function corroborationQueueItemForEdge(
     source_plan_refs: sourcePlanRefs,
     source_targets: sourceTargets,
     unknown_ids: edge.unknown_ids,
+    latest_disposition: latestDisposition,
     proposed_unknown: proposedUnknown,
     action: corroborationAction(disposition, sourceTargets, proposedUnknown)
   };
@@ -145,8 +154,10 @@ function corroborationDisposition(input: {
   edge: OfficialDisclosureReadinessEdge;
   candidateSourceIds: readonly string[];
   sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[];
+  latestDisposition: OfficialDisclosureEdgeCorroborationDispositionSummary | null;
 }): OfficialDisclosureCorroborationDisposition {
   if (input.edge.corroboration_state === "missing_evidence") return "needs_traceability_backfill";
+  if (input.latestDisposition?.decision === "record_single_source_unknown") return "single_source_disposition_recorded";
   if (input.sourceTargets.length > 0) return "needs_counterparty_check";
   if (input.candidateSourceIds.length > 0) return "needs_counterparty_source_target";
   if (input.edge.single_source_disposition_unknown_ids.length > 0) return "single_source_disposition_recorded";
@@ -156,9 +167,10 @@ function corroborationDisposition(input: {
 function corroborationReason(
   edge: OfficialDisclosureReadinessEdge,
   candidateSourceIds: readonly string[],
-  sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[]
+  sourceTargets: readonly OfficialDisclosureReadinessSourceTarget[],
+  latestDisposition: OfficialDisclosureEdgeCorroborationDispositionSummary | null = null
 ): string {
-  const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets });
+  const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets, latestDisposition });
   return DISPOSITION_REASONS[disposition];
 }
 
@@ -183,6 +195,17 @@ function proposedSingleSourceDispositionUnknown(edge: OfficialDisclosureReadines
     proxies: ["source-plan target coverage", "official disclosure observations", "manual review disposition"],
     created_by: "official-disclosure-readiness.single-source-disposition.v1"
   };
+}
+
+function latestDispositionByEdge(
+  dispositions: readonly OfficialDisclosureEdgeCorroborationDispositionSummary[]
+): Map<string, OfficialDisclosureEdgeCorroborationDispositionSummary> {
+  const byEdge = new Map<string, OfficialDisclosureEdgeCorroborationDispositionSummary>();
+  for (const disposition of dispositions) {
+    const existing = byEdge.get(disposition.edge_id);
+    if (existing === undefined || disposition.recorded_at.localeCompare(existing.recorded_at) > 0) byEdge.set(disposition.edge_id, disposition);
+  }
+  return byEdge;
 }
 
 function deterministicSingleSourceDispositionUnknownId(edgeId: string): string {

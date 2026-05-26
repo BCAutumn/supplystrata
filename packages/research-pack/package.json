@@ -18,6 +18,7 @@
     "@supplystrata/db": "workspace:*",
     "@supplystrata/evidence-maintenance": "workspace:*",
     "@supplystrata/render": "workspace:*",
+    "@supplystrata/review-store": "workspace:*",
     "@supplystrata/source-management": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",
     "@supplystrata/source-plan": "workspace:*",

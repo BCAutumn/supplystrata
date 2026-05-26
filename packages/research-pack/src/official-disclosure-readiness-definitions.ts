@@ -122,6 +122,25 @@ export interface OfficialDisclosureReadinessEdge {
   single_source_disposition_unknown_ids: string[];
 }
 
+export type OfficialDisclosureEdgeCorroborationDispositionDecision =
+  | "supports_existing_edge"
+  | "needs_more_evidence"
+  | "not_relevant"
+  | "record_single_source_unknown"
+  | "create_counterparty_source_target";
+
+export interface OfficialDisclosureEdgeCorroborationDispositionSummary {
+  change_id: string;
+  edge_id: string;
+  decision: OfficialDisclosureEdgeCorroborationDispositionDecision;
+  reviewer: string;
+  reason: string;
+  evidence_id: string | null;
+  unknown_id: string | null;
+  check_target_id: string | null;
+  recorded_at: string;
+}
+
 export type OfficialDisclosureCorroborationDisposition =
   | "needs_counterparty_check"
   | "needs_counterparty_source_target"
@@ -156,6 +175,7 @@ export interface OfficialDisclosureCorroborationQueueItem {
   source_plan_refs: string[];
   source_targets: OfficialDisclosureReadinessSourceTarget[];
   unknown_ids: string[];
+  latest_disposition: OfficialDisclosureEdgeCorroborationDispositionSummary | null;
   proposed_unknown: OfficialDisclosureProposedUnknown | null;
   action: string;
 }
@@ -302,6 +322,7 @@ export interface OfficialDisclosureReadinessReport {
   expected_source_coverage: OfficialDisclosureExpectedSourceCoverage[];
   official_disclosure_signals: OfficialDisclosureSignalReviewSummary[];
   official_disclosure_signal_correlation_hints: OfficialDisclosureSignalCorrelationHint[];
+  edge_corroboration_dispositions: OfficialDisclosureEdgeCorroborationDispositionSummary[];
   corroboration_queue: OfficialDisclosureCorroborationQueueItem[];
   edges: OfficialDisclosureReadinessEdge[];
   source_plan_items: OfficialDisclosureReadinessSourcePlanItem[];
@@ -317,6 +338,7 @@ export interface OfficialDisclosureReadinessInput {
   target_profile?: OfficialDisclosureReadinessProfile;
   source_plan?: readonly SourcePlanItem[];
   source_target_coverage?: SourceTargetCoverageReport;
+  edge_corroboration_dispositions?: readonly OfficialDisclosureEdgeCorroborationDispositionSummary[];
   targets?: Partial<OfficialDisclosureReadinessTargets>;
 }
 

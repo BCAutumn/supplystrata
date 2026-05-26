@@ -168,7 +168,7 @@ packages/risk-view
 
 ```text
 [ ] 至少 25 个核心研究节点有官方披露 source coverage
-[ ] 至少 100 条 Level 4/5 fact edge
+[ ] 当前 Gate 1 research target profile / research-pack 可见链路内至少 100 条 Level 4/5 fact edge；全库其它链路的 L4/L5 边只能作为广度进展，不能替代 NVIDIA / AI compute 主链深度
 [ ] 至少 30% fact edge 有第二来源 corroboration 或明确标为 single-source
 [ ] 任一 fact edge 都能追到 evidence_id、doc_id、source_url、cite_text、offset/fingerprint
 [ ] AI compute / memory profile 不只覆盖公司，还覆盖核心 component / material / equipment / process frontier，并为缺失上游材料节点生成 explicit backlog
@@ -177,19 +177,26 @@ packages/risk-view
 
 当前完成态：
 
-- Gate 1 已有只读 readiness / backlog / run ledger / data-depth workbench 输出，能量化事实边覆盖、traceability、二源或 single-source disposition、expected source coverage、source target coverage、source blocker、gold label 批次和下一层 frontier research。
+- Gate 1 已有只读 readiness / backlog / run ledger / data-depth workbench 输出，能量化事实边覆盖、traceability、二源或 single-source disposition、expected source coverage、source target coverage、source blocker、gold label 批次、相邻官方事实池和下一层 frontier research。
 - 官方源路径已覆盖 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF entity lookup 的基础接线；DART/EDINET/TWSE 当前定位为目录/target/readiness/monitor 骨架，不解析正文、不写事实边。
 - `ai-compute-memory.v0` 已从公司/一阶组件覆盖扩展到 AI server 与 PCB 上游 frontier：`COMP-SERVER -> GPU / HBM / manufacturing services / PCB / optical module / power / cooling`，以及 `PCB -> CCL -> copper foil / electronic glass cloth / laminate resin`、`wafer -> cleanroom`。这些都是 source-plan / observation / backlog 输入，不是事实边。
 - `supply-chain-expansion-plan` 已区分 component dependency lead 的 source path authority：fact-capable official path、observation-only trade/commodity path、lead-only path 会分别统计和渲染；只有命中具体 dependency、target，或锚定到 target component 的 source-plan item 才能改变 lead 状态，parent component 的泛化 source-plan 不会被借给所有下游材料。
-- 二源检查已形成标准 source-plan 子集和 action-specific 批次，支持 preview、无数据库 smoke、sync、enable、run-due，并能把 preflight / DB-backed failure kind 回流到 Gate 1 action queue。
+- 二源检查已形成标准 source-plan 子集和 action-specific 批次，支持 preview、无数据库 smoke、sync、enable、run-due，并能把 preflight / DB-backed failure kind 回流到 Gate 1 action queue。action batch 会携带已匹配到的 `check_target_ids`，因此 enable / run-due 会优先操作真实已同步 target；只有普通 source-plan 才按 namespace 重新生成 target id。
 - `gate1-run-ledger` 已提供 frontend-ready `monitoring_config` 和 `review_workbench`：前者收口 cadence / jitter / retry / backoff / `next_check_at`，后者收口 source target、edge corroboration、official signal disposition、frontier company research 的 review-only 决策入口。
+- edge corroboration queue 已有独立 review-only disposition 出口：`review edge-corroboration-disposition` 只写 `EDGE_CORROBORATION_DISPOSITION_RECORDED` change，不写 evidence / fact edge / source target；research-pack 会读回每条 edge 的最新 disposition，让前端/host app 能审查单源 L4/L5 边并记录 single-source unknown、继续找二源或创建 counterparty target，而不是让沉默缺口长期悬空。
+- `gate1-data-depth-workbench` 已新增 `entity_context` workstream：当 visible chain 里的节点是业务单元/子实体且 source path 配在父级法人的时候，研究包会输出 review-only affiliation item，提示应审查父级、子级或两者的递归研究范围；如果父级法人已有 open company unknown，该 item 会把 unknown ref 带回当前报告，避免递归研究目标和未知边界分叉。它不自动合并实体、不把父级 evidence 复制到子级、不传播 fact edge。审查结论通过 `review entity-affiliation-disposition` 写入 `ENTITY_AFFILIATION_DISPOSITION_RECORDED` change，供前端/host app 复用；该 disposition 仍带 `automatic_fact_mutation_allowed=false`。research-pack 会读回每个 context 的最新 disposition：未记录时进入 `review_workbench(kind='entity_affiliation_disposition')`，已记录 parent/both scope 时才继续生成父级法人 research target，已记录 child/not relevant/keep unknown 时不会反复推荐父级 research。
 - single-source disposition unknown 和 official signal disposition unknown 都有受控物化路径；它们只写 `unknown_items` 与审计 change，不写 evidence、fact edge 或 source target。
+- root research coverage unknown 已进入 `--prepare-data` 显式写入路径：当 selected company / 父级法人研究入口没有任何 reviewed L4/L5 fact edge 且没有 open company unknown 时，系统会物化一个 company-scoped unknown，用来说明“这个研究范围已经打开，但官方关系证据仍缺失”。该路径只写 unknown 和 semantic change，不写 evidence、fact edge，也不把 observation/lead 升级为事实。
 - `supply-chain-expansion-plan` 已能把 L4/L5 frontier 转成下一层通用 research plan；它是递归研究计划，不是事实写入流程。
+- `gate1-data-depth-workbench` 已新增 `adjacent_official_facts` workstream：truth-store 模式会按当前 profile 组件读取“同组件、非当前可见链路”的 L4/L5 current fact edge，作为相邻官方事实池输出。它解释全库 L4/L5 增长为什么不等于 NVIDIA 可见链路增长，并把这些边转成下一轮 listed-company research 候选；该路径只读，不把 Apple/其它官方名单边复制到 NVIDIA 链路，不写 fact edge，不关闭 unknown。
+- adjacent official facts 的下一轮 company ranking 已收口为独立纯函数：组件/行业相关性和 likely upstream role 优先，edge frequency 只能作为弱 tie-breaker；当存在组件相关候选时，披露中心节点或品牌方不会因为出现次数多而排在前面。每个 ranking context 会输出稳定 context/candidate id、model version、assumptions 和 score breakdown，并已有 `ranking_calibration_labels` 持久化契约用于标注 `useful_target / wrong_direction / brand_center_bias / needs_more_context / not_relevant`；truth-store research-pack 会把已持久化 ranking label 回灌到 candidate 的 `review_status / latest_label / existing_labels`，并在 manifest 中统计 labeled/unlabeled 与 persisted label 分布。该 rank 仍只是 review-only research target 建议，不是概率结论；进入概率化候选评分前必须有足量 gold label、校准报告和 bias / reliability bucket 输出。
+- 2026-05-26 最新本地跑数：全库 L4/L5 current fact edge refresh 扫到 217 条；NVIDIA research-pack 可见 L4/L5 fact edge 仍为 23 条，Gate 1 目标缺口 77 条。Apple Supplier List 受限批处理继续用“官方名单行 + curated entity + 可复现 citation”的门槛推进事实边，本轮为 Compal、Flex、Jabil、Compeq、AT&S、JCET、Cirrus Logic、Henkel、Fujikura、Hirose、JX Advanced Metals 等 AI server / PCB / 先进封装 / 连接器 / 电子材料相关实体补 seed/alias 后，受控应用 26 个 review candidate；这些边已进入 `claim_build` / `intelligence_refresh`，但没有被计入 NVIDIA profile 可见 L4/L5 深度。缺失 strength 继续保持为 explicit unknown，避免把官方名单关系伪装成已知份额或依赖强度。Samsung Foundry / Samsung Memory 的父级法人研究范围已记录 review-only disposition；2 条 single-source proposed unknown 已物化为 edge-scoped unknown。source monitor 已跑完当前 due official targets；Micron IR corroboration target 真实抓取结果仍为 `source_unreachable` / timeout，因此报告将其保留为 retry/wait source blocker，而不是写入事实边。SK hynix IR 产生的 facility-edge correlation hints 已全部记录为 `needs_more_evidence` review-only disposition：它们保留为 AI memory/HBM 研究信号，但不计入二源 corroboration，也不写 fact edge。
 
 仍未完成：
 
-- 真实 L4/L5 fact edge 数量仍未达到 100 条，core node 官方覆盖也未达到 25 个。
-- counterparty 官方披露还缺足够的人工/规则裁决样本，open official signal hints 仍需要 disposition。
+- 全库 L4/L5 current fact edge 已超过 100 条，说明 review / evidence / graph 写入闭环跑通；但 NVIDIA research-pack 可见 L4/L5 仍只有 23 条，因此 Gate 1 目标链路深度尚未完成，不能用全库总数替代 profile 内验收。
+- target profile 中仍只有 7 个 target nodes 有 fact edge；34 个 target nodes 中还有 3 个缺官方 coverage，source path progress 仍约 0.67。
+- counterparty 官方披露还缺足够的人工/规则裁决样本；最新报告中 open official signal correlation hints 和 open official signal review candidates 都已降为 0，corroboration action queue 还剩 5 个 review-observation target 和 2 个 wait-for-job target，但这些 disposition / job states 只是 review-only 研究结论或监控状态，不能把它们当成 evidence 或二源 corroboration。
 - EDINET / DART / TWSE 正文下载、正文解析和可审计 evidence 提取仍是后续阶段。
 
 边界约束：
@@ -589,14 +596,17 @@ POST /review/:id/reject
 [x] `corroboration-source-plan` 的 next-action 状态机优先尊重已同步 source target 的真实运行态；`succeeded` target 直接进入 review observation，不因缺少 preflight 快照而重复提示 smoke
 [x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
 [x] research-pack 能输出 `gate1-run-ledger.json/md`，把 Gate 1 data progress、source path progress、corroboration 批次和 supply-chain frontier company switching 合成一个只读执行账本
-[x] research-pack 能输出 `gate1-data-depth-workbench.json/md`，把 Gate 1 数据深度缺口收敛成 review-only 优先级清单，覆盖 L4/L5 增长、二源 corroboration、source blocker、strength 缺失、gold label 批次和 propagation context
-[x] research-pack 能把 Gate 1 data-depth workbench 拆成 action batch JSON，至少覆盖 P0、source blockers、labeling、corroboration 和 intelligence context，供前端/host app 做受控审查或配置动作
+[x] research-pack 能输出 `gate1-data-depth-workbench.json/md`，把 Gate 1 数据深度缺口收敛成 review-only 优先级清单，覆盖 L4/L5 增长、adjacent official facts、entity affiliation context、二源 corroboration、source blocker、strength 缺失、gold label 批次和 propagation context
+[x] research-pack 能把 Gate 1 data-depth workbench 拆成 action batch JSON，至少覆盖 P0、source blockers、labeling、corroboration、entity context、adjacent official facts 和 intelligence context，供前端/host app 做受控审查或配置动作
 [x] Gate 1 data-depth action item 能输出推荐决策、允许决策、写入影响、frontend action kind 和命令提示；这些字段只授权配置/审查/标注/递归研究动作，不授权自动写 fact edge 或关闭 unknown
+[x] Gate 1 entity affiliation context 能通过 review-store / CLI 记录审阅结论，明确下一轮应研究父级法人、子实体、双范围或保持 unknown；research-pack 会读回最新 disposition，并把未裁决 context 放入 frontend-ready review workbench，已裁决 context 不再重复催审；该路径只写 semantic change，不合并实体、不继承 evidence、不传播 fact edge
 [x] research-pack 能输出 `propagation-readiness.json/md` 或等价 DTO，作为 AI/前端分析产业传导链路的结构化输入，不直接生成结论或事实边
 [x] `gate1-run-ledger` 能输出 frontend-ready `monitoring_config`，把 source policy / source target 的 cadence、jitter、retry、backoff、初始 `next_check_at` 和 source-plan 批次建议统一暴露给后续前端配置
 [x] `gate1-run-ledger.monitoring_config.batches[]` 能输出 state counts、attention hint 和 recommended operational action，区分 sync、enable、run due、wait、investigate failure、review observation
 [x] `gate1-run-ledger.action_queue` 能消费 `corroboration-source-plan.summary.by_next_action`，在 smoke 回灌后输出 review observations / configure credentials / retry preflight / sync / enable / run due 等精确动作，避免重复提示 smoke
+[x] `gate1-run-ledger.action_queue` 的 review observations / fact edge growth / source failure 动作能输出可执行 command hint：observation review 只进入 calibration label，corroboration observation review 只记录 edge disposition，fact-edge growth 先跑 Gate 1 supplier-list dry-run；这些命令不授权自动写 fact edge
 [x] `gate1-run-ledger.action_queue` 能把 open official disclosure signal correlation hints 输出为 `record_official_signal_dispositions` 动作，给后续前端/host app 一个统一 review-only 审批入口
+[x] `gate1-run-ledger.review_workbench` 的 official signal disposition item 能输出可执行 `review signal-disposition` 命令提示；规则可以预填推荐 decision，人只确认 reason / evidence / unknown / target 绑定，且该命令仍只写 review semantic change
 [x] DB-backed source target coverage 能输出 source-check failure kind，并把缺凭据、限流、源不可达、源响应错误、adapter 错误和未知失败带入 manifest / README / Gate 1 monitoring batch
 [x] `gate1-run-ledger` 能输出 frontend-ready `review_workbench`，为 source target 批次、edge corroboration、official signal disposition 和 frontier company research 给出推荐决策、允许决策、命令提示、写入影响与 `review_only_no_fact_mutation` policy，让规则自动排优先级、人工只确认受控动作
 [x] research-pack 能按 audited next-action 输出非空的 action-specific corroboration source-plan 批次，避免把仍需 smoke / 修凭据 / 修配置的 target 直接混入 sync / enable / run-due 执行
@@ -669,6 +679,8 @@ POST /review/:id/reject
 [x] observation calibration candidates 能进入持久化 label 样本池，且不会自动写 fact edge 或修改 observation
 [x] research-pack / manifest 能把已持久化 observation calibration label 回灌到 source-target coverage，区分 recommended label、persisted label、labeled/unlabeled 候选数，避免把未审查候选误读成 gold label
 [x] research-pack 能生成 deterministic next labeling batch，按 priority/metric 分层抽取未标注 observation calibration candidates，帮助扩大 gold set 时保持覆盖面
+[x] adjacent official facts 的 research-target ranking 能输出稳定 context/candidate id 和 feature breakdown，并有独立 ranking calibration label 表记录 useful target、方向错误、品牌/披露中心偏差、需要更多上下文或不相关；这些 label 不写 fact edge，也不把 rank 解释成概率
+[ ] ranking calibration run 能在样本量足够后输出 precision / recall / bias summary / reliability bucket，并把未校准 rank 继续标为 candidate-generation only
 [ ] 人工 gold set 样本量足够并完成季度 precision 校准
 ```
 

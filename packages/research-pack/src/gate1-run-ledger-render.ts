@@ -16,12 +16,14 @@ export function renderGate1RunLedgerMarkdown(ledger: Gate1RunLedger): string {
     `- Overall: ${formatPercent(ledger.scorecard.overall_progress)}`,
     `- Data progress: ${formatPercent(ledger.scorecard.data_progress)}`,
     `- Source path progress: ${formatPercent(ledger.scorecard.source_path_progress)}`,
+    `- Fact edge scope: ${ledger.scorecard.fact_edge_scope}`,
     `- L4/L5 fact edges: ${ledger.scorecard.l4_l5_fact_edges}/${ledger.scorecard.l4_l5_fact_edge_target}`,
     `- Cross-source ratio: ${formatPercent(ledger.scorecard.cross_source_ratio)}/${formatPercent(ledger.scorecard.cross_source_target)}`,
     `- Traceability: ${ledger.scorecard.traceable_edges}/${ledger.scorecard.traceable_edge_target}`,
     "",
     "## Data Progress",
     "",
+    `- Fact edge scope: ${ledger.data_progress.fact_edge_scope}`,
     `- Fact edge gap: ${ledger.data_progress.fact_edge_gap}`,
     `- Single-source edges: ${ledger.data_progress.single_source_edges}`,
     `- Corroboration queue: ${ledger.data_progress.corroboration_queue_items}; runnable ${ledger.data_progress.corroboration_queue_with_runnable_targets}; need disposition ${ledger.data_progress.corroboration_queue_needing_disposition}; recorded ${ledger.data_progress.corroboration_queue_recorded_disposition}`,
@@ -68,6 +70,7 @@ export function renderGate1RunLedgerMarkdown(ledger: Gate1RunLedger): string {
   lines.push(`- Items: ${ledger.review_workbench.summary.total_items}`);
   lines.push(`- Human approval required: ${ledger.review_workbench.summary.human_approval_required_items}`);
   lines.push(`- Auto-ranked only: ${ledger.review_workbench.summary.auto_ranked_items}`);
+  lines.push(`- Entity affiliation dispositions: ${ledger.review_workbench.summary.entity_affiliation_disposition_items}`);
   for (const item of ledger.review_workbench.items.slice(0, 12)) {
     lines.push(`- ${item.priority} ${item.kind}: ${item.title}`);
     lines.push(`  Recommended: ${item.recommended_decision}; allowed: ${item.allowed_decisions.join(", ")}`);
@@ -81,6 +84,7 @@ export function renderGate1RunLedgerMarkdown(ledger: Gate1RunLedger): string {
   } else {
     for (const target of ledger.company_switching.next_research_targets.slice(0, 10)) {
       lines.push(`- ${target.company_name} [${target.company_id}] via ${target.component_id}`);
+      lines.push(`  Scope: ${target.scope_kind}; source entity: ${target.source_entity_name} [${target.source_entity_id}]`);
       lines.push(`  Command: \`${target.command_hint}\``);
       lines.push(`  Seed edge: ${target.seed_edge_id}`);
     }

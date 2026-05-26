@@ -22,6 +22,12 @@ interface EdgeRow extends pg.QueryResultRow {
   evidence_level: number;
 }
 
+interface EvidenceRow extends pg.QueryResultRow {
+  cite_text: string;
+  cite_start_char: number | null;
+  cite_end_char: number | null;
+}
+
 const hasDatabase = await canConnectToIntegrationDatabase();
 
 describe.skipIf(!hasDatabase)("review apply integration", () => {
@@ -98,6 +104,12 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
       facilityDisplayName
     ]);
     const evidence = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM evidence WHERE doc_id = 'DOC-ITEST-APPLE-SUPPLIER'");
+    const evidenceRows = await pool.read.query<EvidenceRow>(
+      `SELECT cite_text, cite_start_char, cite_end_char
+       FROM evidence
+       WHERE doc_id = 'DOC-ITEST-APPLE-SUPPLIER'
+       ORDER BY extractor_id`
+    );
     const changes = await pool.read.query<CountRow>("SELECT count(*)::text AS count FROM change_records WHERE scope_id = $1 OR evidence_ids && $2::text[]", [
       facilityEntityId,
       result.apply_results.map((item) => item.evidence_id)
@@ -106,6 +118,10 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
     expect(facility.rows[0]?.count).toBe("1");
     expect(facilityAlias.rows[0]?.count).toBe("1");
     expect(evidence.rows[0]?.count).toBe("2");
+    expect(evidenceRows.rows).toEqual([
+      { cite_text: "Integration Supplier Penang Malaysia", cite_start_char: 7, cite_end_char: 44 },
+      { cite_text: "Integration Supplier Penang Malaysia", cite_start_char: 7, cite_end_char: 44 }
+    ]);
     expect(Number.parseInt(changes.rows[0]?.count ?? "0", 10)).toBeGreaterThanOrEqual(3);
   });
 });
@@ -156,7 +172,7 @@ function supplierListCandidate(): SupplierListCandidate {
 }
 
 function supplierListDocument(): NormalizedDocument {
-  const text = `Header\n${supplierRowText()}\nFooter`;
+  const text = "Header\nIntegration Supplier Penang Malaysia\nFooter";
   return {
     doc_id: "DOC-ITEST-APPLE-SUPPLIER",
     source_adapter_id: "apple-suppliers",

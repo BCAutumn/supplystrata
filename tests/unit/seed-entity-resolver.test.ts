@@ -37,6 +37,41 @@ describe("SeedEntityResolver", () => {
     expect(usPlant).toMatchObject({ status: "ambiguous", needs_human_review: true });
   });
 
+  it("resolves supplier-list legal-name variants for curated Gate 1 entities", async () => {
+    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const cases = [
+      ["Hon Hai Precision Industry Company Limited (Foxconn)", "ENT-FOXCONN"],
+      ["Broadcom Limited", "ENT-BROADCOM"],
+      ["Micron Technology Incorporated", "ENT-MICRON"],
+      ["Quanta Computer Incorporated", "ENT-QUANTA"],
+      ["SK hynix Incorporated", "ENT-SKHYNIX"],
+      ["Advanced Semiconductor Engineering Technology Holding Co., Ltd.", "ENT-ASEH"],
+      ["Amkor Technology Incorporated", "ENT-AMKOR"],
+      ["Kioxia Holdings Corporation", "ENT-KIOXIA"],
+      ["Murata Manufacturing Company Limited", "ENT-MURATA"],
+      ["AGC Incorporated", "ENT-AGC"],
+      ["Analog Devices Incorporated", "ENT-ANALOG-DEVICES"],
+      ["Molex Incorporated", "ENT-MOLEX"],
+      ["Delta Electronics Incorporated", "ENT-DELTA-ELECTRONICS"],
+      ["Compal Electronics Incorporated", "ENT-COMPAL"],
+      ["Flex Limited", "ENT-FLEX"],
+      ["Jabil Incorporated", "ENT-JABIL"],
+      ["Compeq Manufacturing Company Limited", "ENT-COMPEQ"],
+      ["AT & S Austria Technologie & Systemtechnik AG", "ENT-ATS"],
+      ["JCET Group Company Limited", "ENT-JCET"],
+      ["Cirrus Logic Incorporated", "ENT-CIRRUS-LOGIC"],
+      ["Henkel AG & Company, KGaA", "ENT-HENKEL"],
+      ["Fujikura Limited", "ENT-FUJIKURA"],
+      ["Hirose Electric Company Limited", "ENT-HIROSE-ELECTRIC"],
+      ["JX Nippon Mining & Metals Corporation (Eneos Holding)", "ENT-JX-NIPPON-MINING-METALS"]
+    ] as const;
+
+    for (const [surface, entityId] of cases) {
+      const resolved = await resolver.resolve({ surface });
+      expect(resolved).toMatchObject({ status: "resolved", entity_id: entityId });
+    }
+  });
+
   it("resolves TSMC subsidiaries only when context names them", async () => {
     const resolver = await SeedEntityResolver.fromCsv(process.cwd());
     const parent = await resolver.resolve({ surface: "TSMC" });

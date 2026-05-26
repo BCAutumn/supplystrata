@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import {
   buildInvestigationBacklog,
   buildOfficialDisclosureReadinessReport,
@@ -16,6 +17,46 @@ import {
 } from "./research-pack-fixtures.js";
 
 describe("research-pack official disclosure readiness", () => {
+  it("counts only undisposed official disclosure signals as open review work", () => {
+    const report = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-HBM"],
+      workbench: {
+        ...emptyWorkbench(),
+        review_queue: [
+          officialSignalReviewCandidateFixture("REV-SIGNAL-OPEN", "pending", []),
+          officialSignalReviewCandidateFixture("REV-SIGNAL-DISPOSED", "pending", [
+            {
+              change_id: "CHG-SIGNAL-DISPOSITION-1",
+              review_id: "REV-SIGNAL-DISPOSED",
+              edge_id: "EDGE-NVIDIA-SKHYNIX",
+              decision: "needs_more_evidence",
+              reviewer: "unit-test",
+              reason: "Useful HBM context, but not enough to prove a counterparty edge.",
+              source_adapter_id: "skhynix-ir",
+              doc_id: "DOC-SKHYNIX-IR",
+              signal_title: "SK hynix links results to HBM demand",
+              evidence_id: null,
+              unknown_id: null,
+              check_target_id: null,
+              recorded_at: "2026-01-01T00:00:00.000Z",
+              fact_write_policy: {
+                automatic_fact_mutation_allowed: false,
+                allowed_edge_mutation: "none",
+                requires_human_review: true
+              }
+            }
+          ])
+        ]
+      }
+    });
+
+    expect(report.summary.official_disclosure_signal_review_candidates).toBe(2);
+    expect(report.summary.open_official_disclosure_signal_review_candidates).toBe(1);
+    expect(report.summary.official_disclosure_signal_dispositions).toBe(1);
+  });
+
   it("reports official disclosure readiness gaps without inferring corroboration from silence", () => {
     const workbench = emptyWorkbench();
     const edge = {
@@ -163,6 +204,68 @@ describe("research-pack official disclosure readiness", () => {
     );
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("single_source_disposition_recorded");
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("UNK-SINGLE-SOURCE-DISPOSITION-1");
+  });
+
+  it("uses review-only edge corroboration dispositions as explicit single-source coverage", () => {
+    const edge = {
+      edge_id: "EDGE-DISPOSED-SINGLE-SOURCE-1",
+      from_id: "ENT-NVIDIA",
+      from_name: "NVIDIA",
+      to_id: "ENT-MICRON",
+      to_name: "Micron",
+      relation: "BUYS_FROM" as const,
+      component: "memory",
+      component_id: "COMP-MEMORY",
+      evidence_level: 5 as const,
+      confidence: 0.95,
+      evidence_ids: ["EV-DISPOSED-SINGLE-SOURCE-1"]
+    };
+    const report = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-MEMORY"],
+      edge_corroboration_dispositions: [
+        {
+          change_id: "CHG-EDGE-CORROBORATION-1",
+          edge_id: "EDGE-DISPOSED-SINGLE-SOURCE-1",
+          decision: "record_single_source_unknown",
+          reviewer: "unit-test",
+          reason: "No second official counterparty source is currently visible.",
+          evidence_id: null,
+          unknown_id: "UNK-DISPOSED-SINGLE-SOURCE-1",
+          check_target_id: null,
+          recorded_at: "2026-05-26T00:00:00.000Z"
+        }
+      ],
+      workbench: {
+        ...emptyWorkbench(),
+        companies: [
+          { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
+          { entity_id: "ENT-MICRON", name: "Micron", role: "counterparty" }
+        ],
+        edges: [edge],
+        evidences: [
+          evidenceFixture("EV-DISPOSED-SINGLE-SOURCE-1", {
+            edge_id: "EDGE-DISPOSED-SINGLE-SOURCE-1",
+            evidence_level: 5,
+            source_adapter_id: "sec-edgar",
+            source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+            cite_text_sha256: "abc123"
+          })
+        ],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    expect(report.edge_corroboration_dispositions).toHaveLength(1);
+    expect(report.summary.corroboration_queue_needing_disposition).toBe(0);
+    expect(report.summary.corroboration_queue_with_recorded_disposition).toBe(1);
+    const queueItem = report.corroboration_queue[0];
+    expect(queueItem?.edge_id).toBe("EDGE-DISPOSED-SINGLE-SOURCE-1");
+    expect(queueItem?.disposition).toBe("single_source_disposition_recorded");
+    expect(queueItem?.latest_disposition?.change_id).toBe("CHG-EDGE-CORROBORATION-1");
+    expect(queueItem?.latest_disposition?.decision).toBe("record_single_source_unknown");
+    expect(queueItem?.proposed_unknown).toBeNull();
   });
 
   it("measures official disclosure coverage against an explicit target node set", () => {
@@ -403,3 +506,31 @@ describe("research-pack official disclosure readiness", () => {
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("ENT-MICRON");
   });
 });
+
+function officialSignalReviewCandidateFixture(
+  reviewId: string,
+  status: WorkbenchModel["review_queue"][number]["status"],
+  dispositions: WorkbenchModel["review_queue"][number]["dispositions"]
+): WorkbenchModel["review_queue"][number] {
+  return {
+    review_id: reviewId,
+    kind: "official_disclosure_signal",
+    status,
+    title: "Official disclosure signal: SK hynix links results to HBM demand",
+    confidence: 0.84,
+    source_adapter_id: "skhynix-ir",
+    doc_id: "DOC-SKHYNIX-IR",
+    source_url: "https://www.skhynix.com/fixture",
+    source_locator: "annual-report:page 7",
+    source_row_text: "In addition to HBM, demand on conventional memory solutions for servers increased sharply.",
+    created_at: "2026-01-01T00:00:00.000Z",
+    reviewed_at: null,
+    decision_reason: null,
+    signal: {
+      signal_title: "SK hynix links results to HBM demand",
+      evidence_level_hint: 4,
+      automatic_fact_mutation_allowed: false
+    },
+    dispositions
+  };
+}

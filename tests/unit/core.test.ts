@@ -7,6 +7,7 @@ import {
   EXTRACTOR_ID_PREFIXES,
   LEAD_TYPES,
   OBSERVATION_TYPES,
+  RANKING_CALIBRATION_LABELS,
   SEMANTIC_LAYERS,
   calculateEdgeFreshness,
   createId,
@@ -76,5 +77,9 @@ describe("core intelligence-network contract constants", () => {
         computed_at: "2026-07-15T00:00:00.000Z"
       })
     ).toEqual({ age_days: 195, freshness_score: 0.85, decay_model: "methodology.v1" });
+  });
+
+  it("keeps research target ranking calibration labels explicit", () => {
+    expect(RANKING_CALIBRATION_LABELS).toEqual(["useful_target", "wrong_direction", "brand_center_bias", "needs_more_context", "not_relevant"]);
   });
 });

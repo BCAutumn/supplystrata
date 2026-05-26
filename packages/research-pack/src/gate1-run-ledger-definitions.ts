@@ -40,6 +40,7 @@ export interface Gate1RunScorecard {
   overall_progress: number;
   data_progress: number;
   source_path_progress: number;
+  fact_edge_scope: string;
   l4_l5_fact_edges: number;
   l4_l5_fact_edge_target: number;
   cross_source_ratio: number;
@@ -49,6 +50,7 @@ export interface Gate1RunScorecard {
 }
 
 export interface Gate1DataProgressLedger {
+  fact_edge_scope: string;
   l4_l5_fact_edges: number;
   l4_l5_fact_edge_target: number;
   fact_edge_gap: number;
@@ -179,7 +181,12 @@ export interface Gate1MonitoringStateCounts {
   unknown_failure: number;
 }
 
-export type Gate1ReviewItemKind = "source_target_batch" | "edge_corroboration" | "official_signal_disposition" | "frontier_company_research";
+export type Gate1ReviewItemKind =
+  | "source_target_batch"
+  | "edge_corroboration"
+  | "official_signal_disposition"
+  | "entity_affiliation_disposition"
+  | "frontier_company_research";
 
 export type Gate1ReviewDecision =
   | "approve_smoke"
@@ -191,6 +198,11 @@ export type Gate1ReviewDecision =
   | "not_relevant"
   | "record_single_source_unknown"
   | "create_counterparty_source_target"
+  | "review_entity_affiliation"
+  | "research_parent_entity"
+  | "research_child_entity"
+  | "research_both_scopes"
+  | "keep_unknown_open"
   | "open_frontier_research_pack"
   | "defer";
 
@@ -210,6 +222,7 @@ export interface Gate1ReviewWorkbench {
     source_target_batch_items: number;
     edge_corroboration_items: number;
     official_signal_disposition_items: number;
+    entity_affiliation_disposition_items: number;
     frontier_company_research_items: number;
     auto_ranked_items: number;
     human_approval_required_items: number;
@@ -246,6 +259,10 @@ export interface Gate1CompanyResearchTarget {
   company_name: string;
   component_id: string;
   seed_edge_id: string;
+  scope_kind: "direct_frontier_company" | "affiliation_parent_entity";
+  source_entity_id: string;
+  source_entity_name: string;
+  entity_context_id: string | null;
   suggested_company_query: string;
   suggested_components: string[];
   command_hint: string;

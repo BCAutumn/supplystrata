@@ -762,6 +762,35 @@ observation_calibration_labels
 - `not_useful` 表示该 observation 不适合作为当前供应链分析样本。
 - label 只用于样本治理和后续算法校准；正式 run / reliability bucket 需要在样本量足够后另建 observation calibration run，不能提前伪造 precision。
 
+## Ranking Calibration
+
+`ranking_calibration_labels` 是研究目标排序的 gold label 样本池。它消费 `gate1-data-depth-workbench.ranking_contexts` 中的候选公司排序，只记录“这个候选是否适合作为下一轮递归研究目标”。它不是事实层，不引用或修改 `edges / evidence / observations`，也不能把候选排序解释成概率、关系强度或二源 corroboration。
+
+```text
+ranking_calibration_labels
+  label_id
+  ranking_context_id
+  ranking_kind
+  model_version
+  candidate_entity_id
+  candidate_rank
+  label: useful_target | wrong_direction | brand_center_bias | needs_more_context | not_relevant
+  reviewer
+  reviewed_at
+  rationale
+  score_breakdown
+  attrs
+```
+
+当前第一版由 `upsertRankingCalibrationLabel()` / `listRankingCalibrationLabels()` 提供：
+
+- `useful_target` 表示该候选适合进入下一轮 listed-company research loop。
+- `wrong_direction` 表示候选方向不适合当前 upstream/downstream 问题，例如把客户侧节点当成上游供应商。
+- `brand_center_bias` 表示候选主要因为披露中心、品牌方或 source subject 高频出现而被排上来，不应作为优先研究目标。
+- `needs_more_context` 表示候选可能有价值，但需要先补 component、industry、parent entity 或 source path 上下文。
+- `not_relevant` 表示候选与当前组件/问题无关。
+- `score_breakdown` 保存排序时使用的结构化特征，供后续统计校准、偏差分析和 regression fixture 使用；在样本量不足前不能输出 precision、recall 或 calibrated probability。
+
 ## Neo4j 模型
 
 ### 节点 labels

@@ -1,11 +1,18 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
 import type { RawDocument } from "@supplystrata/core";
-import { buildGleifLeiSearchUrl, extractGleifLeiCandidates } from "@supplystrata/source-workflows";
+import { buildGleifLeiSearchUrl, extractGleifLeiCandidates, normalizeEntityResolutionQueries } from "@supplystrata/source-workflows";
 import { buildCompaniesHouseSearchUrl, extractCompaniesHouseCandidates } from "@supplystrata/sources-companies-house";
 import { buildOpenCorporatesSearchUrl, extractOpenCorporatesCandidates } from "@supplystrata/sources-opencorporates";
 
 describe("entity source adapters", () => {
+  it("normalizes entity resolution backlog queries before enqueueing review candidates", () => {
+    expect(normalizeEntityResolutionQueries([" Amkor  Technology Incorporated ", "amkor technology incorporated", "", "NXP Semiconductors N.V."])).toEqual([
+      "Amkor Technology Incorporated",
+      "NXP Semiconductors N.V."
+    ]);
+  });
+
   it("builds GLEIF LEI search URLs and normalizes global legal entity identifiers", () => {
     expect(buildGleifLeiSearchUrl({ query: "NVIDIA Corporation", limit: 2 })).toBe(
       "https://api.gleif.org/api/v1/lei-records?filter%5Bentity.legalName%5D=NVIDIA+Corporation&page%5Bsize%5D=2"

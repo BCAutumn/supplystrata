@@ -28,6 +28,33 @@ export interface SupplierListCandidate {
   facility_relation_hint: "MANUFACTURES_AT";
 }
 
+export function normalizeSupplierListCitationText(text: string): string {
+  return text.normalize("NFKC").replace(/\s+/g, " ").trim();
+}
+
+// DQ 要求 active evidence 的 cite_text 足够长；短 facility 行需要带一点相邻原文上下文，但仍必须是 chunk 子串。
+const MIN_SUPPLIER_LIST_CITATION_CHARS = 30;
+
+export interface SupplierListCitationWindowInput {
+  chunkText: string;
+  supplierName: string;
+  sourceRowText: string;
+  locationText: string;
+  countryOrRegion: string;
+}
+
+export function findSupplierListCitationWindow(input: SupplierListCitationWindowInput): string | undefined {
+  const supplierSpan = findFlexibleSpan(input.chunkText, input.supplierName, 0);
+  if (supplierSpan === undefined) return undefined;
+
+  const rowText = normalizeSupplierListCitationText(input.sourceRowText);
+  const locationAndCountry = normalizeSupplierListCitationText(`${input.locationText} ${input.countryOrRegion}`);
+  const rowSpan = rowText.length > 0 ? findFlexibleSpan(input.chunkText, rowText, supplierSpan.start) : undefined;
+  const contextSpan = rowSpan ?? findFlexibleSpan(input.chunkText, locationAndCountry, supplierSpan.end);
+  if (contextSpan === undefined) return undefined;
+  return expandSupplierListCitationWindow(input.chunkText, supplierSpan.start, contextSpan.end);
+}
+
 export function extractFixedWidthSupplierListCandidates(text: string, config: SupplierListParseConfig): SupplierListCandidate[] {
   const candidates: SupplierListCandidate[] = [];
   let currentSupplier: string | undefined;
@@ -72,6 +99,44 @@ export function extractFixedWidthSupplierListCandidates(text: string, config: Su
   return candidates;
 }
 
+function findFlexibleSpan(text: string, phrase: string, startAt: number): { start: number; end: number } | undefined {
+  const tokens = normalizeSupplierListCitationText(phrase)
+    .split(" ")
+    .filter((token) => token.length > 0);
+  if (tokens.length === 0) return undefined;
+  const pattern = tokens.map(escapeRegExp).join("\\s+");
+  const match = new RegExp(pattern).exec(text.slice(startAt));
+  if (match?.index === undefined) return undefined;
+  const start = startAt + match.index;
+  return { start, end: start + match[0].length };
+}
+
+function expandSupplierListCitationWindow(chunkText: string, start: number, end: number): string {
+  let expandedStart = start;
+  let expandedEnd = end;
+  while (normalizedCitationLength(chunkText, expandedStart, expandedEnd) < MIN_SUPPLIER_LIST_CITATION_CHARS && expandedEnd < chunkText.length) {
+    expandedEnd += 1;
+  }
+  while (expandedEnd < chunkText.length && !/\s/.test(chunkText[expandedEnd] ?? "")) {
+    expandedEnd += 1;
+  }
+  while (normalizedCitationLength(chunkText, expandedStart, expandedEnd) < MIN_SUPPLIER_LIST_CITATION_CHARS && expandedStart > 0) {
+    expandedStart -= 1;
+  }
+  while (expandedStart > 0 && !/\s/.test(chunkText[expandedStart - 1] ?? "")) {
+    expandedStart -= 1;
+  }
+  return chunkText.slice(expandedStart, expandedEnd).trim();
+}
+
+function normalizedCitationLength(chunkText: string, start: number, end: number): number {
+  return normalizeSupplierListCitationText(chunkText.slice(start, end)).length;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function parseCandidateColumns(
   columns: string[],
   startsWithText: boolean,
@@ -93,6 +158,7 @@ function shouldSkipLine(line: string, config: SupplierListParseConfig): boolean 
   return (
     trimmed.length === 0 ||
     /^\d+$/.test(trimmed) ||
+    /^Supplier List\s+\d+$/.test(trimmed) ||
     config.ignoredExactLines.includes(trimmed) ||
     config.ignoredLinePrefixes.some((prefix) => trimmed.startsWith(prefix))
   );

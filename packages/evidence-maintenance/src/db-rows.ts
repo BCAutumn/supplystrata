@@ -147,6 +147,15 @@ export interface ExistingEdgeRow extends pg.QueryResultRow {
   edge_id: string;
 }
 
+export interface RootResearchCoverageEntityRow extends pg.QueryResultRow {
+  entity_id: string;
+  display_name: string;
+}
+
+export interface RootResearchCoverageCountRow extends pg.QueryResultRow {
+  count: string;
+}
+
 export interface OfficialSignalDispositionChangeRow extends pg.QueryResultRow {
   change_id: string;
   review_id: string;

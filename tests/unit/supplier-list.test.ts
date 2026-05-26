@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractFixedWidthSupplierListCandidates } from "@supplystrata/supplier-list";
+import { extractFixedWidthSupplierListCandidates, findSupplierListCitationWindow } from "@supplystrata/supplier-list";
 
 describe("generic supplier list parser", () => {
   it("extracts fixed-width buyer-supplier-location review candidates", () => {
@@ -9,6 +9,7 @@ describe("generic supplier list parser", () => {
         "SUPPLIER NAME                         PRIMARY LOCATIONS WHERE MANUFACTURING OCCURS",
         "Acme Components                       Guangdong, Jiangsu                         China",
         "                                      Penang                                     Malaysia",
+        "Supplier List                                                                                    3",
         "Beta Manufacturing                    Texas                                      United States"
       ].join("\n"),
       {
@@ -51,5 +52,36 @@ describe("generic supplier list parser", () => {
         country_or_region: "United States"
       }
     ]);
+  });
+
+  it("builds an exact citation window for continuation rows", () => {
+    const chunkText = ["Taiwan Semiconductor Manufacturing Company Limited Shanghai China mainland", "", "Taiwan Taiwan", "", "Washington United States"].join(
+      "\n"
+    );
+
+    expect(
+      findSupplierListCitationWindow({
+        chunkText,
+        supplierName: "Taiwan Semiconductor Manufacturing Company Limited",
+        sourceRowText: "Washington                                               United States",
+        locationText: "Washington",
+        countryOrRegion: "United States"
+      })
+    ).toBe(["Taiwan Semiconductor Manufacturing Company Limited Shanghai China mainland", "", "Taiwan Taiwan", "", "Washington United States"].join("\n"));
+  });
+
+  it("expands short supplier-list rows with adjacent chunk context so evidence remains usable", () => {
+    const chunkText = ["ams-OSRAM AG Styria Austria", "", "Jiangsu China mainland", "", "Bavaria Germany"].join("\n");
+    const citation = findSupplierListCitationWindow({
+      chunkText,
+      supplierName: "ams-OSRAM AG",
+      sourceRowText: "ams-OSRAM AG Styria Austria",
+      locationText: "Styria",
+      countryOrRegion: "Austria"
+    });
+
+    expect(citation).toBe(["ams-OSRAM AG Styria Austria", "", "Jiangsu"].join("\n"));
+    expect(citation === undefined ? 0 : citation.trim().length).toBeGreaterThanOrEqual(30);
+    expect(citation === undefined ? false : chunkText.includes(citation)).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { migrate, seedFromCsv } from "@supplystrata/db/admin";
-import { backfillEvidenceTraceTransactionally } from "@supplystrata/evidence-maintenance";
+import { backfillEvidenceTraceTransactionally, repairSupplierListEvidenceCitationsTransactionally } from "@supplystrata/evidence-maintenance";
 import { parseLimit, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerDbAndAdminCommands(program: Command): void {
@@ -19,6 +19,15 @@ export function registerDbAndAdminCommands(program: Command): void {
     .action(async (options: { limit: string }) => {
       await withDatabase(async (pool) => {
         const summary = await backfillEvidenceTraceTransactionally(pool, { limit: parseLimit(options.limit) });
+        writeJson({ ok: true, ...summary });
+      });
+    });
+  db.command("repair-supplier-list-citations")
+    .option("--limit <count>", "max supplier-list evidence rows to scan", "1000")
+    .description("repair supplier-list evidence citations whose review row spacing no longer matches persisted chunks")
+    .action(async (options: { limit: string }) => {
+      await withDatabase(async (pool) => {
+        const summary = await repairSupplierListEvidenceCitationsTransactionally(pool, { limit: parseLimit(options.limit) });
         writeJson({ ok: true, ...summary });
       });
     });

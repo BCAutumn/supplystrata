@@ -1,18 +1,33 @@
 import type { Command } from "commander";
 import { getPendingEntity, listPendingEntities, type PendingEntityRow } from "@supplystrata/db/read";
-import { applyApprovedReviewCandidate, applyApprovedReviewCandidates } from "@supplystrata/pipeline";
-import { enqueueAppleSupplierReviewCandidates, enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "@supplystrata/source-workflows";
+import {
+  applyApprovedReviewCandidate,
+  applyApprovedReviewCandidates,
+  runGate1EntitySourceReviewBatch,
+  runGate1SupplierListReviewBatch
+} from "@supplystrata/pipeline";
+import {
+  enqueueAppleSupplierReviewCandidates,
+  enqueueEntityResolutionBacklogReviewCandidates,
+  enqueueEntitySourceReviewCandidates,
+  lookupEntitySourceCandidates
+} from "@supplystrata/source-workflows";
 import { renderPendingEntities, renderPendingEntity } from "@supplystrata/render";
 import {
   decideReviewCandidateTransactionally,
   getReviewCandidate,
   nextReviewCandidateTransactionally,
+  recordEntityAffiliationDisposition,
+  recordEdgeCorroborationDisposition,
   recordOfficialDisclosureSignalDisposition,
   reviewStats,
+  type EdgeCorroborationDispositionDecision,
+  type EntityAffiliationDispositionDecision,
   type OfficialDisclosureSignalDispositionDecision
 } from "@supplystrata/review-store";
 import {
   parseEntityLookupSource,
+  parseCommaSeparated,
   parseFormat,
   parseLimit,
   parsePendingEntityStatus,
@@ -235,6 +250,132 @@ function registerReviewCommands(program: Command): void {
         write(renderReviewApplyBatch(summary, parseFormat(options.format)));
       });
     });
+  review
+    .command("gate1-supplier-list-batch")
+    .option("--reviewer <name>", "reviewer name; required only when --apply is set")
+    .option("--limit <count>", "max pending supplier-list candidates to scan", "50")
+    .option("--apply", "approve and apply eligible candidates; default is dry-run")
+    .description("dry-run or apply the constrained Gate 1 supplier-list review batch")
+    .action(async (options: { reviewer?: string; limit: string; apply?: boolean }) => {
+      await withDatabase(async (pool) => {
+        const summary = await runGate1SupplierListReviewBatch(pool, {
+          limit: parseLimit(options.limit),
+          apply: options.apply === true,
+          ...(options.reviewer === undefined ? {} : { reviewer: options.reviewer })
+        });
+        writeJson({ schema_version: "1.0.0", ok: summary.errors === 0 && summary.blocked === 0, summary });
+      });
+    });
+
+  review
+    .command("gate1-entity-source-batch")
+    .option("--reviewer <name>", "reviewer name; required only when --apply is set")
+    .option("--limit <count>", "max pending entity-source candidates to scan", "20")
+    .option("--apply", "approve and apply eligible GLEIF candidates; default is dry-run")
+    .description("dry-run or apply the constrained Gate 1 GLEIF entity-source review batch")
+    .action(async (options: { reviewer?: string; limit: string; apply?: boolean }) => {
+      await withDatabase(async (pool) => {
+        const summary = await runGate1EntitySourceReviewBatch(pool, {
+          limit: parseLimit(options.limit),
+          apply: options.apply === true,
+          ...(options.reviewer === undefined ? {} : { reviewer: options.reviewer })
+        });
+        writeJson({ schema_version: "1.0.0", ok: summary.errors === 0 && summary.blocked === 0, summary });
+      });
+    });
+
+  review
+    .command("edge-corroboration-disposition")
+    .argument("<edgeId>", "fact edge id whose second-source corroboration was reviewed")
+    .requiredOption(
+      "--decision <decision>",
+      "supports_existing_edge, needs_more_evidence, not_relevant, record_single_source_unknown, or create_counterparty_source_target"
+    )
+    .requiredOption("--reviewer <name>", "reviewer or automation name")
+    .requiredOption("--reason <reason>", "why this edge corroboration disposition was recorded")
+    .option("--evidence <evidenceId>", "reviewed evidence id, if one was created separately")
+    .option("--unknown <unknownId>", "related unknown id, if one already exists")
+    .option("--check-target <checkTargetId>", "source check target used during review")
+    .option("--recorded-at <date>", "ISO date/time for deterministic replay")
+    .description("record a review-only edge corroboration disposition without mutating fact edges")
+    .action(
+      async (
+        edgeId: string,
+        options: {
+          decision: string;
+          reviewer: string;
+          reason: string;
+          evidence?: string;
+          unknown?: string;
+          checkTarget?: string;
+          recordedAt?: string;
+        }
+      ) => {
+        await withDatabase(async (pool) => {
+          const disposition = await pool.transaction((client) =>
+            recordEdgeCorroborationDisposition(client, {
+              edgeId,
+              decision: parseEdgeCorroborationDispositionDecision(options.decision),
+              reviewer: options.reviewer,
+              reason: options.reason,
+              recordedAt: explicitOrCurrentIsoTimestamp(options.recordedAt),
+              ...(options.evidence === undefined ? {} : { evidenceId: options.evidence }),
+              ...(options.unknown === undefined ? {} : { unknownId: options.unknown }),
+              ...(options.checkTarget === undefined ? {} : { checkTargetId: options.checkTarget })
+            })
+          );
+          writeJson({ ok: true, disposition });
+        });
+      }
+    );
+
+  review
+    .command("entity-affiliation-disposition")
+    .argument("<contextId>", "gate1 entity affiliation context id")
+    .requiredOption("--subject <entityId>", "business-unit or child entity id visible in the current chain")
+    .requiredOption("--parent <entityId>", "parent legal entity id to evaluate for recursive research")
+    .requiredOption("--decision <decision>", "research_parent_entity, research_child_entity, research_both_scopes, not_relevant, or keep_unknown_open")
+    .requiredOption("--reviewer <name>", "reviewer or automation name")
+    .requiredOption("--reason <reason>", "why this entity affiliation disposition was recorded")
+    .option("--edge <edgeIds>", "comma-separated related edge ids from the research pack")
+    .option("--component <componentIds>", "comma-separated component ids for the recursive research scope")
+    .option("--unknown <unknownIds>", "comma-separated related unknown ids")
+    .option("--recorded-at <date>", "ISO date/time for deterministic replay")
+    .description("record a review-only disposition for a Gate 1 entity affiliation context without merging entities or mutating fact edges")
+    .action(
+      async (
+        contextId: string,
+        options: {
+          subject: string;
+          parent: string;
+          decision: string;
+          reviewer: string;
+          reason: string;
+          edge?: string;
+          component?: string;
+          unknown?: string;
+          recordedAt?: string;
+        }
+      ) => {
+        await withDatabase(async (pool) => {
+          const disposition = await pool.transaction((client) =>
+            recordEntityAffiliationDisposition(client, {
+              contextId,
+              subjectEntityId: options.subject,
+              parentEntityId: options.parent,
+              decision: parseEntityAffiliationDispositionDecision(options.decision),
+              reviewer: options.reviewer,
+              reason: options.reason,
+              recordedAt: explicitOrCurrentIsoTimestamp(options.recordedAt),
+              ...(options.edge === undefined ? {} : { edgeIds: parseCommaSeparated(options.edge) }),
+              ...(options.component === undefined ? {} : { componentIds: parseCommaSeparated(options.component) }),
+              ...(options.unknown === undefined ? {} : { unknownIds: parseCommaSeparated(options.unknown) })
+            })
+          );
+          writeJson({ ok: true, disposition });
+        });
+      }
+    );
 
   review
     .command("signal-disposition")
@@ -323,6 +464,39 @@ function registerReviewCommands(program: Command): void {
         writeJson({ ok: summary.errors.length === 0, ...summary });
       });
     });
+  reviewEnqueue
+    .command("gate1-supplier-entity-backlog")
+    .option("--source <source>", "gleif, opencorporates, companies-house, or all", "gleif")
+    .option("--scan-limit <count>", "max pending supplier-list candidates to scan", "500")
+    .option("--supplier-limit <count>", "max unresolved suppliers to enqueue", "10")
+    .option("--candidate-limit <count>", "max external candidates per supplier/source", "3")
+    .description("enqueue entity-source review candidates from the Gate 1 supplier-list entity backlog")
+    .action(async (options: { source: string; scanLimit: string; supplierLimit: string; candidateLimit: string }) => {
+      await withDatabase(async (pool) => {
+        const supplierBatch = await runGate1SupplierListReviewBatch(pool, {
+          limit: parseLimit(options.scanLimit)
+        });
+        const queries = supplierBatch.entity_resolution_backlog.slice(0, parseLimit(options.supplierLimit)).map((item) => item.supplier_name);
+        const entityReview = await enqueueEntityResolutionBacklogReviewCandidates(
+          pool,
+          {
+            queries,
+            source: parseEntityLookupSource(options.source),
+            limitPerQuery: parseLimit(options.candidateLimit)
+          },
+          sourceWorkflowRuntime()
+        );
+        writeJson({
+          ok: entityReview.errors === 0,
+          supplier_backlog: {
+            scanned: supplierBatch.scanned,
+            unresolved_suppliers: supplierBatch.entity_resolution_backlog.length,
+            selected_suppliers: queries
+          },
+          entity_review: entityReview
+        });
+      });
+    });
 }
 
 function parseOfficialSignalDispositionDecision(value: string): OfficialDisclosureSignalDispositionDecision {
@@ -336,4 +510,30 @@ function parseOfficialSignalDispositionDecision(value: string): OfficialDisclosu
     return value;
   }
   throw new Error(`Unsupported official signal disposition decision: ${value}`);
+}
+
+function parseEdgeCorroborationDispositionDecision(value: string): EdgeCorroborationDispositionDecision {
+  if (
+    value === "supports_existing_edge" ||
+    value === "needs_more_evidence" ||
+    value === "not_relevant" ||
+    value === "record_single_source_unknown" ||
+    value === "create_counterparty_source_target"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported edge corroboration disposition decision: ${value}`);
+}
+
+function parseEntityAffiliationDispositionDecision(value: string): EntityAffiliationDispositionDecision {
+  if (
+    value === "research_parent_entity" ||
+    value === "research_child_entity" ||
+    value === "research_both_scopes" ||
+    value === "not_relevant" ||
+    value === "keep_unknown_open"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported entity affiliation disposition decision: ${value}`);
 }

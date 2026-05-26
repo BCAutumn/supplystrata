@@ -1,11 +1,14 @@
 import { loadChainCard, loadCompanyCard, loadComponentCard } from "@supplystrata/card-builder";
 import { runDataQualityChecks } from "@supplystrata/data-quality";
-import type { DbClient } from "@supplystrata/db/read";
+import { listRankingCalibrationLabels, type DbClient, type RankingCalibrationLabelRecord } from "@supplystrata/db/read";
 import type { DatabaseStore } from "@supplystrata/db/write";
 import type { ComponentCardModel } from "@supplystrata/render";
 import { planSourcesForComponents } from "@supplystrata/source-plan";
+import { listEdgeCorroborationDispositions, type EdgeCorroborationDispositionRecord } from "@supplystrata/review-store";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
 import { buildCorroborationSourcePlan } from "./corroboration-source-plan.js";
+import { loadGate1AdjacentOfficialFacts } from "./gate1-adjacent-official-facts.js";
+import { loadGate1EntityAffiliationContexts } from "./gate1-entity-affiliation-context.js";
 import { buildGate1DataDepthWorkbench } from "./gate1-data-depth-workbench.js";
 import { buildGate1RunLedger } from "./gate1-run-ledger.js";
 import { buildInvestigationBacklog } from "./investigation-backlog.js";
@@ -19,15 +22,24 @@ import {
 import { buildPropagationReadinessReport } from "./propagation-readiness.js";
 import { buildQuestionReadinessMatrix } from "./question-readiness.js";
 import { selectResearchTargetProfile, type ResearchTargetProfile, type ResearchTargetProfileSelection } from "./research-target-profile.js";
-import { maybeBuildClaims, maybeRefreshComponentRiskViews, maybeRefreshIntelligence, resolveResearchPackWriteSteps } from "./prepare-data.js";
+import {
+  maybeBuildClaims,
+  maybeMaterializeRootUnknowns,
+  maybeRefreshComponentRiskViews,
+  maybeRefreshIntelligence,
+  resolveResearchPackWriteSteps
+} from "./prepare-data.js";
 import { buildExpectedSourceTargetCoverageReport, buildSourceTargetCoverageReport } from "./source-target-coverage.js";
 import { withSourcePlanWindowDefaults } from "./source-plan-windows.js";
 import { buildSupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 export type * from "./definitions.js";
+import type { Gate1AdjacentOfficialFactsReport } from "./gate1-adjacent-official-facts.js";
 import type { ResearchPackInput, ResearchPackModel, WorkbenchSnapshotPackInput, WorkbenchSnapshotPackModel } from "./definitions.js";
 
 export * from "./investigation-backlog.js";
 export * from "./corroboration-source-plan.js";
+export * from "./gate1-adjacent-official-facts.js";
+export * from "./gate1-entity-affiliation-context.js";
 export * from "./gate1-data-depth-workbench.js";
 export * from "./gate1-run-ledger.js";
 export { renderGate1RunLedgerMarkdown } from "./gate1-run-ledger-render.js";
@@ -51,7 +63,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   const writeSteps = resolveResearchPackWriteSteps(input);
   const claimBuild = await maybeBuildClaims(client, writeSteps, input);
   const intelligenceRefresh = await maybeRefreshIntelligence(client, writeSteps, input, generatedAt);
-  const workbench = await buildWorkbenchModel(client.read, {
+  let workbench = await buildWorkbenchModel(client.read, {
     company: input.company,
     depth,
     generatedAt,
@@ -59,6 +71,17 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     ...(input.changeLimit === undefined ? {} : { changeLimit: input.changeLimit }),
     ...(input.sourceLimit === undefined ? {} : { sourceLimit: input.sourceLimit })
   });
+  const rootUnknownMaterialization = await maybeMaterializeRootUnknowns(client, writeSteps, input, workbench.selected_company_id);
+  if (rootUnknownMaterialization !== null && (rootUnknownMaterialization.unknowns_inserted > 0 || rootUnknownMaterialization.unknowns_updated > 0)) {
+    workbench = await buildWorkbenchModel(client.read, {
+      company: input.company,
+      depth,
+      generatedAt,
+      ...(input.since === undefined ? {} : { since: input.since }),
+      ...(input.changeLimit === undefined ? {} : { changeLimit: input.changeLimit }),
+      ...(input.sourceLimit === undefined ? {} : { sourceLimit: input.sourceLimit })
+    });
+  }
   const components = collectResearchComponentIds(workbench, input.components ?? []);
   const targetProfileSelection = selectResearchTargetProfile({
     ...(input.researchTargetProfileId === undefined ? {} : { profile_id: input.researchTargetProfileId }),
@@ -76,6 +99,10 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     company_id: workbench.selected_company_id,
     source_plan: sourcePlan,
     ...(input.sourceTargetNamespace === undefined ? {} : { namespace: input.sourceTargetNamespace })
+  });
+  const edgeCorroborationDispositions = await listEdgeCorroborationDispositions(client.read, {
+    edgeIds: workbench.edges.map((edge) => edge.edge_id),
+    limit: 500
   });
   const componentRiskRefresh = await maybeRefreshComponentRiskViews(client, writeSteps, input, components, generatedAt);
   const [company, chain, componentCards, dataQuality] = await Promise.all([
@@ -111,7 +138,8 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     ...(officialDisclosureTargetNodes.length === 0 ? {} : { target_nodes: officialDisclosureTargetNodes }),
     ...(targetProfileSelection.profile === null ? {} : { target_profile: officialReadinessProfile(targetProfileSelection) }),
     source_plan: sourcePlan,
-    source_target_coverage: sourceTargetCoverage
+    source_target_coverage: sourceTargetCoverage,
+    edge_corroboration_dispositions: edgeCorroborationDispositions.map(edgeCorroborationDispositionSummary)
   });
   const supplyChainExpansionPlan = buildSupplyChainExpansionPlan({
     generated_at: generatedAt,
@@ -130,14 +158,43 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     source_plan: sourcePlan,
     supply_chain_expansion_plan: supplyChainExpansionPlan
   });
-  const gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({
+  const entityAffiliationContexts = await loadGate1EntityAffiliationContexts(client.read, { workbench });
+  const adjacentOfficialFacts = await loadGate1AdjacentOfficialFacts(client.read, {
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    component_ids: components,
+    visible_edge_ids: workbench.edges.map((edge) => edge.edge_id)
+  });
+  let gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({
     generated_at: generatedAt,
     company_id: workbench.selected_company_id,
     official_disclosure_readiness: officialDisclosureReadiness,
     source_target_coverage: sourceTargetCoverage,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
-    propagation_readiness: propagationReadiness
+    propagation_readiness: propagationReadiness,
+    adjacent_official_facts: adjacentOfficialFacts,
+    entity_affiliation_contexts: entityAffiliationContexts
   });
+  const rankingContextIds = gate1DataDepthWorkbench.items.flatMap((item) => item.ranking_contexts.map((context) => context.context_id));
+  if (rankingContextIds.length > 0) {
+    const rankingCalibrationLabels = await listRankingCalibrationLabels(client.read, {
+      ranking_context_ids: rankingContextIds,
+      limit: Math.max(100, rankingContextIds.length * 10)
+    });
+    if (rankingCalibrationLabels.length > 0) {
+      gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({
+        generated_at: generatedAt,
+        company_id: workbench.selected_company_id,
+        official_disclosure_readiness: officialDisclosureReadiness,
+        source_target_coverage: sourceTargetCoverage,
+        supply_chain_expansion_plan: supplyChainExpansionPlan,
+        propagation_readiness: propagationReadiness,
+        adjacent_official_facts: adjacentOfficialFacts,
+        entity_affiliation_contexts: entityAffiliationContexts,
+        ranking_calibration_labels: rankingCalibrationLabels.map(toGate1RankingCalibrationLabel)
+      });
+    }
+  }
   const sourceTargetPreflight = input.sourceTargetPreflight ?? null;
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
@@ -180,6 +237,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     claimBuild,
     intelligenceRefresh,
     componentRiskRefresh,
+    rootUnknownMaterialization,
     targetProfileSelection
   });
   return {
@@ -207,6 +265,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
       official_disclosure_readiness: officialDisclosureReadiness,
       corroboration_source_plan: corroborationSourcePlan,
       supply_chain_expansion_plan: supplyChainExpansionPlan,
+      entity_affiliation_contexts: entityAffiliationContexts,
       source_target_coverage: sourceTargetCoverage,
       source_target_preflight: sourceTargetPreflight
     })
@@ -305,7 +364,9 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     official_disclosure_readiness: officialDisclosureReadiness,
     source_target_coverage: sourceTargetCoverage,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
-    propagation_readiness: propagationReadiness
+    propagation_readiness: propagationReadiness,
+    adjacent_official_facts: emptyAdjacentOfficialFacts(generatedAt, input.workbench.selected_company_id),
+    entity_affiliation_contexts: []
   });
   const investigationBacklog = buildInvestigationBacklog({
     generated_at: generatedAt,
@@ -348,6 +409,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     claimBuild: null,
     intelligenceRefresh: null,
     componentRiskRefresh: null,
+    rootUnknownMaterialization: null,
     targetProfileSelection,
     mode: "workbench_snapshot"
   });
@@ -373,6 +435,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
       official_disclosure_readiness: officialDisclosureReadiness,
       corroboration_source_plan: corroborationSourcePlan,
       supply_chain_expansion_plan: supplyChainExpansionPlan,
+      entity_affiliation_contexts: [],
       source_target_coverage: sourceTargetCoverage,
       source_target_preflight: sourceTargetPreflight
     })
@@ -389,6 +452,23 @@ export function collectResearchComponentIds(workbench: Pick<WorkbenchModel, "cha
     if (segment.component_id !== null) ids.add(segment.component_id);
   }
   return [...ids].sort();
+}
+
+function emptyAdjacentOfficialFacts(generatedAt: string, companyId: string): Gate1AdjacentOfficialFactsReport {
+  return {
+    schema_version: "1.0.0",
+    generated_at: generatedAt,
+    company_id: companyId,
+    summary: {
+      fact_edges: 0,
+      companies: 0,
+      components: 0,
+      source_adapters: 0,
+      visible_edge_exclusions: 0,
+      policy: "adjacent_context_only_no_fact_mutation"
+    },
+    edges: []
+  };
 }
 
 async function loadComponentCards(client: DbClient, componentIds: readonly string[], computedAt: string): Promise<ComponentCardModel[]> {
@@ -447,6 +527,32 @@ function officialReadinessProfile(selection: ResearchTargetProfileSelection): Of
     version: selection.profile.version,
     description: selection.profile.description,
     selection_reason: selection.reason
+  };
+}
+
+function edgeCorroborationDispositionSummary(record: EdgeCorroborationDispositionRecord) {
+  return {
+    change_id: record.change_id,
+    edge_id: record.edge_id,
+    decision: record.decision,
+    reviewer: record.reviewer,
+    reason: record.reason,
+    evidence_id: record.evidence_id,
+    unknown_id: record.unknown_id,
+    check_target_id: record.check_target_id,
+    recorded_at: record.recorded_at
+  };
+}
+
+function toGate1RankingCalibrationLabel(record: RankingCalibrationLabelRecord) {
+  return {
+    label_id: record.label_id,
+    ranking_context_id: record.ranking_context_id,
+    candidate_entity_id: record.candidate_entity_id,
+    label: record.label,
+    reviewer: record.reviewer,
+    reviewed_at: record.reviewed_at,
+    ...(record.rationale === undefined ? {} : { rationale: record.rationale })
   };
 }
 

@@ -26,7 +26,8 @@
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
     "@supplystrata/signal-extractor": "workspace:*",
-    "@supplystrata/source-monitor": "workspace:*"
+    "@supplystrata/source-monitor": "workspace:*",
+    "@supplystrata/supplier-list": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

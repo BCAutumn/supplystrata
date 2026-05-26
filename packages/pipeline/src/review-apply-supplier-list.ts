@@ -5,8 +5,14 @@ import { ensureSupplierListFacilityEntity, resolvePendingEntitySurface, type Fac
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { DeterministicEvidenceScorer } from "@supplystrata/evidence-scorer";
 import { GraphSqlWriter } from "@supplystrata/graph-builder";
-import { supplierListReviewToFacilityRelation, supplierListReviewToSupplierRelation, type SupplierListReviewCandidate } from "@supplystrata/review-candidates";
+import {
+  supplierListFacilityDisplayName,
+  supplierListReviewToFacilityRelation,
+  supplierListReviewToSupplierRelation,
+  type SupplierListReviewCandidate
+} from "@supplystrata/review-candidates";
 import { markReviewCandidateApplied, type ReviewQueueItem } from "@supplystrata/review-store";
+import { findSupplierListCitationWindow } from "@supplystrata/supplier-list";
 import { locateCandidateCitation, type CitationLocation, type SavedChunkRef } from "./citation-location.js";
 import { assertReviewItemKind, blockReviewCandidate } from "./review-apply-blocking.js";
 import type { AppliedReviewEdgeResult, ReviewApplyOptions, ReviewApplyResult, SupplierListReviewItem } from "./review-apply-definitions.js";
@@ -46,7 +52,7 @@ async function applySupplierListReviewCandidate(
       reviewer,
       reviewed_at: reviewedAt
     });
-    const citationChunks = locateSupplierListCitations(doc.document, item.candidate, scored);
+    const citationChunks = locateSupplierListCitations(doc.document, item.candidate, scored.supplierRelation, scored.facilityRelation);
     if (citationChunks.status === "blocked") return blockReviewCandidate(client, reviewId, citationChunks.reason);
     const sqlWriter = new GraphSqlWriter(resolver);
     const applyResults = await applySupplierListEdges(client, sqlWriter, scored, doc.docId, citationChunks, { reviewer, reviewed_at: reviewedAt });
@@ -142,8 +148,13 @@ interface ScoredSupplierListRelations {
 
 interface SupplierListCitationChunks {
   status: "ready";
-  supplierChunkId: string;
-  facilityChunkId: string;
+  supplierCitation: SupplierListCitationBinding;
+  facilityCitation: SupplierListCitationBinding;
+}
+
+interface SupplierListCitationBinding {
+  chunkId: string;
+  citeText: string;
 }
 
 async function scoreSupplierListRelations(
@@ -163,23 +174,36 @@ async function scoreSupplierListRelations(
   };
 }
 
+export function locateSupplierListReviewCitations(
+  doc: DocumentWithChunks,
+  candidate: SupplierListReviewCandidate
+): SupplierListCitationChunks | { status: "blocked"; reason: string } {
+  return locateSupplierListCitations(
+    doc,
+    candidate,
+    supplierListReviewToSupplierRelation(candidate),
+    supplierListReviewToFacilityRelation(candidate, supplierListFacilityDisplayName(candidate))
+  );
+}
+
 function locateSupplierListCitations(
   doc: DocumentWithChunks,
   candidate: SupplierListReviewCandidate,
-  scored: ScoredSupplierListRelations
+  supplierRelation: ReturnType<typeof supplierListReviewToSupplierRelation>,
+  facilityRelation: ReturnType<typeof supplierListReviewToFacilityRelation>
 ): SupplierListCitationChunks | { status: "blocked"; reason: string } {
-  const supplierLocation = locateSupplierListCitation(doc.chunks, candidate, scored.supplierRelation);
+  const supplierLocation = locateSupplierListCitation(doc.chunks, candidate, supplierRelation);
   if (supplierLocation.status !== "located") {
     return { status: "blocked", reason: `supplier relation citation is not uniquely located: ${supplierLocation.reason}` };
   }
-  const facilityLocation = locateSupplierListCitation(doc.chunks, candidate, scored.facilityRelation);
+  const facilityLocation = locateSupplierListCitation(doc.chunks, candidate, facilityRelation);
   if (facilityLocation.status !== "located") {
     return { status: "blocked", reason: `facility relation citation is not uniquely located: ${facilityLocation.reason}` };
   }
   return {
     status: "ready",
-    supplierChunkId: supplierLocation.chunk_id,
-    facilityChunkId: facilityLocation.chunk_id
+    supplierCitation: supplierLocation.binding,
+    facilityCitation: facilityLocation.binding
   };
 }
 
@@ -187,10 +211,31 @@ function locateSupplierListCitation(
   chunks: readonly SavedChunkRef[],
   candidate: SupplierListReviewCandidate,
   relation: ReturnType<typeof supplierListReviewToSupplierRelation> | ReturnType<typeof supplierListReviewToFacilityRelation>
-): CitationLocation {
+): { status: "located"; binding: SupplierListCitationBinding; occurrence_count: number } | Exclude<CitationLocation, { status: "located" }> {
   const exact = locateCandidateCitation(chunks, relation);
-  if (exact.status === "located") return exact;
-  return locateSupplierListRowContext(chunks, candidate);
+  if (exact.status === "located" && relation.cite_text.length >= 30) {
+    return { status: "located", binding: { chunkId: exact.chunk_id, citeText: relation.cite_text }, occurrence_count: exact.occurrence_count };
+  }
+
+  const rowContext = locateSupplierListRowContext(chunks, candidate);
+  if (rowContext.status !== "located") return rowContext;
+  const chunk = chunks.find((item) => item.chunk_id === rowContext.chunk_id);
+  if (chunk === undefined) {
+    return {
+      status: "not_found",
+      occurrence_count: 0,
+      reason: "supplier-list row context matched a chunk that is no longer present"
+    };
+  }
+  const citeText = supplierListCitationWindow(chunk.text, candidate);
+  if (citeText === undefined) {
+    return {
+      status: "not_found",
+      occurrence_count: 0,
+      reason: "supplier-list row context could not be converted to an exact citation window"
+    };
+  }
+  return { status: "located", binding: { chunkId: chunk.chunk_id, citeText }, occurrence_count: 1 };
 }
 
 export function locateSupplierListRowContext(chunks: readonly SavedChunkRef[], candidate: SupplierListReviewCandidate): CitationLocation {
@@ -247,22 +292,22 @@ async function applySupplierListEdges(
   const supplierApply = await applyReviewedRelation(
     sqlWriter,
     {
-      candidate: scored.supplierRelation,
+      candidate: { ...scored.supplierRelation, cite_text: citationChunks.supplierCitation.citeText },
       scoring: scored.supplierScoring,
       approved_by: reviewed,
       doc_id: docId,
-      chunk_id: citationChunks.supplierChunkId
+      chunk_id: citationChunks.supplierCitation.chunkId
     },
     client
   );
   const facilityApply = await applyReviewedRelation(
     sqlWriter,
     {
-      candidate: scored.facilityRelation,
+      candidate: { ...scored.facilityRelation, cite_text: citationChunks.facilityCitation.citeText },
       scoring: scored.facilityScoring,
       approved_by: reviewed,
       doc_id: docId,
-      chunk_id: citationChunks.facilityChunkId
+      chunk_id: citationChunks.facilityCitation.chunkId
     },
     client
   );
@@ -270,6 +315,16 @@ async function applySupplierListEdges(
     { ...supplierApply, role: "supplier_relation", relation: scored.supplierRelation.relation },
     { ...facilityApply, role: "facility_relation", relation: scored.facilityRelation.relation }
   ];
+}
+
+function supplierListCitationWindow(chunkText: string, candidate: SupplierListReviewCandidate): string | undefined {
+  return findSupplierListCitationWindow({
+    chunkText,
+    supplierName: candidate.payload.supplier_name,
+    sourceRowText: candidate.evidence.source_row_text,
+    locationText: candidate.payload.location_text,
+    countryOrRegion: candidate.payload.country_or_region
+  });
 }
 
 async function applyReviewedRelation(sqlWriter: GraphSqlWriter, approved: ApprovedCandidate, client: DbTxClient): Promise<ApplyResult> {

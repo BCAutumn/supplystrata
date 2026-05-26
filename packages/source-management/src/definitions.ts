@@ -91,6 +91,7 @@ export interface ManagedSourcePlanItem {
 
 export interface ManagedSourcePlanDocument {
   schema_version: "1.0.0";
+  check_target_ids?: readonly string[];
   source_plan: readonly ManagedSourcePlanItem[];
 }
 

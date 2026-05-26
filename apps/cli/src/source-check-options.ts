@@ -34,12 +34,7 @@ export async function buildSourceCheckSelectionOptions(
 ): Promise<{ check_target_ids?: string[]; source_adapter_ids?: string[] }> {
   const directCheckTargetIds = options.checkTargetId === undefined ? [] : parseCommaSeparated(options.checkTargetId);
   const planCheckTargetIds =
-    options.sourcePlan === undefined
-      ? []
-      : buildSourceCheckTargetIdsFromPlan({
-          source_plan: (await readSourcePlanDocument(options.sourcePlan)).source_plan,
-          namespace: requireNamespace(options)
-        });
+    options.sourcePlan === undefined ? [] : await buildSourceCheckTargetIdsFromSourcePlanFile({ sourcePlan: options.sourcePlan, ...namespaceOption(options) });
   const checkTargetIds = [...new Set([...directCheckTargetIds, ...planCheckTargetIds])].sort();
   const sourceAdapterIds = options.source === undefined ? [] : parseCommaSeparated(options.source).sort();
   if (options.sourcePlan === undefined && options.namespace !== undefined) throw new Error("--namespace requires --source-plan");
@@ -51,10 +46,12 @@ export async function buildSourceCheckSelectionOptions(
 
 export async function buildSourceCheckTargetIdsFromSourcePlanFile(input: {
   sourcePlan: string;
-  namespace: string;
+  namespace?: string;
   sourceAdapterIds?: readonly string[];
 }): Promise<string[]> {
   const document = await readSourcePlanDocument(input.sourcePlan);
+  if (document.check_target_ids !== undefined) return filterEmbeddedCheckTargetIds(document.check_target_ids, input.sourceAdapterIds);
+  if (input.namespace === undefined) throw new Error("--source-plan requires --namespace unless the source-plan document includes check_target_ids");
   return buildSourceCheckTargetIdsFromPlan({
     source_plan: document.source_plan,
     namespace: input.namespace,
@@ -100,7 +97,17 @@ export async function readSourcePlanDocument(sourcePlanPath: string): Promise<Ma
   return parseManagedSourcePlanDocument(await readFile(sourcePlanPath, "utf8"));
 }
 
-function requireNamespace(options: { namespace?: string }): string {
-  if (options.namespace === undefined) throw new Error("--source-plan requires --namespace");
-  return options.namespace;
+function namespaceOption(options: { namespace?: string }): { namespace?: string } {
+  return options.namespace === undefined ? {} : { namespace: options.namespace };
+}
+
+function filterEmbeddedCheckTargetIds(ids: readonly string[], sourceAdapterIds: readonly string[] | undefined): string[] {
+  if (sourceAdapterIds === undefined) return [...ids].sort();
+  const allowedSources = new Set(sourceAdapterIds);
+  return ids.filter((id) => sourceCheckTargetIdMatchesSource(id, allowedSources)).sort();
+}
+
+function sourceCheckTargetIdMatchesSource(id: string, allowedSources: ReadonlySet<string>): boolean {
+  const [, , sourceAdapterId] = id.split(":");
+  return sourceAdapterId !== undefined && allowedSources.has(sourceAdapterId);
 }

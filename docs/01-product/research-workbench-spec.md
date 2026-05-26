@@ -1,6 +1,6 @@
 # Research Workbench Spec — 研究工作台规格
 
-本文定义 `apps/research-preview`。它替代当前一次性的 `scripts/render-research-html.mjs`，但仍然是本地研究工作台，不是 SaaS 前端。
+本文定义 `apps/research-preview`。它是本地交互式研究工作台，不是 SaaS 前端。静态 HTML 报告由 `scripts/render-research-html.mjs` 从 `research-pack` 目录生成，两者共享同一条后端 truth-store / workbench / research-pack 主线，但用途不同。
 
 当前第一版已经落地为本地静态工作台：
 
@@ -175,26 +175,35 @@ show inferred edges
 
 默认状态必须是 off。
 
-## 当前脚本的处理
+## 静态 HTML 报告
 
-`scripts/render-research-html.mjs` 只作为临时静态预览。v0.2 完成后：
+`scripts/render-research-html.mjs` 是 research-pack 的静态读物渲染器：
 
-- README 不再推荐直接使用该脚本。
-- 脚本可以保留为 fixture generator 或删除。
-- 工作台入口改为 `pnpm research-preview`，数据入口改为 `pnpm cli workbench export --company <company> --out <file>`。
+- 输入是 research-pack 目录，例如 `reports/gate1-latest-nvidia`。
+- 输出是可用 `file://` 打开的 HTML。
+- 可选传入上一版 research-pack 目录，用于展示指标 delta。
+- 不再兼容早期 `preview report` JSON。
+- 不承担交互式工作台职责，不直接读取 Postgres / Neo4j。
 
-## 与最初 HTML 的差异
+示例：
 
-最初的 `reports/latest-nvidia-research.html` 是一次性报告页：它从 `preview report` JSON 生成，形态上更像“把 NVIDIA 研究结果排版出来”。它不读取 Postgres truth store，不消费 `ChainViewModel`，也不承载 source health、change timeline 和 claim/evidence 的长期契约。
+```bash
+pnpm --silent cli research run --company nvidia --depth 5 --prepare-data --out reports/gate1-latest-nvidia
+node scripts/render-research-html.mjs reports/gate1-latest-nvidia reports/latest-nvidia-research.html
+```
+
+## 与工作台的差异
 
 `apps/research-preview` 是研究工作台：它从 `workbench export` JSON 读取 `chain_segments / claims / draft_claims / evidences / unknown_items / sources / changes`，用 Canvas 画事实边、观测、线索和未知边界，并用侧栏展示已确认语义变化产生的 claim 草稿。它的目标不是只展示 NVIDIA，而是未来输入 Apple、Tesla、Microsoft、SpaceX 等任意研究对象时，都沿用同一个数据契约和交互模型。
+
+静态 HTML 是研究包读物：它从 `research-pack` 读取 manifest、Gate 1 readiness、source-target coverage、supply-chain expansion plan、data-depth workbench、run ledger、quality 和 question/propagation readiness。它的目标是让研究员或宿主 app 快速判断“这次研究包质量如何、还缺什么、下一步跑什么”，不是长期替代工作台。
 
 因此两者的核心区别是：
 
 ```text
-旧 HTML
-  单报告、NVIDIA 形态强、preview 数据、适合快速验收视觉方向。
+静态 HTML
+  research-pack 读物、可比较版本、适合验收 Gate 1 数据深度和缺口。
 
-新 workbench
+research-preview workbench
   通用工作台、公司可配置、truth-store 导出、适合继续做深层供应链追踪。
 ```

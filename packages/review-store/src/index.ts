@@ -9,7 +9,9 @@ import {
   type ReviewCandidateStatus,
   type ReviewOnlyFactWritePolicy
 } from "@supplystrata/review-candidates";
-import type { OfficialDisclosureSignalDispositionRow, ReviewCandidateRow, ReviewStatsRow } from "./db-rows.js";
+import type { EntityAffiliationDispositionRow, OfficialDisclosureSignalDispositionRow, ReviewCandidateRow, ReviewStatsRow } from "./db-rows.js";
+
+export * from "./edge-corroboration-disposition.js";
 
 interface ReviewCandidateEnqueueInputRow {
   review_id: string;
@@ -90,6 +92,41 @@ export interface OfficialDisclosureSignalDispositionRecord {
   evidence_id: string | null;
   unknown_id: string | null;
   check_target_id: string | null;
+  recorded_at: string;
+  fact_write_policy: ReviewOnlyFactWritePolicy;
+}
+
+export type EntityAffiliationDispositionDecision =
+  | "research_parent_entity"
+  | "research_child_entity"
+  | "research_both_scopes"
+  | "not_relevant"
+  | "keep_unknown_open";
+
+export interface EntityAffiliationDispositionInput {
+  contextId: string;
+  subjectEntityId: string;
+  parentEntityId: string;
+  decision: EntityAffiliationDispositionDecision;
+  reviewer: string;
+  reason: string;
+  edgeIds?: readonly string[];
+  componentIds?: readonly string[];
+  unknownIds?: readonly string[];
+  recordedAt: string;
+}
+
+export interface EntityAffiliationDispositionRecord {
+  change_id: string;
+  context_id: string;
+  subject_entity_id: string;
+  parent_entity_id: string;
+  decision: EntityAffiliationDispositionDecision;
+  reviewer: string;
+  reason: string;
+  edge_ids: string[];
+  component_ids: string[];
+  unknown_ids: string[];
   recorded_at: string;
   fact_write_policy: ReviewOnlyFactWritePolicy;
 }
@@ -187,6 +224,23 @@ export async function listApprovedReviewCandidates(client: DbClient, input: { li
   return result.rows.map((row) => {
     const item = rowToReviewItem(row);
     if (item === undefined) throw new Error(`Invalid approved review candidate row: ${row.review_id}`);
+    return item;
+  });
+}
+
+export async function listPendingReviewCandidates(client: DbClient, input: { kind?: ReviewCandidateKind; limit: number }): Promise<ReviewQueueItem[]> {
+  const result = await client.query<ReviewCandidateRow>(
+    `SELECT review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at
+     FROM review_candidates
+     WHERE status = 'pending'
+       AND ($2::text IS NULL OR kind = $2)
+     ORDER BY created_at, review_id
+     LIMIT $1`,
+    [input.limit, input.kind ?? null]
+  );
+  return result.rows.map((row) => {
+    const item = rowToReviewItem(row);
+    if (item === undefined) throw new Error(`Invalid pending review candidate row: ${row.review_id}`);
     return item;
   });
 }
@@ -363,6 +417,65 @@ export async function recordOfficialDisclosureSignalDisposition(
   });
 }
 
+export async function recordEntityAffiliationDisposition(
+  client: DbTxClient,
+  input: EntityAffiliationDispositionInput
+): Promise<EntityAffiliationDispositionRecord> {
+  if (input.contextId.trim().length === 0) throw new Error("Entity affiliation disposition requires a context id");
+  if (input.subjectEntityId.trim().length === 0) throw new Error("Entity affiliation disposition requires a subject entity id");
+  if (input.parentEntityId.trim().length === 0) throw new Error("Entity affiliation disposition requires a parent entity id");
+  if (input.reason.trim().length === 0) throw new Error("Entity affiliation disposition requires a reason");
+  const after = {
+    context_id: input.contextId,
+    subject_entity_id: input.subjectEntityId,
+    parent_entity_id: input.parentEntityId,
+    decision: input.decision,
+    reviewer: input.reviewer,
+    reason: input.reason,
+    edge_ids: uniqueSorted(input.edgeIds ?? []),
+    component_ids: uniqueSorted(input.componentIds ?? []),
+    unknown_ids: uniqueSorted(input.unknownIds ?? []),
+    fact_write_policy: reviewOnlyFactWritePolicy(),
+    recorded_at: input.recordedAt
+  };
+  const change = await recordSemanticChange(client, {
+    scope_kind: "entity_affiliation_context",
+    scope_id: input.contextId,
+    change_type: "ENTITY_AFFILIATION_DISPOSITION_RECORDED",
+    after,
+    caused_by: input.reviewer
+  });
+  return entityAffiliationDispositionRecordFromAfter({
+    change_id: change.change_id,
+    context_id: input.contextId,
+    after,
+    caused_by: input.reviewer,
+    detected_at: new Date(input.recordedAt)
+  });
+}
+
+export async function listEntityAffiliationDispositions(
+  client: DbClient,
+  input: { contextIds?: readonly string[]; limit?: number } = {}
+): Promise<EntityAffiliationDispositionRecord[]> {
+  const params: unknown[] = [];
+  const predicates = ["change_type = 'ENTITY_AFFILIATION_DISPOSITION_RECORDED'", "scope_kind = 'entity_affiliation_context'"];
+  if (input.contextIds !== undefined && input.contextIds.length > 0) {
+    params.push(uniqueSorted(input.contextIds));
+    predicates.push(`scope_id = ANY($${params.length}::text[])`);
+  }
+  params.push(input.limit ?? 200);
+  const result = await client.query<EntityAffiliationDispositionRow>(
+    `SELECT change_id, scope_id AS context_id, after, caused_by, detected_at
+     FROM change_records
+     WHERE ${predicates.join(" AND ")}
+     ORDER BY detected_at DESC, change_id DESC
+     LIMIT $${params.length}`,
+    params
+  );
+  return result.rows.map(entityAffiliationDispositionRecordFromAfter);
+}
+
 async function getReviewCandidateForUpdate(client: DbTxClient, reviewId: string): Promise<ReviewQueueItem | undefined> {
   const result = await client.query<ReviewCandidateRow>(
     `SELECT review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at
@@ -439,6 +552,39 @@ function officialDisclosureSignalDispositionRecordFromAfter(row: OfficialDisclos
   };
 }
 
+function entityAffiliationDispositionRecordFromAfter(row: EntityAffiliationDispositionRow): EntityAffiliationDispositionRecord {
+  if (!isRecord(row.after)) throw new Error(`Invalid entity affiliation disposition payload: ${row.change_id}`);
+  const factWritePolicy = row.after["fact_write_policy"];
+  if (!isReviewOnlyFactWritePolicy(factWritePolicy)) throw new Error(`Entity affiliation disposition cannot authorize fact mutation: ${row.change_id}`);
+  return {
+    change_id: row.change_id,
+    context_id: stringField(row.after, "context_id", row.context_id),
+    subject_entity_id: stringField(row.after, "subject_entity_id", ""),
+    parent_entity_id: stringField(row.after, "parent_entity_id", ""),
+    decision: entityAffiliationDecision(row.after["decision"]),
+    reviewer: stringField(row.after, "reviewer", row.caused_by),
+    reason: stringField(row.after, "reason", ""),
+    edge_ids: stringArrayField(row.after, "edge_ids"),
+    component_ids: stringArrayField(row.after, "component_ids"),
+    unknown_ids: stringArrayField(row.after, "unknown_ids"),
+    recorded_at: stringField(row.after, "recorded_at", row.detected_at.toISOString()),
+    fact_write_policy: reviewOnlyFactWritePolicy()
+  };
+}
+
+function entityAffiliationDecision(value: unknown): EntityAffiliationDispositionDecision {
+  if (
+    value === "research_parent_entity" ||
+    value === "research_child_entity" ||
+    value === "research_both_scopes" ||
+    value === "not_relevant" ||
+    value === "keep_unknown_open"
+  ) {
+    return value;
+  }
+  throw new Error(`Invalid entity affiliation disposition decision: ${String(value)}`);
+}
+
 function dispositionDecision(value: unknown): OfficialDisclosureSignalDispositionDecision {
   if (
     value === "supports_existing_edge" ||
@@ -466,6 +612,16 @@ function nullableStringField(record: Record<string, unknown>, key: string): stri
   return value;
 }
 
+function stringArrayField(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key];
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) throw new Error(`Expected string array field: ${key}`);
+  return uniqueSorted(value);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))].sort();
 }

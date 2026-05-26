@@ -56,7 +56,7 @@ function stableEntitySourceReviewId(candidate: EntitySourceCandidate, candidateK
 }
 
 function proposedEntityId(candidate: EntitySourceCandidate): string {
-  const source = candidate.source_adapter_id === "companies-house" ? "CH" : "OC";
+  const source = entitySourceIdPrefix(candidate.source_adapter_id);
   const readable = [candidate.name, candidate.jurisdiction_code ?? "", candidate.company_number ?? candidate.external_id]
     .join("|")
     .normalize("NFKC")
@@ -66,4 +66,10 @@ function proposedEntityId(candidate: EntitySourceCandidate): string {
     .slice(0, 72);
   const digest = createHash("sha256").update(`${candidate.source_adapter_id}|${candidate.external_id}`).digest("hex").slice(0, 8).toUpperCase();
   return `ENT-${source}-${readable}-${digest}`;
+}
+
+function entitySourceIdPrefix(sourceAdapterId: EntitySourceCandidate["source_adapter_id"]): "CH" | "GLEIF" | "OC" {
+  if (sourceAdapterId === "companies-house") return "CH";
+  if (sourceAdapterId === "gleif") return "GLEIF";
+  return "OC";
 }

@@ -141,6 +141,10 @@ export const OBSERVATION_CALIBRATION_LABELS = ["useful_signal", "background_cont
 
 export type ObservationCalibrationLabel = (typeof OBSERVATION_CALIBRATION_LABELS)[number];
 
+export const RANKING_CALIBRATION_LABELS = ["useful_target", "wrong_direction", "brand_center_bias", "needs_more_context", "not_relevant"] as const;
+
+export type RankingCalibrationLabel = (typeof RANKING_CALIBRATION_LABELS)[number];
+
 export const OBSERVATION_TYPES = [
   "FINANCIAL_METRIC_OBSERVATION",
   "TRADE_FLOW_OBSERVATION",

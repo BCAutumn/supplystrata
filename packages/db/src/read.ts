@@ -4,8 +4,10 @@ export { listAlertCandidates, type AlertCandidateRecord, type AlertSeverity, typ
 export {
   listEdgeCalibrationLabels,
   listObservationCalibrationLabels,
+  listRankingCalibrationLabels,
   type EdgeCalibrationLabelRecord,
-  type ObservationCalibrationLabelRecord
+  type ObservationCalibrationLabelRecord,
+  type RankingCalibrationLabelRecord
 } from "./calibration.js";
 export { listChangeTimeline, type ChangeTimelineInput, type ChangeTimelineItem, type ChangeTimelineScope } from "./changes.js";
 export { getChainView, listChainSegments, type ChainSegmentRow, type ChainViewRow } from "./chain-views.js";

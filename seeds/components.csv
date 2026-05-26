@@ -14,6 +14,11 @@ COMP-SPECIALTY-GASES,Specialty gases,semiconductor>materials>gases,special gases
 COMP-ABF-SUBSTRATE,ABF substrate,semiconductor>packaging>substrate>abf,Ajinomoto build-up film;package substrate
 COMP-INTERPOSER,Interposer,semiconductor>packaging>interposer,silicon interposer;bridge die
 COMP-PCB,PCB,hardware>electronics>pcb,printed circuit board;server board
+COMP-CCL,Copper clad laminate,hardware>electronics>pcb>copper-clad-laminate,copper clad laminate;CCL;laminate
+COMP-COPPER-FOIL,Copper foil,materials>metals>copper>foil,electrodeposited copper foil;rolled copper foil
+COMP-ELECTRONIC-GLASS-CLOTH,Electronic glass cloth,materials>glass-fiber>electronic-glass,e-glass cloth;electronic grade glass fiber;glass fabric
+COMP-LAMINATE-RESIN,Laminate resin,materials>polymers>epoxy>laminate-resin,epoxy resin;BT resin;cyanate ester resin
 COMP-POWER-SUPPLY,Power supply,hardware>server>power,PSU;power module;power shelf
 COMP-COOLING,Cooling,hardware>server>thermal,liquid cooling;thermal module;heat sink
 COMP-OPTICAL-MODULE,Optical module,hardware>networking>optics,optical transceiver;silicon photonics module
+COMP-CLEANROOM,Cleanroom,semiconductor>facilities>cleanroom,clean room;semiconductor cleanroom;cleanroom construction

@@ -77,14 +77,18 @@ export function readinessSummary(input: {
     degraded_official_targets: sourceTargets.filter((target) => target.state === "degraded").length,
     official_targets_with_observations: sourceTargets.filter((target) => (target.observations ?? 0) > 0).length,
     official_disclosure_signal_review_candidates: input.officialDisclosureSignals.length,
-    open_official_disclosure_signal_review_candidates: input.officialDisclosureSignals.filter((signal) =>
-      ["pending", "in_review", "approved", "blocked"].includes(signal.status)
-    ).length,
+    open_official_disclosure_signal_review_candidates: input.officialDisclosureSignals.filter(signalNeedsDisposition).length,
     official_disclosure_signal_dispositions: input.officialDisclosureSignals.reduce((count, signal) => count + signal.dispositions.length, 0),
     official_disclosure_signal_correlation_hints: input.officialDisclosureSignalCorrelationHints.length,
     open_official_disclosure_signal_correlation_hints: input.officialDisclosureSignalCorrelationHints.filter((hint) => hint.disposition_status === "open")
       .length
   };
+}
+
+function signalNeedsDisposition(signal: OfficialDisclosureSignalReviewSummary): boolean {
+  // review_candidates.status 只是队列表状态；Gate 1 更关心“这个 signal 是否已有审查结论”。
+  // 已有 disposition 的 pending row 不应继续污染 data-depth backlog，否则会把完成项误报为 open。
+  return ["pending", "in_review", "approved", "blocked"].includes(signal.status) && signal.dispositions.length === 0;
 }
 
 export function summarizeOfficialDisclosureSignals(reviewQueue: readonly WorkbenchReviewCandidate[]): OfficialDisclosureSignalReviewSummary[] {

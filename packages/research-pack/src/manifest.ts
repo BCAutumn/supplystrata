@@ -1,5 +1,5 @@
 import type { DataQualitySummary } from "@supplystrata/data-quality";
-import type { EdgeIntelligenceRefreshSummary } from "@supplystrata/evidence-maintenance";
+import type { EdgeIntelligenceRefreshSummary, MaterializeRootResearchUnknownsSummary } from "@supplystrata/evidence-maintenance";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { CorroborationSourcePlan } from "./corroboration-source-plan.js";
@@ -42,6 +42,7 @@ export function manifestFromModel(input: {
   claimBuild: ResearchPackClaimBuild | null;
   intelligenceRefresh: EdgeIntelligenceRefreshSummary | null;
   componentRiskRefresh: ResearchPackComponentRiskRefresh | null;
+  rootUnknownMaterialization: MaterializeRootResearchUnknownsSummary | null;
   targetProfileSelection: ResearchTargetProfileSelection;
   mode?: ResearchPackManifest["mode"];
 }): ResearchPackManifest {
@@ -215,13 +216,21 @@ export function manifestFromModel(input: {
       gate1_data_depth_by_workstream: input.gate1DataDepthWorkbench.summary.by_workstream,
       gate1_data_depth_fact_edge_gap: input.gate1DataDepthWorkbench.summary.fact_edge_gap_to_target,
       gate1_data_depth_source_blockers: input.gate1DataDepthWorkbench.summary.source_blockers,
+      gate1_data_depth_adjacent_official_fact_edges: input.gate1DataDepthWorkbench.summary.adjacent_official_fact_edges,
+      gate1_data_depth_adjacent_official_fact_companies: input.gate1DataDepthWorkbench.summary.adjacent_official_fact_companies,
+      gate1_data_depth_entity_context_items: input.gate1DataDepthWorkbench.summary.entity_context_items,
       gate1_data_depth_strength_missing_edges: input.gate1DataDepthWorkbench.summary.strength_missing_edges,
       gate1_data_depth_observation_labeling_batch: input.gate1DataDepthWorkbench.summary.observation_labeling_batch,
-      gate1_data_depth_propagation_contexts_not_ready: input.gate1DataDepthWorkbench.summary.propagation_contexts_not_ready
+      gate1_data_depth_propagation_contexts_not_ready: input.gate1DataDepthWorkbench.summary.propagation_contexts_not_ready,
+      gate1_data_depth_ranking_calibration_candidates: input.gate1DataDepthWorkbench.summary.ranking_calibration_candidates,
+      gate1_data_depth_ranking_labeled_candidates: input.gate1DataDepthWorkbench.summary.ranking_labeled_candidates,
+      gate1_data_depth_ranking_unlabeled_candidates: input.gate1DataDepthWorkbench.summary.ranking_unlabeled_candidates,
+      gate1_data_depth_ranking_labels_by_persisted_label: input.gate1DataDepthWorkbench.summary.ranking_labels_by_persisted_label
     },
     claim_build: input.claimBuild,
     intelligence_refresh: input.intelligenceRefresh,
     component_risk_refresh: input.componentRiskRefresh,
+    root_unknown_materialization: input.rootUnknownMaterialization,
     research_target_profile: researchPackTargetProfile(input.targetProfileSelection)
   };
 }

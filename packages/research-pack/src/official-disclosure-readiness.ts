@@ -22,6 +22,8 @@ export type {
   OfficialDisclosureCorroborationDisposition,
   OfficialDisclosureCorroborationQueueItem,
   OfficialDisclosureCorroborationState,
+  OfficialDisclosureEdgeCorroborationDispositionDecision,
+  OfficialDisclosureEdgeCorroborationDispositionSummary,
   OfficialDisclosureExpectedSourceCoverage,
   OfficialDisclosureExpectedSourceCoverageState,
   OfficialDisclosureGate1Scorecard,
@@ -75,6 +77,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
   const freshnessEdgeIds = new Set(input.workbench.intelligence.edge_freshness.map((freshness) => freshness.edge_id));
   const sourcePlanItems = summarizeOfficialSourcePlan(input.source_plan ?? [], input.source_target_coverage);
   const officialDisclosureSignals = summarizeOfficialDisclosureSignals(input.workbench.review_queue);
+  const edgeCorroborationDispositions = [...(input.edge_corroboration_dispositions ?? [])];
   const unknownsByEdge = unknownsByReferencedEdge(
     input.workbench.unknown_items,
     input.workbench.edges.map((edge) => edge.edge_id)
@@ -98,7 +101,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     sourcePlanItems
   });
   const expectedSourceCoverage = buildExpectedSourceCoverage({ nodes, edges });
-  const corroborationQueue = buildCorroborationQueue({ edges, nodes });
+  const corroborationQueue = buildCorroborationQueue({ edges, nodes, edgeCorroborationDispositions });
   const officialDisclosureSignalCorrelationHints = buildOfficialDisclosureSignalCorrelationHints({
     signals: officialDisclosureSignals,
     corroboration_queue: corroborationQueue
@@ -134,6 +137,7 @@ export function buildOfficialDisclosureReadinessReport(input: OfficialDisclosure
     expected_source_coverage: expectedSourceCoverage,
     official_disclosure_signals: officialDisclosureSignals,
     official_disclosure_signal_correlation_hints: officialDisclosureSignalCorrelationHints,
+    edge_corroboration_dispositions: edgeCorroborationDispositions,
     corroboration_queue: corroborationQueue,
     edges,
     source_plan_items: sourcePlanItems,

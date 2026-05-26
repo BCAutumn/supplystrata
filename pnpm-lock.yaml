@@ -311,6 +311,9 @@ importers:
       '@supplystrata/review-candidates':
         specifier: workspace:*
         version: link:../review-candidates
+      '@supplystrata/supplier-list':
+        specifier: workspace:*
+        version: link:../supplier-list
       pg:
         specifier: ~8.13.1
         version: 8.13.3
@@ -488,6 +491,9 @@ importers:
       '@supplystrata/source-monitor':
         specifier: workspace:*
         version: link:../source-monitor
+      '@supplystrata/supplier-list':
+        specifier: workspace:*
+        version: link:../supplier-list
 
   packages/relation-extractor/rule:
     dependencies:
@@ -533,6 +539,9 @@ importers:
       '@supplystrata/render':
         specifier: workspace:*
         version: link:../render
+      '@supplystrata/review-store':
+        specifier: workspace:*
+        version: link:../review-store
       '@supplystrata/source-management':
         specifier: workspace:*
         version: link:../source-management

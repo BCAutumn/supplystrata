@@ -10,6 +10,8 @@ interface SourcePathActionInput {
 }
 
 interface DataProgressActionInput {
+  company_id: string;
+  research_input: Pick<ResearchPackInput, "sourceTargetNamespace">;
   corroboration_source_plan: CorroborationSourcePlan;
 }
 
@@ -24,7 +26,7 @@ export function gate1SourcePathActions(input: SourcePathActionInput, progress: G
       priority: "P0",
       title: "Triage failed official source targets",
       rationale: sourceFailureActionRationale(progress),
-      command_hint: null,
+      command_hint: `supplystrata sources due --source-plan ${sourcePlanRef} --namespace ${namespace} --format markdown`,
       refs: ["source-target-coverage.json", "gate1-run-ledger.json"]
     });
   }
@@ -68,7 +70,8 @@ export function gate1SourcePathActions(input: SourcePathActionInput, progress: G
       priority: "P1",
       title: "Review official observations before fact writes",
       rationale: `${progress.targets_with_observations} official targets already produced observations; useful disclosures should become reviewable evidence candidates, not automatic edges.`,
-      command_hint: null,
+      command_hint:
+        'supplystrata intelligence observation-calibration-label <OBS-id> --label useful_signal --reviewer <name> --rationale "Reviewed official observation; keep as signal unless separately converted through evidence review."',
       refs: ["source-target-coverage.json", "official-disclosure-readiness.json"]
     });
   }
@@ -76,7 +79,7 @@ export function gate1SourcePathActions(input: SourcePathActionInput, progress: G
 }
 
 export function gate1DataProgressActions(input: DataProgressActionInput, progress: Gate1DataProgressLedger): Gate1RunAction[] {
-  const actions: Gate1RunAction[] = [...corroborationSourcePlanActions(input.corroboration_source_plan)];
+  const actions: Gate1RunAction[] = [...corroborationSourcePlanActions(input, input.corroboration_source_plan)];
   if (progress.proposed_single_source_unknowns > 0) {
     actions.push({
       action_id: "gate1:corroboration:single-source-disposition",
@@ -106,7 +109,7 @@ export function gate1DataProgressActions(input: DataProgressActionInput, progres
       priority: "P1",
       title: "Increase reviewed L4/L5 fact edge coverage",
       rationale: `Gate 1 still needs ${progress.fact_edge_gap} additional L4/L5 fact edges; only traceable official evidence should enter review/apply.`,
-      command_hint: null,
+      command_hint: "supplystrata review gate1-supplier-list-batch --limit 50",
       refs: ["investigation-backlog.json", "official-disclosure-readiness.json"]
     });
   }
@@ -123,7 +126,8 @@ function sourceFailureActionRationale(progress: Gate1SourcePathProgressLedger): 
   return `${progress.source_failed_targets} official source targets have latest SOURCE_FAILED events; retry_wait=${progress.retry_wait_targets}, dead=${progress.dead_targets}, failure kinds ${details}. Resolve credentials, config, source reachability, rate limits, or adapter errors before rerunning.`;
 }
 
-function corroborationSourcePlanActions(plan: CorroborationSourcePlan): Gate1RunAction[] {
+function corroborationSourcePlanActions(input: DataProgressActionInput, plan: CorroborationSourcePlan): Gate1RunAction[] {
+  const namespace = input.research_input.sourceTargetNamespace ?? defaultGate1Namespace(input.company_id);
   const actions: Gate1RunAction[] = [];
   const smokeTargets = nextActionCount(plan, "smoke_target");
   if (smokeTargets > 0) {
@@ -137,7 +141,7 @@ function corroborationSourcePlanActions(plan: CorroborationSourcePlan): Gate1Run
       refs: ["corroboration-source-plan.json", "corroboration-source-plan-smoke.json", "official-disclosure-readiness.json"]
     });
   }
-  addSyncLikeCorroborationActions(actions, plan);
+  addSyncLikeCorroborationActions(actions, plan, namespace);
   const failedPreflight = plan.summary.targets_failed_preflight;
   if (failedPreflight > 0) {
     actions.push({
@@ -146,7 +150,7 @@ function corroborationSourcePlanActions(plan: CorroborationSourcePlan): Gate1Run
       priority: "P0",
       title: "Triage failed corroboration preflight targets",
       rationale: corroborationPreflightRationale(plan),
-      command_hint: null,
+      command_hint: "supplystrata sources policy smoke-plan-targets --source-plan corroboration-source-plan-smoke.json --format markdown",
       refs: ["corroboration-source-plan.json", "source-target-preflight.json"]
     });
   }
@@ -158,14 +162,14 @@ function corroborationSourcePlanActions(plan: CorroborationSourcePlan): Gate1Run
       priority: "P0",
       title: "Review corroboration observations",
       rationale: `${observationTargets} counterparty corroboration target(s) produced normalized disclosures; review observations before any evidence or disposition write.`,
-      command_hint: null,
+      command_hint: corroborationObservationReviewCommand(plan),
       refs: ["corroboration-source-plan.json", "source-target-preflight.json", "official-disclosure-readiness.json"]
     });
   }
   return actions;
 }
 
-function addSyncLikeCorroborationActions(actions: Gate1RunAction[], plan: CorroborationSourcePlan): void {
+function addSyncLikeCorroborationActions(actions: Gate1RunAction[], plan: CorroborationSourcePlan, namespace: string): void {
   const syncTargets = nextActionCount(plan, "sync_target");
   if (syncTargets > 0) {
     actions.push({
@@ -174,7 +178,7 @@ function addSyncLikeCorroborationActions(actions: Gate1RunAction[], plan: Corrob
       priority: "P0",
       title: "Sync smoke-cleared corroboration targets",
       rationale: `${syncTargets} counterparty corroboration target(s) passed preflight and are ready to sync into source_check_targets.`,
-      command_hint: "supplystrata sources policy sync-plan-targets --source-plan corroboration-source-plan-sync.json",
+      command_hint: `supplystrata sources policy sync-plan-targets --source-plan corroboration-source-plan-sync.json --namespace ${namespace}`,
       refs: ["corroboration-source-plan.json", "corroboration-source-plan-sync.json", "source-target-preflight.json"]
     });
   }
@@ -186,7 +190,7 @@ function addSyncLikeCorroborationActions(actions: Gate1RunAction[], plan: Corrob
       priority: "P0",
       title: "Enable synced corroboration targets",
       rationale: `${enableTargets} counterparty corroboration target(s) are synced but disabled; approve cadence before due processing.`,
-      command_hint: "supplystrata sources policy enable-plan-targets --source-plan corroboration-source-plan-enable.json",
+      command_hint: `supplystrata sources policy enable-plan-targets --source-plan corroboration-source-plan-enable.json --namespace ${namespace}`,
       refs: ["corroboration-source-plan.json", "corroboration-source-plan-enable.json", "source-target-coverage.json"]
     });
   }
@@ -198,7 +202,7 @@ function addSyncLikeCorroborationActions(actions: Gate1RunAction[], plan: Corrob
       priority: "P0",
       title: "Run due corroboration targets",
       rationale: `${dueTargets} counterparty corroboration target(s) are due and should run through source monitor before edge disposition.`,
-      command_hint: "supplystrata sources run-due --source-plan corroboration-source-plan-run-due.json",
+      command_hint: `supplystrata sources run-due --source-plan corroboration-source-plan-run-due.json --namespace ${namespace}`,
       refs: ["corroboration-source-plan.json", "corroboration-source-plan-run-due.json", "source-target-coverage.json"]
     });
   }
@@ -218,4 +222,18 @@ function corroborationPreflightRationale(plan: CorroborationSourcePlan): string 
     `investigate_source_failure=${nextActionCount(plan, "investigate_source_failure")}`
   ];
   return `Some counterparty corroboration targets failed smoke; resolve them before recording final single-source disposition. ${parts.join(", ")}.`;
+}
+
+function corroborationObservationReviewCommand(plan: CorroborationSourcePlan): string {
+  const reviewTarget = plan.target_refs.find((target) => target.next_action === "review_observations");
+  const edgeId = reviewTarget?.edge_ids[0] ?? "<EDGE-id>";
+  const checkTargetFlag =
+    reviewTarget?.check_target_id === undefined || reviewTarget.check_target_id === null ? "" : ` --check-target ${reviewTarget.check_target_id}`;
+  return (
+    `supplystrata review edge-corroboration-disposition ${edgeId}` +
+    " --decision needs_more_evidence" +
+    " --reviewer <name>" +
+    ' --reason "Reviewed produced observations; not enough to promote into fact evidence yet."' +
+    checkTargetFlag
+  );
 }

@@ -7,18 +7,21 @@ describe("research-pack basics", () => {
     expect(resolveResearchPackWriteSteps({})).toEqual({
       buildClaims: false,
       refreshIntelligence: false,
-      refreshComponentRisk: false
+      refreshComponentRisk: false,
+      materializeRootUnknowns: false
     });
     expect(
       resolveResearchPackWriteSteps({
         buildClaims: true,
         refreshIntelligence: true,
-        refreshComponentRisk: true
+        refreshComponentRisk: true,
+        materializeRootUnknowns: true
       })
     ).toEqual({
       buildClaims: true,
       refreshIntelligence: true,
-      refreshComponentRisk: true
+      refreshComponentRisk: true,
+      materializeRootUnknowns: true
     });
   });
 

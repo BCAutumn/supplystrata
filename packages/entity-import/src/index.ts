@@ -9,6 +9,9 @@ import {
 } from "@supplystrata/review-candidates";
 import type { CountRow, EntityIdRow } from "./db-rows.js";
 
+// 只有全局唯一标识符能参与冲突判断；jurisdiction_code / company_number 单独使用会把不同公司误判成同一实体。
+const GLOBALLY_UNIQUE_ENTITY_IDENTIFIER_KEYS = new Set(["lei", "gleif_lei", "bic", "spglobal_id", "open_corporates_id", "companies_house_number"]);
+
 export type EntityImportResult =
   | { status: "applied"; entity_id: string; aliases_inserted: number; aliases_skipped: number; pending_entities_resolved: number; change_id: string }
   | { status: "blocked"; reason: string };
@@ -196,7 +199,7 @@ export async function ensureSupplierListFacilityEntity(
 
 async function findIdentifierConflict(client: DbClient, candidate: EntitySourceReviewCandidate): Promise<string | undefined> {
   const identifiers = Object.entries(candidate.payload.candidate.identifiers).filter(
-    (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0
+    (entry): entry is [string, string] => GLOBALLY_UNIQUE_ENTITY_IDENTIFIER_KEYS.has(entry[0]) && typeof entry[1] === "string" && entry[1].trim().length > 0
   );
   for (const [key, value] of identifiers) {
     const result = await client.query<EntityIdRow>(

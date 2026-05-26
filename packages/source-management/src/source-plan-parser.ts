@@ -6,10 +6,23 @@ export function parseManagedSourcePlanDocument(text: string): ManagedSourcePlanD
   if (parsed["schema_version"] !== "1.0.0") throw new Error("source plan document schema_version must be 1.0.0");
   const sourcePlan = parsed["source_plan"];
   if (!Array.isArray(sourcePlan)) throw new Error("source plan document source_plan must be an array");
+  const checkTargetIds = parseOptionalCheckTargetIds(parsed["check_target_ids"]);
   return {
     schema_version: "1.0.0",
+    ...(checkTargetIds === undefined ? {} : { check_target_ids: checkTargetIds }),
     source_plan: sourcePlan.map((item, index) => parseManagedSourcePlanItem(item, `source_plan[${index}]`))
   };
+}
+
+function parseOptionalCheckTargetIds(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error("source plan document check_target_ids must be a string array when provided");
+  const ids: string[] = [];
+  for (const [index, item] of value.entries()) {
+    if (typeof item !== "string" || item.trim().length === 0) throw new Error(`source plan document check_target_ids[${index}] must be a non-empty string`);
+    ids.push(item);
+  }
+  return [...new Set(ids)].sort();
 }
 
 function parseManagedSourcePlanItem(value: unknown, label: string): ManagedSourcePlanItem {

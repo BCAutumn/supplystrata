@@ -2,20 +2,23 @@ import { buildEdgeClaimsFromCurrentEdgesTransactionally } from "@supplystrata/cl
 import type { DatabaseStore } from "@supplystrata/db/write";
 import {
   listRefreshableComponentRiskComponentIds,
+  materializeRootResearchUnknowns,
   refreshComponentRiskView,
   refreshEdgeIntelligenceContext,
   type ComponentRiskRefreshSummary,
-  type EdgeIntelligenceRefreshSummary
+  type EdgeIntelligenceRefreshSummary,
+  type MaterializeRootResearchUnknownsSummary
 } from "@supplystrata/evidence-maintenance";
 import type { ResearchPackClaimBuild, ResearchPackComponentRiskRefresh, ResearchPackInput, ResearchPackWriteSteps } from "./definitions.js";
 
 export function resolveResearchPackWriteSteps(
-  input: Pick<ResearchPackInput, "buildClaims" | "refreshIntelligence" | "refreshComponentRisk">
+  input: Pick<ResearchPackInput, "buildClaims" | "refreshIntelligence" | "refreshComponentRisk" | "materializeRootUnknowns">
 ): ResearchPackWriteSteps {
   return {
     buildClaims: input.buildClaims === true,
     refreshIntelligence: input.refreshIntelligence === true,
-    refreshComponentRisk: input.refreshComponentRisk === true
+    refreshComponentRisk: input.refreshComponentRisk === true,
+    materializeRootUnknowns: input.materializeRootUnknowns === true
   };
 }
 
@@ -90,4 +93,20 @@ export async function maybeRefreshComponentRiskViews(
     generated_by: generatedBy,
     components
   };
+}
+
+export async function maybeMaterializeRootUnknowns(
+  client: DatabaseStore,
+  writeSteps: ResearchPackWriteSteps,
+  input: ResearchPackInput,
+  companyId: string
+): Promise<MaterializeRootResearchUnknownsSummary | null> {
+  if (!writeSteps.materializeRootUnknowns) return null;
+  return client.transaction((tx) =>
+    materializeRootResearchUnknowns(tx, {
+      company_ids: [companyId],
+      min_evidence_level: input.minEvidenceLevel ?? 4,
+      generated_by: input.generatedBy ?? "research-pack.root-unknown-materialization.v1"
+    })
+  );
 }

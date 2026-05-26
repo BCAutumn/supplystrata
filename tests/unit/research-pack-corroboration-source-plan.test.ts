@@ -197,6 +197,11 @@ describe("research-pack corroboration source plan", () => {
       target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2024 },
       reason: "Samsung IR 2024 connector target."
     };
+    const enableTarget = {
+      ...smokeTarget,
+      target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2022 },
+      reason: "Samsung IR 2022 connector target."
+    };
     const reviewTarget = {
       ...smokeTarget,
       target_config: { entity_id: "ENT-SAMSUNG-ELECTRONICS", year: 2023 },
@@ -205,7 +210,7 @@ describe("research-pack corroboration source plan", () => {
     const sourcePlan: SourcePlanItem[] = [
       {
         ...sourcePlanItem,
-        suggested_check_targets: [smokeTarget, syncTarget, reviewTarget]
+        suggested_check_targets: [smokeTarget, syncTarget, enableTarget, reviewTarget]
       }
     ];
     const backlog: InvestigationBacklog = {
@@ -213,19 +218,19 @@ describe("research-pack corroboration source plan", () => {
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
       summary: {
-        open_items: 3,
+        open_items: 4,
         p0: 0,
-        p1: 3,
+        p1: 4,
         p2: 0,
         p3: 0,
-        runnable_check_targets: 3,
-        source_target_coverage_items: 2,
-        corroboration_reviews: 3,
-        corroboration_review_runnable_targets: 3,
-        corroboration_review_with_source_target_coverage: 2,
+        runnable_check_targets: 4,
+        source_target_coverage_items: 3,
+        corroboration_reviews: 4,
+        corroboration_review_runnable_targets: 4,
+        corroboration_review_with_source_target_coverage: 3,
         corroboration_review_explicit_disposition_only: 0,
         corroboration_review_need_sync: 1,
-        corroboration_review_need_enable: 0,
+        corroboration_review_need_enable: 1,
         corroboration_review_due: 0,
         corroboration_review_failed_preflight: 0,
         corroboration_review_missing_credentials: 0,
@@ -292,6 +297,44 @@ describe("research-pack corroboration source plan", () => {
           ]
         },
         {
+          backlog_id: "BACKLOG-ENABLE",
+          kind: "corroboration_review",
+          priority: "P1",
+          title: "Enable Samsung IR target",
+          rationale: "The source target is policy disabled.",
+          action: "Enable target before due processing.",
+          target: {
+            component_ids: ["COMP-DRAM"],
+            edge_ids: ["EDGE-ENABLE"],
+            unknown_ids: [],
+            source_ids: ["samsung-ir"],
+            question_ids: ["official_disclosure.corroboration"]
+          },
+          supporting_refs: [],
+          runnable_check_targets: [enableTarget],
+          source_target_coverage: [
+            {
+              source_adapter_id: "samsung-ir",
+              target_kind: "official-html-disclosure",
+              target_config: enableTarget.target_config,
+              check_target_id: "plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:enable",
+              state: "policy_disabled",
+              synced: true,
+              observations: 0,
+              latest_job_id: null,
+              latest_job_status: null,
+              latest_event_id: null,
+              latest_event_type: null,
+              preflight_status: null,
+              preflight_issue_kind: null,
+              preflight_error_message: null,
+              preflight_missing_credential_env_keys: [],
+              preflight_normalized_documents: 0,
+              preflight_degraded_documents: 0
+            }
+          ]
+        },
+        {
           backlog_id: "BACKLOG-REVIEW",
           kind: "corroboration_review",
           priority: "P1",
@@ -340,9 +383,12 @@ describe("research-pack corroboration source plan", () => {
     });
     const smokeBatch = buildCorroborationSourcePlanActionBatch(plan, actionBatchDefinition("smoke"));
     const syncBatch = buildCorroborationSourcePlanActionBatch(plan, actionBatchDefinition("sync"));
+    const enableBatch = buildCorroborationSourcePlanActionBatch(plan, actionBatchDefinition("enable"));
 
-    expect(plan.summary.by_next_action).toEqual({ review_observations: 1, smoke_target: 1, sync_target: 1 });
+    expect(plan.summary.targets_need_enable).toBe(1);
+    expect(plan.summary.by_next_action).toEqual({ enable_target: 1, review_observations: 1, smoke_target: 1, sync_target: 1 });
     expect(plan.target_refs.find((target) => target.edge_ids.includes("EDGE-REVIEW"))?.next_action).toBe("review_observations");
+    expect(enableBatch.check_target_ids).toEqual(["plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:enable"]);
     expect(smokeBatch.summary).toEqual(
       expect.objectContaining({
         runnable_targets: 1,
@@ -353,8 +399,10 @@ describe("research-pack corroboration source plan", () => {
     );
     expect(smokeBatch.source_plan[0]?.suggested_check_targets[0]?.target_config["year"]).toBe(2025);
     expect(syncBatch.source_plan[0]?.suggested_check_targets[0]?.target_config["year"]).toBe(2024);
+    expect(enableBatch.source_plan[0]?.suggested_check_targets[0]?.target_config["year"]).toBe(2022);
     expect(parseManagedSourcePlanDocument(JSON.stringify(smokeBatch)).source_plan[0]?.suggested_check_targets).toHaveLength(1);
     expect(parseManagedSourcePlanDocument(JSON.stringify(syncBatch)).source_plan[0]?.suggested_check_targets).toHaveLength(1);
+    expect(parseManagedSourcePlanDocument(JSON.stringify(enableBatch)).source_plan[0]?.suggested_check_targets).toHaveLength(1);
     expect(renderCorroborationSourcePlanMarkdown(plan)).toContain("corroboration-source-plan-smoke.json");
   });
 });

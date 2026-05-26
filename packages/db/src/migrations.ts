@@ -26,6 +26,7 @@ import { sql as migration0024SourceEventCheckTargetLooseRefSql } from "./migrati
 import { sql as migration0025SourceCheckJobLeaseSql } from "./migration-sql/0025_source_check_job_lease.js";
 import { sql as migration0026ClaimHumanEditGuardSql } from "./migration-sql/0026_claim_human_edit_guard.js";
 import { sql as migration0027ObservationCalibrationSql } from "./migration-sql/0027_observation_calibration.js";
+import { sql as migration0028RankingCalibrationSql } from "./migration-sql/0028_ranking_calibration.js";
 
 export interface Migration {
   readonly id: string;
@@ -168,6 +169,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0027_observation_calibration",
     description: "Create observation calibration labels for review-only signal gold sets.",
     sql: migration0027ObservationCalibrationSql
+  },
+  {
+    id: "0028_ranking_calibration",
+    description: "Create ranking calibration labels for review-only research target candidate gold sets.",
+    sql: migration0028RankingCalibrationSql
   }
 ];
 

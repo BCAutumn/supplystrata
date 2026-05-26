@@ -67,6 +67,7 @@ describe("review candidates", () => {
       relation: "BUYS_FROM",
       subject_resolve: { surface: "Buyer" },
       object_resolve: { surface: "Supplier Co." },
+      cite_text: "Supplier Co. Penang Malaysia",
       extractor_id: "review.supplier-list-row"
     });
     expect(isReviewCandidate(candidate)).toBe(true);
@@ -108,7 +109,7 @@ describe("review candidates", () => {
       relation: "MANUFACTURES_AT",
       subject_resolve: { surface: "Supplier Co." },
       object_resolve: { surface: "Supplier Co. facility: Penang, Malaysia" },
-      cite_text: "Supplier Co.                         Penang                                     Malaysia",
+      cite_text: "Supplier Co. Penang Malaysia",
       cite_locator: "Apple Supplier List FY2022 line 99",
       extractor_id: "review.supplier-list-facility-row",
       raw_evidence_level_hint: 4
@@ -190,6 +191,33 @@ describe("review candidates", () => {
     });
     expect(candidate.review_id).toContain("REV-ENTITY");
     expect(candidate.payload.proposed_entity_id).toContain("ENT-OC");
+  });
+
+  it("keeps GLEIF entity ids distinguishable from OpenCorporates ids", () => {
+    const candidate = buildEntitySourceReviewCandidate({
+      surface: "ON Semiconductor Corporation",
+      candidate: createEntitySourceCandidate({
+        source_adapter_id: "gleif",
+        source_url: "https://api.gleif.org/api/v1/lei-records?filter%5Bentity.legalName%5D=ON+Semiconductor+Corporation",
+        external_id: "ZV20P4CNJVT8V1ZGJ064",
+        name: "ON SEMICONDUCTOR CORPORATION",
+        jurisdiction_code: "US-DE",
+        company_number: "2301314",
+        current_status: "ACTIVE",
+        previous_names: [],
+        alternative_names: [],
+        identifiers: {
+          lei: "ZV20P4CNJVT8V1ZGJ064",
+          gleif_lei: "ZV20P4CNJVT8V1ZGJ064",
+          company_number: "2301314",
+          jurisdiction_code: "US-DE"
+        },
+        confidence: 0.86,
+        provenance_note: "GLEIF LEI record ZV20P4CNJVT8V1ZGJ064"
+      })
+    });
+
+    expect(candidate.payload.proposed_entity_id).toContain("ENT-GLEIF");
   });
 
   it("converts semantic relation changes into review-only candidates", () => {

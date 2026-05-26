@@ -21,6 +21,14 @@ export interface OfficialDisclosureSignalDispositionRow extends pg.QueryResultRo
   detected_at: Date;
 }
 
+export interface EntityAffiliationDispositionRow extends pg.QueryResultRow {
+  change_id: string;
+  context_id: string;
+  after: Record<string, unknown> | null;
+  caused_by: string;
+  detected_at: Date;
+}
+
 export interface ReviewStatsRow extends pg.QueryResultRow {
   status: ReviewCandidateStatus;
   count: string;

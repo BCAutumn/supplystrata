@@ -15,12 +15,16 @@ ALIAS-TSMC-005,ENT-TSMC,台积电,zh-Hans,translation,seed,active
 ALIAS-SKH-001,ENT-SKHYNIX,SK hynix,en,official,seed,active
 ALIAS-SKH-002,ENT-SKHYNIX,SK Hynix,en,official,seed,active
 ALIAS-SKH-003,ENT-SKHYNIX,SK하이닉스,ko,official,seed,active
+ALIAS-SKH-004,ENT-SKHYNIX,SK hynix Inc.,en,official,seed,active
+ALIAS-SKH-005,ENT-SKHYNIX,SK hynix Incorporated,en,official,seed,active
 ALIAS-MICRON-001,ENT-MICRON,Micron,en,official,seed,active
 ALIAS-MICRON-002,ENT-MICRON,Micron Technology,en,official,seed,active
 ALIAS-MICRON-003,ENT-MICRON,Micron Technology Inc.,en,official,seed,active
+ALIAS-MICRON-004,ENT-MICRON,Micron Technology Incorporated,en,official,seed,active
 ALIAS-SAMSUNG-ELEC-001,ENT-SAMSUNG-ELECTRONICS,Samsung Electronics,en,official,seed,active
 ALIAS-SAMSUNG-ELEC-002,ENT-SAMSUNG-ELECTRONICS,Samsung Electronics Co. Ltd.,en,official,seed,active
 ALIAS-SAMSUNG-ELEC-003,ENT-SAMSUNG-ELECTRONICS,三星电子,zh-Hans,translation,seed,active
+ALIAS-SAMSUNG-ELEC-004,ENT-SAMSUNG-ELECTRONICS,Samsung Electronics Company Limited,en,official,seed,active
 ALIAS-SAMSUNG-FOUNDRY-001,ENT-SAMSUNG-FOUNDRY,Samsung Foundry,en,official,seed,active
 ALIAS-SAMSUNG-FOUNDRY-002,ENT-SAMSUNG-FOUNDRY,Samsung's foundry,en,informal,seed,active
 ALIAS-SAMSUNG-FOUNDRY-003,ENT-SAMSUNG-FOUNDRY,Samsung foundry business,en,informal,seed,active
@@ -33,6 +37,10 @@ ALIAS-FOXCONN-003,ENT-FOXCONN,Hon Hai Precision Industry,en,official,seed,active
 ALIAS-FOXCONN-004,ENT-FOXCONN,鴻海,zh-Hant,translation,seed,active
 ALIAS-FOXCONN-005,ENT-FOXCONN,鸿海,zh-Hans,translation,seed,active
 ALIAS-FOXCONN-006,ENT-FOXCONN,富士康,zh-Hans,translation,seed,active
+ALIAS-FOXCONN-007,ENT-FOXCONN,Hon Hai Precision Industry Co. Ltd.,en,official,seed,active
+ALIAS-FOXCONN-008,ENT-FOXCONN,"Hon Hai Precision Industry Co., Ltd.",en,official,seed,active
+ALIAS-FOXCONN-009,ENT-FOXCONN,Hon Hai Precision Industry Company Limited,en,official,seed,active
+ALIAS-FOXCONN-010,ENT-FOXCONN,Hon Hai Precision Industry Company Limited (Foxconn),en,official,seed,active
 ALIAS-ASML-001,ENT-ASML,ASML,en,official,seed,active
 ALIAS-ASML-002,ENT-ASML,ASML Holding,en,official,seed,active
 ALIAS-ASML-003,ENT-ASML,ASML Holding N.V.,en,official,seed,active
@@ -42,6 +50,7 @@ ALIAS-AMD-003,ENT-AMD,Advanced Micro Devices Inc.,en,official,seed,active
 ALIAS-BROADCOM-001,ENT-BROADCOM,Broadcom,en,official,seed,active
 ALIAS-BROADCOM-002,ENT-BROADCOM,Broadcom Inc.,en,official,seed,active
 ALIAS-BROADCOM-003,ENT-BROADCOM,AVGO,en,abbreviation,seed,active
+ALIAS-BROADCOM-004,ENT-BROADCOM,Broadcom Limited,en,official,seed,active
 ALIAS-SMCI-001,ENT-SUPERMICRO,Supermicro,en,official,seed,active
 ALIAS-SMCI-002,ENT-SUPERMICRO,Super Micro Computer,en,official,seed,active
 ALIAS-SMCI-003,ENT-SUPERMICRO,Super Micro Computer Inc.,en,official,seed,active
@@ -66,7 +75,83 @@ ALIAS-META-003,ENT-META,Meta Platforms Inc.,en,official,seed,active
 ALIAS-ORCL-001,ENT-ORACLE,Oracle,en,official,seed,active
 ALIAS-ORCL-002,ENT-ORACLE,Oracle Corporation,en,official,seed,active
 ALIAS-ORCL-003,ENT-ORACLE,OCI,en,informal,seed,active
+ALIAS-QUANTA-001,ENT-QUANTA,Quanta Computer,en,official,seed,active
+ALIAS-QUANTA-002,ENT-QUANTA,Quanta Computer Inc.,en,official,seed,active
+ALIAS-QUANTA-003,ENT-QUANTA,Quanta Computer Incorporated,en,official,seed,active
+ALIAS-WISTRON-001,ENT-WISTRON,Wistron,en,official,seed,active
+ALIAS-WISTRON-002,ENT-WISTRON,Wistron Corporation,en,official,seed,active
+ALIAS-INVENTEC-001,ENT-INVENTEC,Inventec,en,official,seed,active
+ALIAS-INVENTEC-002,ENT-INVENTEC,Inventec Corporation,en,official,seed,active
 ALIAS-3M-001,ENT-3M,3M,en,official,seed,active
 ALIAS-3M-002,ENT-3M,3M Co.,en,official,seed,active
 ALIAS-3M-003,ENT-3M,3M Company,en,official,seed,active
 ALIAS-3M-004,ENT-3M,MMM,en,abbreviation,seed,active
+ALIAS-ASEH-001,ENT-ASEH,ASE Technology,en,official,seed,active
+ALIAS-ASEH-002,ENT-ASEH,ASE Technology Holding,en,official,seed,active
+ALIAS-ASEH-003,ENT-ASEH,ASE Technology Holding Co. Ltd.,en,official,seed,active
+ALIAS-ASEH-004,ENT-ASEH,"Advanced Semiconductor Engineering Technology Holding Co., Ltd.",en,official,seed,active
+ALIAS-AMKOR-001,ENT-AMKOR,Amkor,en,official,seed,active
+ALIAS-AMKOR-002,ENT-AMKOR,Amkor Technology,en,official,seed,active
+ALIAS-AMKOR-003,ENT-AMKOR,Amkor Technology Inc.,en,official,seed,active
+ALIAS-AMKOR-004,ENT-AMKOR,Amkor Technology Incorporated,en,official,seed,active
+ALIAS-KIOXIA-001,ENT-KIOXIA,Kioxia,en,official,seed,active
+ALIAS-KIOXIA-002,ENT-KIOXIA,Kioxia Holdings Corporation,en,official,seed,active
+ALIAS-NANYA-001,ENT-NANYA,Nanya,en,official,seed,active
+ALIAS-NANYA-002,ENT-NANYA,Nanya Technology,en,official,seed,active
+ALIAS-NANYA-003,ENT-NANYA,Nanya Technology Corporation,en,official,seed,active
+ALIAS-MURATA-001,ENT-MURATA,Murata,en,official,seed,active
+ALIAS-MURATA-002,ENT-MURATA,Murata Manufacturing,en,official,seed,active
+ALIAS-MURATA-003,ENT-MURATA,Murata Manufacturing Co. Ltd.,en,official,seed,active
+ALIAS-MURATA-004,ENT-MURATA,Murata Manufacturing Company Limited,en,official,seed,active
+ALIAS-AGC-001,ENT-AGC,AGC,en,official,seed,active
+ALIAS-AGC-002,ENT-AGC,AGC Inc.,en,official,seed,active
+ALIAS-AGC-003,ENT-AGC,AGC Incorporated,en,official,seed,active
+ALIAS-ADI-001,ENT-ANALOG-DEVICES,Analog Devices,en,official,seed,active
+ALIAS-ADI-002,ENT-ANALOG-DEVICES,Analog Devices Inc.,en,official,seed,active
+ALIAS-ADI-003,ENT-ANALOG-DEVICES,Analog Devices Incorporated,en,official,seed,active
+ALIAS-AMPHENOL-001,ENT-AMPHENOL,Amphenol,en,official,seed,active
+ALIAS-AMPHENOL-002,ENT-AMPHENOL,Amphenol Corporation,en,official,seed,active
+ALIAS-MOLEX-001,ENT-MOLEX,Molex,en,official,seed,active
+ALIAS-MOLEX-002,ENT-MOLEX,Molex LLC,en,official,seed,active
+ALIAS-MOLEX-003,ENT-MOLEX,Molex Incorporated,en,official,seed,active
+ALIAS-DELTA-ELECTRONICS-001,ENT-DELTA-ELECTRONICS,Delta Electronics,en,official,seed,active
+ALIAS-DELTA-ELECTRONICS-002,ENT-DELTA-ELECTRONICS,Delta Electronics Inc.,en,official,seed,active
+ALIAS-DELTA-ELECTRONICS-003,ENT-DELTA-ELECTRONICS,Delta Electronics Incorporated,en,official,seed,active
+ALIAS-COMPAL-001,ENT-COMPAL,Compal,en,official,seed,active
+ALIAS-COMPAL-002,ENT-COMPAL,Compal Electronics,en,official,seed,active
+ALIAS-COMPAL-003,ENT-COMPAL,Compal Electronics Inc.,en,official,seed,active
+ALIAS-COMPAL-004,ENT-COMPAL,Compal Electronics Incorporated,en,official,seed,active
+ALIAS-FLEX-001,ENT-FLEX,Flex,en,official,seed,active
+ALIAS-FLEX-002,ENT-FLEX,Flex Ltd.,en,official,seed,active
+ALIAS-FLEX-003,ENT-FLEX,Flex Limited,en,official,seed,active
+ALIAS-JABIL-001,ENT-JABIL,Jabil,en,official,seed,active
+ALIAS-JABIL-002,ENT-JABIL,Jabil Inc.,en,official,seed,active
+ALIAS-JABIL-003,ENT-JABIL,Jabil Incorporated,en,official,seed,active
+ALIAS-COMPEQ-001,ENT-COMPEQ,Compeq,en,official,seed,active
+ALIAS-COMPEQ-002,ENT-COMPEQ,Compeq Manufacturing,en,official,seed,active
+ALIAS-COMPEQ-003,ENT-COMPEQ,Compeq Manufacturing Co. Ltd.,en,official,seed,active
+ALIAS-COMPEQ-004,ENT-COMPEQ,Compeq Manufacturing Company Limited,en,official,seed,active
+ALIAS-ATS-001,ENT-ATS,AT&S,en,official,seed,active
+ALIAS-ATS-002,ENT-ATS,AT & S,en,official,seed,active
+ALIAS-ATS-003,ENT-ATS,AT&S Austria Technologie & Systemtechnik AG,en,official,seed,active
+ALIAS-ATS-004,ENT-ATS,AT & S Austria Technologie & Systemtechnik AG,en,official,seed,active
+ALIAS-JCET-001,ENT-JCET,JCET,en,official,seed,active
+ALIAS-JCET-002,ENT-JCET,JCET Group,en,official,seed,active
+ALIAS-JCET-003,ENT-JCET,JCET Group Co. Ltd.,en,official,seed,active
+ALIAS-JCET-004,ENT-JCET,JCET Group Company Limited,en,official,seed,active
+ALIAS-CIRRUS-001,ENT-CIRRUS-LOGIC,Cirrus Logic,en,official,seed,active
+ALIAS-CIRRUS-002,ENT-CIRRUS-LOGIC,Cirrus Logic Inc.,en,official,seed,active
+ALIAS-CIRRUS-003,ENT-CIRRUS-LOGIC,Cirrus Logic Incorporated,en,official,seed,active
+ALIAS-HENKEL-001,ENT-HENKEL,Henkel,en,official,seed,active
+ALIAS-HENKEL-002,ENT-HENKEL,Henkel AG & Co. KGaA,en,official,seed,active
+ALIAS-HENKEL-003,ENT-HENKEL,"Henkel AG & Company, KGaA",en,official,seed,active
+ALIAS-FUJIKURA-001,ENT-FUJIKURA,Fujikura,en,official,seed,active
+ALIAS-FUJIKURA-002,ENT-FUJIKURA,Fujikura Ltd.,en,official,seed,active
+ALIAS-FUJIKURA-003,ENT-FUJIKURA,Fujikura Limited,en,official,seed,active
+ALIAS-HIROSE-001,ENT-HIROSE-ELECTRIC,Hirose Electric,en,official,seed,active
+ALIAS-HIROSE-002,ENT-HIROSE-ELECTRIC,Hirose Electric Co. Ltd.,en,official,seed,active
+ALIAS-HIROSE-003,ENT-HIROSE-ELECTRIC,Hirose Electric Company Limited,en,official,seed,active
+ALIAS-JX-METALS-001,ENT-JX-NIPPON-MINING-METALS,JX Advanced Metals,en,official,seed,active
+ALIAS-JX-METALS-002,ENT-JX-NIPPON-MINING-METALS,JX Advanced Metals Corporation,en,official,seed,active
+ALIAS-JX-METALS-003,ENT-JX-NIPPON-MINING-METALS,JX Nippon Mining & Metals Corporation,en,official,seed,active
+ALIAS-JX-METALS-004,ENT-JX-NIPPON-MINING-METALS,JX Nippon Mining & Metals Corporation (Eneos Holding),en,official,seed,active

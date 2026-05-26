@@ -8,6 +8,7 @@ import {
   EDGE_STRENGTH_KINDS,
   OBSERVATION_CALIBRATION_LABELS,
   OBSERVATION_TYPES,
+  RANKING_CALIBRATION_LABELS,
   RISK_METRIC_KINDS
 } from "@supplystrata/core";
 import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db/write";
@@ -23,6 +24,7 @@ import { sql as migration0021FinancialMetricObservationTypeSql } from "../../pac
 import { sql as migration0022FinancialPeerMetricKindSql } from "../../packages/db/src/migration-sql/0022_financial_peer_metric_kind.js";
 import { sql as migration0026ClaimHumanEditGuardSql } from "../../packages/db/src/migration-sql/0026_claim_human_edit_guard.js";
 import { sql as migration0027ObservationCalibrationSql } from "../../packages/db/src/migration-sql/0027_observation_calibration.js";
+import { sql as migration0028RankingCalibrationSql } from "../../packages/db/src/migration-sql/0028_ranking_calibration.js";
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
@@ -53,6 +55,7 @@ import {
   upsertAlertCandidate,
   upsertEdgeCalibrationLabel,
   upsertObservationCalibrationLabel,
+  upsertRankingCalibrationLabel,
   replaceEdgeCalibrationRun
 } from "@supplystrata/db/write";
 import {
@@ -65,6 +68,7 @@ import {
   listClaimsByScope,
   listLeadObservationsByScope,
   listObservationCalibrationLabels,
+  listRankingCalibrationLabels,
   listObservationsByScope
 } from "@supplystrata/db/read";
 
@@ -247,6 +251,12 @@ describe("db intelligence-network repositories", () => {
   it("keeps DB observation calibration constraints synchronized with core observation labels", () => {
     for (const label of OBSERVATION_CALIBRATION_LABELS) {
       expect(migration0027ObservationCalibrationSql).toContain(`'${label}'`);
+    }
+  });
+
+  it("keeps DB ranking calibration constraints synchronized with core ranking labels", () => {
+    for (const label of RANKING_CALIBRATION_LABELS) {
+      expect(migration0028RankingCalibrationSql).toContain(`'${label}'`);
     }
   });
 
@@ -921,6 +931,42 @@ describe("db intelligence-network repositories", () => {
 
     expect(client.calls[0]?.sql).toContain("observation_id = ANY");
     expect(client.calls[0]?.params[0]).toEqual(["OBS-1", "OBS-2"]);
+    expect(client.calls[0]?.params[1]).toBe(20);
+  });
+
+  it("records ranking calibration labels without mutating facts or observations", async () => {
+    const client = new RecordingDbClient();
+
+    const label = await upsertRankingCalibrationLabel(client, {
+      ranking_context_id: "ranking:adjacent-company:COMP-PCB:adjacent-company-ranking.v1",
+      ranking_kind: "adjacent_company_candidate",
+      model_version: "adjacent-company-ranking.v1",
+      candidate_entity_id: "ENT-IBIDEN",
+      candidate_rank: 1,
+      label: "useful_target",
+      reviewer: "unit-test",
+      reviewed_at: "2026-05-26T00:00:00.000Z",
+      rationale: "Good recursive upstream candidate for PCB context.",
+      score_breakdown: { component_relevance: 2, edge_frequency_tiebreaker: 1 }
+    });
+
+    expect(label.label_id).toMatch(/^RANK-CAL-LABEL-/);
+    expect(client.calls[0]?.sql).toContain("INSERT INTO ranking_calibration_labels");
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (label_id)");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("UPDATE observations"))).toBe(false);
+  });
+
+  it("lists ranking calibration labels by batched ranking context ids", async () => {
+    const client = new RecordingDbClient();
+
+    await listRankingCalibrationLabels(client, {
+      ranking_context_ids: ["ranking:adjacent-company:COMP-PCB:adjacent-company-ranking.v1", "ranking:adjacent-company:COMP-PCB:adjacent-company-ranking.v1"],
+      limit: 20
+    });
+
+    expect(client.calls[0]?.sql).toContain("ranking_context_id = ANY");
+    expect(client.calls[0]?.params[0]).toEqual(["ranking:adjacent-company:COMP-PCB:adjacent-company-ranking.v1"]);
     expect(client.calls[0]?.params[1]).toBe(20);
   });
 });

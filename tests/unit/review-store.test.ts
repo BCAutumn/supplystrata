@@ -5,10 +5,14 @@ import {
   claimApprovedReviewCandidates,
   decideReviewCandidate,
   enqueueReviewCandidates,
+  listEntityAffiliationDispositions,
+  listEdgeCorroborationDispositions,
   listOfficialDisclosureSignalDispositions,
   markReviewCandidateApplied,
   markReviewCandidateBlocked,
   nextReviewCandidate,
+  recordEntityAffiliationDisposition,
+  recordEdgeCorroborationDisposition,
   recordOfficialDisclosureSignalDisposition
 } from "@supplystrata/review-store";
 import type { ReviewCandidate } from "@supplystrata/review-candidates";
@@ -49,6 +53,38 @@ class OfficialSignalDispositionDbClient implements DbTxClient {
       oid: 0,
       fields: [],
       rows: officialSignalRows<T>(sql, params)
+    };
+  }
+}
+
+class EntityAffiliationDispositionDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    return {
+      command: "MOCK",
+      rowCount: sql.includes("INSERT INTO change_records") ? 1 : 0,
+      oid: 0,
+      fields: [],
+      rows: entityAffiliationRows<T>(sql)
+    };
+  }
+}
+
+class EdgeCorroborationDispositionDbClient implements DbTxClient {
+  readonly [dbTxClientBrand]: true = true;
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    return {
+      command: "MOCK",
+      rowCount: sql.includes("INSERT INTO change_records") ? 1 : 0,
+      oid: 0,
+      fields: [],
+      rows: edgeCorroborationRows<T>(sql)
     };
   }
 }
@@ -182,6 +218,117 @@ describe("review-store semantic changes", () => {
     expect(client.calls[0]?.sql).toContain("scope_id = ANY");
     expect(client.calls[0]?.sql).toContain("after->>'edge_id' = ANY");
   });
+
+  it("records entity affiliation dispositions without merging entities or touching fact edges", async () => {
+    const client = new EntityAffiliationDispositionDbClient();
+
+    const record = await recordEntityAffiliationDisposition(client, {
+      contextId: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
+      subjectEntityId: "ENT-SAMSUNG-MEMORY",
+      parentEntityId: "ENT-SAMSUNG-ELECTRONICS",
+      decision: "research_parent_entity",
+      reviewer: "unit-test",
+      reason: "Parent legal entity owns the official disclosure path for this business unit.",
+      edgeIds: ["EDGE-SAMSUNG-MEMORY-NVIDIA", "EDGE-SAMSUNG-MEMORY-NVIDIA"],
+      componentIds: ["COMP-HBM"],
+      unknownIds: ["UNK-GATE1-ROOT-SAMSUNG"],
+      recordedAt: "2026-05-24T00:00:00.000Z"
+    });
+
+    expect(record).toEqual(
+      expect.objectContaining({
+        context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
+        subject_entity_id: "ENT-SAMSUNG-MEMORY",
+        parent_entity_id: "ENT-SAMSUNG-ELECTRONICS",
+        decision: "research_parent_entity",
+        edge_ids: ["EDGE-SAMSUNG-MEMORY-NVIDIA"],
+        component_ids: ["COMP-HBM"],
+        unknown_ids: ["UNK-GATE1-ROOT-SAMSUNG"],
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none",
+          requires_human_review: true
+        }
+      })
+    );
+    expect(
+      client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("ENTITY_AFFILIATION_DISPOSITION_RECORDED"))
+    ).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges") || call.sql.includes("UPDATE edges"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("UPDATE entity_master") || call.sql.includes("INSERT INTO entity_aliases"))).toBe(false);
+  });
+
+  it("lists entity affiliation dispositions by context id", async () => {
+    const client = new EntityAffiliationDispositionDbClient();
+
+    const records = await listEntityAffiliationDispositions(client, {
+      contextIds: ["gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS"],
+      limit: 5
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toEqual(
+      expect.objectContaining({
+        context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
+        decision: "research_parent_entity",
+        unknown_ids: ["UNK-GATE1-ROOT-SAMSUNG"]
+      })
+    );
+    expect(client.calls[0]?.sql).toContain("change_type = 'ENTITY_AFFILIATION_DISPOSITION_RECORDED'");
+    expect(client.calls[0]?.sql).toContain("scope_id = ANY");
+  });
+
+  it("records edge corroboration dispositions without mutating fact edges", async () => {
+    const client = new EdgeCorroborationDispositionDbClient();
+
+    const record = await recordEdgeCorroborationDisposition(client, {
+      edgeId: "EDGE-NVIDIA-MICRON",
+      decision: "record_single_source_unknown",
+      reviewer: "unit-test",
+      reason: "No second official counterparty source is currently visible for this relationship.",
+      unknownId: "UNK-EDGE-NVIDIA-MICRON-SINGLE-SOURCE",
+      checkTargetId: "CHK-MICRON-IR",
+      recordedAt: "2026-05-26T00:00:00.000Z"
+    });
+
+    expect(record).toEqual(
+      expect.objectContaining({
+        edge_id: "EDGE-NVIDIA-MICRON",
+        decision: "record_single_source_unknown",
+        unknown_id: "UNK-EDGE-NVIDIA-MICRON-SINGLE-SOURCE",
+        check_target_id: "CHK-MICRON-IR",
+        fact_write_policy: {
+          automatic_fact_mutation_allowed: false,
+          allowed_edge_mutation: "none",
+          requires_human_review: true
+        }
+      })
+    );
+    expect(
+      client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params.includes("EDGE_CORROBORATION_DISPOSITION_RECORDED"))
+    ).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges") || call.sql.includes("UPDATE edges"))).toBe(false);
+  });
+
+  it("lists edge corroboration dispositions by edge id", async () => {
+    const client = new EdgeCorroborationDispositionDbClient();
+
+    const records = await listEdgeCorroborationDispositions(client, {
+      edgeIds: ["EDGE-NVIDIA-MICRON"],
+      limit: 5
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toEqual(
+      expect.objectContaining({
+        edge_id: "EDGE-NVIDIA-MICRON",
+        decision: "record_single_source_unknown",
+        unknown_id: "UNK-EDGE-NVIDIA-MICRON-SINGLE-SOURCE"
+      })
+    );
+    expect(client.calls[0]?.sql).toContain("change_type = 'EDGE_CORROBORATION_DISPOSITION_RECORDED'");
+    expect(client.calls[0]?.sql).toContain("scope_id = ANY");
+  });
 });
 
 function statusFromSql(sql: string, params: readonly unknown[]): string {
@@ -233,6 +380,16 @@ function reviewRow(reviewId: string, status: string): pg.QueryResultRow {
 function officialSignalRows<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
   if (sql.includes("FROM review_candidates")) return [officialSignalReviewRow(String(params[0] ?? "REV-OFFICIAL-SIGNAL-1"))] as T[];
   if (sql.includes("FROM change_records")) return [officialSignalDispositionRow()] as T[];
+  return [];
+}
+
+function entityAffiliationRows<T extends pg.QueryResultRow>(sql: string): T[] {
+  if (sql.includes("FROM change_records")) return [entityAffiliationDispositionRow()] as T[];
+  return [];
+}
+
+function edgeCorroborationRows<T extends pg.QueryResultRow>(sql: string): T[] {
+  if (sql.includes("FROM change_records")) return [edgeCorroborationDispositionRow()] as T[];
   return [];
 }
 
@@ -316,5 +473,55 @@ function officialSignalDispositionRow(): pg.QueryResultRow {
     },
     caused_by: "unit-test",
     detected_at: new Date("2026-05-22T00:00:00.000Z")
+  };
+}
+
+function entityAffiliationDispositionRow(): pg.QueryResultRow {
+  return {
+    change_id: "CHG-ENTITY-AFFILIATION-DISPOSITION-1",
+    context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
+    after: {
+      context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
+      subject_entity_id: "ENT-SAMSUNG-MEMORY",
+      parent_entity_id: "ENT-SAMSUNG-ELECTRONICS",
+      decision: "research_parent_entity",
+      reviewer: "unit-test",
+      reason: "Parent legal entity owns the official disclosure path for this business unit.",
+      edge_ids: ["EDGE-SAMSUNG-MEMORY-NVIDIA"],
+      component_ids: ["COMP-HBM"],
+      unknown_ids: ["UNK-GATE1-ROOT-SAMSUNG"],
+      recorded_at: "2026-05-24T00:00:00.000Z",
+      fact_write_policy: {
+        automatic_fact_mutation_allowed: false,
+        allowed_edge_mutation: "none",
+        requires_human_review: true
+      }
+    },
+    caused_by: "unit-test",
+    detected_at: new Date("2026-05-24T00:00:00.000Z")
+  };
+}
+
+function edgeCorroborationDispositionRow(): pg.QueryResultRow {
+  return {
+    change_id: "CHG-EDGE-CORROBORATION-DISPOSITION-1",
+    edge_id: "EDGE-NVIDIA-MICRON",
+    after: {
+      edge_id: "EDGE-NVIDIA-MICRON",
+      decision: "record_single_source_unknown",
+      reviewer: "unit-test",
+      reason: "No second official counterparty source is currently visible for this relationship.",
+      evidence_id: null,
+      unknown_id: "UNK-EDGE-NVIDIA-MICRON-SINGLE-SOURCE",
+      check_target_id: "CHK-MICRON-IR",
+      recorded_at: "2026-05-26T00:00:00.000Z",
+      fact_write_policy: {
+        automatic_fact_mutation_allowed: false,
+        allowed_edge_mutation: "none",
+        requires_human_review: true
+      }
+    },
+    caused_by: "unit-test",
+    detected_at: new Date("2026-05-26T00:00:00.000Z")
   };
 }

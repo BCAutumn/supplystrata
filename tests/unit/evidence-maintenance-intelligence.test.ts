@@ -6,10 +6,12 @@ import {
   inferEdgeStrengthDrafts,
   listRefreshableComponentRiskComponentIds,
   materializeOfficialSignalDispositionUnknowns,
+  materializeRootResearchUnknowns,
   materializeSingleSourceDispositionUnknowns,
   parseOfficialDisclosureReadinessProposedUnknowns,
   recordEdgeCalibrationLabel,
   recordObservationCalibrationLabel,
+  recordRankingCalibrationLabel,
   refreshAlertCandidates,
   refreshEdgeCalibrationRun,
   refreshComponentRiskView,
@@ -92,6 +94,29 @@ class SingleSourceDispositionDbClient implements DbTxClient {
   async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     this.calls.push({ sql, params });
     const rows = rowsForSingleSourceDisposition<T>(sql, params, this.currentEdgeIds, this.existingUnknownIds, this.officialSignalDispositions);
+    return {
+      command: "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
+class RootResearchUnknownDbClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
+  readonly calls: QueryCall[] = [];
+
+  constructor(
+    private readonly entities: ReadonlyMap<string, string>,
+    private readonly l4L5EdgeCounts: ReadonlyMap<string, number> = new Map(),
+    private readonly openUnknownCounts: ReadonlyMap<string, number> = new Map()
+  ) {}
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql, params });
+    const rows = rowsForRootResearchUnknown<T>(sql, params, this.entities, this.l4L5EdgeCounts, this.openUnknownCounts);
     return {
       command: "MOCK",
       rowCount: rows.length,
@@ -459,6 +484,58 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO change_records") && call.params[3] === "UNKNOWN_ADDED")).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO evidence"))).toBe(false);
+  });
+
+  it("materializes root research unknowns for company scopes with no reviewed L4/L5 edges", async () => {
+    const client = new RootResearchUnknownDbClient(new Map([["ENT-SAMSUNG-ELECTRONICS", "Samsung Electronics"]]));
+
+    const summary = await materializeRootResearchUnknowns(client, {
+      company_ids: ["ENT-SAMSUNG-ELECTRONICS"],
+      generated_by: "unit-test"
+    });
+
+    expect(summary).toMatchObject({
+      companies_considered: 1,
+      companies_checked: 1,
+      companies_with_l4_l5_edges: 0,
+      companies_with_open_unknown: 0,
+      unknowns_inserted: 1,
+      unknowns_updated: 0,
+      skipped_company_ids: [],
+      generated_by: "unit-test"
+    });
+    expect(client.calls.some((call) => call.sql.includes("FROM edges") && call.sql.includes("evidence_level >= $2"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("FROM unknown_items") && call.sql.includes("scope_kind = 'company'"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO evidence"))).toBe(false);
+  });
+
+  it("does not add root research unknowns when an entity already has L4/L5 evidence or an open unknown", async () => {
+    const client = new RootResearchUnknownDbClient(
+      new Map([
+        ["ENT-FACT-COVERED", "Fact Covered"],
+        ["ENT-UNKNOWN-COVERED", "Unknown Covered"]
+      ]),
+      new Map([["ENT-FACT-COVERED", 2]]),
+      new Map([["ENT-UNKNOWN-COVERED", 1]])
+    );
+
+    const summary = await materializeRootResearchUnknowns(client, {
+      company_ids: ["ENT-FACT-COVERED", "ENT-UNKNOWN-COVERED", "ENT-MISSING"],
+      generated_by: "unit-test"
+    });
+
+    expect(summary).toMatchObject({
+      companies_considered: 3,
+      companies_checked: 2,
+      companies_with_l4_l5_edges: 1,
+      companies_with_open_unknown: 1,
+      unknowns_inserted: 0,
+      unknowns_updated: 0,
+      skipped_company_ids: ["ENT-MISSING"]
+    });
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO unknown_items"))).toBe(false);
   });
 
   it("lists only components with auditable fact edges for risk refresh", async () => {
@@ -891,6 +968,30 @@ describe("evidence-maintenance intelligence refresh", () => {
     expect(client.calls[0]?.params).toContain("useful_signal");
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
+
+  it("records ranking calibration labels as review-only research-target samples", async () => {
+    const client = new EdgeCalibrationDbClient();
+
+    const result = await recordRankingCalibrationLabel(client, {
+      ranking_context_id: "ranking:adjacent-company:COMP-PCB:adjacent-company-ranking.v1",
+      ranking_kind: "adjacent_company_candidate",
+      model_version: "adjacent-company-ranking.v1",
+      candidate_entity_id: "ENT-IBIDEN",
+      candidate_rank: 1,
+      label: "useful_target",
+      reviewer: "unit-test",
+      reviewed_at: "2026-05-26T00:00:00.000Z",
+      rationale: "Useful upstream research target for PCB.",
+      score_breakdown: { component_relevance: 2, edge_frequency_tiebreaker: 1 }
+    });
+
+    expect(result).toEqual({ label_id: "RANK-CAL-LABEL-PCB-1", inserted: true });
+    expect(client.calls[0]?.sql).toContain("INSERT INTO ranking_calibration_labels");
+    expect(client.calls[0]?.params).toContain("ranking:adjacent-company:COMP-PCB:adjacent-company-ranking.v1");
+    expect(client.calls[0]?.params).toContain("useful_target");
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+    expect(client.calls.some((call) => call.sql.includes("UPDATE observations"))).toBe(false);
+  });
 });
 
 function rowsForIntelligence<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
@@ -1040,6 +1141,43 @@ function rowsForSingleSourceDisposition<T extends pg.QueryResultRow>(
   return [];
 }
 
+function rowsForRootResearchUnknown<T extends pg.QueryResultRow>(
+  sql: string,
+  params: readonly unknown[],
+  entities: ReadonlyMap<string, string>,
+  l4L5EdgeCounts: ReadonlyMap<string, number>,
+  openUnknownCounts: ReadonlyMap<string, number>
+): T[] {
+  if (sql.includes("FROM entity_master")) {
+    return stringArrayParam(params[0])
+      .filter((companyId) => entities.has(companyId))
+      .map((entity_id) => ({ entity_id, display_name: entities.get(entity_id) ?? entity_id })) as unknown as T[];
+  }
+
+  if (sql.includes("FROM edges") && typeof params[0] === "string") {
+    return [{ count: String(l4L5EdgeCounts.get(params[0]) ?? 0) }] as unknown as T[];
+  }
+
+  if (sql.includes("FROM unknown_items") && typeof params[0] === "string") {
+    return [{ count: String(openUnknownCounts.get(params[0]) ?? 0) }] as unknown as T[];
+  }
+
+  if (sql.includes("RETURNING unknown_id, (xmax = 0) AS inserted, status, scope_kind, scope_id, question") && typeof params[0] === "string") {
+    return [
+      {
+        unknown_id: params[0],
+        inserted: true,
+        status: "open",
+        scope_kind: params[1],
+        scope_id: params[2],
+        question: params[3]
+      }
+    ] as unknown as T[];
+  }
+
+  return [];
+}
+
 function officialSignalDispositionChange(input: {
   change_id: string;
   review_id: string;
@@ -1074,6 +1212,10 @@ function officialSignalDispositionChange(input: {
 }
 
 function rowsForEdgeCalibration<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("INSERT INTO ranking_calibration_labels")) {
+    return [{ label_id: "RANK-CAL-LABEL-PCB-1", inserted: true }] as unknown as T[];
+  }
+
   if (sql.includes("INSERT INTO observation_calibration_labels")) {
     return [{ label_id: "OBS-CAL-LABEL-PO-1", inserted: true }] as unknown as T[];
   }

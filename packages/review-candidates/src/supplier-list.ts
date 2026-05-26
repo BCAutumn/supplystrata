@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { CandidateRelation } from "@supplystrata/core";
-import type { SupplierListCandidate } from "@supplystrata/supplier-list";
+import { normalizeSupplierListCitationText, type SupplierListCandidate } from "@supplystrata/supplier-list";
 import type { SupplierListReviewCandidate } from "./definitions.js";
 
 export function buildSupplierListReviewCandidate(input: {
@@ -58,7 +58,7 @@ export function supplierListReviewToSupplierRelation(candidate: SupplierListRevi
       }
     },
     relation: candidate.payload.relation_hint,
-    cite_text: candidate.evidence.source_row_text,
+    cite_text: normalizeSupplierListCitationText(candidate.evidence.source_row_text),
     cite_locator: candidate.evidence.source_locator,
     extractor_id: "review.supplier-list-row",
     raw_evidence_level_hint: 4,
@@ -110,7 +110,7 @@ export function supplierListReviewToFacilityRelation(candidate: SupplierListRevi
       }
     },
     relation: candidate.payload.facility_relation_hint,
-    cite_text: candidate.evidence.source_row_text,
+    cite_text: normalizeSupplierListCitationText(candidate.evidence.source_row_text),
     cite_locator: candidate.evidence.source_locator,
     extractor_id: "review.supplier-list-facility-row",
     raw_evidence_level_hint: 4,

@@ -1,11 +1,18 @@
 import { readFile } from "node:fs/promises";
 import type { Command } from "commander";
-import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel, ObservationCalibrationLabel } from "@supplystrata/core";
+import type {
+  EdgeCalibrationErrorCategory,
+  EdgeCalibrationLabel,
+  EvidenceLevel,
+  ObservationCalibrationLabel,
+  RankingCalibrationLabel
+} from "@supplystrata/core";
 import {
   materializeSingleSourceDispositionUnknowns,
   parseOfficialDisclosureReadinessProposedUnknowns,
   recordEdgeCalibrationLabel,
   recordObservationCalibrationLabel,
+  recordRankingCalibrationLabel,
   refreshAlertCandidates,
   refreshComponentRiskView,
   refreshEdgeIntelligenceContext,
@@ -144,6 +151,52 @@ export function registerIntelligenceCommands(program: Command): void {
         writeJson({ ok: true, ...result });
       });
     });
+
+  intelligence
+    .command("ranking-calibration-label")
+    .argument("<rankingContextId>", "research-pack ranking_context.context_id being reviewed")
+    .requiredOption("--candidate <entityId>", "candidate entity id from ranking_context.candidates[].entity_id")
+    .requiredOption("--rank <rank>", "candidate rank from ranking_context.candidates[].rank")
+    .requiredOption("--label <label>", "useful_target, wrong_direction, brand_center_bias, needs_more_context, or not_relevant")
+    .requiredOption("--reviewer <name>", "reviewer name")
+    .option("--kind <kind>", "ranking kind", "adjacent_company_candidate")
+    .option("--model-version <version>", "ranking model version", "adjacent-company-ranking.v1")
+    .option("--reviewed-at <date>", "ISO date/time for the human or rules review")
+    .option("--rationale <text>", "short reviewer rationale")
+    .description("record a review-only calibration label for a research target ranking candidate")
+    .action(
+      async (
+        rankingContextId: string,
+        options: {
+          candidate: string;
+          rank: string;
+          label: string;
+          reviewer: string;
+          kind: string;
+          modelVersion: string;
+          reviewedAt?: string;
+          rationale?: string;
+        }
+      ) => {
+        await withDatabase(async (store) => {
+          const reviewedAt = explicitOrCurrentIsoTimestamp(options.reviewedAt);
+          const result = await store.transaction((client) =>
+            recordRankingCalibrationLabel(client, {
+              ranking_context_id: rankingContextId,
+              ranking_kind: parseRankingKind(options.kind),
+              model_version: options.modelVersion,
+              candidate_entity_id: options.candidate,
+              candidate_rank: parseLimit(options.rank),
+              label: parseRankingCalibrationLabel(options.label),
+              reviewer: options.reviewer,
+              reviewed_at: reviewedAt,
+              ...(options.rationale === undefined ? {} : { rationale: options.rationale })
+            })
+          );
+          writeJson({ ok: true, ...result });
+        });
+      }
+    );
 
   intelligence
     .command("refresh")
@@ -366,4 +419,16 @@ function parseCalibrationErrorCategory(value: string): EdgeCalibrationErrorCateg
 function parseObservationCalibrationLabel(value: string): ObservationCalibrationLabel {
   if (value === "useful_signal" || value === "background_context" || value === "needs_context" || value === "not_useful") return value;
   throw new Error(`Unsupported observation calibration label: ${value}`);
+}
+
+function parseRankingCalibrationLabel(value: string): RankingCalibrationLabel {
+  if (value === "useful_target" || value === "wrong_direction" || value === "brand_center_bias" || value === "needs_more_context" || value === "not_relevant") {
+    return value;
+  }
+  throw new Error(`Unsupported ranking calibration label: ${value}`);
+}
+
+function parseRankingKind(value: string): "adjacent_company_candidate" {
+  if (value === "adjacent_company_candidate") return value;
+  throw new Error(`Unsupported ranking kind: ${value}`);
 }

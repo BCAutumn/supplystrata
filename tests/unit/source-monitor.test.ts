@@ -407,6 +407,8 @@ describe("source monitor", () => {
     expect(enableCall?.params).toContain(10080);
     expect(enableCall?.params).toContain("reports/nvidia-coverage-pack/source-plan.json");
     expect(enableCall?.params).toContain("controlled official IR monitoring rollout");
+    expect(enableCall?.sql).toContain("UPDATE source_policies p");
+    expect(enableCall?.sql).toContain("FROM (SELECT DISTINCT source_adapter_id FROM eligible) e");
   });
 
   it("reports target-level coverage from synced targets, jobs, events, and observations", async () => {

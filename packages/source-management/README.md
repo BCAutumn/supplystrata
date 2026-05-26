@@ -6,6 +6,7 @@
 
 - 汇总 source registry、connector capability 和 credential requirements，生成 source catalog。
 - 把 `source-plan` 的 runnable suggestions 转成稳定 `check_target_id`。
+- 读取 action batch 里已经审计过的 `check_target_ids`，用于 enable / run-due 这类“操作已同步 target”的流程。
 - 支持按 `source_adapter_id` 过滤转换批次，便于只同步当前已审计、已配置凭据或不需要凭据的来源。
 - 校验 target config、connector 是否存在、manual-only source 是否被误启用、凭据是否需要配置。
 - 生成可交给 source monitor 的 policy / target 配置。
@@ -24,6 +25,7 @@
 - `validateSourceManagementConfig(config, input)`：校验监控配置。
 - `buildSourceCheckTargetsFromPlan(...)`：从 source-plan 生成 target。
 - `buildSourcePolicyConfigFromPlanTargets(...)`：生成 policy/target 配置。
+- `parseManagedSourcePlanDocument(text)`：解析 source-plan；如果文档来自 research-pack action batch，会保留顶层 `check_target_ids`，避免对已同步 target 重新按 namespace 生成不同 ID。
 
 ## 边界约定
 

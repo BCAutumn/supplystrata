@@ -28,6 +28,7 @@ export interface CorroborationSourcePlanActionBatch {
   company_id: string;
   batch_kind: CorroborationSourcePlanActionBatchKind;
   next_actions: readonly CorroborationSourcePlanNextAction[];
+  check_target_ids: readonly string[];
   summary: {
     source_plan_items: number;
     runnable_targets: number;

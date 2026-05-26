@@ -39,9 +39,11 @@ export function registerResearchCommands(program: Command): void {
     .option("--build-claims", "explicitly build active claims before exporting")
     .option("--refresh-intelligence", "explicitly refresh edge strength/freshness context before exporting")
     .option("--refresh-component-risk", "explicitly refresh eligible component risk baselines before exporting")
+    .option("--materialize-root-unknowns", "explicitly materialize selected-company root unknowns before exporting")
     .option("--skip-claims", "with --prepare-data, do not build active claims before exporting")
     .option("--skip-intelligence-refresh", "with --prepare-data, do not refresh edge strength/freshness context before exporting")
     .option("--skip-component-risk-refresh", "with --prepare-data, do not refresh component risk baselines before exporting")
+    .option("--skip-root-unknowns", "with --prepare-data, do not materialize selected-company root unknowns before exporting")
     .option("--out <dir>", "output directory", "reports/research-pack")
     .description("build a full local research pack from existing truth-store data")
     .action(
@@ -67,9 +69,11 @@ export function registerResearchCommands(program: Command): void {
         buildClaims?: boolean;
         refreshIntelligence?: boolean;
         refreshComponentRisk?: boolean;
+        materializeRootUnknowns?: boolean;
         skipClaims?: boolean;
         skipIntelligenceRefresh?: boolean;
         skipComponentRiskRefresh?: boolean;
+        skipRootUnknowns?: boolean;
         out: string;
       }) => {
         await withDatabase(async (store) => {
@@ -175,6 +179,8 @@ async function researchPackInputFromOptions(options: {
   buildClaims?: boolean;
   refreshIntelligence?: boolean;
   refreshComponentRisk?: boolean;
+  materializeRootUnknowns?: boolean;
+  skipRootUnknowns?: boolean;
   sourceTargetPreflight?: string;
 }): Promise<ResearchPackInput> {
   return {
@@ -200,6 +206,11 @@ async function researchPackInputFromOptions(options: {
       prepareData: options.prepareData,
       explicit: options.refreshComponentRisk,
       skip: options.skipComponentRiskRefresh
+    }),
+    materializeRootUnknowns: shouldRunWriteStep({
+      prepareData: options.prepareData,
+      explicit: options.materializeRootUnknowns,
+      skip: options.skipRootUnknowns
     }),
     ...(options.tradeMonth === undefined
       ? {}

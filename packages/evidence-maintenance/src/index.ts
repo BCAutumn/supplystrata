@@ -12,7 +12,9 @@ export * from "./calibration.js";
 export * from "./component-risk.js";
 export * from "./financial-peer-comparison.js";
 export * from "./observation-anomaly.js";
+export * from "./root-research-unknowns.js";
 export * from "./single-source-disposition.js";
+export * from "./supplier-list-citations.js";
 
 export interface EvidenceTraceBackfillSummary {
   scanned: number;

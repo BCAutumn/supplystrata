@@ -58,3 +58,24 @@ ENT-WISTRON-NEWEB,company,Wistron NeWeb Corporation,Wistron NeWeb,en,TW,6285:TW,
 ENT-INVENTEC-APPLIANCES,company,Inventec Appliances Corp.,Inventec Appliances,en,TW,,,electronics-manufacturing,active,{}
 ENT-OPENAI,company,OpenAI LLC,OpenAI,en,US,,,ai-lab;cloud-demand,active,{}
 ENT-COREWEAVE,company,CoreWeave Inc.,CoreWeave,en,US,,,cloud;gpu-cloud,active,{}
+ENT-ASEH,company,ASE Technology Holding Co. Ltd.,ASE Technology,en,TW,3711:TW;ASX:US,,advanced-packaging;osat,active,{}
+ENT-AMKOR,company,Amkor Technology Inc.,Amkor,en,US,AMKR:US,,advanced-packaging;osat,active,{}
+ENT-KIOXIA,company,Kioxia Holdings Corporation,Kioxia,en,JP,,,memory;nand,active,{}
+ENT-NANYA,company,Nanya Technology Corporation,Nanya Technology,en,TW,2408:TW,,memory;dram,active,{}
+ENT-MURATA,company,Murata Manufacturing Co. Ltd.,Murata,en,JP,6981:JP,,electronic-components;mlcc,active,{}
+ENT-AGC,company,AGC Inc.,AGC,en,JP,5201:JP,,glass;electronic-materials,active,{}
+ENT-ANALOG-DEVICES,company,Analog Devices Inc.,Analog Devices,en,US,ADI:US,,analog-semiconductors,active,{}
+ENT-AMPHENOL,company,Amphenol Corporation,Amphenol,en,US,APH:US,,connectors;electronics,active,{}
+ENT-MOLEX,company,Molex LLC,Molex,en,US,,,connectors;electronics,active,{}
+ENT-DELTA-ELECTRONICS,company,Delta Electronics Inc.,Delta Electronics,en,TW,2308:TW,,power;thermal-management;electronics,active,{}
+ENT-COMPAL,company,Compal Electronics Inc.,Compal Electronics,en,TW,2324:TW,,odm;server;electronics-manufacturing,active,{}
+ENT-FLEX,company,Flex Ltd.,Flex,en,SG,FLEX:US,,electronics-manufacturing;odm,active,{}
+ENT-JABIL,company,Jabil Inc.,Jabil,en,US,JBL:US,,electronics-manufacturing;odm,active,{}
+ENT-COMPEQ,company,Compeq Manufacturing Co. Ltd.,Compeq,en,TW,2313:TW,,pcb;electronics,active,{}
+ENT-ATS,company,AT&S Austria Technologie & Systemtechnik AG,AT&S,en,AT,ATS:AV,,pcb;substrate;electronics,active,{}
+ENT-JCET,company,JCET Group Co. Ltd.,JCET Group,en,CN,600584:CN,,advanced-packaging;osat,active,{}
+ENT-CIRRUS-LOGIC,company,Cirrus Logic Inc.,Cirrus Logic,en,US,CRUS:US,,analog-semiconductors;audio,active,{}
+ENT-HENKEL,company,Henkel AG & Co. KGaA,Henkel,en,DE,HEN3:GR,,electronics-materials;adhesives;laminate-resin,active,{}
+ENT-FUJIKURA,company,Fujikura Ltd.,Fujikura,en,JP,5803:JP,,connectors;cables;electronics,active,{}
+ENT-HIROSE-ELECTRIC,company,Hirose Electric Co. Ltd.,Hirose Electric,en,JP,6806:JP,,connectors;electronics,active,{}
+ENT-JX-NIPPON-MINING-METALS,company,JX Advanced Metals Corporation,JX Advanced Metals,en,JP,,,copper;electronic-materials;metals,active,{}

@@ -18,12 +18,15 @@ import type {
 import { gate1DataProgressActions, gate1SourcePathActions } from "./gate1-run-ledger-actions.js";
 import { buildGate1MonitoringConfig, gate1SourcePathProgressFromCoverage } from "./gate1-run-ledger-monitoring.js";
 import { defaultGate1Namespace, safeGate1Segment } from "./gate1-run-ledger-names.js";
+import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SourceTargetPreflightReport } from "./source-target-preflight.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 
 export type * from "./gate1-run-ledger-definitions.js";
+
+const GATE1_FACT_EDGE_SCOPE = "research_pack_visible_target_profile_l4_l5_edges";
 
 export interface Gate1RunLedgerInput {
   generated_at: string;
@@ -35,6 +38,7 @@ export interface Gate1RunLedgerInput {
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   corroboration_source_plan: CorroborationSourcePlan;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
+  entity_affiliation_contexts?: readonly Gate1EntityAffiliationContext[];
   source_target_coverage?: SourceTargetCoverageReport;
   source_target_preflight?: SourceTargetPreflightReport | null;
 }
@@ -83,6 +87,7 @@ function gate1ReviewWorkbench(input: {
     ...sourceTargetBatchReviewItems(input.actionQueue),
     ...edgeCorroborationReviewItems(input.input),
     ...officialSignalDispositionReviewItems(input.input),
+    ...entityAffiliationDispositionReviewItems(input.input),
     ...frontierCompanyReviewItems(input.companySwitching)
   ].sort(compareReviewItems);
   return {
@@ -91,6 +96,7 @@ function gate1ReviewWorkbench(input: {
       source_target_batch_items: items.filter((item) => item.kind === "source_target_batch").length,
       edge_corroboration_items: items.filter((item) => item.kind === "edge_corroboration").length,
       official_signal_disposition_items: items.filter((item) => item.kind === "official_signal_disposition").length,
+      entity_affiliation_disposition_items: items.filter((item) => item.kind === "entity_affiliation_disposition").length,
       frontier_company_research_items: items.filter((item) => item.kind === "frontier_company_research").length,
       auto_ranked_items: items.filter((item) => item.policy.automation_hint === "auto_rank_only").length,
       human_approval_required_items: items.filter((item) => item.policy.requires_human_approval).length
@@ -135,12 +141,34 @@ function edgeCorroborationReviewItems(input: Gate1RunLedgerInput): Gate1ReviewIt
       allowed_decisions: edgeCorroborationDecisions(item.disposition),
       write_effect: proposedUnknownId === null ? "review_change_only" : "unknown_materialization_after_review",
       policy: reviewPolicy(proposedUnknownId === null ? "auto_rank_only" : "auto_materialize_after_recorded_disposition", true),
-      command_hint: null,
+      command_hint: edgeCorroborationDispositionCommand(item, proposedUnknownId),
       refs: [item.edge_id, ...item.source_plan_refs, ...item.unknown_ids, ...(proposedUnknownId === null ? [] : [proposedUnknownId])],
       edge_id: item.edge_id,
       unknown_id: proposedUnknownId
     });
   });
+}
+
+function edgeCorroborationDispositionCommand(
+  item: Gate1RunLedgerInput["official_disclosure_readiness"]["corroboration_queue"][number],
+  proposedUnknownId: string | null
+): string {
+  const decision =
+    item.disposition === "needs_explicit_single_source_disposition" || item.latest_disposition?.decision === "record_single_source_unknown"
+      ? "record_single_source_unknown"
+      : "needs_more_evidence";
+  const firstTarget = item.source_targets[0];
+  const checkTargetFlag =
+    firstTarget?.check_target_id === undefined || firstTarget.check_target_id === null ? "" : ` --check-target ${firstTarget.check_target_id}`;
+  const unknownFlag = proposedUnknownId === null ? "" : ` --unknown ${proposedUnknownId}`;
+  return (
+    `pnpm --silent cli review edge-corroboration-disposition ${item.edge_id}` +
+    ` --decision ${decision}` +
+    " --reviewer <reviewer>" +
+    ' --reason "<why the second-source review is or is not enough>"' +
+    checkTargetFlag +
+    unknownFlag
+  );
 }
 
 function officialSignalDispositionReviewItems(input: Gate1RunLedgerInput): Gate1ReviewItem[] {
@@ -165,12 +193,58 @@ function officialSignalDispositionReviewItems(input: Gate1RunLedgerInput): Gate1
         ],
         write_effect: "review_change_only",
         policy: reviewPolicy("auto_rank_only", true),
-        command_hint: null,
+        command_hint: officialSignalDispositionCommand(hint),
         refs: [hint.review_id, hint.edge_id, hint.source_adapter_id],
         edge_id: hint.edge_id,
         review_id: hint.review_id
       })
     );
+}
+
+function officialSignalDispositionCommand(
+  hint: Gate1RunLedgerInput["official_disclosure_readiness"]["official_disclosure_signal_correlation_hints"][number]
+): string {
+  const decision = hint.disposition === "needs_explicit_single_source_disposition" ? "record_single_source_unknown" : "needs_more_evidence";
+  return (
+    `pnpm --silent cli review signal-disposition ${hint.review_id}` +
+    ` --edge ${hint.edge_id}` +
+    ` --decision ${decision}` +
+    " --reviewer <reviewer>" +
+    ' --reason "<why this official signal is or is not enough for the edge>"'
+  );
+}
+
+function entityAffiliationDispositionReviewItems(input: Gate1RunLedgerInput): Gate1ReviewItem[] {
+  return (input.entity_affiliation_contexts ?? [])
+    .filter((context) => context.latest_disposition === null)
+    .slice(0, 40)
+    .map((context) => {
+      const parentName = context.parent_name ?? context.parent_entity_id;
+      return reviewItem({
+        review_item_id: `gate1:entity-affiliation:${safeGate1Segment(context.subject_entity_id)}:${safeGate1Segment(context.parent_entity_id)}`,
+        kind: "entity_affiliation_disposition",
+        priority: context.parent_unknown_ids.length > 0 ? "P0" : "P1",
+        title: `Record entity affiliation disposition for ${context.subject_name}`,
+        rationale:
+          `${context.subject_name} is modeled as ${context.subject_kind} under ${parentName}. ` +
+          "Record the reviewed research scope before using parent legal-entity source paths for recursive expansion.",
+        recommended_decision: "review_entity_affiliation",
+        allowed_decisions: ["research_parent_entity", "research_child_entity", "research_both_scopes", "keep_unknown_open", "not_relevant", "defer"],
+        write_effect: "review_change_only",
+        policy: reviewPolicy("auto_rank_only", true),
+        command_hint: entityAffiliationDispositionCommand(context),
+        refs: uniqueSorted([
+          context.context_id,
+          context.subject_entity_id,
+          context.parent_entity_id,
+          ...context.edge_ids,
+          ...context.component_ids,
+          ...context.parent_unknown_ids
+        ]),
+        edge_id: context.edge_ids[0] ?? null,
+        unknown_id: context.parent_unknown_ids[0] ?? null
+      });
+    });
 }
 
 function frontierCompanyReviewItems(companySwitching: Gate1CompanySwitchingLedger): Gate1ReviewItem[] {
@@ -228,12 +302,28 @@ function reviewItem(input: {
   };
 }
 
+function entityAffiliationDispositionCommand(context: Gate1EntityAffiliationContext): string {
+  const edgeFlag = context.edge_ids.length === 0 ? "" : ` --edge ${context.edge_ids.join(",")}`;
+  const componentFlag = context.component_ids.length === 0 ? "" : ` --component ${context.component_ids.join(",")}`;
+  const unknownFlag = context.parent_unknown_ids.length === 0 ? "" : ` --unknown ${context.parent_unknown_ids.join(",")}`;
+  return (
+    `pnpm --silent cli review entity-affiliation-disposition ${context.context_id}` +
+    ` --subject ${context.subject_entity_id}` +
+    ` --parent ${context.parent_entity_id}` +
+    ' --decision research_parent_entity --reviewer <reviewer> --reason "<why this entity scope is appropriate>"' +
+    edgeFlag +
+    componentFlag +
+    unknownFlag
+  );
+}
+
 function gate1RunScorecard(report: OfficialDisclosureReadinessReport): Gate1RunScorecard {
   return {
     status: report.scorecard.status,
     overall_progress: report.scorecard.overall_progress,
     data_progress: report.scorecard.data_progress,
     source_path_progress: report.scorecard.source_path_progress,
+    fact_edge_scope: GATE1_FACT_EDGE_SCOPE,
     l4_l5_fact_edges: report.summary.level_4_5_fact_edges,
     l4_l5_fact_edge_target: criterionTarget(report, "level_4_5_fact_edge_coverage"),
     cross_source_ratio: report.summary.corroboration_ratio,
@@ -246,6 +336,7 @@ function gate1RunScorecard(report: OfficialDisclosureReadinessReport): Gate1RunS
 function gate1DataProgress(report: OfficialDisclosureReadinessReport): Gate1DataProgressLedger {
   const l4l5Target = criterionTarget(report, "level_4_5_fact_edge_coverage");
   return {
+    fact_edge_scope: GATE1_FACT_EDGE_SCOPE,
     l4_l5_fact_edges: report.summary.level_4_5_fact_edges,
     l4_l5_fact_edge_target: l4l5Target,
     fact_edge_gap: Math.max(0, l4l5Target - report.summary.level_4_5_fact_edges),
@@ -366,7 +457,7 @@ function companySwitchingActions(companySwitching: Gate1CompanySwitchingLedger):
 }
 
 function gate1CompanySwitching(input: Gate1RunLedgerInput): Gate1CompanySwitchingLedger {
-  const targets = input.supply_chain_expansion_plan.frontier
+  const directTargets = input.supply_chain_expansion_plan.frontier
     .filter(
       (item) => item.expansion_state === "expand_candidate" && item.next_company_id !== null && item.next_company_name !== null && item.component_id !== null
     )
@@ -382,6 +473,10 @@ function gate1CompanySwitching(input: Gate1RunLedgerInput): Gate1CompanySwitchin
         company_name: companyName,
         component_id: componentId,
         seed_edge_id: item.edge_id,
+        scope_kind: "direct_frontier_company",
+        source_entity_id: companyId,
+        source_entity_name: companyName,
+        entity_context_id: null,
         suggested_company_query: companyId,
         suggested_components: [componentId],
         command_hint: frontierResearchCommand(input, companyId, componentId),
@@ -389,14 +484,50 @@ function gate1CompanySwitching(input: Gate1RunLedgerInput): Gate1CompanySwitchin
         unknown_ids: [...item.unknown_ids]
       };
     });
+  const affiliationTargets = affiliationParentResearchTargets(input);
+  const targets = [...affiliationTargets, ...directTargets];
   return {
     frontier_companies: input.supply_chain_expansion_plan.summary.frontier_companies,
     next_research_targets: dedupeCompanyTargets(targets).slice(0, 20),
     next_focus:
       targets.length === 0
         ? "No component-scoped frontier company is ready for generic switching."
-        : "Use the same research run entrypoint for frontier counterparties; do not create company-specific supplier workflows."
+        : "Use the same research run entrypoint for frontier counterparties or reviewed parent legal-entity scopes; do not create company-specific supplier workflows."
   };
+}
+
+function affiliationParentResearchTargets(input: Gate1RunLedgerInput): Gate1CompanyResearchTarget[] {
+  return (input.entity_affiliation_contexts ?? []).filter(shouldOfferParentResearchTarget).flatMap((context) =>
+    context.component_ids.map((componentId): Gate1CompanyResearchTarget => {
+      const seedEdgeId = context.edge_ids[0] ?? context.context_id;
+      return {
+        company_id: context.parent_entity_id,
+        company_name: context.parent_name ?? context.parent_entity_id,
+        component_id: componentId,
+        seed_edge_id: seedEdgeId,
+        scope_kind: "affiliation_parent_entity",
+        source_entity_id: context.subject_entity_id,
+        source_entity_name: context.subject_name,
+        entity_context_id: context.context_id,
+        suggested_company_query: context.parent_entity_id,
+        suggested_components: [componentId],
+        command_hint: frontierResearchCommand(input, context.parent_entity_id, componentId),
+        rationale: affiliationParentResearchRationale(context),
+        unknown_ids: uniqueSorted([...unknownIdsForContext(input.official_disclosure_readiness, context.edge_ids), ...context.parent_unknown_ids])
+      };
+    })
+  );
+}
+
+function shouldOfferParentResearchTarget(context: Gate1EntityAffiliationContext): boolean {
+  const decision = context.latest_disposition?.decision ?? null;
+  return decision === "research_parent_entity" || decision === "research_both_scopes";
+}
+
+function affiliationParentResearchRationale(context: Gate1EntityAffiliationContext): string {
+  const parentName = context.parent_name ?? context.parent_entity_id;
+  if (context.latest_disposition === null) throw new Error(`Cannot open parent research target without entity affiliation disposition: ${context.context_id}`);
+  return `${context.subject_name} is attached to ${parentName}; latest disposition ${context.latest_disposition.change_id} chose ${context.latest_disposition.decision}, so this target follows the reviewed parent legal-entity scope.`;
 }
 
 function frontierResearchCommand(input: Gate1RunLedgerInput, companyId: string, componentId: string): string {
@@ -411,6 +542,16 @@ function frontierResearchCommand(input: Gate1RunLedgerInput, companyId: string, 
   if (input.research_input.officialDisclosureYear !== undefined) parts.splice(4, 0, `--official-year ${input.research_input.officialDisclosureYear}`);
   if (input.research_input.researchTargetProfileId !== undefined) parts.splice(4, 0, `--target-profile ${input.research_input.researchTargetProfileId}`);
   return parts.join(" ");
+}
+
+function unknownIdsForContext(report: OfficialDisclosureReadinessReport, edgeIds: readonly string[]): string[] {
+  const edgeIdSet = new Set(edgeIds);
+  return uniqueSorted([
+    ...report.edges.filter((edge) => edgeIdSet.has(edge.edge_id)).flatMap((edge) => edge.unknown_ids),
+    ...report.corroboration_queue
+      .filter((item) => edgeIdSet.has(item.edge_id))
+      .flatMap((item) => [...item.unknown_ids, ...(item.proposed_unknown === null ? [] : [item.proposed_unknown.unknown_id])])
+  ]);
 }
 
 function criterionTarget(report: OfficialDisclosureReadinessReport, criterionId: string): number {
@@ -454,7 +595,8 @@ function reviewKindOrder(kind: Gate1ReviewItemKind): number {
   if (kind === "source_target_batch") return 0;
   if (kind === "edge_corroboration") return 1;
   if (kind === "official_signal_disposition") return 2;
-  return 3;
+  if (kind === "entity_affiliation_disposition") return 3;
+  return 4;
 }
 
 function priorityOrder(priority: Gate1RunAction["priority"]): number {

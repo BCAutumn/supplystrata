@@ -1,7 +1,19 @@
 import { createHash } from "node:crypto";
-import type { EdgeCalibrationErrorCategory, EdgeCalibrationLabel, EvidenceLevel, ObservationCalibrationLabel } from "@supplystrata/core";
+import type {
+  EdgeCalibrationErrorCategory,
+  EdgeCalibrationLabel,
+  EvidenceLevel,
+  ObservationCalibrationLabel,
+  RankingCalibrationLabel
+} from "@supplystrata/core";
 import type { DbClient } from "@supplystrata/db/read";
-import { replaceEdgeCalibrationRun, upsertEdgeCalibrationLabel, upsertObservationCalibrationLabel, type DbTxClient } from "@supplystrata/db/write";
+import {
+  replaceEdgeCalibrationRun,
+  upsertEdgeCalibrationLabel,
+  upsertObservationCalibrationLabel,
+  upsertRankingCalibrationLabel,
+  type DbTxClient
+} from "@supplystrata/db/write";
 import type { EdgeCalibrationSampleRow } from "./db-rows.js";
 
 export interface RecordEdgeCalibrationLabelInput {
@@ -30,6 +42,20 @@ export interface RecordObservationCalibrationLabelInput {
   reviewer: string;
   reviewed_at: string;
   rationale?: string;
+}
+
+export interface RecordRankingCalibrationLabelInput {
+  label_id?: string;
+  ranking_context_id: string;
+  ranking_kind: "adjacent_company_candidate";
+  model_version: string;
+  candidate_entity_id: string;
+  candidate_rank: number;
+  label: RankingCalibrationLabel;
+  reviewer: string;
+  reviewed_at: string;
+  rationale?: string;
+  score_breakdown?: Record<string, unknown>;
 }
 
 export interface EdgeCalibrationRunSummary {
@@ -95,6 +121,27 @@ export async function recordObservationCalibrationLabel(
   });
 }
 
+export async function recordRankingCalibrationLabel(
+  client: DbTxClient,
+  input: RecordRankingCalibrationLabelInput
+): Promise<{ label_id: string; inserted: boolean }> {
+  validateRankingCalibrationInput(input);
+  return upsertRankingCalibrationLabel(client, {
+    ...(input.label_id === undefined ? {} : { label_id: input.label_id }),
+    ranking_context_id: input.ranking_context_id,
+    ranking_kind: input.ranking_kind,
+    model_version: input.model_version,
+    candidate_entity_id: input.candidate_entity_id,
+    candidate_rank: input.candidate_rank,
+    label: input.label,
+    reviewer: input.reviewer,
+    reviewed_at: input.reviewed_at,
+    ...(input.rationale === undefined ? {} : { rationale: input.rationale }),
+    ...(input.score_breakdown === undefined ? {} : { score_breakdown: input.score_breakdown }),
+    attrs: { recorded_by: "evidence-maintenance.ranking-calibration.v1" }
+  });
+}
+
 export async function refreshEdgeCalibrationRun(client: DbTxClient, input: RefreshEdgeCalibrationRunInput): Promise<EdgeCalibrationRunSummary> {
   const minEvidenceLevel = input.min_evidence_level ?? 4;
   const limit = input.limit ?? 1000;
@@ -148,6 +195,14 @@ export async function refreshEdgeCalibrationRun(client: DbTxClient, input: Refre
     model_version: EDGE_CALIBRATION_MODEL_VERSION,
     inputs_fingerprint: fingerprint
   };
+}
+
+function validateRankingCalibrationInput(input: RecordRankingCalibrationLabelInput): void {
+  if (input.ranking_context_id.trim().length === 0) throw new Error("Ranking calibration requires a ranking_context_id");
+  if (input.candidate_entity_id.trim().length === 0) throw new Error("Ranking calibration requires a candidate_entity_id");
+  if (!Number.isInteger(input.candidate_rank) || input.candidate_rank <= 0) {
+    throw new Error(`Ranking calibration candidate_rank must be a positive integer: ${input.candidate_rank}`);
+  }
 }
 
 async function listCalibrationSamples(client: DbClient, input: { minEvidenceLevel: EvidenceLevel; limit: number }): Promise<EdgeCalibrationSampleRow[]> {

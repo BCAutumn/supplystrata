@@ -287,6 +287,34 @@ describe("source-management", () => {
     ]);
   });
 
+  it("parses executable source-plan batches with audited check target ids", () => {
+    const document = parseManagedSourcePlanDocument(
+      JSON.stringify({
+        schema_version: "1.0.0",
+        check_target_ids: ["plan:gate1-db-monitoring-config-check:micron-ir:official-html-disclosure:64939e541a7ec958"],
+        source_plan: [
+          {
+            source_id: "micron-ir",
+            priority: "P1",
+            reasons: ["Micron IR target was matched from source target coverage."],
+            suggested_check_targets: [
+              {
+                source_adapter_id: "micron-ir",
+                target_kind: "official-html-disclosure",
+                runnable: true,
+                target_config: { entity_id: "ENT-MICRON", year: 2025 },
+                reason: "Enable the already-synced Micron IR target."
+              }
+            ]
+          }
+        ]
+      })
+    );
+
+    expect(document.check_target_ids).toEqual(["plan:gate1-db-monitoring-config-check:micron-ir:official-html-disclosure:64939e541a7ec958"]);
+    expect(document.source_plan[0]?.suggested_check_targets[0]?.source_adapter_id).toBe("micron-ir");
+  });
+
   it("filters generated source-plan targets by source adapter", () => {
     const document = parseManagedSourcePlanDocument(
       JSON.stringify({

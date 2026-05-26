@@ -1,5 +1,5 @@
 import type { DataQualitySummary } from "@supplystrata/data-quality";
-import type { ComponentRiskRefreshSummary, EdgeIntelligenceRefreshSummary } from "@supplystrata/evidence-maintenance";
+import type { ComponentRiskRefreshSummary, EdgeIntelligenceRefreshSummary, MaterializeRootResearchUnknownsSummary } from "@supplystrata/evidence-maintenance";
 import type { ChainViewModel, CompanyCardModel, ComponentCardModel } from "@supplystrata/render";
 import type { SourcePlanItem, TradeObservationDirection } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
@@ -27,6 +27,7 @@ export interface ResearchPackInput {
   buildClaims?: boolean;
   refreshIntelligence?: boolean;
   refreshComponentRisk?: boolean;
+  materializeRootUnknowns?: boolean;
   intelligenceLimit?: number;
   minEvidenceLevel?: 4 | 5;
   generatedBy?: string;
@@ -47,6 +48,7 @@ export interface ResearchPackWriteSteps {
   buildClaims: boolean;
   refreshIntelligence: boolean;
   refreshComponentRisk: boolean;
+  materializeRootUnknowns: boolean;
 }
 
 export interface ResearchPackManifest {
@@ -62,6 +64,7 @@ export interface ResearchPackManifest {
   claim_build: ResearchPackClaimBuild | null;
   intelligence_refresh: EdgeIntelligenceRefreshSummary | null;
   component_risk_refresh: ResearchPackComponentRiskRefresh | null;
+  root_unknown_materialization: MaterializeRootResearchUnknownsSummary | null;
   research_target_profile: ResearchPackTargetProfile | null;
 }
 
@@ -228,9 +231,16 @@ export interface ResearchPackStats {
   gate1_data_depth_by_workstream: Record<Gate1DataDepthWorkstream, number>;
   gate1_data_depth_fact_edge_gap: number;
   gate1_data_depth_source_blockers: number;
+  gate1_data_depth_adjacent_official_fact_edges: number;
+  gate1_data_depth_adjacent_official_fact_companies: number;
+  gate1_data_depth_entity_context_items: number;
   gate1_data_depth_strength_missing_edges: number;
   gate1_data_depth_observation_labeling_batch: number;
   gate1_data_depth_propagation_contexts_not_ready: number;
+  gate1_data_depth_ranking_calibration_candidates: number;
+  gate1_data_depth_ranking_labeled_candidates: number;
+  gate1_data_depth_ranking_unlabeled_candidates: number;
+  gate1_data_depth_ranking_labels_by_persisted_label: Record<string, number>;
 }
 
 export interface ResearchPackClaimBuild {

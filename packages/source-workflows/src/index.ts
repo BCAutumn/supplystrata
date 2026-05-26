@@ -18,6 +18,12 @@ export {
 export type { TwseMopsDocumentKind, TwseMopsElectronicDocumentEntry, TwseMopsElectronicDocumentsInput } from "./twse-mops-checks.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
 export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
+export { enqueueEntityResolutionBacklogReviewCandidates, normalizeEntityResolutionQueries } from "./entity-resolution-backlog.js";
+export type {
+  EntityResolutionBacklogReviewInput,
+  EntityResolutionBacklogReviewItem,
+  EntityResolutionBacklogReviewSummary
+} from "./entity-resolution-backlog.js";
 export { buildGleifLeiSearchUrl, extractGleifLeiCandidates, gleifLeiAdapter, lookupGleifLeiRecords } from "./gleif-entity-source.js";
 export type { GleifLeiSearchInput } from "./gleif-entity-source.js";
 export {
