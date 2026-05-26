@@ -49,6 +49,14 @@ export interface AiComputePropagationSourceTargetStatusSummary {
   by_failure_kind: Record<string, number>;
 }
 
+export interface AiComputePropagationSourceTargetReadinessAnswer extends AiComputePropagationSourceTargetStatusSummary {
+  runnable_refs: string[];
+  blocked_refs: string[];
+  degraded_refs: string[];
+  missing_credentials_refs: string[];
+  source_failed_refs: string[];
+}
+
 export type AiComputePropagationSourceTargetGroupKind = "official_evidence" | "observation_proxy" | "entity_or_facility_context" | "lead_or_manual_review";
 
 export interface AiComputePropagationSourceTargetGroup {
@@ -131,7 +139,7 @@ export interface AiComputePropagationLayerReadinessAnswers {
     by_target_kind: Record<string, number>;
     target_refs: string[];
   };
-  source_targets: AiComputePropagationSourceTargetStatusSummary;
+  source_targets: AiComputePropagationSourceTargetReadinessAnswer;
   output_policy: {
     allowed_research_outputs: string[];
     prohibited_truth_store_writes: string[];

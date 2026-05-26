@@ -46,6 +46,12 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     if (layer === undefined) throw new Error("Expected construction_to_equipment layer");
     expect(layer.readiness_answers.source_targets.blocked_targets).toBe(1);
     expect(layer.readiness_answers.source_targets.missing_credentials).toBe(1);
+    expect(layer.readiness_answers.source_targets.blocked_refs).toEqual([
+      "source_target:plan:nvidia-equipment-2025:asml-ir:official-html-disclosure:fixture:scheduled"
+    ]);
+    expect(layer.readiness_answers.source_targets.missing_credentials_refs).toEqual([
+      "source_target:plan:nvidia-equipment-2025:asml-ir:official-html-disclosure:fixture:scheduled"
+    ]);
     expect(layer.readiness_answers.output_policy.prohibited_truth_store_writes).toEqual([
       "create_fact_edge",
       "raise_evidence_level",
@@ -146,6 +152,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.readiness_answers?.source_targets.targets).toBe(2);
     expect(item?.readiness_answers?.source_targets.runnable_targets).toBe(2);
     expect(item?.readiness_answers?.source_targets.blocked_targets).toBe(0);
+    expect(item?.readiness_answers?.source_targets.runnable_refs).toEqual(["source_target:CHK-ASML:scheduled", "source_target:CHK-CENSUS:not_synced"]);
     expect(item?.evidence_layer_summary?.map((summary) => [summary.layer_kind, summary.count])).toEqual([
       ["unknown", 2],
       ["source_target", 2],

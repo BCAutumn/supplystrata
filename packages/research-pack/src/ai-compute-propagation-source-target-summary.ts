@@ -24,12 +24,12 @@ export function buildAiComputePropagationSourceTargetStatusSummary(
   };
 }
 
-function isRunnableSourceTarget(value: AiComputePropagationSourceTargetStatusLike): boolean {
+export function isRunnableSourceTarget(value: AiComputePropagationSourceTargetStatusLike): boolean {
   if (value.failure_kind !== null || value.latest_event_type === "SOURCE_FAILED") return false;
   return value.state === "not_synced" || value.state === "due" || value.state === "scheduled" || value.state === "succeeded";
 }
 
-function isBlockedSourceTarget(value: AiComputePropagationSourceTargetStatusLike): boolean {
+export function isBlockedSourceTarget(value: AiComputePropagationSourceTargetStatusLike): boolean {
   if (value.failure_kind !== null || value.latest_event_type === "SOURCE_FAILED") return true;
   return (
     value.state === "retry_wait" || value.state === "degraded" || value.state === "dead" || value.state === "disabled" || value.state === "policy_disabled"

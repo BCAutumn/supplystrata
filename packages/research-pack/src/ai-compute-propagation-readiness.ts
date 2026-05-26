@@ -236,6 +236,7 @@ function readinessAnswersFor(
     official_evidence_gaps: officialEvidenceGaps,
     unknown_backlog_summary: unknownBacklogSummary,
     next_research_targets: refs.next_research_targets,
+    source_target_statuses: refs.source_target_statuses,
     source_target_status_summary: refs.source_target_status_summary,
     allowed_research_outputs: allowedResearchOutputs,
     prohibited_truth_store_writes: prohibitedTruthStoreWrites,

@@ -109,6 +109,7 @@ export function propagationReadinessWithAiComputeGaps(): PropagationReadinessRep
             }),
             nextTargetCounts: { source_group: 1 },
             targetRefs: ["source_target:CHK-ASML:scheduled", "source_target:CHK-CENSUS:not_synced"],
+            sourceTargetRefs: { runnable: ["source_target:CHK-ASML:scheduled", "source_target:CHK-CENSUS:not_synced"] },
             allowed: ["source_target_action", "review_queue_seed"],
             prohibited: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"]
           }),
@@ -240,6 +241,10 @@ export function propagationReadinessWithAiComputeGaps(): PropagationReadinessRep
             }),
             nextTargetCounts: { source_group: 1 },
             targetRefs: ["source_target:CHK-MATERIALS:retry_wait"],
+            sourceTargetRefs: {
+              blocked: ["source_target:CHK-MATERIALS:retry_wait"],
+              missingCredentials: ["source_target:CHK-MATERIALS:retry_wait"]
+            },
             allowed: ["source_repair_action", "operational_backlog"],
             prohibited: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"]
           }),
@@ -426,6 +431,13 @@ function readinessAnswers(input: {
   sourceTargets: PropagationLayer["source_target_status_summary"];
   nextTargetCounts?: Record<string, number>;
   targetRefs?: string[];
+  sourceTargetRefs?: {
+    runnable?: string[];
+    blocked?: string[];
+    degraded?: string[];
+    missingCredentials?: string[];
+    sourceFailed?: string[];
+  };
   allowed: string[];
   prohibited: string[];
 }): PropagationLayer["readiness_answers"] {
@@ -438,7 +450,14 @@ function readinessAnswers(input: {
     },
     unknowns: input.unknowns,
     next_research: { by_target_kind: input.nextTargetCounts ?? {}, target_refs: input.targetRefs ?? [] },
-    source_targets: input.sourceTargets,
+    source_targets: {
+      ...input.sourceTargets,
+      runnable_refs: input.sourceTargetRefs?.runnable ?? [],
+      blocked_refs: input.sourceTargetRefs?.blocked ?? [],
+      degraded_refs: input.sourceTargetRefs?.degraded ?? [],
+      missing_credentials_refs: input.sourceTargetRefs?.missingCredentials ?? [],
+      source_failed_refs: input.sourceTargetRefs?.sourceFailed ?? []
+    },
     output_policy: {
       allowed_research_outputs: input.allowed,
       prohibited_truth_store_writes: input.prohibited,

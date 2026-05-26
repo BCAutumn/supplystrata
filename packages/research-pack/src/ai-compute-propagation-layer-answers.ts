@@ -3,9 +3,12 @@ import type {
   AiComputePropagationNextResearchTarget,
   AiComputePropagationOfficialEvidenceGap,
   AiComputePropagationPolicy,
+  AiComputePropagationSourceTargetReadinessAnswer,
+  AiComputePropagationSourceTargetStatus,
   AiComputePropagationSourceTargetStatusSummary,
   AiComputePropagationUnknownBacklogSummary
 } from "./ai-compute-propagation-readiness-definitions.js";
+import { isBlockedSourceTarget, isRunnableSourceTarget } from "./ai-compute-propagation-source-target-summary.js";
 
 export function buildAiComputePropagationLayerReadinessAnswers(input: {
   fact_edge_refs: readonly string[];
@@ -16,6 +19,7 @@ export function buildAiComputePropagationLayerReadinessAnswers(input: {
   official_evidence_gaps: readonly AiComputePropagationOfficialEvidenceGap[];
   unknown_backlog_summary: AiComputePropagationUnknownBacklogSummary;
   next_research_targets: readonly AiComputePropagationNextResearchTarget[];
+  source_target_statuses: readonly AiComputePropagationSourceTargetStatus[];
   source_target_status_summary: AiComputePropagationSourceTargetStatusSummary;
   allowed_research_outputs: readonly string[];
   prohibited_truth_store_writes: readonly string[];
@@ -39,12 +43,26 @@ export function buildAiComputePropagationLayerReadinessAnswers(input: {
       by_target_kind: countBy(input.next_research_targets, (target) => target.target_kind),
       target_refs: input.next_research_targets.map((target) => `${target.target_kind}:${target.target_id}`)
     },
-    source_targets: input.source_target_status_summary,
+    source_targets: sourceTargetReadinessAnswer(input.source_target_status_summary, input.source_target_statuses),
     output_policy: {
       allowed_research_outputs: [...input.allowed_research_outputs],
       prohibited_truth_store_writes: [...input.prohibited_truth_store_writes],
       truth_store_write_policy: input.policy
     }
+  };
+}
+
+function sourceTargetReadinessAnswer(
+  summary: AiComputePropagationSourceTargetStatusSummary,
+  statuses: readonly AiComputePropagationSourceTargetStatus[]
+): AiComputePropagationSourceTargetReadinessAnswer {
+  return {
+    ...summary,
+    runnable_refs: uniqueSorted(statuses.filter(isRunnableSourceTarget).map((status) => status.ref)),
+    blocked_refs: uniqueSorted(statuses.filter(isBlockedSourceTarget).map((status) => status.ref)),
+    degraded_refs: uniqueSorted(statuses.filter((status) => status.state === "degraded").map((status) => status.ref)),
+    missing_credentials_refs: uniqueSorted(statuses.filter((status) => status.failure_kind === "missing_credentials").map((status) => status.ref)),
+    source_failed_refs: uniqueSorted(statuses.filter((status) => status.latest_event_type === "SOURCE_FAILED").map((status) => status.ref))
   };
 }
 
