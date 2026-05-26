@@ -116,6 +116,7 @@ function layerRefs(layer: AiComputePropagationLayer): string[] {
     ...layer.source_plan_refs,
     ...layer.source_target_refs,
     ...layer.source_target_groups.map((group) => `source_target_group:${group.group_kind}`),
+    ...layer.next_research_targets.flatMap((target) => [`next_research_target:${target.target_kind}:${target.target_id}`, ...target.refs]),
     ...layer.component_dependency_refs,
     ...layer.frontier_refs,
     ...layer.unknown_refs,

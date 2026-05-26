@@ -43,6 +43,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Source targets: ${formatList(layer.source_target_refs)}`);
     lines.push(`  Source target groups: ${formatList(layer.source_target_groups.map(formatSourceTargetGroup))}`);
     lines.push(`  Source target states: ${formatList(layer.source_target_statuses.map(formatSourceTargetStatus))}`);
+    lines.push(`  Next research targets: ${formatList(layer.next_research_targets.map(formatNextResearchTarget))}`);
     lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
     lines.push(`  Leads/frontier: ${formatList([...layer.component_dependency_refs, ...layer.frontier_refs])}`);
     lines.push(`  Unknowns: ${formatList(layer.unknown_refs)}`);
@@ -105,4 +106,8 @@ function formatSourceTargetGroup(value: {
 
 function formatUnknownBacklogSeed(value: { seed_id: string; recommended_review_action: string; question: string }): string {
   return `${value.seed_id} action=${value.recommended_review_action} question="${value.question}"`;
+}
+
+function formatNextResearchTarget(value: { target_kind: string; target_id: string; label: string; action: string }): string {
+  return `${value.target_kind}:${value.target_id} label="${value.label}" action="${value.action}"`;
 }

@@ -9,6 +9,7 @@ import type {
   AiComputePropagationLayer,
   AiComputePropagationLayerId,
   AiComputePropagationLayerStatus,
+  AiComputePropagationNextResearchTarget,
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationSourceTargetGroup,
@@ -16,6 +17,7 @@ import type {
   AiComputePropagationSourceTargetStatus,
   AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
+import { buildAiComputePropagationNextResearchTargets } from "./ai-compute-propagation-next-targets.js";
 
 export type {
   AiComputePropagationLayer,
@@ -55,6 +57,7 @@ interface LayerRefs {
   source_target_refs: string[];
   source_target_groups: AiComputePropagationSourceTargetGroup[];
   source_target_statuses: AiComputePropagationSourceTargetStatus[];
+  next_research_targets: AiComputePropagationNextResearchTarget[];
   component_dependency_refs: string[];
   frontier_refs: string[];
   unknown_refs: string[];
@@ -171,6 +174,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     source_target_refs: refs.source_target_refs,
     source_target_groups: refs.source_target_groups,
     source_target_statuses: refs.source_target_statuses,
+    next_research_targets: refs.next_research_targets,
     component_dependency_refs: refs.component_dependency_refs,
     frontier_refs: refs.frontier_refs,
     unknown_refs: refs.unknown_refs,
@@ -199,6 +203,17 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
   const unknownIds = unknownRefsFor(rule, input, frontier, leads);
   const sourceTargetStatuses = sourceTargetStatusesFor(coverageItems, officialNodes);
   const sourceTargetGroups = sourceTargetGroupsFor(sourcePlanItems, sourceTargetStatuses);
+  const materialOrProcessRefs = uniqueSorted([
+    ...sourcePlanItems.flatMap((item) => item.target_ids.filter((targetId) => materialOrProcessMatchesRule(targetId, rule))),
+    ...leads.map((lead) => lead.target_id).filter((targetId) => materialOrProcessMatchesRule(targetId, rule))
+  ]);
+  const nextResearchTargets = buildAiComputePropagationNextResearchTargets({
+    component_ids: rule.component_ids,
+    material_or_process_refs: materialOrProcessRefs,
+    source_target_groups: sourceTargetGroups,
+    leads,
+    frontier
+  });
 
   return {
     fact_edge_refs: uniqueSorted(factEdges.map((edge) => `edge:${edge.edge_id}`)),
@@ -211,13 +226,11 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
     source_target_refs: uniqueSorted(sourceTargetStatuses.map((item) => item.ref)),
     source_target_groups: sourceTargetGroups,
     source_target_statuses: sourceTargetStatuses,
+    next_research_targets: nextResearchTargets,
     component_dependency_refs: uniqueSorted(leads.map((lead) => `component_dependency:${lead.dependency_id}`)),
     frontier_refs: uniqueSorted(frontier.map((item) => `supply_chain_frontier:${item.frontier_id}`)),
     unknown_refs: uniqueSorted(unknownIds.map((unknownId) => `unknown:${unknownId}`)),
-    material_or_process_refs: uniqueSorted([
-      ...sourcePlanItems.flatMap((item) => item.target_ids.filter((targetId) => materialOrProcessMatchesRule(targetId, rule))),
-      ...leads.map((lead) => lead.target_id).filter((targetId) => materialOrProcessMatchesRule(targetId, rule))
-    ])
+    material_or_process_refs: materialOrProcessRefs
   };
 }
 

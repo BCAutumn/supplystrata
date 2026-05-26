@@ -39,6 +39,17 @@ export interface AiComputePropagationSourceTargetGroup {
   failure_kinds: string[];
 }
 
+export type AiComputePropagationNextResearchTargetKind = "company" | "component" | "material_or_process" | "source_group";
+
+export interface AiComputePropagationNextResearchTarget {
+  target_kind: AiComputePropagationNextResearchTargetKind;
+  target_id: string;
+  label: string;
+  reason: string;
+  refs: string[];
+  action: string;
+}
+
 export interface AiComputePropagationUnknownBacklogSeed {
   seed_id: string;
   question: string;
@@ -88,6 +99,7 @@ export interface AiComputePropagationLayer {
   source_target_refs: string[];
   source_target_groups: AiComputePropagationSourceTargetGroup[];
   source_target_statuses: AiComputePropagationSourceTargetStatus[];
+  next_research_targets: AiComputePropagationNextResearchTarget[];
   component_dependency_refs: string[];
   frontier_refs: string[];
   unknown_refs: string[];

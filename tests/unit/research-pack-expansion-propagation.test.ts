@@ -188,7 +188,8 @@ describe("research-pack expansion and propagation", () => {
         observation_refs: ["observation:OBS-BACKLOG", "observation:OBS-CAPEX"]
       })
     );
-    expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "server_to_board_materials")).toEqual(
+    const boardMaterialsLayer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "server_to_board_materials");
+    expect(boardMaterialsLayer).toEqual(
       expect.objectContaining({
         status: "observation_ready",
         fact_edge_refs: [],
@@ -204,6 +205,8 @@ describe("research-pack expansion and propagation", () => {
         ]
       })
     );
+    expect(boardMaterialsLayer?.next_research_targets.map((item) => `${item.target_kind}:${item.target_id}`)).toContain("component:COMP-CCL");
+    expect(boardMaterialsLayer?.next_research_targets.map((item) => `${item.target_kind}:${item.target_id}`)).toContain("source_group:observation_proxy");
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(
       expect.objectContaining({
         status: "observation_ready",
@@ -218,6 +221,7 @@ describe("research-pack expansion and propagation", () => {
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
     expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Source target groups");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Next research targets");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Missing official evidence");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Prohibited writes");
     expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");

@@ -98,6 +98,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.refs).toContain("source_plan:asml-ir");
     expect(item?.refs).toContain("source_target:CHK-ASML:scheduled");
     expect(item?.refs).toContain("source_target_group:official_evidence");
+    expect(item?.refs).toContain("next_research_target:source_group:official_evidence");
     expect(item?.refs).toContain("unknown:UNK-EQUIPMENT");
     expect(item?.refs).toContain("unknown_seed:AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT");
     expect(item?.rationale).toContain("AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT run_source_target");
@@ -236,6 +237,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           source_target_refs: [],
           source_target_groups: [],
           source_target_statuses: [],
+          next_research_targets: [],
           component_dependency_refs: [],
           frontier_refs: [],
           unknown_refs: [],
@@ -278,6 +280,16 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               state: "scheduled",
               failure_kind: null,
               latest_event_type: null
+            }
+          ],
+          next_research_targets: [
+            {
+              target_kind: "source_group",
+              target_id: "official_evidence",
+              label: "Official evidence source group",
+              reason: "official evidence source path is scheduled.",
+              refs: ["source_plan:asml-ir", "source_target:CHK-ASML:scheduled", "source_target_group:official_evidence"],
+              action: "Run this source target through review paths."
             }
           ],
           component_dependency_refs: [],
@@ -337,6 +349,16 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               state: "retry_wait",
               failure_kind: "missing_credentials",
               latest_event_type: null
+            }
+          ],
+          next_research_targets: [
+            {
+              target_kind: "source_group",
+              target_id: "official_evidence",
+              label: "Official evidence source group",
+              reason: "official evidence source path is blocked by missing credentials.",
+              refs: ["source_target:CHK-MATERIALS:retry_wait", "source_target_group:official_evidence"],
+              action: "Repair failed or degraded source targets before using this group."
             }
           ],
           component_dependency_refs: [],
