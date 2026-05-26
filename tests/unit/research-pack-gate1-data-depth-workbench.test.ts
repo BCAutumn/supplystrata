@@ -14,7 +14,6 @@ import {
 } from "@supplystrata/research-pack";
 import type { DbClient } from "@supplystrata/db/read";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
-import { rankAdjacentOfficialFactCompanyCandidates } from "../../packages/research-pack/src/gate1-adjacent-company-ranking.js";
 import {
   edgeFixture,
   emptyWorkbench,
@@ -259,91 +258,40 @@ describe("Gate 1 data-depth entity context", () => {
     expect(frontierItem?.command_hints[0]?.command).not.toContain("ENT-FAC-");
     expect(frontierItem?.command_hints[0]?.command).not.toContain("<research-pack-out>");
   });
-});
 
-describe("Gate 1 adjacent company ranking", () => {
-  it("does not let disclosure-center frequency outrank component-relevant upstream candidates", () => {
-    const candidates = rankAdjacentOfficialFactCompanyCandidates({
-      selected_company_id: "ENT-NVIDIA",
-      component_id: "COMP-PCB",
-      edges: [
-        adjacentFactEdge({
-          edge_id: "EDGE-APPLE-COMPEQ",
-          from_id: "ENT-APPLE",
-          from_name: "Apple",
-          from_industry: ["consumer-electronics"],
-          to_id: "ENT-COMPEQ",
-          to_name: "Compeq",
-          to_industry: ["pcb"],
-          relation: "BUYS_FROM"
-        }),
-        adjacentFactEdge({
-          edge_id: "EDGE-APPLE-ATS",
-          from_id: "ENT-APPLE",
-          from_name: "Apple",
-          from_industry: ["consumer-electronics"],
-          to_id: "ENT-ATS",
-          to_name: "AT&S",
-          to_industry: ["pcb", "substrate"],
-          relation: "BUYS_FROM"
-        }),
-        adjacentFactEdge({
-          edge_id: "EDGE-APPLE-DELTA",
-          from_id: "ENT-APPLE",
-          from_name: "Apple",
-          from_industry: ["consumer-electronics"],
-          to_id: "ENT-DELTA",
-          to_name: "Delta Electronics",
-          to_industry: ["power"],
-          relation: "BUYS_FROM"
-        })
-      ]
+  it("uses reviewed parent legal-entity scope for frontier business units", () => {
+    const sourceTargetCoverage = officialSourceTargetCoverage("succeeded");
+    const readiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: workbenchWithSamsungMemoryEdge(),
+      component_ids: ["COMP-MEMORY"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: sourceTargetCoverage
     });
 
-    expect(candidates.map((candidate) => candidate.company_id)).toEqual(["ENT-ATS", "ENT-COMPEQ"]);
-    expect(candidates.some((candidate) => candidate.company_id === "ENT-APPLE")).toBe(false);
-    expect(candidates[0]?.ranking_reason).toContain("component_relevance=2");
-    expect(candidates[0]?.suggested_label).toBe("useful_target");
-  });
-
-  it("flags repeated non-component disclosure-center candidates as review suggestions, not gold labels", () => {
-    const candidates = rankAdjacentOfficialFactCompanyCandidates({
-      selected_company_id: "ENT-NVIDIA",
-      component_id: "COMP-PCB",
-      edges: [
-        adjacentFactEdge({
-          edge_id: "EDGE-BRAND-1",
-          from_id: "ENT-BRAND",
-          from_name: "Brand Center",
-          from_industry: ["consumer-electronics"],
-          to_id: "ENT-UNMAPPED-A",
-          to_name: "Unmapped Supplier A",
-          to_industry: ["assembly"],
-          relation: "BUYS_FROM"
-        }),
-        adjacentFactEdge({
-          edge_id: "EDGE-BRAND-2",
-          from_id: "ENT-BRAND",
-          from_name: "Brand Center",
-          from_industry: ["consumer-electronics"],
-          to_id: "ENT-UNMAPPED-B",
-          to_name: "Unmapped Supplier B",
-          to_industry: ["assembly"],
-          relation: "BUYS_FROM"
-        })
-      ]
+    const workbenchModel = buildGate1DataDepthWorkbench({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_context: {
+        depth: 4,
+        official_disclosure_year: "2025",
+        research_target_profile_id: "ai-compute-memory.v0"
+      },
+      official_disclosure_readiness: readiness,
+      source_target_coverage: sourceTargetCoverage,
+      supply_chain_expansion_plan: expansionPlanWithSamsungMemoryFrontier(),
+      propagation_readiness: emptyPropagationReadinessReport(),
+      adjacent_official_facts: adjacentOfficialFactsReport(),
+      entity_affiliation_contexts: [samsungMemoryAffiliationWithDisposition()]
     });
 
-    const brandCandidate = candidates.find((candidate) => candidate.company_id === "ENT-BRAND");
-    expect(brandCandidate).toEqual(
-      expect.objectContaining({
-        company_id: "ENT-BRAND",
-        edge_count: 2,
-        suggested_label: "brand_center_bias",
-        suggestion_policy: "rule_suggestion_not_gold_label"
-      })
-    );
-    expect(brandCandidate?.suggested_label_reason).toContain("disclosure-center");
+    const frontierItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-frontier:recursive-depth");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--company ENT-SAMSUNG-ELECTRONICS");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--component COMP-MEMORY");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--source-target-namespace research-ent-samsung-electronics");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--out reports/ent-samsung-electronics-comp-memory-research-pack");
+    expect(frontierItem?.command_hints[0]?.command).not.toContain("--company ENT-SAMSUNG-MEMORY");
   });
 });
 
@@ -491,6 +439,22 @@ function samsungMemoryAffiliation(): Gate1EntityAffiliationContext {
   };
 }
 
+function samsungMemoryAffiliationWithDisposition(): Gate1EntityAffiliationContext {
+  return {
+    ...samsungMemoryAffiliation(),
+    latest_disposition: {
+      change_id: "CHG-ENTITY-AFFILIATION-1",
+      decision: "research_parent_entity",
+      reviewer: "unit-test",
+      reason: "Parent legal entity owns the official disclosure path.",
+      recorded_at: "2026-05-26T00:00:00.000Z",
+      edge_ids: ["EDGE-1"],
+      component_ids: ["COMP-MEMORY"],
+      unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"]
+    }
+  };
+}
+
 function emptySupplyChainExpansionPlan(): SupplyChainExpansionPlan {
   return {
     schema_version: "1.0.0",
@@ -516,6 +480,40 @@ function emptySupplyChainExpansionPlan(): SupplyChainExpansionPlan {
     frontier: [],
     component_dependency_leads: [],
     stop_conditions: []
+  };
+}
+
+function expansionPlanWithSamsungMemoryFrontier(): SupplyChainExpansionPlan {
+  const empty = emptySupplyChainExpansionPlan();
+  return {
+    ...empty,
+    summary: {
+      ...empty.summary,
+      fact_edges_considered: 1,
+      frontier_edges: 1,
+      frontier_companies: 1
+    },
+    frontier: [
+      {
+        frontier_id: "SCF-SAMSUNG-MEMORY",
+        edge_id: "EDGE-1",
+        path_depth: 1,
+        expansion_state: "expand_candidate",
+        from_id: "ENT-NVIDIA",
+        from_name: "NVIDIA",
+        to_id: "ENT-SAMSUNG-MEMORY",
+        to_name: "Samsung Memory",
+        next_company_id: "ENT-SAMSUNG-MEMORY",
+        next_company_name: "Samsung Memory",
+        relation: "supplier",
+        component_id: "COMP-MEMORY",
+        evidence_level: 5,
+        unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"],
+        source_plan_refs: [],
+        rationale: "Ready business-unit frontier.",
+        action: "Run recursive company research."
+      }
+    ]
   };
 }
 
@@ -607,25 +605,5 @@ function adjacentOfficialFactsReport(): Gate1AdjacentOfficialFactsReport {
       policy: "adjacent_context_only_no_fact_mutation"
     },
     edges: []
-  };
-}
-
-function adjacentFactEdge(
-  input: Pick<
-    Gate1AdjacentOfficialFactsReport["edges"][number],
-    "edge_id" | "from_id" | "from_name" | "from_industry" | "to_id" | "to_name" | "to_industry" | "relation"
-  >
-): Gate1AdjacentOfficialFactsReport["edges"][number] {
-  return {
-    ...input,
-    component_id: "COMP-PCB",
-    component_name: null,
-    component_attribution_kind: "counterparty_industry",
-    component_attribution_reason: "unit test",
-    evidence_level: 4,
-    confidence: 0.9,
-    evidence_ids: [`EV-${input.edge_id}`],
-    source_adapters: ["apple-suppliers"],
-    source_urls: ["https://example.test"]
   };
 }

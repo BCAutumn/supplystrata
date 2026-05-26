@@ -1,4 +1,5 @@
 import type { Gate1DataDepthResearchContext } from "./gate1-data-depth-workbench-definitions.js";
+import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 
 export function researchRunCommand(input: {
@@ -51,17 +52,38 @@ export function adjacentOfficialFactResearchCommand(
   });
 }
 
-export function frontierResearchCommand(plan: SupplyChainExpansionPlan, researchContext: Gate1DataDepthResearchContext | undefined): string | null {
+export function frontierResearchCommand(
+  plan: SupplyChainExpansionPlan,
+  researchContext: Gate1DataDepthResearchContext | undefined,
+  entityAffiliationContexts: readonly Gate1EntityAffiliationContext[]
+): string | null {
   const nextFrontier = plan.frontier.find((item) => item.expansion_state === "expand_candidate" && item.next_company_id !== null);
   if (nextFrontier?.next_company_id === undefined || nextFrontier.next_company_id === null) return null;
-  const componentIds = nextFrontier.component_id === null ? [] : [nextFrontier.component_id];
+  const reviewedScope = reviewedParentScope(nextFrontier.next_company_id, nextFrontier.component_id, entityAffiliationContexts);
+  const companyId = reviewedScope?.company_id ?? nextFrontier.next_company_id;
+  const componentIds = reviewedScope?.component_ids ?? (nextFrontier.component_id === null ? [] : [nextFrontier.component_id]);
   return researchRunCommand({
-    company_id: nextFrontier.next_company_id,
+    company_id: companyId,
     component_ids: componentIds,
     research_context: researchContext,
-    source_target_namespace: researchNamespace(nextFrontier.next_company_id),
-    out_dir: researchOutDir(nextFrontier.next_company_id, componentIds)
+    source_target_namespace: researchNamespace(companyId),
+    out_dir: researchOutDir(companyId, componentIds)
   });
+}
+
+function reviewedParentScope(
+  subjectEntityId: string,
+  componentId: string | null,
+  contexts: readonly Gate1EntityAffiliationContext[]
+): { company_id: string; component_ids: string[] } | null {
+  const context = contexts.find(
+    (candidate) =>
+      candidate.subject_entity_id === subjectEntityId &&
+      (candidate.latest_disposition?.decision === "research_parent_entity" || candidate.latest_disposition?.decision === "research_both_scopes")
+  );
+  if (context === undefined) return null;
+  const componentIds = componentId === null ? context.component_ids : [componentId];
+  return { company_id: context.parent_entity_id, component_ids: focusedResearchComponents(componentIds) };
 }
 
 function slugForCommand(value: string): string {

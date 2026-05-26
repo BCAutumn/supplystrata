@@ -46,7 +46,7 @@ export function buildGate1DataDepthItems(input: Gate1DataDepthWorkbenchInput): G
     ...corroborationWorkItems(input.official_disclosure_readiness.corroboration_queue),
     ...observationCalibrationItems(input.source_target_coverage),
     ...propagationWorkItems(input.propagation_readiness),
-    ...frontierWorkItems(input.supply_chain_expansion_plan, input.research_context)
+    ...frontierWorkItems(input.supply_chain_expansion_plan, input.research_context, input.entity_affiliation_contexts ?? [])
   ];
 }
 
@@ -281,8 +281,12 @@ function propagationWorkItems(report: Gate1DataDepthWorkbenchInput["propagation_
     );
 }
 
-function frontierWorkItems(plan: SupplyChainExpansionPlan, researchContext: Gate1DataDepthResearchContext | undefined): Gate1DataDepthWorkbenchItem[] {
-  if (plan.summary.blocked_frontier_edges === 0 && plan.summary.component_dependency_leads === 0) return [];
+function frontierWorkItems(
+  plan: SupplyChainExpansionPlan,
+  researchContext: Gate1DataDepthResearchContext | undefined,
+  entityAffiliationContexts: readonly Gate1EntityAffiliationContext[]
+): Gate1DataDepthWorkbenchItem[] {
+  if (plan.summary.frontier_edges === 0 && plan.summary.component_dependency_leads === 0) return [];
   return [
     workItem({
       item_id: "gate1-frontier:recursive-depth",
@@ -297,7 +301,7 @@ function frontierWorkItems(plan: SupplyChainExpansionPlan, researchContext: Gate
       allowed_decisions: ["run_recursive_company_research", "defer"],
       write_impact:
         "Running research may refresh derived context and source targets when explicitly prepared; component leads remain non-fact until review-approved evidence exists.",
-      command_hints: frontierCommandHints(plan, researchContext),
+      command_hints: frontierCommandHints(plan, researchContext, entityAffiliationContexts),
       refs: uniqueSorted([
         ...plan.frontier.slice(0, 20).map((item) => `supply_chain_frontier:${item.frontier_id}`),
         ...plan.component_dependency_leads.slice(0, 20).map((lead) => `component_dependency:${lead.dependency_id}`)
@@ -461,8 +465,12 @@ function corroborationCommandHints(item?: OfficialDisclosureCorroborationQueueIt
   ];
 }
 
-function frontierCommandHints(plan: SupplyChainExpansionPlan, researchContext: Gate1DataDepthResearchContext | undefined): Gate1DataDepthCommandHint[] {
-  const command = frontierResearchCommand(plan, researchContext);
+function frontierCommandHints(
+  plan: SupplyChainExpansionPlan,
+  researchContext: Gate1DataDepthResearchContext | undefined,
+  entityAffiliationContexts: readonly Gate1EntityAffiliationContext[]
+): Gate1DataDepthCommandHint[] {
+  const command = frontierResearchCommand(plan, researchContext, entityAffiliationContexts);
   return command === null ? [] : [commandHint("Run recursive company research", command, true, true)];
 }
 
