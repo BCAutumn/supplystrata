@@ -52,6 +52,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     if (item.evidence_layer_summary !== undefined && item.evidence_layer_summary.length > 0) {
       lines.push(`- Evidence layer summary: ${item.evidence_layer_summary.map(formatEvidenceLayerSummary).join("; ")}`);
     }
+    if (item.readiness_answers !== undefined) {
+      lines.push(`- Readiness answers: ${formatReadinessAnswers(item.readiness_answers)}`);
+    }
     if (item.official_evidence_gaps !== undefined && item.official_evidence_gaps.length > 0) {
       lines.push(`- Official evidence gaps: ${item.official_evidence_gaps.map(formatOfficialEvidenceGap).join("; ")}`);
     }
@@ -110,6 +113,26 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
 
 function formatEvidenceLayerSummary(value: { layer_kind: string; count: number; prohibited_truth_store_writes: readonly string[] }): string {
   return `${value.layer_kind}=${value.count} prohibited=${value.prohibited_truth_store_writes.join("|")}`;
+}
+
+function formatReadinessAnswers(value: {
+  fact_edges: { count: number };
+  non_fact_inputs: { observation_refs: readonly string[]; lead_refs: readonly string[] };
+  official_evidence: { gaps: number; by_gap_kind: Record<string, number> };
+  unknowns: { existing_unknowns: number; seeds: number; by_recommended_review_action: Record<string, number> };
+  next_research: { by_target_kind: Record<string, number> };
+  source_targets: { targets: number; runnable_targets: number; blocked_targets: number; missing_credentials: number };
+  output_policy: { truth_store_write_policy: string };
+}): string {
+  return [
+    `facts=${value.fact_edges.count}`,
+    `non_fact_inputs=${value.non_fact_inputs.observation_refs.length + value.non_fact_inputs.lead_refs.length}`,
+    `official_gaps=${value.official_evidence.gaps}(${formatCountMap(value.official_evidence.by_gap_kind)})`,
+    `unknowns=${value.unknowns.existing_unknowns}+${value.unknowns.seeds}(${formatCountMap(value.unknowns.by_recommended_review_action)})`,
+    `next=${formatCountMap(value.next_research.by_target_kind)}`,
+    `targets=${value.source_targets.targets}/runnable=${value.source_targets.runnable_targets}/blocked=${value.source_targets.blocked_targets}/missing_credentials=${value.source_targets.missing_credentials}`,
+    `policy=${value.output_policy.truth_store_write_policy}`
+  ].join("; ");
 }
 
 function formatOfficialEvidenceGap(value: { gap_kind: string; target_kind: string; target_id: string; recommended_action: string }): string {

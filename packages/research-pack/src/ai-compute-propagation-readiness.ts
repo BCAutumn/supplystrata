@@ -9,10 +9,10 @@ import type {
   AiComputePropagationEvidenceLayerSummary,
   AiComputePropagationLayer,
   AiComputePropagationLayerId,
+  AiComputePropagationLayerReadinessAnswers,
   AiComputePropagationLayerStatus,
   AiComputePropagationNextResearchTarget,
   AiComputePropagationOfficialEvidenceGap,
-  AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationSourceTargetGroup,
   AiComputePropagationSourceTargetGroupKind,
@@ -22,14 +22,23 @@ import type {
   AiComputePropagationUnknownBacklogSummary
 } from "./ai-compute-propagation-readiness-definitions.js";
 import { buildAiComputePropagationEvidenceLayerSummary } from "./ai-compute-propagation-evidence-summary.js";
+import { buildAiComputePropagationLayerReadinessAnswers } from "./ai-compute-propagation-layer-answers.js";
 import { buildAiComputePropagationNextResearchTargets } from "./ai-compute-propagation-next-targets.js";
 import { buildAiComputePropagationOfficialEvidenceGaps } from "./ai-compute-propagation-official-evidence-gaps.js";
+import {
+  AI_COMPUTE_PROPAGATION_POLICY,
+  allowedResearchOutputsFor,
+  missingOfficialEvidenceFor,
+  nextActionsFor,
+  prohibitedTruthStoreWritesFor
+} from "./ai-compute-propagation-policy.js";
 import { buildAiComputePropagationSourceTargetStatusSummary } from "./ai-compute-propagation-source-target-summary.js";
 import { buildAiComputePropagationUnknownBacklogSummary } from "./ai-compute-propagation-unknown-backlog-summary.js";
 
 export type {
   AiComputePropagationLayer,
   AiComputePropagationLayerId,
+  AiComputePropagationLayerReadinessAnswers,
   AiComputePropagationLayerStatus,
   AiComputePropagationEvidenceLayerSummary,
   AiComputePropagationEvidenceLayerKind,
@@ -78,8 +87,6 @@ interface LayerRefs {
   material_or_process_refs: string[];
   fact_component_ids: string[];
 }
-
-const POLICY: AiComputePropagationPolicy = "reasoning_input_only_no_fact_mutation";
 
 const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
   {
@@ -153,7 +160,7 @@ export function buildAiComputePropagationReadinessMatrix(input: AiComputePropaga
   return {
     schema_version: "1.0.0",
     matrix_id: "ai_compute_propagation.v0",
-    policy: POLICY,
+    policy: AI_COMPUTE_PROPAGATION_POLICY,
     summary: {
       layers_total: layers.length,
       covered_fact: countStatus(layers, "covered_fact"),
@@ -177,12 +184,16 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
   const officialEvidenceGaps = officialEvidenceGapsFor(rule, status, refs);
   const unknownBacklogSeeds = unknownBacklogSeedsFor(rule, status, refs);
   const unknownBacklogSummary = buildAiComputePropagationUnknownBacklogSummary({ unknown_refs: refs.unknown_refs, unknown_backlog_seeds: unknownBacklogSeeds });
+  const allowedResearchOutputs = allowedResearchOutputsFor(status);
+  const prohibitedTruthStoreWrites = prohibitedTruthStoreWritesFor(status);
+  const readinessAnswers = readinessAnswersFor(refs, officialEvidenceGaps, unknownBacklogSummary, allowedResearchOutputs, prohibitedTruthStoreWrites);
   return {
     layer_id: rule.layer_id,
     title: rule.title,
     question: rule.question,
     status,
     status_reason: statusReason(status, refs),
+    readiness_answers: readinessAnswers,
     evidence_layer_summary: evidenceLayerSummaryFor(refs, officialEvidenceGaps, unknownBacklogSeeds),
     component_ids: [...rule.component_ids],
     material_or_process_refs: refs.material_or_process_refs,
@@ -202,11 +213,34 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     unknown_backlog_summary: unknownBacklogSummary,
     official_evidence_gaps: officialEvidenceGaps,
     missing_official_evidence: missingOfficialEvidenceFor(status),
-    allowed_research_outputs: allowedResearchOutputsFor(status),
-    prohibited_truth_store_writes: prohibitedTruthStoreWritesFor(status),
+    allowed_research_outputs: allowedResearchOutputs,
+    prohibited_truth_store_writes: prohibitedTruthStoreWrites,
     next_actions: nextActionsFor(status),
-    policy: POLICY
+    policy: AI_COMPUTE_PROPAGATION_POLICY
   };
+}
+
+function readinessAnswersFor(
+  refs: LayerRefs,
+  officialEvidenceGaps: readonly AiComputePropagationOfficialEvidenceGap[],
+  unknownBacklogSummary: AiComputePropagationUnknownBacklogSummary,
+  allowedResearchOutputs: readonly string[],
+  prohibitedTruthStoreWrites: readonly string[]
+): AiComputePropagationLayerReadinessAnswers {
+  return buildAiComputePropagationLayerReadinessAnswers({
+    fact_edge_refs: refs.fact_edge_refs,
+    observation_refs: refs.observation_refs,
+    observation_series_refs: refs.observation_series_refs,
+    component_dependency_refs: refs.component_dependency_refs,
+    frontier_refs: refs.frontier_refs,
+    official_evidence_gaps: officialEvidenceGaps,
+    unknown_backlog_summary: unknownBacklogSummary,
+    next_research_targets: refs.next_research_targets,
+    source_target_status_summary: refs.source_target_status_summary,
+    allowed_research_outputs: allowedResearchOutputs,
+    prohibited_truth_store_writes: prohibitedTruthStoreWrites,
+    policy: AI_COMPUTE_PROPAGATION_POLICY
+  });
 }
 
 function evidenceLayerSummaryFor(
@@ -312,48 +346,6 @@ function statusReason(status: AiComputePropagationLayerStatus, refs: LayerRefs):
   if (status === "official_target_runnable") return "A source-plan or source-target path exists; run or sync it before drawing conclusions.";
   if (status === "lead_only") return "Only taxonomy/frontier leads exist; they are research directions, not facts.";
   return "No adequate fact, observation, or runnable source path is visible yet.";
-}
-
-function nextActionsFor(status: AiComputePropagationLayerStatus): string[] {
-  if (status === "covered_fact") return ["Use fact refs as chain anchors; continue corroboration and strength/freshness review."];
-  if (status === "observation_ready") return ["Use observations as reasoning inputs; do not create company fact edges from them."];
-  if (status === "blocked_source") return ["Inspect source target failure/degradation before relying on this layer."];
-  if (status === "official_target_runnable") return ["Sync/enable/run the listed source targets, then review outputs through controlled paths."];
-  if (status === "lead_only") return ["Promote relevant leads into source targets or explicit unknowns before treating the layer as covered."];
-  return ["Create source targets or explicit unknowns for this propagation layer."];
-}
-
-function missingOfficialEvidenceFor(status: AiComputePropagationLayerStatus): string[] {
-  if (status === "covered_fact") return [];
-  if (status === "observation_ready") {
-    return ["Review official filings, IR pages, supplier lists, or approved source targets before converting observations into evidence-backed facts."];
-  }
-  if (status === "blocked_source") {
-    return ["Repair the blocked/degraded official source target and rerun it before relying on this layer."];
-  }
-  if (status === "official_target_runnable") {
-    return ["Run or sync the listed official source targets, then review extracted citations through the existing review/apply path."];
-  }
-  if (status === "lead_only") {
-    return ["Create an official source target or explicit unknown for each relevant lead before treating this layer as covered."];
-  }
-  return ["No official evidence or runnable official source path is visible; add a source target or keep the layer as an explicit unknown."];
-}
-
-function allowedResearchOutputsFor(status: AiComputePropagationLayerStatus): string[] {
-  if (status === "covered_fact") return ["chain_anchor", "corroboration_review", "strength_freshness_review"];
-  if (status === "observation_ready") return ["reasoning_input", "observation_review", "calibration_candidate"];
-  if (status === "official_target_runnable") return ["source_target_action", "review_queue_seed"];
-  if (status === "blocked_source") return ["source_repair_action", "operational_backlog"];
-  if (status === "lead_only") return ["frontier_backlog", "unknown_seed"];
-  return ["unknown_backlog", "source_target_gap"];
-}
-
-function prohibitedTruthStoreWritesFor(status: AiComputePropagationLayerStatus): string[] {
-  if (status === "covered_fact") {
-    return ["raise_evidence_level_without_review", "close_unknown_without_review"];
-  }
-  return ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"];
 }
 
 function unknownBacklogSeedsFor(

@@ -44,6 +44,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Source targets: ${formatList(layer.source_target_refs)}`);
     lines.push(`  Source target groups: ${formatList(layer.source_target_groups.map(formatSourceTargetGroup))}`);
     lines.push(`  Source target status summary: ${formatSourceTargetStatusSummary(layer.source_target_status_summary)}`);
+    lines.push(`  Readiness answers: ${formatReadinessAnswers(layer.readiness_answers)}`);
     lines.push(`  Source target states: ${formatList(layer.source_target_statuses.map(formatSourceTargetStatus))}`);
     lines.push(`  Next research targets: ${formatList(layer.next_research_targets.map(formatNextResearchTarget))}`);
     lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
@@ -118,6 +119,26 @@ function formatSourceTargetStatusSummary(value: {
     `source_failed=${value.source_failed_targets}`,
     `by_state=${formatCountMap(value.by_state)}`,
     `by_failure=${formatCountMap(value.by_failure_kind)}`
+  ].join("; ");
+}
+
+function formatReadinessAnswers(value: {
+  fact_edges: { count: number };
+  non_fact_inputs: { observation_refs: readonly string[]; lead_refs: readonly string[] };
+  official_evidence: { gaps: number; by_gap_kind: Record<string, number> };
+  unknowns: { existing_unknowns: number; seeds: number; by_recommended_review_action: Record<string, number> };
+  next_research: { by_target_kind: Record<string, number> };
+  source_targets: { targets: number; runnable_targets: number; blocked_targets: number; missing_credentials: number };
+  output_policy: { truth_store_write_policy: string };
+}): string {
+  return [
+    `facts=${value.fact_edges.count}`,
+    `non_fact_inputs=${value.non_fact_inputs.observation_refs.length + value.non_fact_inputs.lead_refs.length}`,
+    `official_gaps=${value.official_evidence.gaps}(${formatCountMap(value.official_evidence.by_gap_kind)})`,
+    `unknowns=${value.unknowns.existing_unknowns}+${value.unknowns.seeds}(${formatCountMap(value.unknowns.by_recommended_review_action)})`,
+    `next=${formatCountMap(value.next_research.by_target_kind)}`,
+    `targets=${value.source_targets.targets}/runnable=${value.source_targets.runnable_targets}/blocked=${value.source_targets.blocked_targets}/missing_credentials=${value.source_targets.missing_credentials}`,
+    `policy=${value.output_policy.truth_store_write_policy}`
   ].join("; ");
 }
 

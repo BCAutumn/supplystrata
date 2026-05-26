@@ -72,6 +72,7 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         source_targets: sourceTargets,
         action_source_groups: actionSourceGroups,
         evidence_layer_summary: layer.evidence_layer_summary,
+        readiness_answers: layer.readiness_answers,
         official_evidence_gaps: layer.official_evidence_gaps,
         unknown_backlog_summary: layer.unknown_backlog_summary
       });

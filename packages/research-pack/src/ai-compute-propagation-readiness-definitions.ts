@@ -113,6 +113,32 @@ export interface AiComputePropagationUnknownBacklogSummary {
   truth_store_write_policy: "review_only_no_automatic_write";
 }
 
+export interface AiComputePropagationLayerReadinessAnswers {
+  fact_edges: {
+    count: number;
+    refs: string[];
+  };
+  non_fact_inputs: {
+    observation_refs: string[];
+    lead_refs: string[];
+  };
+  official_evidence: {
+    gaps: number;
+    by_gap_kind: Record<string, number>;
+  };
+  unknowns: AiComputePropagationUnknownBacklogSummary;
+  next_research: {
+    by_target_kind: Record<string, number>;
+    target_refs: string[];
+  };
+  source_targets: AiComputePropagationSourceTargetStatusSummary;
+  output_policy: {
+    allowed_research_outputs: string[];
+    prohibited_truth_store_writes: string[];
+    truth_store_write_policy: AiComputePropagationPolicy;
+  };
+}
+
 export interface AiComputePropagationReadinessMatrix {
   schema_version: "1.0.0";
   matrix_id: "ai_compute_propagation.v0";
@@ -141,6 +167,7 @@ export interface AiComputePropagationLayer {
   question: string;
   status: AiComputePropagationLayerStatus;
   status_reason: string;
+  readiness_answers: AiComputePropagationLayerReadinessAnswers;
   evidence_layer_summary: AiComputePropagationEvidenceLayerSummary[];
   component_ids: string[];
   material_or_process_refs: string[];
