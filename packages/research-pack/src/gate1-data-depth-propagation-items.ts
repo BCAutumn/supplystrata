@@ -101,7 +101,10 @@ function sourcePlanCommandHints(sourceAdapters: readonly string[]): Gate1DataDep
 }
 
 function sourceAdaptersForLayer(layer: AiComputePropagationLayer): string[] {
-  return uniqueSorted(layer.source_plan_refs.map((ref) => ref.replace("source_plan:", "")).filter((value) => value.length > 0));
+  return uniqueSorted([
+    ...layer.source_plan_refs.map((ref) => ref.replace("source_plan:", "")).filter((value) => value.length > 0),
+    ...layer.source_target_statuses.map((item) => item.source_adapter_id)
+  ]);
 }
 
 function layerRefs(layer: AiComputePropagationLayer): string[] {

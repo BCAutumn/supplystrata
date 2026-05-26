@@ -10,7 +10,8 @@ import type {
   AiComputePropagationLayerId,
   AiComputePropagationLayerStatus,
   AiComputePropagationPolicy,
-  AiComputePropagationReadinessMatrix
+  AiComputePropagationReadinessMatrix,
+  AiComputePropagationSourceTargetStatus
 } from "./ai-compute-propagation-readiness-definitions.js";
 
 export type {
@@ -48,6 +49,7 @@ interface LayerRefs {
   observation_series_refs: string[];
   source_plan_refs: string[];
   source_target_refs: string[];
+  source_target_statuses: AiComputePropagationSourceTargetStatus[];
   component_dependency_refs: string[];
   frontier_refs: string[];
   unknown_refs: string[];
@@ -178,6 +180,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     observation_series_refs: refs.observation_series_refs,
     source_plan_refs: refs.source_plan_refs,
     source_target_refs: refs.source_target_refs,
+    source_target_statuses: refs.source_target_statuses,
     component_dependency_refs: refs.component_dependency_refs,
     frontier_refs: refs.frontier_refs,
     unknown_refs: refs.unknown_refs,
@@ -203,12 +206,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
   const coverageItems = sourceCoverageItemsFor(sourcePlanItems, input.source_target_coverage);
   const officialNodes = input.official_disclosure_readiness.nodes.filter((node) => node.node_kind === "component" && componentMatchesRule(node.node_id, rule));
   const unknownIds = unknownRefsFor(rule, input, frontier, leads);
-  const sourceTargetRefs = uniqueSorted([
-    ...coverageItems.map((item) => `source_target:${item.matched_check_target_id ?? item.expected_target.check_target_id}:${item.state}`),
-    ...officialNodes.flatMap((node) =>
-      node.source_targets.map((target) => `source_target:${target.check_target_id ?? target.target_key}:${target.state ?? "planned"}`)
-    )
-  ]);
+  const sourceTargetStatuses = sourceTargetStatusesFor(coverageItems, officialNodes);
 
   return {
     fact_edge_refs: uniqueSorted([
@@ -221,7 +219,8 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
       ...sourcePlanItems.map((item) => `source_plan:${item.source_id}`),
       ...officialNodes.flatMap((node) => node.source_plan_refs)
     ]),
-    source_target_refs: sourceTargetRefs,
+    source_target_refs: uniqueSorted(sourceTargetStatuses.map((item) => item.ref)),
+    source_target_statuses: sourceTargetStatuses,
     component_dependency_refs: uniqueSorted(leads.map((lead) => `component_dependency:${lead.dependency_id}`)),
     frontier_refs: uniqueSorted(frontier.map((item) => `supply_chain_frontier:${item.frontier_id}`)),
     unknown_refs: uniqueSorted(unknownIds.map((unknownId) => `unknown:${unknownId}`)),
@@ -235,7 +234,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
 function statusFor(refs: LayerRefs): AiComputePropagationLayerStatus {
   if (refs.fact_edge_refs.length > 0) return "covered_fact";
   if (refs.observation_refs.length > 0 || refs.observation_series_refs.length > 0) return "observation_ready";
-  if (refs.source_target_refs.some((ref) => ref.endsWith(":retry_wait") || ref.endsWith(":degraded") || ref.endsWith(":dead"))) return "blocked_source";
+  if (refs.source_target_statuses.some(isBlockedSourceTarget)) return "blocked_source";
   if (refs.source_target_refs.length > 0 || refs.source_plan_refs.length > 0) return "official_target_runnable";
   if (refs.component_dependency_refs.length > 0 || refs.frontier_refs.length > 0) return "lead_only";
   return "unknown_open";
@@ -325,6 +324,36 @@ function sourceCoverageItemsFor(sourcePlanItems: readonly SourcePlanItem[], cove
   });
 }
 
+function sourceTargetStatusesFor(
+  coverageItems: SourceTargetCoverageReport["items"],
+  officialNodes: OfficialDisclosureReadinessReport["nodes"]
+): AiComputePropagationSourceTargetStatus[] {
+  return uniqueSourceTargetStatuses([
+    ...coverageItems.map((item) => ({
+      ref: `source_target:${item.matched_check_target_id ?? item.expected_target.check_target_id}:${item.state}`,
+      source_adapter_id: item.expected_target.source_adapter_id,
+      state: item.state,
+      failure_kind: item.latest_job?.failure_kind ?? null,
+      latest_event_type: item.latest_event?.event_type ?? null
+    })),
+    ...officialNodes.flatMap((node) =>
+      node.source_targets.map((target) => ({
+        ref: `source_target:${target.check_target_id ?? target.target_key}:${target.state ?? "planned"}`,
+        source_adapter_id: target.source_adapter_id,
+        state: target.state,
+        failure_kind: null,
+        latest_event_type: target.latest_event_type
+      }))
+    )
+  ]);
+}
+
+function isBlockedSourceTarget(item: AiComputePropagationSourceTargetStatus): boolean {
+  if (item.failure_kind !== null) return true;
+  if (item.latest_event_type === "SOURCE_FAILED") return true;
+  return item.state === "retry_wait" || item.state === "degraded" || item.state === "dead" || item.state === "disabled" || item.state === "policy_disabled";
+}
+
 function unknownRefsFor(
   rule: AiComputePropagationLayerRule,
   input: AiComputePropagationReadinessInput,
@@ -373,4 +402,26 @@ function stableTextKey(value: string): string {
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))].sort((left, right) => left.localeCompare(right));
+}
+
+function uniqueSourceTargetStatuses(values: readonly AiComputePropagationSourceTargetStatus[]): AiComputePropagationSourceTargetStatus[] {
+  const byRef = new Map<string, AiComputePropagationSourceTargetStatus>();
+  for (const value of values) {
+    const existing = byRef.get(value.ref);
+    byRef.set(value.ref, existing === undefined ? value : mergeSourceTargetStatus(existing, value));
+  }
+  return [...byRef.values()].sort((left, right) => left.ref.localeCompare(right.ref));
+}
+
+function mergeSourceTargetStatus(
+  left: AiComputePropagationSourceTargetStatus,
+  right: AiComputePropagationSourceTargetStatus
+): AiComputePropagationSourceTargetStatus {
+  return {
+    ref: left.ref,
+    source_adapter_id: left.source_adapter_id,
+    state: left.state ?? right.state,
+    failure_kind: left.failure_kind ?? right.failure_kind,
+    latest_event_type: left.latest_event_type ?? right.latest_event_type
+  };
 }

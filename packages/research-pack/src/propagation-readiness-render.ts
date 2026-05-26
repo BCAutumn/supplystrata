@@ -41,6 +41,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Facts: ${formatList(layer.fact_edge_refs)}`);
     lines.push(`  Observations: ${formatList([...layer.observation_refs, ...layer.observation_series_refs])}`);
     lines.push(`  Source targets: ${formatList(layer.source_target_refs)}`);
+    lines.push(`  Source target states: ${formatList(layer.source_target_statuses.map(formatSourceTargetStatus))}`);
     lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
     lines.push(`  Leads/frontier: ${formatList([...layer.component_dependency_refs, ...layer.frontier_refs])}`);
     lines.push(`  Unknowns: ${formatList(layer.unknown_refs)}`);
@@ -74,4 +75,10 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
 
 function formatList(values: readonly string[]): string {
   return values.length === 0 ? "(none)" : values.slice(0, 20).join(", ");
+}
+
+function formatSourceTargetStatus(value: { ref: string; failure_kind: string | null; latest_event_type: string | null }): string {
+  const failure = value.failure_kind === null ? "" : ` failure=${value.failure_kind}`;
+  const event = value.latest_event_type === null ? "" : ` event=${value.latest_event_type}`;
+  return `${value.ref}${failure}${event}`;
 }

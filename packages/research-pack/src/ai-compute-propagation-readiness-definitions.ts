@@ -18,6 +18,14 @@ export type AiComputePropagationLayerStatus =
 
 export type AiComputePropagationPolicy = "reasoning_input_only_no_fact_mutation";
 
+export interface AiComputePropagationSourceTargetStatus {
+  ref: string;
+  source_adapter_id: string;
+  state: string | null;
+  failure_kind: string | null;
+  latest_event_type: string | null;
+}
+
 export interface AiComputePropagationReadinessMatrix {
   schema_version: "1.0.0";
   matrix_id: "ai_compute_propagation.v0";
@@ -53,6 +61,7 @@ export interface AiComputePropagationLayer {
   observation_series_refs: string[];
   source_plan_refs: string[];
   source_target_refs: string[];
+  source_target_statuses: AiComputePropagationSourceTargetStatus[];
   component_dependency_refs: string[];
   frontier_refs: string[];
   unknown_refs: string[];
