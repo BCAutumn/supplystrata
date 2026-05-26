@@ -8,7 +8,7 @@
 - 把 Gate 1 的事实覆盖、source path、二源检查、single-source disposition、official signal disposition、monitoring config 和 review workbench 汇总成只读执行账本。
 - 把 L4/L5 fact edge 增长、同组件相邻官方事实、counterparty corroboration、source blocker、strength 缺口、observation labeling batch 和 propagation context 缺口汇总成只读数据深度工作台，并拆成前端/host app 可消费的 action batch。每个 action item 都带推荐决策、允许决策、写入影响和命令提示，帮助下一轮跑数和算法校准聚焦高价值缺口。
 - 把需求、扩产、设施建设、设备安装、工艺材料、价格/贸易和政策信号整理成结构化 reasoning inputs，供未来前端研究员或安全 AI 消费。
-- 把 `ai_compute_propagation.v0` 的 demand、server、PCB/materials、fab capacity、cleanroom、equipment、process inputs 和 raw materials 逐层转成只读 matrix；未被事实覆盖的层会进入 Gate 1 data-depth workbench 的 `intelligence_context` action batch，方便前端直接审查 source target、lead、unknown 和下一步动作。
+- 把 `ai_compute_propagation.v0` 的 demand、server、PCB/materials、fab capacity、cleanroom、equipment、process inputs 和 raw materials 逐层转成只读 matrix；每层显式列出 missing official evidence、allowed research outputs 和 prohibited truth-store writes。未被事实覆盖的层会进入 Gate 1 data-depth workbench 的 `intelligence_context` action batch，方便前端直接审查 source target、lead、unknown 和下一步动作。
 - 把 `partial/blocked` propagation readiness 转成 investigation backlog，使补 observation / source target 的动作可排队、可审计。
 - 把 source target 的 metric 覆盖转成只读 observation review seeds、calibration candidates 和下一批分层 labeling plan，并在 truth-store 模式回填已持久化 observation calibration label，给前端/host app 做指标审查、calibration 和 gold label 抽样；这些产物明确禁止自动写事实边。
 - 为相邻官方事实的下一轮 research target ranking 输出稳定 `ranking_context` / `candidate_id`、`model_version`、assumptions 和 feature breakdown，供前端/host app 标注 ranking calibration gold labels。

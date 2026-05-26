@@ -190,11 +190,18 @@ describe("research-pack expansion and propagation", () => {
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(
       expect.objectContaining({
         status: "observation_ready",
-        material_or_process_refs: ["MAT-COPPER"]
+        material_or_process_refs: ["MAT-COPPER"],
+        missing_official_evidence: [
+          "Review official filings, IR pages, supplier lists, or approved source targets before converting observations into evidence-backed facts."
+        ],
+        allowed_research_outputs: ["reasoning_input", "observation_review", "calibration_candidate"],
+        prohibited_truth_store_writes: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"]
       })
     );
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
     expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Missing official evidence");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Prohibited writes");
     expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");
   });
 

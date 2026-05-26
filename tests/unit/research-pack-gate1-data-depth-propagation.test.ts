@@ -43,6 +43,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       })
     );
     expect(item?.write_impact).toContain("No fact-layer write is authorized");
+    expect(item?.rationale).toContain("Missing official evidence");
     expect(item?.refs).toContain("source_plan:asml-ir");
     expect(item?.refs).toContain("source_target:CHK-ASML:scheduled");
     expect(item?.refs).toContain("unknown:UNK-EQUIPMENT");
@@ -93,6 +94,9 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           component_dependency_refs: [],
           frontier_refs: [],
           unknown_refs: [],
+          missing_official_evidence: [],
+          allowed_research_outputs: ["chain_anchor", "corroboration_review", "strength_freshness_review"],
+          prohibited_truth_store_writes: ["raise_evidence_level_without_review", "close_unknown_without_review"],
           next_actions: ["Continue corroboration."],
           policy: "reasoning_input_only_no_fact_mutation"
         },
@@ -112,6 +116,11 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           component_dependency_refs: [],
           frontier_refs: [],
           unknown_refs: ["unknown:UNK-EQUIPMENT"],
+          missing_official_evidence: [
+            "Run or sync the listed official source targets, then review extracted citations through the existing review/apply path."
+          ],
+          allowed_research_outputs: ["source_target_action", "review_queue_seed"],
+          prohibited_truth_store_writes: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"],
           next_actions: ["Sync/enable/run the listed source targets, then review outputs through controlled paths."],
           policy: "reasoning_input_only_no_fact_mutation"
         }

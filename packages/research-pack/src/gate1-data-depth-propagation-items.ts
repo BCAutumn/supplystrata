@@ -44,7 +44,9 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         item_id: `gate1-ai-compute-propagation:${layer.layer_id}`,
         priority: priorityForLayerStatus(layer.status),
         title: `Close AI compute propagation layer: ${layer.title}`,
-        rationale: `${layer.question} Current status is ${layer.status}: ${layer.status_reason}`,
+        rationale: `${layer.question} Current status is ${layer.status}: ${layer.status_reason} Missing official evidence: ${formatSentenceList(
+          layer.missing_official_evidence
+        )}`,
         recommended_action: layer.next_actions.join(" "),
         recommended_decision: decisionForLayerStatus(layer.status),
         allowed_decisions: allowedDecisionsForLayerStatus(layer.status),
@@ -114,6 +116,10 @@ function layerRefs(layer: AiComputePropagationLayer): string[] {
     ...layer.unknown_refs,
     ...layer.material_or_process_refs.map((ref) => `material_or_process:${ref}`)
   ]);
+}
+
+function formatSentenceList(values: readonly string[]): string {
+  return values.length === 0 ? "none." : values.join(" ");
 }
 
 function workItem(

@@ -56,6 +56,9 @@ export interface AiComputePropagationLayer {
   component_dependency_refs: string[];
   frontier_refs: string[];
   unknown_refs: string[];
+  missing_official_evidence: string[];
+  allowed_research_outputs: string[];
+  prohibited_truth_store_writes: string[];
   next_actions: string[];
   policy: AiComputePropagationPolicy;
 }
