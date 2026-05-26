@@ -152,6 +152,10 @@ function summarizeWorkbench(input: Gate1DataDepthWorkbenchInput, items: readonly
     strength_missing_edges: input.official_disclosure_readiness.summary.edges_missing_strength,
     observation_labeling_batch: input.source_target_coverage.observation_review.labeling_plan.candidates.length,
     propagation_contexts_not_ready: input.propagation_readiness.summary.partial + input.propagation_readiness.summary.blocked,
+    ai_compute_propagation_layers_not_covered:
+      input.propagation_readiness.ai_compute_matrix.summary.layers_total - input.propagation_readiness.ai_compute_matrix.summary.covered_fact,
+    ai_compute_propagation_blocked_source: input.propagation_readiness.ai_compute_matrix.summary.blocked_source,
+    ai_compute_propagation_unknown_open: input.propagation_readiness.ai_compute_matrix.summary.unknown_open,
     ranking_calibration_candidates: rankingCandidates(items).length,
     ranking_labeled_candidates: rankingCandidates(items).filter((candidate) => candidate.review_status === "labeled").length,
     ranking_unlabeled_candidates: rankingCandidates(items).filter((candidate) => candidate.review_status === "unlabeled").length,

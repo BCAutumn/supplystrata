@@ -120,6 +120,9 @@ export interface Gate1DataDepthSummary {
   strength_missing_edges: number;
   observation_labeling_batch: number;
   propagation_contexts_not_ready: number;
+  ai_compute_propagation_layers_not_covered: number;
+  ai_compute_propagation_blocked_source: number;
+  ai_compute_propagation_unknown_open: number;
   ranking_calibration_candidates: number;
   ranking_labeled_candidates: number;
   ranking_unlabeled_candidates: number;

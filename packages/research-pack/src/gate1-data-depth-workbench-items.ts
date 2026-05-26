@@ -32,6 +32,7 @@ import {
   researchRunCommand
 } from "./gate1-data-depth-research-commands.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
+import { propagationWorkItems } from "./gate1-data-depth-propagation-items.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 
@@ -254,31 +255,6 @@ function observationCalibrationItems(report: SourceTargetCoverageReport): Gate1D
       source_targets: []
     })
   ];
-}
-
-function propagationWorkItems(report: Gate1DataDepthWorkbenchInput["propagation_readiness"]): Gate1DataDepthWorkbenchItem[] {
-  return report.items
-    .filter((item) => item.status !== "ready")
-    .map((item) =>
-      workItem({
-        item_id: `gate1-propagation:${item.context_kind}`,
-        workstream: "propagation_context",
-        priority: item.status === "blocked" ? "P1" : "P2",
-        frontend_action_kind: "review_intelligence_context",
-        title: item.title,
-        rationale: item.rationale,
-        recommended_action: item.action,
-        recommended_decision: "keep_unknown_open",
-        allowed_decisions: ["keep_unknown_open", "defer"],
-        write_impact: "No write is recommended from this item; use it as propagation context until review-approved evidence or labels exist.",
-        command_hints: [],
-        refs: uniqueSorted([...item.observation_series_refs, ...item.source_plan_refs, ...item.component_dependency_refs, ...item.frontier_refs]),
-        edge_ids: item.frontier_refs.map((ref) => ref.replace("supply_chain_frontier:", "")),
-        component_ids: item.component_ids,
-        source_adapters: [],
-        source_targets: []
-      })
-    );
 }
 
 function frontierWorkItems(
