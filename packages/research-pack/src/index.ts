@@ -168,6 +168,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
   let gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({
     generated_at: generatedAt,
     company_id: workbench.selected_company_id,
+    research_context: gate1DataDepthResearchContext(input, sourcePlanInputWithDefaults),
     official_disclosure_readiness: officialDisclosureReadiness,
     source_target_coverage: sourceTargetCoverage,
     supply_chain_expansion_plan: supplyChainExpansionPlan,
@@ -185,6 +186,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
       gate1DataDepthWorkbench = buildGate1DataDepthWorkbench({
         generated_at: generatedAt,
         company_id: workbench.selected_company_id,
+        research_context: gate1DataDepthResearchContext(input, sourcePlanInputWithDefaults),
         official_disclosure_readiness: officialDisclosureReadiness,
         source_target_coverage: sourceTargetCoverage,
         supply_chain_expansion_plan: supplyChainExpansionPlan,
@@ -468,6 +470,16 @@ function emptyAdjacentOfficialFacts(generatedAt: string, companyId: string): Gat
       policy: "adjacent_context_only_no_fact_mutation"
     },
     edges: []
+  };
+}
+
+function gate1DataDepthResearchContext(input: ResearchPackInput, sourcePlanInputWithDefaults: ReturnType<typeof withSourcePlanWindowDefaults>) {
+  return {
+    ...(input.depth === undefined ? {} : { depth: input.depth }),
+    ...(sourcePlanInputWithDefaults.officialDisclosureYear === undefined
+      ? {}
+      : { official_disclosure_year: sourcePlanInputWithDefaults.officialDisclosureYear }),
+    ...(input.researchTargetProfileId === undefined ? {} : { research_target_profile_id: input.researchTargetProfileId })
   };
 }
 

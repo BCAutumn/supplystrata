@@ -127,6 +127,11 @@ describe("Gate 1 data-depth entity context", () => {
     const workbenchModel = buildGate1DataDepthWorkbench({
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
+      research_context: {
+        depth: 4,
+        official_disclosure_year: "2025",
+        research_target_profile_id: "ai-compute-memory.v0"
+      },
       official_disclosure_readiness: readiness,
       source_target_coverage: sourceTargetCoverage,
       supply_chain_expansion_plan: emptySupplyChainExpansionPlan(),
@@ -166,6 +171,12 @@ describe("Gate 1 data-depth entity context", () => {
     );
     expect(item?.rationale).toContain("do not prove an NVIDIA relationship");
     expect(item?.command_hints[0]?.command).toContain("--company ENT-IBIDEN");
+    expect(item?.command_hints[0]?.command).toContain("--component COMP-PCB");
+    expect(item?.command_hints[0]?.command).toContain("--depth 4");
+    expect(item?.command_hints[0]?.command).toContain("--target-profile ai-compute-memory.v0");
+    expect(item?.command_hints[0]?.command).toContain("--official-year 2025");
+    expect(item?.command_hints[0]?.command).toContain("--source-target-namespace research-ent-ibiden");
+    expect(item?.command_hints[0]?.command).toContain("--out reports/ent-ibiden-comp-pcb-research-pack");
     expect(item?.command_hints.some((hint) => hint.command.includes("--company ENT-NVIDIA"))).toBe(false);
     expect(item?.ranking_contexts[0]).toEqual(
       expect.objectContaining({

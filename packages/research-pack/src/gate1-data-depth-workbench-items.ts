@@ -3,6 +3,7 @@ import type {
   Gate1DataDepthCommandHint,
   Gate1DataDepthFrontendActionKind,
   Gate1DataDepthPriority,
+  Gate1DataDepthResearchContext,
   Gate1DataDepthRankingCalibrationExistingLabel,
   Gate1DataDepthRankingContext,
   Gate1DataDepthReviewDecision,
@@ -33,7 +34,7 @@ export function buildGate1DataDepthItems(input: Gate1DataDepthWorkbenchInput): G
     ...gapWorkItems(input.official_disclosure_readiness.gaps),
     ...sourceBlockerItems(input.source_target_coverage),
     ...entityAffiliationWorkItems(input.entity_affiliation_contexts ?? [], input.official_disclosure_readiness),
-    ...adjacentOfficialFactItems(input.adjacent_official_facts.edges, input.company_id, input.ranking_calibration_labels ?? []),
+    ...adjacentOfficialFactItems(input.adjacent_official_facts.edges, input.company_id, input.ranking_calibration_labels ?? [], input.research_context),
     ...corroborationWorkItems(input.official_disclosure_readiness.corroboration_queue),
     ...observationCalibrationItems(input.source_target_coverage),
     ...propagationWorkItems(input.propagation_readiness),
@@ -44,7 +45,8 @@ export function buildGate1DataDepthItems(input: Gate1DataDepthWorkbenchInput): G
 function adjacentOfficialFactItems(
   edges: readonly Gate1AdjacentOfficialFactEdge[],
   companyId: string,
-  rankingLabels: readonly Gate1DataDepthRankingCalibrationExistingLabel[]
+  rankingLabels: readonly Gate1DataDepthRankingCalibrationExistingLabel[],
+  researchContext: Gate1DataDepthResearchContext | undefined
 ): Gate1DataDepthWorkbenchItem[] {
   if (edges.length === 0) return [];
   const grouped = new Map<string, Gate1AdjacentOfficialFactEdge[]>();
@@ -74,7 +76,7 @@ function adjacentOfficialFactItems(
       recommended_decision: "run_recursive_company_research",
       allowed_decisions: ["run_recursive_company_research", "defer"],
       write_impact: "No fact edge mutation is authorized; this only chooses next research targets from already-audited adjacent official facts.",
-      command_hints: adjacentOfficialFactCommandHints(rankedCandidates),
+      command_hints: adjacentOfficialFactCommandHints(rankedCandidates, componentId, researchContext),
       ranking_contexts: adjacentOfficialFactRankingContexts(componentId, rankedCandidates, rankingLabels),
       refs: topEdges.flatMap((edge) => [`edge:${edge.edge_id}`, ...edge.evidence_ids.map((evidenceId) => `evidence:${evidenceId}`)]),
       edge_ids: componentEdges.map((edge) => edge.edge_id),
@@ -447,12 +449,16 @@ function frontierCommandHints(plan: SupplyChainExpansionPlan): Gate1DataDepthCom
   ];
 }
 
-function adjacentOfficialFactCommandHints(candidates: readonly AdjacentCompanyCandidate[]): Gate1DataDepthCommandHint[] {
+function adjacentOfficialFactCommandHints(
+  candidates: readonly AdjacentCompanyCandidate[],
+  componentId: string,
+  researchContext: Gate1DataDepthResearchContext | undefined
+): Gate1DataDepthCommandHint[] {
   if (candidates.length === 0) {
     return [
       commandHint(
         "Run adjacent official-fact company research",
-        "pnpm --silent cli research run --company <adjacent-company-id> --depth 3 --prepare-data --out <research-pack-out>",
+        adjacentOfficialFactResearchCommand("<adjacent-company-id>", componentId, researchContext),
         true,
         true
       )
@@ -461,11 +467,36 @@ function adjacentOfficialFactCommandHints(candidates: readonly AdjacentCompanyCa
   return candidates.map((candidate) =>
     commandHint(
       `Run adjacent official-fact research for ${candidate.company_name}`,
-      `pnpm --silent cli research run --company ${candidate.company_id} --depth 3 --prepare-data --out <research-pack-out>`,
+      adjacentOfficialFactResearchCommand(candidate.company_id, componentId, researchContext),
       true,
       true
     )
   );
+}
+
+function adjacentOfficialFactResearchCommand(companyId: string, componentId: string, researchContext: Gate1DataDepthResearchContext | undefined): string {
+  const depth = researchContext?.depth ?? 3;
+  const parts = ["pnpm --silent cli research run", `--company ${companyId}`, `--component ${componentId}`, `--depth ${depth}`, "--prepare-data"];
+  if (researchContext?.research_target_profile_id !== undefined) parts.push(`--target-profile ${researchContext.research_target_profile_id}`);
+  if (researchContext?.official_disclosure_year !== undefined) parts.push(`--official-year ${researchContext.official_disclosure_year}`);
+  parts.push(`--source-target-namespace ${adjacentResearchNamespace(companyId)}`);
+  parts.push(`--out ${adjacentResearchOutDir(companyId, componentId)}`);
+  return parts.join(" ");
+}
+
+function adjacentResearchNamespace(companyId: string): string {
+  return `research-${slugForCommand(companyId)}`;
+}
+
+function adjacentResearchOutDir(companyId: string, componentId: string): string {
+  return `reports/${slugForCommand(companyId)}-${slugForCommand(componentId)}-research-pack`;
+}
+
+function slugForCommand(value: string): string {
+  return value
+    .toLocaleLowerCase("en-US")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
 function adjacentOfficialFactRankingContexts(

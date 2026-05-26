@@ -77,6 +77,7 @@ export interface Gate1DataDepthActionBatch {
 export interface Gate1DataDepthWorkbenchInput {
   generated_at: string;
   company_id: string;
+  research_context?: Gate1DataDepthResearchContext;
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   source_target_coverage: SourceTargetCoverageReport;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
@@ -84,6 +85,12 @@ export interface Gate1DataDepthWorkbenchInput {
   adjacent_official_facts: Gate1AdjacentOfficialFactsReport;
   entity_affiliation_contexts?: readonly Gate1EntityAffiliationContext[];
   ranking_calibration_labels?: readonly Gate1DataDepthRankingCalibrationExistingLabel[];
+}
+
+export interface Gate1DataDepthResearchContext {
+  depth?: number;
+  official_disclosure_year?: string;
+  research_target_profile_id?: string;
 }
 
 export interface Gate1DataDepthWorkbench {
