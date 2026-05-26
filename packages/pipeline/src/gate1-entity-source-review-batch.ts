@@ -88,12 +88,25 @@ export function unsafeGate1EntitySourceReviewReason(candidate: EntitySourceRevie
   if (candidate.payload.candidate.current_status !== "ACTIVE")
     return `GLEIF entity status is not ACTIVE: ${candidate.payload.candidate.current_status ?? "unknown"}`;
   if (!candidate.payload.candidate.provenance_note.includes("corroboration=FULLY_CORROBORATED")) return "GLEIF record is not fully corroborated";
-  if (normalizeAlias(candidate.payload.surface) !== normalizeAlias(candidate.payload.candidate.name)) {
-    return `surface does not exactly match GLEIF legal name: ${candidate.payload.surface} -> ${candidate.payload.candidate.name}`;
+  if (!gate1LegalNamesMatch(candidate.payload.surface, candidate.payload.candidate.name)) {
+    return `surface does not exactly match normalized GLEIF legal name: ${candidate.payload.surface} -> ${candidate.payload.candidate.name}`;
   }
   if (!candidate.payload.proposed_entity_id.startsWith("ENT-GLEIF-"))
     return `GLEIF proposed entity id must use ENT-GLEIF prefix: ${candidate.payload.proposed_entity_id}`;
   return undefined;
+}
+
+function gate1LegalNamesMatch(surface: string, candidateName: string): boolean {
+  return normalizeGate1LegalName(surface) === normalizeGate1LegalName(candidateName);
+}
+
+function normalizeGate1LegalName(value: string): string {
+  // Gate 1 可以接受法律名称中的标点差异，但不能接受简称、后缀缺失或语义相近的模糊匹配。
+  return normalizeAlias(value)
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function approveAndApplyGate1EntitySourceReview(
