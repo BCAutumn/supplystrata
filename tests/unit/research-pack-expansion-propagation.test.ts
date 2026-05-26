@@ -279,7 +279,8 @@ describe("research-pack expansion and propagation", () => {
         by_failure_kind: {}
       })
     );
-    expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(
+    const rawMaterialsLayer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials");
+    expect(rawMaterialsLayer).toEqual(
       expect.objectContaining({
         status: "observation_ready",
         material_or_process_refs: ["MAT-COPPER"],
@@ -290,11 +291,19 @@ describe("research-pack expansion and propagation", () => {
         prohibited_truth_store_writes: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"]
       })
     );
+    expect(rawMaterialsLayer?.unknown_backlog_summary).toEqual(
+      expect.objectContaining({
+        existing_unknowns: 0,
+        seeds: 0,
+        truth_store_write_policy: "review_only_no_automatic_write"
+      })
+    );
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
     expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Evidence layer summary");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Source target groups");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Source target status summary");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Unknown/backlog summary");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Next research targets");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Official evidence gaps");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Missing official evidence");

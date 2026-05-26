@@ -6,14 +6,19 @@ import {
   renderGate1DataDepthWorkbenchMarkdown,
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
-  type Gate1AdjacentOfficialFactsReport,
   type AiComputePropagationEvidenceLayerKind,
   type PropagationReadinessReport,
-  type SourceTargetCoverageReport,
-  type SupplyChainExpansionPlan
+  type SourceTargetCoverageReport
 } from "@supplystrata/research-pack";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
-import { emptyWorkbench, gate1DataDepthActionBatchDefinition, officialSourcePlanItem, officialSourceTargetCoverage } from "./research-pack-fixtures.js";
+import {
+  adjacentOfficialFactsReportFixture,
+  emptyWorkbench,
+  emptySupplyChainExpansionPlanFixture,
+  gate1DataDepthActionBatchDefinition,
+  officialSourcePlanItem,
+  officialSourceTargetCoverage
+} from "./research-pack-fixtures.js";
 
 describe("Gate 1 data-depth AI compute propagation", () => {
   it("classifies missing credentials as a blocked AI compute source target", () => {
@@ -36,7 +41,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       official_disclosure_readiness: officialDisclosureReadiness,
       source_plan: sourcePlan,
       source_target_coverage: sourceTargetCoverage,
-      supply_chain_expansion_plan: emptySupplyChainExpansionPlan()
+      supply_chain_expansion_plan: emptySupplyChainExpansionPlanFixture()
     });
 
     const layer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "construction_to_equipment");
@@ -79,9 +84,9 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       company_id: "ENT-NVIDIA",
       official_disclosure_readiness: readiness,
       source_target_coverage: sourceTargetCoverage,
-      supply_chain_expansion_plan: emptySupplyChainExpansionPlan(),
+      supply_chain_expansion_plan: emptySupplyChainExpansionPlanFixture(),
       propagation_readiness: propagationReadinessWithAiComputeGaps(),
-      adjacent_official_facts: adjacentOfficialFactsReport(),
+      adjacent_official_facts: adjacentOfficialFactsReportFixture(),
       entity_affiliation_contexts: []
     });
 
@@ -143,6 +148,14 @@ describe("Gate 1 data-depth AI compute propagation", () => {
         truth_store_write_policy: "review_only_no_automatic_write"
       })
     ]);
+    expect(item?.unknown_backlog_summary).toEqual(
+      expect.objectContaining({
+        existing_unknowns: 1,
+        seeds: 1,
+        by_recommended_review_action: { run_source_target: 1 },
+        truth_store_write_policy: "review_only_no_automatic_write"
+      })
+    );
     expect(item?.command_hints[0]?.command).toContain("--source asml-ir");
     expect(item?.command_hints[0]?.command).not.toContain("census-trade");
     expect(workbenchModel.summary.ai_compute_propagation_layers_not_covered).toBe(2);
@@ -213,6 +226,9 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     );
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
       "Source target status summary: targets=1; runnable=1; blocked=0; degraded=0; missing_credentials=0; source_failed=0; by_state=scheduled=1; by_failure=none"
+    );
+    expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
+      "Unknown/backlog summary: existing=1; seeds=1; by_action=run_source_target=1; policy=review_only_no_automatic_write"
     );
   });
 });
@@ -336,6 +352,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           frontier_refs: [],
           unknown_refs: [],
           unknown_backlog_seeds: [],
+          unknown_backlog_summary: unknownBacklogSummary(0, 0, {}),
           official_evidence_gaps: [
             {
               gap_kind: "component_without_l4_l5_fact",
@@ -446,6 +463,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               truth_store_write_policy: "review_only_no_automatic_write"
             }
           ],
+          unknown_backlog_summary: unknownBacklogSummary(1, 1, { run_source_target: 1 }),
           official_evidence_gaps: [
             {
               gap_kind: "official_source_not_reviewed",
@@ -541,6 +559,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               truth_store_write_policy: "review_only_no_automatic_write"
             }
           ],
+          unknown_backlog_summary: unknownBacklogSummary(0, 1, { repair_source_target: 1 }),
           official_evidence_gaps: [
             {
               gap_kind: "official_source_blocked",
@@ -603,34 +622,6 @@ function emptyPropagationReadinessReport(): PropagationReadinessReport {
   };
 }
 
-function emptySupplyChainExpansionPlan(): SupplyChainExpansionPlan {
-  return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    company_id: "ENT-NVIDIA",
-    max_depth: 3,
-    summary: {
-      fact_edges_considered: 0,
-      frontier_edges: 0,
-      frontier_companies: 0,
-      component_dependency_leads: 0,
-      leads_with_fact_coverage: 0,
-      leads_with_source_path: 0,
-      leads_with_fact_capable_source_path: 0,
-      leads_with_observation_source_path: 0,
-      leads_with_lead_only_source_path: 0,
-      lead_only_items: 0,
-      observation_layer_items: 0,
-      blocked_frontier_edges: 0,
-      stop_conditions: 0,
-      explicit_unknown_refs: 0
-    },
-    frontier: [],
-    component_dependency_leads: [],
-    stop_conditions: []
-  };
-}
-
 function evidenceLayerSummary(
   layerKind: AiComputePropagationEvidenceLayerKind,
   count: number
@@ -667,19 +658,17 @@ function sourceTargetStatusSummary(input: {
   };
 }
 
-function adjacentOfficialFactsReport(): Gate1AdjacentOfficialFactsReport {
+function unknownBacklogSummary(
+  existingUnknowns: number,
+  seeds: number,
+  byAction: Record<string, number>
+): PropagationReadinessReport["ai_compute_matrix"]["layers"][number]["unknown_backlog_summary"] {
   return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    company_id: "ENT-NVIDIA",
-    summary: {
-      fact_edges: 0,
-      companies: 0,
-      components: 0,
-      source_adapters: 0,
-      visible_edge_exclusions: 0,
-      policy: "adjacent_context_only_no_fact_mutation"
-    },
-    edges: []
+    existing_unknowns: existingUnknowns,
+    seeds,
+    by_recommended_review_action: byAction,
+    target_scope_refs: [],
+    source_target_refs: [],
+    truth_store_write_policy: "review_only_no_automatic_write"
   };
 }

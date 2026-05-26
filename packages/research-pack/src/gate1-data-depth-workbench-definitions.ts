@@ -5,7 +5,8 @@ import type {
   AiComputePropagationEvidenceLayerSummary,
   AiComputePropagationOfficialEvidenceGap,
   AiComputePropagationSourceTargetGroupKind,
-  AiComputePropagationSourceTargetStatusSummary
+  AiComputePropagationSourceTargetStatusSummary,
+  AiComputePropagationUnknownBacklogSummary
 } from "./ai-compute-propagation-readiness-definitions.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
@@ -161,6 +162,7 @@ export interface Gate1DataDepthWorkbenchItem {
   action_source_groups?: AiComputePropagationSourceTargetGroupKind[];
   evidence_layer_summary?: AiComputePropagationEvidenceLayerSummary[];
   official_evidence_gaps?: AiComputePropagationOfficialEvidenceGap[];
+  unknown_backlog_summary?: AiComputePropagationUnknownBacklogSummary;
 }
 
 export interface Gate1DataDepthRankingContext {

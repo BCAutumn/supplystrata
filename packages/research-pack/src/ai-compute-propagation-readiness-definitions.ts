@@ -104,6 +104,15 @@ export interface AiComputePropagationUnknownBacklogSeed {
   truth_store_write_policy: "review_only_no_automatic_write";
 }
 
+export interface AiComputePropagationUnknownBacklogSummary {
+  existing_unknowns: number;
+  seeds: number;
+  by_recommended_review_action: Record<string, number>;
+  target_scope_refs: string[];
+  source_target_refs: string[];
+  truth_store_write_policy: "review_only_no_automatic_write";
+}
+
 export interface AiComputePropagationReadinessMatrix {
   schema_version: "1.0.0";
   matrix_id: "ai_compute_propagation.v0";
@@ -148,6 +157,7 @@ export interface AiComputePropagationLayer {
   frontier_refs: string[];
   unknown_refs: string[];
   unknown_backlog_seeds: AiComputePropagationUnknownBacklogSeed[];
+  unknown_backlog_summary: AiComputePropagationUnknownBacklogSummary;
   official_evidence_gaps: AiComputePropagationOfficialEvidenceGap[];
   missing_official_evidence: string[];
   allowed_research_outputs: string[];

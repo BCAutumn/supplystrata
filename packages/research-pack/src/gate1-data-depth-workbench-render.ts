@@ -58,6 +58,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     if (item.source_target_status_summary !== undefined && item.source_target_status_summary.targets > 0) {
       lines.push(`- Source target status summary: ${formatSourceTargetStatusSummary(item.source_target_status_summary)}`);
     }
+    if (item.unknown_backlog_summary !== undefined && (item.unknown_backlog_summary.existing_unknowns > 0 || item.unknown_backlog_summary.seeds > 0)) {
+      lines.push(`- Unknown/backlog summary: ${formatUnknownBacklogSummary(item.unknown_backlog_summary)}`);
+    }
     if (item.command_hints.length > 0) {
       lines.push("- Command hints:");
       for (const hint of item.command_hints) {
@@ -132,6 +135,20 @@ function formatSourceTargetStatusSummary(value: {
     `source_failed=${value.source_failed_targets}`,
     `by_state=${formatCountMap(value.by_state)}`,
     `by_failure=${formatCountMap(value.by_failure_kind)}`
+  ].join("; ");
+}
+
+function formatUnknownBacklogSummary(value: {
+  existing_unknowns: number;
+  seeds: number;
+  by_recommended_review_action: Record<string, number>;
+  truth_store_write_policy: string;
+}): string {
+  return [
+    `existing=${value.existing_unknowns}`,
+    `seeds=${value.seeds}`,
+    `by_action=${formatCountMap(value.by_recommended_review_action)}`,
+    `policy=${value.truth_store_write_policy}`
   ].join("; ");
 }
 

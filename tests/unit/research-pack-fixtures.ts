@@ -1,7 +1,13 @@
 import { CORROBORATION_SOURCE_PLAN_ACTION_BATCHES, GATE1_DATA_DEPTH_ACTION_BATCHES } from "@supplystrata/research-pack";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
-import type { ObservationCoverageObservation, QuestionReadinessMatrix, SourceTargetCoverageReport } from "@supplystrata/research-pack";
+import type {
+  Gate1AdjacentOfficialFactsReport,
+  ObservationCoverageObservation,
+  QuestionReadinessMatrix,
+  SourceTargetCoverageReport,
+  SupplyChainExpansionPlan
+} from "@supplystrata/research-pack";
 import type { SourcePlanItem } from "@supplystrata/source-plan";
 
 export function edgeSegmentFixture(
@@ -335,5 +341,50 @@ export function evidenceFixture(evidenceId: string, overrides: Partial<Workbench
     object_name: "Micron",
     relation: "BUYS_FROM",
     ...overrides
+  };
+}
+
+export function adjacentOfficialFactsReportFixture(): Gate1AdjacentOfficialFactsReport {
+  return {
+    schema_version: "1.0.0",
+    generated_at: "2026-01-01T00:00:00.000Z",
+    company_id: "ENT-NVIDIA",
+    summary: {
+      fact_edges: 0,
+      companies: 0,
+      components: 0,
+      source_adapters: 0,
+      visible_edge_exclusions: 0,
+      policy: "adjacent_context_only_no_fact_mutation"
+    },
+    edges: []
+  };
+}
+
+export function emptySupplyChainExpansionPlanFixture(): SupplyChainExpansionPlan {
+  return {
+    schema_version: "1.0.0",
+    generated_at: "2026-01-01T00:00:00.000Z",
+    company_id: "ENT-NVIDIA",
+    max_depth: 3,
+    summary: {
+      fact_edges_considered: 0,
+      frontier_edges: 0,
+      frontier_companies: 0,
+      component_dependency_leads: 0,
+      leads_with_fact_coverage: 0,
+      leads_with_source_path: 0,
+      leads_with_fact_capable_source_path: 0,
+      leads_with_observation_source_path: 0,
+      leads_with_lead_only_source_path: 0,
+      lead_only_items: 0,
+      observation_layer_items: 0,
+      blocked_frontier_edges: 0,
+      stop_conditions: 0,
+      explicit_unknown_refs: 0
+    },
+    frontier: [],
+    component_dependency_leads: [],
+    stop_conditions: []
   };
 }

@@ -50,6 +50,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Leads/frontier: ${formatList([...layer.component_dependency_refs, ...layer.frontier_refs])}`);
     lines.push(`  Unknowns: ${formatList(layer.unknown_refs)}`);
     lines.push(`  Unknown/backlog seeds: ${formatList(layer.unknown_backlog_seeds.map(formatUnknownBacklogSeed))}`);
+    lines.push(`  Unknown/backlog summary: ${formatUnknownBacklogSummary(layer.unknown_backlog_summary)}`);
     lines.push(`  Official evidence gaps: ${formatList(layer.official_evidence_gaps.map(formatOfficialEvidenceGap))}`);
     lines.push(`  Missing official evidence: ${formatList(layer.missing_official_evidence)}`);
     lines.push(`  Allowed outputs: ${formatList(layer.allowed_research_outputs)}`);
@@ -140,6 +141,20 @@ function formatSourceTargetGroup(value: {
 
 function formatUnknownBacklogSeed(value: { seed_id: string; recommended_review_action: string; question: string }): string {
   return `${value.seed_id} action=${value.recommended_review_action} question="${value.question}"`;
+}
+
+function formatUnknownBacklogSummary(value: {
+  existing_unknowns: number;
+  seeds: number;
+  by_recommended_review_action: Record<string, number>;
+  truth_store_write_policy: string;
+}): string {
+  return [
+    `existing=${value.existing_unknowns}`,
+    `seeds=${value.seeds}`,
+    `by_action=${formatCountMap(value.by_recommended_review_action)}`,
+    `policy=${value.truth_store_write_policy}`
+  ].join("; ");
 }
 
 function formatNextResearchTarget(value: { target_kind: string; target_id: string; label: string; action: string }): string {

@@ -18,12 +18,14 @@ import type {
   AiComputePropagationSourceTargetGroupKind,
   AiComputePropagationSourceTargetStatus,
   AiComputePropagationSourceTargetStatusSummary,
-  AiComputePropagationUnknownBacklogSeed
+  AiComputePropagationUnknownBacklogSeed,
+  AiComputePropagationUnknownBacklogSummary
 } from "./ai-compute-propagation-readiness-definitions.js";
 import { buildAiComputePropagationEvidenceLayerSummary } from "./ai-compute-propagation-evidence-summary.js";
 import { buildAiComputePropagationNextResearchTargets } from "./ai-compute-propagation-next-targets.js";
 import { buildAiComputePropagationOfficialEvidenceGaps } from "./ai-compute-propagation-official-evidence-gaps.js";
 import { buildAiComputePropagationSourceTargetStatusSummary } from "./ai-compute-propagation-source-target-summary.js";
+import { buildAiComputePropagationUnknownBacklogSummary } from "./ai-compute-propagation-unknown-backlog-summary.js";
 
 export type {
   AiComputePropagationLayer,
@@ -38,7 +40,8 @@ export type {
   AiComputePropagationSourceTargetGroup,
   AiComputePropagationSourceTargetGroupKind,
   AiComputePropagationSourceTargetStatusSummary,
-  AiComputePropagationUnknownBacklogSeed
+  AiComputePropagationUnknownBacklogSeed,
+  AiComputePropagationUnknownBacklogSummary
 } from "./ai-compute-propagation-readiness-definitions.js";
 
 export interface AiComputePropagationReadinessInput {
@@ -173,6 +176,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
   const status = statusFor(refs);
   const officialEvidenceGaps = officialEvidenceGapsFor(rule, status, refs);
   const unknownBacklogSeeds = unknownBacklogSeedsFor(rule, status, refs);
+  const unknownBacklogSummary = buildAiComputePropagationUnknownBacklogSummary({ unknown_refs: refs.unknown_refs, unknown_backlog_seeds: unknownBacklogSeeds });
   return {
     layer_id: rule.layer_id,
     title: rule.title,
@@ -195,6 +199,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     frontier_refs: refs.frontier_refs,
     unknown_refs: refs.unknown_refs,
     unknown_backlog_seeds: unknownBacklogSeeds,
+    unknown_backlog_summary: unknownBacklogSummary,
     official_evidence_gaps: officialEvidenceGaps,
     missing_official_evidence: missingOfficialEvidenceFor(status),
     allowed_research_outputs: allowedResearchOutputsFor(status),
