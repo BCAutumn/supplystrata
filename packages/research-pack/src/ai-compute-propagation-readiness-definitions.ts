@@ -21,9 +21,22 @@ export type AiComputePropagationPolicy = "reasoning_input_only_no_fact_mutation"
 export interface AiComputePropagationSourceTargetStatus {
   ref: string;
   source_adapter_id: string;
+  target_kind: string | null;
   state: string | null;
   failure_kind: string | null;
   latest_event_type: string | null;
+}
+
+export type AiComputePropagationSourceTargetGroupKind = "official_evidence" | "observation_proxy" | "entity_or_facility_context" | "lead_or_manual_review";
+
+export interface AiComputePropagationSourceTargetGroup {
+  group_kind: AiComputePropagationSourceTargetGroupKind;
+  source_plan_refs: string[];
+  source_target_refs: string[];
+  source_adapters: string[];
+  target_kinds: string[];
+  states: string[];
+  failure_kinds: string[];
 }
 
 export interface AiComputePropagationUnknownBacklogSeed {
@@ -73,6 +86,7 @@ export interface AiComputePropagationLayer {
   observation_series_refs: string[];
   source_plan_refs: string[];
   source_target_refs: string[];
+  source_target_groups: AiComputePropagationSourceTargetGroup[];
   source_target_statuses: AiComputePropagationSourceTargetStatus[];
   component_dependency_refs: string[];
   frontier_refs: string[];

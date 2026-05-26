@@ -41,9 +41,18 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(layer).toEqual(
       expect.objectContaining({
         status: "blocked_source",
+        source_target_groups: [
+          expect.objectContaining({
+            group_kind: "official_evidence",
+            source_adapters: ["asml-ir"],
+            target_kinds: ["official-html-disclosure"],
+            failure_kinds: ["missing_credentials"]
+          })
+        ],
         source_target_statuses: [
           expect.objectContaining({
             source_adapter_id: "asml-ir",
+            target_kind: "official-html-disclosure",
             state: "scheduled",
             failure_kind: "missing_credentials"
           })
@@ -88,6 +97,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.rationale).toContain("Missing official evidence");
     expect(item?.refs).toContain("source_plan:asml-ir");
     expect(item?.refs).toContain("source_target:CHK-ASML:scheduled");
+    expect(item?.refs).toContain("source_target_group:official_evidence");
     expect(item?.refs).toContain("unknown:UNK-EQUIPMENT");
     expect(item?.refs).toContain("unknown_seed:AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT");
     expect(item?.rationale).toContain("AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT run_source_target");
@@ -104,6 +114,7 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       })
     );
     expect(blockedItem?.rationale).toContain("missing_credentials");
+    expect(blockedItem?.refs).toContain("source_target_group:official_evidence");
     expect(blockedItem?.source_adapters).toEqual(["materials-ir"]);
     expect(workbenchModel.summary.ai_compute_propagation_blocked_source).toBe(1);
 
@@ -223,6 +234,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           observation_series_refs: [],
           source_plan_refs: [],
           source_target_refs: [],
+          source_target_groups: [],
           source_target_statuses: [],
           component_dependency_refs: [],
           frontier_refs: [],
@@ -247,10 +259,22 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           observation_series_refs: [],
           source_plan_refs: ["source_plan:asml-ir"],
           source_target_refs: ["source_target:CHK-ASML:scheduled"],
+          source_target_groups: [
+            {
+              group_kind: "official_evidence",
+              source_plan_refs: ["source_plan:asml-ir"],
+              source_target_refs: ["source_target:CHK-ASML:scheduled"],
+              source_adapters: ["asml-ir"],
+              target_kinds: ["official-html-disclosure"],
+              states: ["scheduled"],
+              failure_kinds: []
+            }
+          ],
           source_target_statuses: [
             {
               ref: "source_target:CHK-ASML:scheduled",
               source_adapter_id: "asml-ir",
+              target_kind: "official-html-disclosure",
               state: "scheduled",
               failure_kind: null,
               latest_event_type: null
@@ -294,10 +318,22 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           observation_series_refs: [],
           source_plan_refs: [],
           source_target_refs: ["source_target:CHK-MATERIALS:retry_wait"],
+          source_target_groups: [
+            {
+              group_kind: "official_evidence",
+              source_plan_refs: [],
+              source_target_refs: ["source_target:CHK-MATERIALS:retry_wait"],
+              source_adapters: ["materials-ir"],
+              target_kinds: ["official-html-disclosure"],
+              states: ["retry_wait"],
+              failure_kinds: ["missing_credentials"]
+            }
+          ],
           source_target_statuses: [
             {
               ref: "source_target:CHK-MATERIALS:retry_wait",
               source_adapter_id: "materials-ir",
+              target_kind: "official-html-disclosure",
               state: "retry_wait",
               failure_kind: "missing_credentials",
               latest_event_type: null

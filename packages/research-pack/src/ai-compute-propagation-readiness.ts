@@ -11,6 +11,8 @@ import type {
   AiComputePropagationLayerStatus,
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
+  AiComputePropagationSourceTargetGroup,
+  AiComputePropagationSourceTargetGroupKind,
   AiComputePropagationSourceTargetStatus,
   AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
@@ -22,6 +24,8 @@ export type {
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationReadinessSummary,
+  AiComputePropagationSourceTargetGroup,
+  AiComputePropagationSourceTargetGroupKind,
   AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
 
@@ -49,6 +53,7 @@ interface LayerRefs {
   observation_series_refs: string[];
   source_plan_refs: string[];
   source_target_refs: string[];
+  source_target_groups: AiComputePropagationSourceTargetGroup[];
   source_target_statuses: AiComputePropagationSourceTargetStatus[];
   component_dependency_refs: string[];
   frontier_refs: string[];
@@ -164,6 +169,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     observation_series_refs: refs.observation_series_refs,
     source_plan_refs: refs.source_plan_refs,
     source_target_refs: refs.source_target_refs,
+    source_target_groups: refs.source_target_groups,
     source_target_statuses: refs.source_target_statuses,
     component_dependency_refs: refs.component_dependency_refs,
     frontier_refs: refs.frontier_refs,
@@ -192,6 +198,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
   const officialNodes = input.official_disclosure_readiness.nodes.filter((node) => node.node_kind === "component" && componentMatchesRule(node.node_id, rule));
   const unknownIds = unknownRefsFor(rule, input, frontier, leads);
   const sourceTargetStatuses = sourceTargetStatusesFor(coverageItems, officialNodes);
+  const sourceTargetGroups = sourceTargetGroupsFor(sourcePlanItems, sourceTargetStatuses);
 
   return {
     fact_edge_refs: uniqueSorted(factEdges.map((edge) => `edge:${edge.edge_id}`)),
@@ -202,6 +209,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
       ...officialNodes.flatMap((node) => node.source_plan_refs)
     ]),
     source_target_refs: uniqueSorted(sourceTargetStatuses.map((item) => item.ref)),
+    source_target_groups: sourceTargetGroups,
     source_target_statuses: sourceTargetStatuses,
     component_dependency_refs: uniqueSorted(leads.map((lead) => `component_dependency:${lead.dependency_id}`)),
     frontier_refs: uniqueSorted(frontier.map((item) => `supply_chain_frontier:${item.frontier_id}`)),
@@ -371,6 +379,7 @@ function sourceTargetStatusesFor(
     ...coverageItems.map((item) => ({
       ref: `source_target:${item.matched_check_target_id ?? item.expected_target.check_target_id}:${item.state}`,
       source_adapter_id: item.expected_target.source_adapter_id,
+      target_kind: item.expected_target.target_kind,
       state: item.state,
       failure_kind: item.latest_job?.failure_kind ?? null,
       latest_event_type: item.latest_event?.event_type ?? null
@@ -379,12 +388,125 @@ function sourceTargetStatusesFor(
       node.source_targets.map((target) => ({
         ref: `source_target:${target.check_target_id ?? target.target_key}:${target.state ?? "planned"}`,
         source_adapter_id: target.source_adapter_id,
+        target_kind: target.target_kind,
         state: target.state,
         failure_kind: null,
         latest_event_type: target.latest_event_type
       }))
     )
   ]);
+}
+
+function sourceTargetGroupsFor(
+  sourcePlanItems: readonly SourcePlanItem[],
+  statuses: readonly AiComputePropagationSourceTargetStatus[]
+): AiComputePropagationSourceTargetGroup[] {
+  const groups = new Map<AiComputePropagationSourceTargetGroupKind, MutableSourceTargetGroup>();
+  for (const item of sourcePlanItems) {
+    const kind = sourceTargetGroupKindFor(item);
+    const group = getMutableSourceTargetGroup(groups, kind);
+    group.source_plan_refs.push(`source_plan:${item.source_id}`);
+    for (const target of sourceTargetsForSourcePlanItem(item)) {
+      group.source_adapters.push(target.source_adapter_id);
+      if (target.target_kind !== null) group.target_kinds.push(target.target_kind);
+    }
+  }
+
+  for (const status of statuses) {
+    const matchingGroups = [...groups.values()].filter((group) => sourceTargetStatusMatchesGroup(status, group));
+    const targets = matchingGroups.length === 0 ? [getMutableSourceTargetGroup(groups, sourceTargetGroupKindForStatus(status))] : matchingGroups;
+    for (const group of targets) {
+      group.source_adapters.push(status.source_adapter_id);
+      if (status.target_kind !== null) group.target_kinds.push(status.target_kind);
+      group.source_target_refs.push(status.ref);
+      if (status.state !== null) group.states.push(status.state);
+      if (status.failure_kind !== null) group.failure_kinds.push(status.failure_kind);
+    }
+  }
+
+  return GROUP_ORDER.flatMap((kind) => {
+    const group = groups.get(kind);
+    if (group === undefined) return [];
+    return [
+      {
+        group_kind: kind,
+        source_plan_refs: uniqueSorted(group.source_plan_refs),
+        source_target_refs: uniqueSorted(group.source_target_refs),
+        source_adapters: uniqueSorted(group.source_adapters),
+        target_kinds: uniqueSorted(group.target_kinds),
+        states: uniqueSorted(group.states),
+        failure_kinds: uniqueSorted(group.failure_kinds)
+      }
+    ];
+  });
+}
+
+const GROUP_ORDER: readonly AiComputePropagationSourceTargetGroupKind[] = [
+  "official_evidence",
+  "observation_proxy",
+  "entity_or_facility_context",
+  "lead_or_manual_review"
+];
+
+interface MutableSourceTargetGroup {
+  source_plan_refs: string[];
+  source_target_refs: string[];
+  source_adapters: string[];
+  target_kinds: string[];
+  states: string[];
+  failure_kinds: string[];
+}
+
+function getMutableSourceTargetGroup(
+  groups: Map<AiComputePropagationSourceTargetGroupKind, MutableSourceTargetGroup>,
+  kind: AiComputePropagationSourceTargetGroupKind
+): MutableSourceTargetGroup {
+  const existing = groups.get(kind);
+  if (existing !== undefined) return existing;
+  const group = { source_plan_refs: [], source_target_refs: [], source_adapters: [], target_kinds: [], states: [], failure_kinds: [] };
+  groups.set(kind, group);
+  return group;
+}
+
+function sourceTargetGroupKindFor(item: SourcePlanItem): AiComputePropagationSourceTargetGroupKind {
+  if (item.relation_policy === "can_create_fact_edge" || item.expected_output_layer === "edge" || item.purpose === "official_disclosure") {
+    return "official_evidence";
+  }
+  if (
+    item.relation_policy === "entity_only" ||
+    item.expected_output_layer === "entity" ||
+    item.purpose === "entity_resolution" ||
+    item.purpose === "facility"
+  ) {
+    return "entity_or_facility_context";
+  }
+  if (item.relation_policy === "lead_only" || item.expected_output_layer === "lead" || item.purpose === "manual_review" || item.purpose === "logistics") {
+    return "lead_or_manual_review";
+  }
+  return "observation_proxy";
+}
+
+function sourceTargetStatusMatchesGroup(status: AiComputePropagationSourceTargetStatus, group: MutableSourceTargetGroup): boolean {
+  if (!group.source_adapters.includes(status.source_adapter_id)) return false;
+  return status.target_kind === null || group.target_kinds.length === 0 || group.target_kinds.includes(status.target_kind);
+}
+
+function sourceTargetGroupKindForStatus(status: AiComputePropagationSourceTargetStatus): AiComputePropagationSourceTargetGroupKind {
+  const targetKind = status.target_kind ?? "";
+  if (targetKind.includes("trade") || targetKind.includes("commodity") || targetKind.includes("metric") || targetKind.includes("observation")) {
+    return "observation_proxy";
+  }
+  if (targetKind.includes("entity") || targetKind.includes("facility")) return "entity_or_facility_context";
+  if (targetKind.includes("manual") || targetKind.includes("lead") || targetKind.includes("logistics")) return "lead_or_manual_review";
+  return "official_evidence";
+}
+
+function sourceTargetsForSourcePlanItem(item: SourcePlanItem): { source_adapter_id: string; target_kind: string | null }[] {
+  if (item.suggested_check_targets.length === 0) return [{ source_adapter_id: item.source_id, target_kind: null }];
+  return item.suggested_check_targets.map((target) => ({
+    source_adapter_id: target.source_adapter_id,
+    target_kind: target.target_kind
+  }));
 }
 
 function isBlockedSourceTarget(item: AiComputePropagationSourceTargetStatus): boolean {
@@ -478,6 +600,7 @@ function mergeSourceTargetStatus(
   return {
     ref: left.ref,
     source_adapter_id: left.source_adapter_id,
+    target_kind: left.target_kind ?? right.target_kind,
     state: left.state ?? right.state,
     failure_kind: left.failure_kind ?? right.failure_kind,
     latest_event_type: left.latest_event_type ?? right.latest_event_type

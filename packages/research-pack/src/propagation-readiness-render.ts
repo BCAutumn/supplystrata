@@ -41,6 +41,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Facts: ${formatList(layer.fact_edge_refs)}`);
     lines.push(`  Observations: ${formatList([...layer.observation_refs, ...layer.observation_series_refs])}`);
     lines.push(`  Source targets: ${formatList(layer.source_target_refs)}`);
+    lines.push(`  Source target groups: ${formatList(layer.source_target_groups.map(formatSourceTargetGroup))}`);
     lines.push(`  Source target states: ${formatList(layer.source_target_statuses.map(formatSourceTargetStatus))}`);
     lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
     lines.push(`  Leads/frontier: ${formatList([...layer.component_dependency_refs, ...layer.frontier_refs])}`);
@@ -82,6 +83,24 @@ function formatSourceTargetStatus(value: { ref: string; failure_kind: string | n
   const failure = value.failure_kind === null ? "" : ` failure=${value.failure_kind}`;
   const event = value.latest_event_type === null ? "" : ` event=${value.latest_event_type}`;
   return `${value.ref}${failure}${event}`;
+}
+
+function formatSourceTargetGroup(value: {
+  group_kind: string;
+  source_plan_refs: readonly string[];
+  source_target_refs: readonly string[];
+  source_adapters: readonly string[];
+  target_kinds: readonly string[];
+  states: readonly string[];
+  failure_kinds: readonly string[];
+}): string {
+  const plans = value.source_plan_refs.length === 0 ? "" : ` plans=${value.source_plan_refs.length}`;
+  const targets = value.source_target_refs.length === 0 ? "" : ` targets=${value.source_target_refs.length}`;
+  const adapters = value.source_adapters.length === 0 ? "" : ` adapters=${value.source_adapters.join("|")}`;
+  const targetKinds = value.target_kinds.length === 0 ? "" : ` kinds=${value.target_kinds.join("|")}`;
+  const states = value.states.length === 0 ? "" : ` states=${value.states.join("|")}`;
+  const failures = value.failure_kinds.length === 0 ? "" : ` failures=${value.failure_kinds.join("|")}`;
+  return `${value.group_kind}${plans}${targets}${adapters}${targetKinds}${states}${failures}`;
 }
 
 function formatUnknownBacklogSeed(value: { seed_id: string; recommended_review_action: string; question: string }): string {

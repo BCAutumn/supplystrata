@@ -103,6 +103,7 @@ function sourcePlanCommandHints(sourceAdapters: readonly string[]): Gate1DataDep
 function sourceAdaptersForLayer(layer: AiComputePropagationLayer): string[] {
   return uniqueSorted([
     ...layer.source_plan_refs.map((ref) => ref.replace("source_plan:", "")).filter((value) => value.length > 0),
+    ...layer.source_target_groups.flatMap((group) => group.source_adapters),
     ...layer.source_target_statuses.map((item) => item.source_adapter_id)
   ]);
 }
@@ -114,6 +115,7 @@ function layerRefs(layer: AiComputePropagationLayer): string[] {
     ...layer.observation_series_refs,
     ...layer.source_plan_refs,
     ...layer.source_target_refs,
+    ...layer.source_target_groups.map((group) => `source_target_group:${group.group_kind}`),
     ...layer.component_dependency_refs,
     ...layer.frontier_refs,
     ...layer.unknown_refs,

@@ -193,7 +193,15 @@ describe("research-pack expansion and propagation", () => {
         status: "observation_ready",
         fact_edge_refs: [],
         observation_refs: ["observation:OBS-COPPER"],
-        source_plan_refs: ["source_plan:worldbank-pink"]
+        source_plan_refs: ["source_plan:worldbank-pink"],
+        source_target_groups: [
+          expect.objectContaining({
+            group_kind: "observation_proxy",
+            source_plan_refs: ["source_plan:worldbank-pink"],
+            source_adapters: ["worldbank-pink"],
+            target_kinds: ["commodity-price-observation"]
+          })
+        ]
       })
     );
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(
@@ -209,6 +217,7 @@ describe("research-pack expansion and propagation", () => {
     );
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
     expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Source target groups");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Missing official evidence");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Prohibited writes");
     expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");
