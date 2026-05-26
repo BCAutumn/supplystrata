@@ -6,6 +6,7 @@ import type { OfficialDisclosureReadinessReport } from "./official-disclosure-re
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SupplyChainComponentDependencyLead, SupplyChainExpansionFrontierItem, SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
 import type {
+  AiComputePropagationEvidenceLayerSummary,
   AiComputePropagationLayer,
   AiComputePropagationLayerId,
   AiComputePropagationLayerStatus,
@@ -18,6 +19,7 @@ import type {
   AiComputePropagationSourceTargetStatus,
   AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
+import { buildAiComputePropagationEvidenceLayerSummary } from "./ai-compute-propagation-evidence-summary.js";
 import { buildAiComputePropagationNextResearchTargets } from "./ai-compute-propagation-next-targets.js";
 import { buildAiComputePropagationOfficialEvidenceGaps } from "./ai-compute-propagation-official-evidence-gaps.js";
 
@@ -25,6 +27,8 @@ export type {
   AiComputePropagationLayer,
   AiComputePropagationLayerId,
   AiComputePropagationLayerStatus,
+  AiComputePropagationEvidenceLayerSummary,
+  AiComputePropagationEvidenceLayerKind,
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationReadinessSummary,
@@ -163,12 +167,15 @@ export function buildAiComputePropagationReadinessMatrix(input: AiComputePropaga
 function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputePropagationReadinessInput): AiComputePropagationLayer {
   const refs = refsForRule(rule, input);
   const status = statusFor(refs);
+  const officialEvidenceGaps = officialEvidenceGapsFor(rule, status, refs);
+  const unknownBacklogSeeds = unknownBacklogSeedsFor(rule, status, refs);
   return {
     layer_id: rule.layer_id,
     title: rule.title,
     question: rule.question,
     status,
     status_reason: statusReason(status, refs),
+    evidence_layer_summary: evidenceLayerSummaryFor(refs, officialEvidenceGaps, unknownBacklogSeeds),
     component_ids: [...rule.component_ids],
     material_or_process_refs: refs.material_or_process_refs,
     fact_edge_refs: refs.fact_edge_refs,
@@ -182,14 +189,33 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     component_dependency_refs: refs.component_dependency_refs,
     frontier_refs: refs.frontier_refs,
     unknown_refs: refs.unknown_refs,
-    unknown_backlog_seeds: unknownBacklogSeedsFor(rule, status, refs),
-    official_evidence_gaps: officialEvidenceGapsFor(rule, status, refs),
+    unknown_backlog_seeds: unknownBacklogSeeds,
+    official_evidence_gaps: officialEvidenceGaps,
     missing_official_evidence: missingOfficialEvidenceFor(status),
     allowed_research_outputs: allowedResearchOutputsFor(status),
     prohibited_truth_store_writes: prohibitedTruthStoreWritesFor(status),
     next_actions: nextActionsFor(status),
     policy: POLICY
   };
+}
+
+function evidenceLayerSummaryFor(
+  refs: LayerRefs,
+  officialEvidenceGaps: readonly AiComputePropagationOfficialEvidenceGap[],
+  unknownBacklogSeeds: readonly AiComputePropagationUnknownBacklogSeed[]
+): AiComputePropagationEvidenceLayerSummary[] {
+  return buildAiComputePropagationEvidenceLayerSummary({
+    fact_edge_refs: refs.fact_edge_refs,
+    observation_refs: refs.observation_refs,
+    observation_series_refs: refs.observation_series_refs,
+    component_dependency_refs: refs.component_dependency_refs,
+    frontier_refs: refs.frontier_refs,
+    unknown_refs: refs.unknown_refs,
+    unknown_backlog_seed_refs: unknownBacklogSeeds.map((seed) => `unknown_seed:${seed.seed_id}`),
+    source_plan_refs: refs.source_plan_refs,
+    source_target_refs: refs.source_target_refs,
+    official_evidence_gaps: officialEvidenceGaps
+  });
 }
 
 function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropagationReadinessInput): LayerRefs {

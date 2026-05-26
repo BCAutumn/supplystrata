@@ -209,6 +209,31 @@ describe("research-pack expansion and propagation", () => {
         "component_without_l4_l5_fact:component:COMP-POWER-SUPPLY"
       ])
     );
+    const computeToServerEvidenceSummary = computeToServerLayer?.evidence_layer_summary ?? [];
+    expect(
+      computeToServerEvidenceSummary.map((item) => ({
+        layer_kind: item.layer_kind,
+        prohibited_truth_store_writes: item.prohibited_truth_store_writes
+      }))
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          layer_kind: "fact_edge",
+          prohibited_truth_store_writes: ["raise_evidence_level_without_review", "close_unknown_without_review"]
+        },
+        {
+          layer_kind: "lead",
+          prohibited_truth_store_writes: ["create_fact_edge", "raise_evidence_level", "close_unknown"]
+        },
+        {
+          layer_kind: "official_evidence_gap",
+          prohibited_truth_store_writes: ["create_fact_edge", "raise_evidence_level", "close_unknown"]
+        }
+      ])
+    );
+    expect(computeToServerEvidenceSummary.find((item) => item.layer_kind === "fact_edge")?.count).toBe(1);
+    expect(computeToServerEvidenceSummary.find((item) => item.layer_kind === "lead")?.count).toBeGreaterThan(0);
+    expect(computeToServerEvidenceSummary.find((item) => item.layer_kind === "official_evidence_gap")?.count).toBeGreaterThan(0);
     const boardMaterialsLayer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "server_to_board_materials");
     expect(boardMaterialsLayer).toEqual(
       expect.objectContaining({
@@ -249,6 +274,7 @@ describe("research-pack expansion and propagation", () => {
     );
     expect(renderPropagationReadinessMarkdown(report)).toContain("does not create fact edges");
     expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Evidence layer summary");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Source target groups");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Next research targets");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Official evidence gaps");

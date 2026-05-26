@@ -6,6 +6,7 @@ import {
   buildObservationCoverageReport,
   buildOfficialDisclosureReadinessReport,
   type Gate1AdjacentOfficialFactsReport,
+  type AiComputePropagationEvidenceLayerKind,
   type PropagationReadinessReport,
   type SourceTargetCoverageReport,
   type SupplyChainExpansionPlan
@@ -266,6 +267,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           question: "Do we have demand evidence?",
           status: "covered_fact",
           status_reason: "A fact edge anchors this layer.",
+          evidence_layer_summary: [evidenceLayerSummary("fact_edge", 1), evidenceLayerSummary("official_evidence_gap", 1)],
           component_ids: ["COMP-GPU"],
           material_or_process_refs: [],
           fact_edge_refs: ["edge:EDGE-DEMAND"],
@@ -304,6 +306,11 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           question: "Can the pack identify equipment delivery or qualification frontier?",
           status: "official_target_runnable",
           status_reason: "A source-plan or source-target path exists.",
+          evidence_layer_summary: [
+            evidenceLayerSummary("unknown", 2),
+            evidenceLayerSummary("source_target", 2),
+            evidenceLayerSummary("official_evidence_gap", 3)
+          ],
           component_ids: ["COMP-SEMICONDUCTOR-EQUIPMENT"],
           material_or_process_refs: [],
           fact_edge_refs: [],
@@ -385,6 +392,11 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           question: "Can the pack name process consumables?",
           status: "blocked_source",
           status_reason: "A matching source target exists but is blocked by missing_credentials.",
+          evidence_layer_summary: [
+            evidenceLayerSummary("unknown", 1),
+            evidenceLayerSummary("source_target", 1),
+            evidenceLayerSummary("official_evidence_gap", 2)
+          ],
           component_ids: ["COMP-PHOTORESIST"],
           material_or_process_refs: [],
           fact_edge_refs: [],
@@ -526,6 +538,20 @@ function emptySupplyChainExpansionPlan(): SupplyChainExpansionPlan {
     frontier: [],
     component_dependency_leads: [],
     stop_conditions: []
+  };
+}
+
+function evidenceLayerSummary(
+  layerKind: AiComputePropagationEvidenceLayerKind,
+  count: number
+): PropagationReadinessReport["ai_compute_matrix"]["layers"][number]["evidence_layer_summary"][number] {
+  return {
+    layer_kind: layerKind,
+    count,
+    refs: [],
+    interpretation: `${layerKind} fixture summary`,
+    allowed_research_outputs: ["reasoning_input"],
+    prohibited_truth_store_writes: ["create_fact_edge"]
   };
 }
 

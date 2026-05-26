@@ -38,6 +38,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Why: ${layer.status_reason}`);
     lines.push(`  Components: ${formatList(layer.component_ids)}`);
     lines.push(`  Materials/process: ${formatList(layer.material_or_process_refs)}`);
+    lines.push(`  Evidence layer summary: ${formatList(layer.evidence_layer_summary.map(formatEvidenceLayerSummary))}`);
     lines.push(`  Facts: ${formatList(layer.fact_edge_refs)}`);
     lines.push(`  Observations: ${formatList([...layer.observation_refs, ...layer.observation_series_refs])}`);
     lines.push(`  Source targets: ${formatList(layer.source_target_refs)}`);
@@ -115,4 +116,8 @@ function formatNextResearchTarget(value: { target_kind: string; target_id: strin
 
 function formatOfficialEvidenceGap(value: { gap_kind: string; target_kind: string; target_id: string; recommended_action: string }): string {
   return `${value.gap_kind}:${value.target_kind}:${value.target_id} action="${value.recommended_action}"`;
+}
+
+function formatEvidenceLayerSummary(value: { layer_kind: string; count: number; interpretation: string }): string {
+  return `${value.layer_kind}=${value.count} "${value.interpretation}"`;
 }

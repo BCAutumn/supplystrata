@@ -18,6 +18,17 @@ export type AiComputePropagationLayerStatus =
 
 export type AiComputePropagationPolicy = "reasoning_input_only_no_fact_mutation";
 
+export type AiComputePropagationEvidenceLayerKind = "fact_edge" | "observation" | "lead" | "unknown" | "source_target" | "official_evidence_gap";
+
+export interface AiComputePropagationEvidenceLayerSummary {
+  layer_kind: AiComputePropagationEvidenceLayerKind;
+  count: number;
+  refs: string[];
+  interpretation: string;
+  allowed_research_outputs: string[];
+  prohibited_truth_store_writes: string[];
+}
+
 export interface AiComputePropagationSourceTargetStatus {
   ref: string;
   source_adapter_id: string;
@@ -110,6 +121,7 @@ export interface AiComputePropagationLayer {
   question: string;
   status: AiComputePropagationLayerStatus;
   status_reason: string;
+  evidence_layer_summary: AiComputePropagationEvidenceLayerSummary[];
   component_ids: string[];
   material_or_process_refs: string[];
   fact_edge_refs: string[];
