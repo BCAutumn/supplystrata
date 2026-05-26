@@ -1,7 +1,8 @@
-import type { RelationType } from "@supplystrata/core";
+import type { RankingCalibrationLabel, RelationType } from "@supplystrata/core";
 import { componentIndustryTokens, type Gate1AdjacentOfficialFactEdge } from "./gate1-adjacent-official-facts.js";
 
 export const ADJACENT_COMPANY_RANKING_MODEL_VERSION = "adjacent-company-ranking.v1";
+export const ADJACENT_COMPANY_RANKING_REVIEW_SUGGESTION_POLICY = "rule_suggestion_not_gold_label";
 
 export interface AdjacentCompanyCandidate {
   company_id: string;
@@ -12,6 +13,9 @@ export interface AdjacentCompanyCandidate {
   component_relevance: number;
   upstream_role_edges: number;
   ranking_reason: string;
+  suggested_label: RankingCalibrationLabel;
+  suggested_label_reason: string;
+  suggestion_policy: typeof ADJACENT_COMPANY_RANKING_REVIEW_SUGGESTION_POLICY;
 }
 
 interface CandidateDraft {
@@ -103,9 +107,13 @@ function addCandidateDraft(
 }
 
 function candidateFromDraft(candidate: CandidateDraft): AdjacentCompanyCandidate {
+  const suggestion = reviewSuggestionForCandidate(candidate);
   return {
     ...candidate,
-    ranking_reason: rankingReason(candidate)
+    ranking_reason: rankingReason(candidate),
+    suggested_label: suggestion.label,
+    suggested_label_reason: suggestion.reason,
+    suggestion_policy: ADJACENT_COMPANY_RANKING_REVIEW_SUGGESTION_POLICY
   };
 }
 
@@ -138,4 +146,36 @@ function rankingReason(candidate: CandidateDraft): string {
     `edge_count=${candidate.edge_count}`
   ];
   return parts.join("; ");
+}
+
+function reviewSuggestionForCandidate(candidate: CandidateDraft): { label: RankingCalibrationLabel; reason: string } {
+  if (candidate.component_relevance >= 2 && candidate.upstream_role_edges > 0) {
+    return {
+      label: "useful_target",
+      reason: "Candidate has strong component-token relevance and appears on the likely upstream side of at least one official fact edge."
+    };
+  }
+  if (candidate.component_relevance > 0 && candidate.upstream_role_edges > 0) {
+    return {
+      label: "needs_more_context",
+      reason:
+        "Candidate is component-relevant and directionally plausible, but the current feature vector is not strong enough to treat it as an obvious next research target."
+    };
+  }
+  if (candidate.component_relevance > 0) {
+    return {
+      label: "wrong_direction",
+      reason: "Candidate is component-relevant but does not appear on the likely upstream side of the observed relation direction."
+    };
+  }
+  if (candidate.edge_count > 1) {
+    return {
+      label: "brand_center_bias",
+      reason: "Candidate appears repeatedly without component-token relevance, which is a common disclosure-center or brand-frequency bias pattern."
+    };
+  }
+  return {
+    label: "not_relevant",
+    reason: "Candidate has no component-token relevance in the current profile and only weak tie-breaker evidence."
+  };
 }

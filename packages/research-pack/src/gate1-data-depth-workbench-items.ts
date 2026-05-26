@@ -509,6 +509,9 @@ function rankedCandidate(
     review_status: latestLabel === null ? "unlabeled" : "labeled",
     latest_label: latestLabel,
     existing_labels: labels,
+    suggested_label: candidate.suggested_label,
+    suggested_label_reason: candidate.suggested_label_reason,
+    suggested_label_policy: candidate.suggestion_policy,
     ranking_reason: candidate.ranking_reason,
     score_breakdown: {
       component_relevance: candidate.component_relevance,

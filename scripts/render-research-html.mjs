@@ -152,6 +152,10 @@ function renderHtml(pack, previous) {
     .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: #334155; }
     .command-list { display: grid; gap: 6px; margin-top: 10px; }
     .command-list p { padding: 8px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; overflow-wrap: anywhere; }
+    .ranking-list { display: grid; gap: 6px; margin-top: 10px; }
+    .ranking-row { padding: 8px; border-radius: 6px; background: #fbfdff; border: 1px solid #e2e8f0; }
+    .ranking-row strong { display: block; font-size: 12px; }
+    .ranking-row span { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .pill {
       display: inline-flex;
@@ -320,6 +324,7 @@ function renderHtml(pack, previous) {
           ${traceBox(pack.workbench.summary.observation_labeling_batch, "labeling batch")}
         </div>
         <div class="list" style="margin-top:12px">${(pack.workbench.items ?? []).slice(0, 6).map(renderWorkbenchItem).join("")}</div>
+        ${renderRankingCalibrationQueue(pack.workbench)}
       </div>
       <div class="panel">
         <h2>质量与可解释性</h2>
@@ -499,6 +504,7 @@ function renderWorkbenchItem(item) {
     <div class="item-head"><strong>${escapeHtml(item.title)}</strong><span class="status ${escapeAttr(item.priority.toLowerCase())}">${escapeHtml(item.priority)}</span></div>
     <p class="muted">${escapeHtml(item.rationale)}</p>
     ${renderCommandHints(item.command_hints ?? [])}
+    ${renderRankingContexts(item.ranking_contexts ?? [])}
     <div class="pill-row"><span class="pill">${escapeHtml(item.workstream)}</span><span class="pill">${escapeHtml(item.frontend_action_kind)}</span><span class="pill">${escapeHtml(item.review_policy)}</span></div>
   </div>`;
 }
@@ -514,6 +520,60 @@ function renderCommandHints(commandHints) {
         )} · requires database: ${escapeHtml(String(hint.requires_database))}</span></p>`
     )
     .join("")}</div>`;
+}
+
+function renderRankingContexts(contexts) {
+  const candidates = contexts.flatMap((context) =>
+    (context.candidates ?? []).slice(0, 3).map((candidate) => ({
+      ...candidate,
+      context_id: context.context_id,
+      model_version: context.model_version,
+      policy: context.policy
+    }))
+  );
+  if (candidates.length === 0) return "";
+  return `<div class="ranking-list">${candidates
+    .map(
+      (candidate) => `<div class="ranking-row">
+        <strong>#${escapeHtml(candidate.rank)} ${escapeHtml(candidate.entity_name)} · suggested ${escapeHtml(candidate.suggested_label)}</strong>
+        <span>${escapeHtml(candidate.suggested_label_reason)}</span>
+        <span>review=${escapeHtml(candidate.review_status)} · latest=${escapeHtml(candidate.latest_label?.label ?? "none")} · policy=${escapeHtml(
+          candidate.suggested_label_policy
+        )}</span>
+        <span class="code">${escapeHtml(candidate.candidate_id)}</span>
+      </div>`
+    )
+    .join("")}</div>`;
+}
+
+function renderRankingCalibrationQueue(workbench) {
+  const candidates = (workbench.items ?? []).flatMap((item) =>
+    (item.ranking_contexts ?? []).flatMap((context) =>
+      (context.candidates ?? []).map((candidate) => ({
+        ...candidate,
+        context_id: context.context_id,
+        item_title: item.title
+      }))
+    )
+  );
+  if (candidates.length === 0) return "";
+  return `<h3 style="margin-top:16px">Ranking calibration queue</h3>
+    <p class="muted">这些是规则建议，不是 gold label；只有写入 ranking_calibration_labels 后才会成为 latest label。</p>
+    <div class="ranking-list">${candidates
+      .slice(0, 12)
+      .map(
+        (candidate) => `<div class="ranking-row">
+          <strong>${escapeHtml(candidate.item_title)} · #${escapeHtml(candidate.rank)} ${escapeHtml(candidate.entity_name)} · suggested ${escapeHtml(
+            candidate.suggested_label
+          )}</strong>
+          <span>${escapeHtml(candidate.suggested_label_reason)}</span>
+          <span>review=${escapeHtml(candidate.review_status)} · latest=${escapeHtml(candidate.latest_label?.label ?? "none")} · policy=${escapeHtml(
+            candidate.suggested_label_policy
+          )}</span>
+          <span class="code">${escapeHtml(candidate.candidate_id)}</span>
+        </div>`
+      )
+      .join("")}</div>`;
 }
 
 function renderQualityIssue(issue) {

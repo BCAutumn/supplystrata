@@ -187,6 +187,9 @@ describe("Gate 1 data-depth entity context", () => {
       })
     );
     expect(topRankingCandidate?.existing_labels).toHaveLength(1);
+    expect(topRankingCandidate?.suggested_label).toBe("useful_target");
+    expect(topRankingCandidate?.suggested_label_policy).toBe("rule_suggestion_not_gold_label");
+    expect(topRankingCandidate?.suggested_label_reason).toContain("strong component-token relevance");
     expect(topRankingCandidate?.score_breakdown.component_relevance).toBe(2);
     expect(topRankingCandidate?.score_breakdown.edge_frequency_tiebreaker).toBe(1);
     expect(item?.edge_ids).toEqual(["EDGE-ADJACENT-NVIDIA-PCB", "EDGE-ADJACENT-PCB"]);
@@ -242,6 +245,47 @@ describe("Gate 1 adjacent company ranking", () => {
     expect(candidates.map((candidate) => candidate.company_id)).toEqual(["ENT-ATS", "ENT-COMPEQ"]);
     expect(candidates.some((candidate) => candidate.company_id === "ENT-APPLE")).toBe(false);
     expect(candidates[0]?.ranking_reason).toContain("component_relevance=2");
+    expect(candidates[0]?.suggested_label).toBe("useful_target");
+  });
+
+  it("flags repeated non-component disclosure-center candidates as review suggestions, not gold labels", () => {
+    const candidates = rankAdjacentOfficialFactCompanyCandidates({
+      selected_company_id: "ENT-NVIDIA",
+      component_id: "COMP-PCB",
+      edges: [
+        adjacentFactEdge({
+          edge_id: "EDGE-BRAND-1",
+          from_id: "ENT-BRAND",
+          from_name: "Brand Center",
+          from_industry: ["consumer-electronics"],
+          to_id: "ENT-UNMAPPED-A",
+          to_name: "Unmapped Supplier A",
+          to_industry: ["assembly"],
+          relation: "BUYS_FROM"
+        }),
+        adjacentFactEdge({
+          edge_id: "EDGE-BRAND-2",
+          from_id: "ENT-BRAND",
+          from_name: "Brand Center",
+          from_industry: ["consumer-electronics"],
+          to_id: "ENT-UNMAPPED-B",
+          to_name: "Unmapped Supplier B",
+          to_industry: ["assembly"],
+          relation: "BUYS_FROM"
+        })
+      ]
+    });
+
+    const brandCandidate = candidates.find((candidate) => candidate.company_id === "ENT-BRAND");
+    expect(brandCandidate).toEqual(
+      expect.objectContaining({
+        company_id: "ENT-BRAND",
+        edge_count: 2,
+        suggested_label: "brand_center_bias",
+        suggestion_policy: "rule_suggestion_not_gold_label"
+      })
+    );
+    expect(brandCandidate?.suggested_label_reason).toContain("disclosure-center");
   });
 });
 

@@ -66,6 +66,9 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
             )}`
           );
           lines.push(`      Review: ${candidate.review_status}; latest=${formatLatestRankingLabel(candidate.latest_label)}`);
+          lines.push(
+            `      Suggested label: ${candidate.suggested_label}; policy=${candidate.suggested_label_policy}; reason=${candidate.suggested_label_reason}`
+          );
         }
         lines.push("    - Labels: useful_target, wrong_direction, brand_center_bias, needs_more_context, not_relevant");
       }

@@ -1,3 +1,4 @@
+import type { RankingCalibrationLabel } from "@supplystrata/core";
 import type { SourceTargetCoverageState } from "@supplystrata/source-monitor";
 import type { Gate1AdjacentOfficialFactsReport } from "./gate1-adjacent-official-facts.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
@@ -159,6 +160,9 @@ export interface Gate1DataDepthRankedCandidate {
   review_status: "unlabeled" | "labeled";
   latest_label: Gate1DataDepthRankingCalibrationExistingLabel | null;
   existing_labels: Gate1DataDepthRankingCalibrationExistingLabel[];
+  suggested_label: RankingCalibrationLabel;
+  suggested_label_reason: string;
+  suggested_label_policy: "rule_suggestion_not_gold_label";
   ranking_reason: string;
   score_breakdown: {
     component_relevance: number;
