@@ -1,7 +1,12 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
 import type { RawDocument } from "@supplystrata/core";
-import { buildGleifLeiSearchUrl, extractGleifLeiCandidates, normalizeEntityResolutionQueries } from "@supplystrata/source-workflows";
+import {
+  buildEntityResolutionLookupQueries,
+  buildGleifLeiSearchUrl,
+  extractGleifLeiCandidates,
+  normalizeEntityResolutionQueries
+} from "@supplystrata/source-workflows";
 import { buildCompaniesHouseSearchUrl, extractCompaniesHouseCandidates } from "@supplystrata/sources-companies-house";
 import { buildOpenCorporatesSearchUrl, extractOpenCorporatesCandidates } from "@supplystrata/sources-opencorporates";
 
@@ -11,6 +16,11 @@ describe("entity source adapters", () => {
       "Amkor Technology Incorporated",
       "NXP Semiconductors N.V."
     ]);
+  });
+
+  it("adds controlled legal suffix lookup variants without dropping the original supplier surface", () => {
+    expect(buildEntityResolutionLookupQueries("Skyworks Solutions Incorporated")).toEqual(["Skyworks Solutions Incorporated", "Skyworks Solutions Inc."]);
+    expect(buildEntityResolutionLookupQueries("Alps Alpine Company Limited")).toEqual(["Alps Alpine Company Limited", "Alps Alpine Co., Ltd."]);
   });
 
   it("builds GLEIF LEI search URLs and normalizes global legal entity identifiers", () => {

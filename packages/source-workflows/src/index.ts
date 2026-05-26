@@ -18,7 +18,11 @@ export {
 export type { TwseMopsDocumentKind, TwseMopsElectronicDocumentEntry, TwseMopsElectronicDocumentsInput } from "./twse-mops-checks.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
 export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
-export { enqueueEntityResolutionBacklogReviewCandidates, normalizeEntityResolutionQueries } from "./entity-resolution-backlog.js";
+export {
+  buildEntityResolutionLookupQueries,
+  enqueueEntityResolutionBacklogReviewCandidates,
+  normalizeEntityResolutionQueries
+} from "./entity-resolution-backlog.js";
 export type {
   EntityResolutionBacklogReviewInput,
   EntityResolutionBacklogReviewItem,

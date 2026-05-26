@@ -101,12 +101,23 @@ function gate1LegalNamesMatch(surface: string, candidateName: string): boolean {
 }
 
 function normalizeGate1LegalName(value: string): string {
-  // Gate 1 可以接受法律名称中的标点差异，但不能接受简称、后缀缺失或语义相近的模糊匹配。
+  // Gate 1 可以接受标点和受控法律后缀差异，但不能接受简称、主体词缺失或语义相近的模糊匹配。
   return normalizeAlias(value)
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/giu, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .split(" ")
+    .map(canonicalGate1LegalNameToken)
+    .join(" ");
+}
+
+function canonicalGate1LegalNameToken(token: string): string {
+  if (token === "incorporated") return "inc";
+  if (token === "corporation") return "corp";
+  if (token === "company") return "co";
+  if (token === "limited") return "ltd";
+  return token;
 }
 
 async function approveAndApplyGate1EntitySourceReview(

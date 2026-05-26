@@ -87,6 +87,18 @@ describe("Gate 1 entity-source review batch", () => {
     expect(unsafeGate1EntitySourceReviewReason(candidate)).toBeUndefined();
   });
 
+  it("accepts controlled legal suffix differences in fully corroborated GLEIF legal names", () => {
+    const candidate = buildEntitySourceReviewCandidate({
+      surface: "Skyworks Solutions Incorporated",
+      candidate: gleifCandidate({
+        name: "Skyworks Solutions, Inc.",
+        provenanceNote: "GLEIF LEI record 5493000L1YP6JSKXYR94; corroboration=FULLY_CORROBORATED"
+      })
+    });
+
+    expect(unsafeGate1EntitySourceReviewReason(candidate)).toBeUndefined();
+  });
+
   it("rejects non-GLEIF entity-source candidates before batch approval", () => {
     const candidate = buildEntitySourceReviewCandidate({
       surface: "ON Semiconductor Corporation",

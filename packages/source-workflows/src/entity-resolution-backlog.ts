@@ -9,6 +9,7 @@ export interface EntityResolutionBacklogReviewInput {
 }
 
 export interface EntityResolutionBacklogReviewItem {
+  surface: string;
   query: string;
   candidates: number;
   inserted: number;
@@ -37,23 +38,26 @@ export async function enqueueEntityResolutionBacklogReviewCandidates(
   input: EntityResolutionBacklogReviewInput,
   runtime: EntityResolutionBacklogRuntime
 ): Promise<EntityResolutionBacklogReviewSummary> {
-  const queries = normalizeEntityResolutionQueries(input.queries);
+  const surfaces = normalizeEntityResolutionQueries(input.queries);
   if (!Number.isInteger(input.limitPerQuery) || input.limitPerQuery <= 0) {
     throw new Error(`Entity resolution backlog candidate limit must be a positive integer: ${input.limitPerQuery}`);
   }
 
   const items: EntityResolutionBacklogReviewItem[] = [];
-  for (const query of queries) {
-    const result = await enqueueEntitySourceReviewCandidates(
-      store,
-      {
-        query,
-        source: input.source,
-        limit: input.limitPerQuery
-      },
-      runtime
-    );
-    items.push(entityReviewEnqueueResultToBacklogItem(result));
+  for (const surface of surfaces) {
+    for (const query of buildEntityResolutionLookupQueries(surface)) {
+      const result = await enqueueEntitySourceReviewCandidates(
+        store,
+        {
+          query,
+          reviewSurface: surface,
+          source: input.source,
+          limit: input.limitPerQuery
+        },
+        runtime
+      );
+      items.push(entityReviewEnqueueResultToBacklogItem(surface, result));
+    }
   }
 
   return summarizeEntityResolutionBacklogReview({
@@ -62,6 +66,10 @@ export async function enqueueEntityResolutionBacklogReviewCandidates(
     requested_queries: input.queries.length,
     items
   });
+}
+
+export function buildEntityResolutionLookupQueries(surface: string): string[] {
+  return normalizeEntityResolutionQueries([surface, ...legalSuffixLookupVariants(surface)]);
 }
 
 export function normalizeEntityResolutionQueries(queries: readonly string[]): string[] {
@@ -78,8 +86,26 @@ export function normalizeEntityResolutionQueries(queries: readonly string[]): st
   return result;
 }
 
-function entityReviewEnqueueResultToBacklogItem(result: EntityReviewEnqueueSummary): EntityResolutionBacklogReviewItem {
+function legalSuffixLookupVariants(surface: string): string[] {
+  const cleaned = surface.normalize("NFKC").trim().replace(/\s+/g, " ");
+  for (const rule of LEGAL_SUFFIX_LOOKUP_RULES) {
+    if (!rule.pattern.test(cleaned)) continue;
+    // 更具体的法律后缀规则优先，避免一个 surface 产生多条近似相同的查询噪声。
+    return [cleaned.replace(rule.pattern, rule.replacement)];
+  }
+  return [];
+}
+
+const LEGAL_SUFFIX_LOOKUP_RULES: readonly { pattern: RegExp; replacement: string }[] = [
+  { pattern: /\bIncorporated$/iu, replacement: "Inc." },
+  { pattern: /\bCorporation$/iu, replacement: "Corp." },
+  { pattern: /\bCompany Limited$/iu, replacement: "Co., Ltd." },
+  { pattern: /\bLimited$/iu, replacement: "Ltd." }
+];
+
+function entityReviewEnqueueResultToBacklogItem(surface: string, result: EntityReviewEnqueueSummary): EntityResolutionBacklogReviewItem {
   return {
+    surface,
     query: result.query,
     candidates: result.candidates,
     inserted: result.inserted,

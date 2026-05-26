@@ -348,7 +348,13 @@ function canAutoResolveExact(surface: string, input: ResolveInput, match: SeedAl
   if (match.alias_kind === "official" || match.alias_kind === "translation") return true;
   if (match.alias_kind === "abbreviation" && aliasMatchesKnownTicker(surface, match)) return true;
   if (normalized.length <= 4) return false;
+  if (isReviewedOfficialRegistryAlias(match)) return true;
   return match.source_type === "canonical_name" || match.source_type === "display_name";
+}
+
+function isReviewedOfficialRegistryAlias(match: SeedAliasMatch): boolean {
+  // GLEIF 是官方法人登记源；长别名必须已经经过 review/import 写入 entity_alias，才允许 exact match 自动解析。
+  return match.alias_kind === "informal" && match.source_type === "gleif";
 }
 
 function exactConfidence(surface: string, match: SeedAliasMatch): number {

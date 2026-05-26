@@ -14,6 +14,7 @@ export interface EntityLookupInput {
   source: EntityLookupSource;
   jurisdictionCode?: string;
   limit: number;
+  reviewSurface?: string;
 }
 
 export interface EntityLookupSummary {
@@ -73,7 +74,7 @@ export async function enqueueEntitySourceReviewCandidates(
     .filter((result): result is EntitySourceLookupResult & { error_message: string } => result.error_message !== undefined)
     .map((result) => ({ source_adapter_id: result.source_adapter_id, message: result.error_message }));
   const candidates = lookup.results.flatMap((result) =>
-    result.candidates.map((candidate) => buildEntitySourceReviewCandidate({ surface: lookup.query, candidate }))
+    result.candidates.map((candidate) => buildEntitySourceReviewCandidate({ surface: input.reviewSurface ?? lookup.query, candidate }))
   );
   const result = await enqueueReviewCandidatesTransactionally(store, candidates);
   return {
