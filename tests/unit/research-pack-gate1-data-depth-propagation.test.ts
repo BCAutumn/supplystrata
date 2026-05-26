@@ -95,9 +95,11 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     );
     expect(item?.write_impact).toContain("No fact-layer write is authorized");
     expect(item?.rationale).toContain("Missing official evidence");
+    expect(item?.rationale).toContain("official_source_not_reviewed source_group:official_evidence");
     expect(item?.refs).toContain("source_plan:asml-ir");
     expect(item?.refs).toContain("source_target:CHK-ASML:scheduled");
     expect(item?.refs).toContain("source_target_group:official_evidence");
+    expect(item?.refs).toContain("official_evidence_gap:official_source_not_reviewed:source_group:official_evidence");
     expect(item?.refs).toContain("next_research_target:source_group:official_evidence");
     expect(item?.refs).toContain("unknown:UNK-EQUIPMENT");
     expect(item?.refs).toContain("unknown_seed:AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT");
@@ -115,7 +117,9 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       })
     );
     expect(blockedItem?.rationale).toContain("missing_credentials");
+    expect(blockedItem?.rationale).toContain("official_source_blocked source_group:official_evidence");
     expect(blockedItem?.refs).toContain("source_target_group:official_evidence");
+    expect(blockedItem?.refs).toContain("official_evidence_gap:official_source_blocked:source_group:official_evidence");
     expect(blockedItem?.source_adapters).toEqual(["materials-ir"]);
     expect(workbenchModel.summary.ai_compute_propagation_blocked_source).toBe(1);
 
@@ -242,6 +246,7 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
           frontier_refs: [],
           unknown_refs: [],
           unknown_backlog_seeds: [],
+          official_evidence_gaps: [],
           missing_official_evidence: [],
           allowed_research_outputs: ["chain_anchor", "corroboration_review", "strength_freshness_review"],
           prohibited_truth_store_writes: ["raise_evidence_level_without_review", "close_unknown_without_review"],
@@ -306,6 +311,18 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               source_plan_refs: ["source_plan:asml-ir"],
               source_target_refs: ["source_target:CHK-ASML:scheduled"],
               recommended_review_action: "run_source_target",
+              truth_store_write_policy: "review_only_no_automatic_write"
+            }
+          ],
+          official_evidence_gaps: [
+            {
+              gap_kind: "official_source_not_reviewed",
+              target_kind: "source_group",
+              target_id: "official_evidence",
+              label: "Official evidence source group",
+              reason: "official evidence source path is scheduled.",
+              refs: ["source_plan:asml-ir", "source_target:CHK-ASML:scheduled", "source_target_group:official_evidence"],
+              recommended_action: "Run this source target through review paths.",
               truth_store_write_policy: "review_only_no_automatic_write"
             }
           ],
@@ -374,6 +391,18 @@ function propagationReadinessWithAiComputeGaps(): PropagationReadinessReport {
               source_plan_refs: [],
               source_target_refs: ["source_target:CHK-MATERIALS:retry_wait"],
               recommended_review_action: "repair_source_target",
+              truth_store_write_policy: "review_only_no_automatic_write"
+            }
+          ],
+          official_evidence_gaps: [
+            {
+              gap_kind: "official_source_blocked",
+              target_kind: "source_group",
+              target_id: "official_evidence",
+              label: "Official evidence source group",
+              reason: "official evidence source path is blocked by missing credentials.",
+              refs: ["source_target:CHK-MATERIALS:retry_wait", "source_target_group:official_evidence"],
+              recommended_action: "Repair failed or degraded source targets before using this group.",
               truth_store_write_policy: "review_only_no_automatic_write"
             }
           ],

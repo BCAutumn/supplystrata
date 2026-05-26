@@ -99,10 +99,17 @@ describe("research-pack expansion and propagation", () => {
       ...emptyWorkbench(),
       companies: [
         { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" as const },
-        { entity_id: "ENT-SKHYNIX", name: "SK Hynix", role: "counterparty" as const }
+        { entity_id: "ENT-SKHYNIX", name: "SK Hynix", role: "counterparty" as const },
+        { entity_id: "ENT-FOXCONN", name: "Foxconn", role: "counterparty" as const }
       ],
-      chain_segments: [edgeSegmentFixture("EDGE-MEMORY", 1, "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY")],
-      edges: [edgeFixture("EDGE-MEMORY", "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY")]
+      chain_segments: [
+        edgeSegmentFixture("EDGE-MEMORY", 1, "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY"),
+        edgeSegmentFixture("EDGE-SERVER", 1, "ENT-NVIDIA", "NVIDIA", "ENT-FOXCONN", "Foxconn", "COMP-SERVER")
+      ],
+      edges: [
+        edgeFixture("EDGE-MEMORY", "ENT-NVIDIA", "NVIDIA", "ENT-SKHYNIX", "SK Hynix", "COMP-MEMORY"),
+        edgeFixture("EDGE-SERVER", "ENT-NVIDIA", "NVIDIA", "ENT-FOXCONN", "Foxconn", "COMP-SERVER")
+      ]
     };
     const observationCoverage = buildObservationCoverageReport({
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -183,10 +190,24 @@ describe("research-pack expansion and propagation", () => {
     expect(report.ai_compute_matrix.summary.layers_total).toBe(8);
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "demand_to_compute")).toEqual(
       expect.objectContaining({
-        status: "observation_ready",
-        fact_edge_refs: [],
+        status: "covered_fact",
+        fact_edge_refs: ["edge:EDGE-SERVER"],
         observation_refs: ["observation:OBS-BACKLOG", "observation:OBS-CAPEX"]
       })
+    );
+    const computeToServerLayer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "compute_to_server");
+    expect(computeToServerLayer).toEqual(
+      expect.objectContaining({
+        status: "covered_fact",
+        fact_edge_refs: ["edge:EDGE-SERVER"]
+      })
+    );
+    expect(computeToServerLayer?.official_evidence_gaps.map((item) => `${item.gap_kind}:${item.target_kind}:${item.target_id}`)).toEqual(
+      expect.arrayContaining([
+        "component_without_l4_l5_fact:component:COMP-COOLING",
+        "component_without_l4_l5_fact:component:COMP-OPTICAL-MODULE",
+        "component_without_l4_l5_fact:component:COMP-POWER-SUPPLY"
+      ])
     );
     const boardMaterialsLayer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "server_to_board_materials");
     expect(boardMaterialsLayer).toEqual(
@@ -207,6 +228,14 @@ describe("research-pack expansion and propagation", () => {
     );
     expect(boardMaterialsLayer?.next_research_targets.map((item) => `${item.target_kind}:${item.target_id}`)).toContain("component:COMP-CCL");
     expect(boardMaterialsLayer?.next_research_targets.map((item) => `${item.target_kind}:${item.target_id}`)).toContain("source_group:observation_proxy");
+    expect(boardMaterialsLayer?.official_evidence_gaps.map((item) => `${item.gap_kind}:${item.target_kind}:${item.target_id}`)).toEqual(
+      expect.arrayContaining([
+        "component_without_l4_l5_fact:component:COMP-CCL",
+        "component_without_l4_l5_fact:component:COMP-PCB",
+        "material_or_process_without_l4_l5_fact:material_or_process:MAT-COPPER",
+        "observation_only:layer:server_to_board_materials"
+      ])
+    );
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(
       expect.objectContaining({
         status: "observation_ready",
@@ -222,6 +251,7 @@ describe("research-pack expansion and propagation", () => {
     expect(renderPropagationReadinessMarkdown(report)).toContain("AI Compute Propagation Matrix");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Source target groups");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Next research targets");
+    expect(renderPropagationReadinessMarkdown(report)).toContain("Official evidence gaps");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Missing official evidence");
     expect(renderPropagationReadinessMarkdown(report)).toContain("Prohibited writes");
     expect(renderPropagationReadinessMarkdown(report)).toContain("process_material_consumption_signal");

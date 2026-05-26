@@ -46,6 +46,8 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         title: `Close AI compute propagation layer: ${layer.title}`,
         rationale: `${layer.question} Current status is ${layer.status}: ${layer.status_reason} Missing official evidence: ${formatSentenceList(
           layer.missing_official_evidence
+        )} Official evidence gaps: ${formatEvidenceGapList(
+          layer.official_evidence_gaps.map((gap) => `${gap.gap_kind} ${gap.target_kind}:${gap.target_id}`)
         )} Unknown/backlog seed: ${formatUnknownSeedList(layer.unknown_backlog_seeds.map((seed) => `${seed.seed_id} ${seed.recommended_review_action}`))}`,
         recommended_action: layer.next_actions.join(" "),
         recommended_decision: decisionForLayerStatus(layer.status),
@@ -117,6 +119,7 @@ function layerRefs(layer: AiComputePropagationLayer): string[] {
     ...layer.source_target_refs,
     ...layer.source_target_groups.map((group) => `source_target_group:${group.group_kind}`),
     ...layer.next_research_targets.flatMap((target) => [`next_research_target:${target.target_kind}:${target.target_id}`, ...target.refs]),
+    ...layer.official_evidence_gaps.flatMap((gap) => [`official_evidence_gap:${gap.gap_kind}:${gap.target_kind}:${gap.target_id}`, ...gap.refs]),
     ...layer.component_dependency_refs,
     ...layer.frontier_refs,
     ...layer.unknown_refs,
@@ -130,6 +133,10 @@ function formatSentenceList(values: readonly string[]): string {
 }
 
 function formatUnknownSeedList(values: readonly string[]): string {
+  return values.length === 0 ? "none." : values.join("; ");
+}
+
+function formatEvidenceGapList(values: readonly string[]): string {
   return values.length === 0 ? "none." : values.join("; ");
 }
 

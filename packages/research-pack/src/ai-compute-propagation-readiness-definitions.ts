@@ -50,6 +50,26 @@ export interface AiComputePropagationNextResearchTarget {
   action: string;
 }
 
+export type AiComputePropagationOfficialEvidenceGapKind =
+  | "component_without_l4_l5_fact"
+  | "material_or_process_without_l4_l5_fact"
+  | "official_source_not_reviewed"
+  | "official_source_blocked"
+  | "observation_only";
+
+export type AiComputePropagationOfficialEvidenceGapTargetKind = "component" | "material_or_process" | "source_group" | "layer";
+
+export interface AiComputePropagationOfficialEvidenceGap {
+  gap_kind: AiComputePropagationOfficialEvidenceGapKind;
+  target_kind: AiComputePropagationOfficialEvidenceGapTargetKind;
+  target_id: string;
+  label: string;
+  reason: string;
+  refs: string[];
+  recommended_action: string;
+  truth_store_write_policy: "review_only_no_automatic_write";
+}
+
 export interface AiComputePropagationUnknownBacklogSeed {
   seed_id: string;
   question: string;
@@ -104,6 +124,7 @@ export interface AiComputePropagationLayer {
   frontier_refs: string[];
   unknown_refs: string[];
   unknown_backlog_seeds: AiComputePropagationUnknownBacklogSeed[];
+  official_evidence_gaps: AiComputePropagationOfficialEvidenceGap[];
   missing_official_evidence: string[];
   allowed_research_outputs: string[];
   prohibited_truth_store_writes: string[];

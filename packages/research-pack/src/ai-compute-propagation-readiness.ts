@@ -10,6 +10,7 @@ import type {
   AiComputePropagationLayerId,
   AiComputePropagationLayerStatus,
   AiComputePropagationNextResearchTarget,
+  AiComputePropagationOfficialEvidenceGap,
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationSourceTargetGroup,
@@ -18,6 +19,7 @@ import type {
   AiComputePropagationUnknownBacklogSeed
 } from "./ai-compute-propagation-readiness-definitions.js";
 import { buildAiComputePropagationNextResearchTargets } from "./ai-compute-propagation-next-targets.js";
+import { buildAiComputePropagationOfficialEvidenceGaps } from "./ai-compute-propagation-official-evidence-gaps.js";
 
 export type {
   AiComputePropagationLayer,
@@ -26,6 +28,7 @@ export type {
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationReadinessSummary,
+  AiComputePropagationOfficialEvidenceGap,
   AiComputePropagationSourceTargetGroup,
   AiComputePropagationSourceTargetGroupKind,
   AiComputePropagationUnknownBacklogSeed
@@ -62,6 +65,7 @@ interface LayerRefs {
   frontier_refs: string[];
   unknown_refs: string[];
   material_or_process_refs: string[];
+  fact_component_ids: string[];
 }
 
 const POLICY: AiComputePropagationPolicy = "reasoning_input_only_no_fact_mutation";
@@ -179,6 +183,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     frontier_refs: refs.frontier_refs,
     unknown_refs: refs.unknown_refs,
     unknown_backlog_seeds: unknownBacklogSeedsFor(rule, status, refs),
+    official_evidence_gaps: officialEvidenceGapsFor(rule, status, refs),
     missing_official_evidence: missingOfficialEvidenceFor(status),
     allowed_research_outputs: allowedResearchOutputsFor(status),
     prohibited_truth_store_writes: prohibitedTruthStoreWritesFor(status),
@@ -230,8 +235,26 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
     component_dependency_refs: uniqueSorted(leads.map((lead) => `component_dependency:${lead.dependency_id}`)),
     frontier_refs: uniqueSorted(frontier.map((item) => `supply_chain_frontier:${item.frontier_id}`)),
     unknown_refs: uniqueSorted(unknownIds.map((unknownId) => `unknown:${unknownId}`)),
-    material_or_process_refs: materialOrProcessRefs
+    material_or_process_refs: materialOrProcessRefs,
+    fact_component_ids: uniqueSorted(factEdges.flatMap((edge) => (edge.component_id === null ? [] : [edge.component_id])))
   };
+}
+
+function officialEvidenceGapsFor(
+  rule: AiComputePropagationLayerRule,
+  status: AiComputePropagationLayerStatus,
+  refs: LayerRefs
+): AiComputePropagationOfficialEvidenceGap[] {
+  return buildAiComputePropagationOfficialEvidenceGaps({
+    layer_id: rule.layer_id,
+    status,
+    component_ids: rule.component_ids,
+    material_or_process_refs: refs.material_or_process_refs,
+    fact_component_ids: refs.fact_component_ids,
+    observation_refs: refs.observation_refs,
+    observation_series_refs: refs.observation_series_refs,
+    source_target_groups: refs.source_target_groups
+  });
 }
 
 function statusFor(refs: LayerRefs): AiComputePropagationLayerStatus {

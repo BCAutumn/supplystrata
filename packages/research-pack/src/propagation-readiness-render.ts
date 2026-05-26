@@ -48,6 +48,7 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Leads/frontier: ${formatList([...layer.component_dependency_refs, ...layer.frontier_refs])}`);
     lines.push(`  Unknowns: ${formatList(layer.unknown_refs)}`);
     lines.push(`  Unknown/backlog seeds: ${formatList(layer.unknown_backlog_seeds.map(formatUnknownBacklogSeed))}`);
+    lines.push(`  Official evidence gaps: ${formatList(layer.official_evidence_gaps.map(formatOfficialEvidenceGap))}`);
     lines.push(`  Missing official evidence: ${formatList(layer.missing_official_evidence)}`);
     lines.push(`  Allowed outputs: ${formatList(layer.allowed_research_outputs)}`);
     lines.push(`  Prohibited writes: ${formatList(layer.prohibited_truth_store_writes)}`);
@@ -110,4 +111,8 @@ function formatUnknownBacklogSeed(value: { seed_id: string; recommended_review_a
 
 function formatNextResearchTarget(value: { target_kind: string; target_id: string; label: string; action: string }): string {
   return `${value.target_kind}:${value.target_id} label="${value.label}" action="${value.action}"`;
+}
+
+function formatOfficialEvidenceGap(value: { gap_kind: string; target_kind: string; target_id: string; recommended_action: string }): string {
+  return `${value.gap_kind}:${value.target_kind}:${value.target_id} action="${value.recommended_action}"`;
 }
