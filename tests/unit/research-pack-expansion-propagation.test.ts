@@ -183,8 +183,17 @@ describe("research-pack expansion and propagation", () => {
     expect(report.ai_compute_matrix.summary.layers_total).toBe(8);
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "demand_to_compute")).toEqual(
       expect.objectContaining({
-        status: "covered_fact",
-        fact_edge_refs: ["edge:EDGE-MEMORY"]
+        status: "observation_ready",
+        fact_edge_refs: [],
+        observation_refs: ["observation:OBS-BACKLOG", "observation:OBS-CAPEX"]
+      })
+    );
+    expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "server_to_board_materials")).toEqual(
+      expect.objectContaining({
+        status: "observation_ready",
+        fact_edge_refs: [],
+        observation_refs: ["observation:OBS-COPPER"],
+        source_plan_refs: ["source_plan:worldbank-pink"]
       })
     );
     expect(report.ai_compute_matrix.layers.find((item) => item.layer_id === "process_to_raw_materials")).toEqual(

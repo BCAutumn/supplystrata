@@ -1,5 +1,5 @@
 import type { ObservationType } from "@supplystrata/core";
-import type { ResearchSourcePurpose, SourcePlanItem } from "@supplystrata/source-plan";
+import type { SourcePlanItem } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { ObservationCoverageReport } from "./observation-coverage.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
@@ -41,8 +41,6 @@ interface AiComputePropagationLayerRule {
   component_ids: readonly string[];
   material_or_process_prefixes: readonly string[];
   observation_types: readonly ObservationType[];
-  source_purposes: readonly ResearchSourcePurpose[];
-  dependency_categories: readonly SupplyChainComponentDependencyLead["category"][];
 }
 
 interface LayerRefs {
@@ -67,9 +65,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Do we have demand, capex, or customer signals that explain why compute capacity may expand?",
     component_ids: ["COMP-GPU", "COMP-HBM", "COMP-SERVER"],
     material_or_process_prefixes: [],
-    observation_types: ["BACKLOG_OBSERVATION", "CUSTOMER_CONCENTRATION_OBSERVATION", "FINANCIAL_METRIC_OBSERVATION", "CAPEX_OBSERVATION"],
-    source_purposes: ["official_disclosure", "procurement"],
-    dependency_categories: ["component", "service"]
+    observation_types: ["BACKLOG_OBSERVATION", "CUSTOMER_CONCENTRATION_OBSERVATION", "FINANCIAL_METRIC_OBSERVATION", "CAPEX_OBSERVATION"]
   },
   {
     layer_id: "compute_to_server",
@@ -77,9 +73,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Can the pack trace compute demand into AI server, ODM, optical, power, and cooling frontier?",
     component_ids: ["COMP-SERVER", "COMP-MANUFACTURING-SERVICES", "COMP-OPTICAL-MODULE", "COMP-POWER-SUPPLY", "COMP-COOLING"],
     material_or_process_prefixes: [],
-    observation_types: ["PROCUREMENT_OBSERVATION", "CAPEX_OBSERVATION", "FACILITY_PROFILE_OBSERVATION"],
-    source_purposes: ["official_disclosure", "procurement", "facility"],
-    dependency_categories: ["component", "equipment", "service", "facility"]
+    observation_types: ["PROCUREMENT_OBSERVATION", "CAPEX_OBSERVATION", "FACILITY_PROFILE_OBSERVATION"]
   },
   {
     layer_id: "server_to_board_materials",
@@ -87,9 +81,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Can the pack move from AI server/PCB context into CCL, copper foil, electronic glass cloth, and resin?",
     component_ids: ["COMP-PCB", "COMP-CCL", "COMP-COPPER-FOIL", "COMP-ELECTRONIC-GLASS-CLOTH", "COMP-LAMINATE-RESIN", "COMP-ABF-SUBSTRATE"],
     material_or_process_prefixes: ["MAT-COPPER"],
-    observation_types: ["TRADE_FLOW_OBSERVATION", "COMMODITY_PRICE_OBSERVATION", "MINERAL_SUPPLY_OBSERVATION"],
-    source_purposes: ["official_disclosure", "trade", "commodity"],
-    dependency_categories: ["component", "material"]
+    observation_types: ["TRADE_FLOW_OBSERVATION", "COMMODITY_PRICE_OBSERVATION", "MINERAL_SUPPLY_OBSERVATION"]
   },
   {
     layer_id: "compute_to_fab_capacity",
@@ -97,9 +89,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Can the pack connect compute demand to foundry, wafer, packaging, or memory capacity signals?",
     component_ids: ["COMP-WAFER", "COMP-SILICON-WAFER", "COMP-ADVANCED-PACKAGING", "COMP-HBM", "COMP-DRAM"],
     material_or_process_prefixes: [],
-    observation_types: ["CAPEX_OBSERVATION", "FACILITY_PROFILE_OBSERVATION", "PROCUREMENT_OBSERVATION"],
-    source_purposes: ["official_disclosure", "facility", "procurement"],
-    dependency_categories: ["component", "facility", "equipment"]
+    observation_types: ["CAPEX_OBSERVATION", "FACILITY_PROFILE_OBSERVATION", "PROCUREMENT_OBSERVATION"]
   },
   {
     layer_id: "fab_to_construction",
@@ -107,9 +97,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Do we have cleanroom, construction, or hook-up context before equipment installation?",
     component_ids: ["COMP-CLEANROOM"],
     material_or_process_prefixes: [],
-    observation_types: ["FACILITY_PROFILE_OBSERVATION", "CAPEX_OBSERVATION", "PROCUREMENT_OBSERVATION"],
-    source_purposes: ["facility", "procurement", "official_disclosure"],
-    dependency_categories: ["facility", "service"]
+    observation_types: ["FACILITY_PROFILE_OBSERVATION", "CAPEX_OBSERVATION", "PROCUREMENT_OBSERVATION"]
   },
   {
     layer_id: "construction_to_equipment",
@@ -117,9 +105,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Can the pack identify equipment delivery, installation, qualification, or tool-capacity frontier?",
     component_ids: ["COMP-EUV-LITHOGRAPHY", "COMP-SEMICONDUCTOR-EQUIPMENT"],
     material_or_process_prefixes: [],
-    observation_types: ["PROCUREMENT_OBSERVATION", "CAPEX_OBSERVATION", "POLICY_OBSERVATION"],
-    source_purposes: ["official_disclosure", "procurement", "policy"],
-    dependency_categories: ["equipment"]
+    observation_types: ["PROCUREMENT_OBSERVATION", "CAPEX_OBSERVATION", "POLICY_OBSERVATION"]
   },
   {
     layer_id: "equipment_to_process_inputs",
@@ -127,9 +113,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Can the pack name process consumables such as photoresist, targets, CMP, gases, and chemicals without asserting suppliers?",
     component_ids: ["COMP-PHOTORESIST", "COMP-TARGET", "COMP-CMP", "COMP-SPECIALTY-GASES"],
     material_or_process_prefixes: ["MAT-"],
-    observation_types: ["COMMODITY_PRICE_OBSERVATION", "TRADE_FLOW_OBSERVATION", "MINERAL_SUPPLY_OBSERVATION", "POLICY_OBSERVATION"],
-    source_purposes: ["commodity", "trade", "policy", "official_disclosure"],
-    dependency_categories: ["material", "energy"]
+    observation_types: ["COMMODITY_PRICE_OBSERVATION", "TRADE_FLOW_OBSERVATION", "MINERAL_SUPPLY_OBSERVATION", "POLICY_OBSERVATION"]
   },
   {
     layer_id: "process_to_raw_materials",
@@ -137,9 +121,7 @@ const LAYER_RULES: readonly AiComputePropagationLayerRule[] = [
     question: "Can the pack expose raw material constraints behind copper, glass fiber, resin, rare gases, metals, or chemicals?",
     component_ids: [],
     material_or_process_prefixes: ["MAT-"],
-    observation_types: ["MINERAL_SUPPLY_OBSERVATION", "COMMODITY_PRICE_OBSERVATION", "TRADE_FLOW_OBSERVATION", "POLICY_OBSERVATION"],
-    source_purposes: ["commodity", "trade", "macro", "policy"],
-    dependency_categories: ["material", "energy"]
+    observation_types: ["MINERAL_SUPPLY_OBSERVATION", "COMMODITY_PRICE_OBSERVATION", "TRADE_FLOW_OBSERVATION", "POLICY_OBSERVATION"]
   }
 ];
 
@@ -212,10 +194,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
   const sourceTargetStatuses = sourceTargetStatusesFor(coverageItems, officialNodes);
 
   return {
-    fact_edge_refs: uniqueSorted([
-      ...factEdges.map((edge) => `edge:${edge.edge_id}`),
-      ...leads.flatMap((lead) => lead.supporting_edge_ids.map((edgeId) => `edge:${edgeId}`))
-    ]),
+    fact_edge_refs: uniqueSorted(factEdges.map((edge) => `edge:${edge.edge_id}`)),
     observation_refs: uniqueSorted(observations.flatMap((item) => item.sample_observation_ids.map((observationId) => `observation:${observationId}`))),
     observation_series_refs: uniqueSorted(series.filter((item) => item.status !== "sparse").map((item) => `observation_series:${item.series_key}`)),
     source_plan_refs: uniqueSorted([
@@ -237,8 +216,9 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
 function statusFor(refs: LayerRefs): AiComputePropagationLayerStatus {
   if (refs.fact_edge_refs.length > 0) return "covered_fact";
   if (refs.observation_refs.length > 0 || refs.observation_series_refs.length > 0) return "observation_ready";
+  if (refs.source_target_statuses.some((item) => !isBlockedSourceTarget(item))) return "official_target_runnable";
+  if (refs.source_plan_refs.length > 0 && refs.source_target_statuses.length === 0) return "official_target_runnable";
   if (refs.source_target_statuses.some(isBlockedSourceTarget)) return "blocked_source";
-  if (refs.source_target_refs.length > 0 || refs.source_plan_refs.length > 0) return "official_target_runnable";
   if (refs.component_dependency_refs.length > 0 || refs.frontier_refs.length > 0) return "lead_only";
   return "unknown_open";
 }
@@ -343,21 +323,20 @@ function unknownSeedActionFor(
 }
 
 function sourcePlanItemsForRule(rule: AiComputePropagationLayerRule, sourcePlan: readonly SourcePlanItem[]): SourcePlanItem[] {
+  // propagation layer 的 source path 必须锚定到当前层的组件或材料；不能因为同属 official_disclosure / trade 这类大类，
+  // 就把全局 source-plan 借给每一层，否则会把“有源可查”误报成“这一层已可查”。
   return sourcePlan.filter(
     (item) =>
-      rule.source_purposes.includes(item.purpose) ||
       item.parent_component_ids.some((componentId) => componentMatchesRule(componentId, rule)) ||
       item.target_ids.some((targetId) => componentMatchesRule(targetId, rule) || materialOrProcessMatchesRule(targetId, rule))
   );
 }
 
 function leadsForRule(rule: AiComputePropagationLayerRule, leads: readonly SupplyChainComponentDependencyLead[]): SupplyChainComponentDependencyLead[] {
+  // lead 只能按具体 parent/target 匹配；category 只是 lead 的解释标签，不能作为覆盖当前层的证据。
   return leads.filter(
     (lead) =>
-      rule.dependency_categories.includes(lead.category) ||
-      componentMatchesRule(lead.parent_component_id, rule) ||
-      componentMatchesRule(lead.target_id, rule) ||
-      materialOrProcessMatchesRule(lead.target_id, rule)
+      componentMatchesRule(lead.parent_component_id, rule) || componentMatchesRule(lead.target_id, rule) || materialOrProcessMatchesRule(lead.target_id, rule)
   );
 }
 
@@ -366,10 +345,19 @@ function frontierForRule(rule: AiComputePropagationLayerRule, frontier: readonly
 }
 
 function sourceCoverageItemsFor(sourcePlanItems: readonly SourcePlanItem[], coverage: SourceTargetCoverageReport): SourceTargetCoverageReport["items"] {
-  const sourceIds = new Set(sourcePlanItems.map((item) => item.source_id));
   const targetIds = new Set(sourcePlanItems.flatMap((item) => item.target_ids));
+  const suggestedTargets = sourcePlanItems.flatMap((item) => item.suggested_check_targets);
   return coverage.items.filter((item) => {
-    if (sourceIds.has(item.expected_target.source_adapter_id)) return true;
+    if (
+      suggestedTargets.some(
+        (target) =>
+          target.source_adapter_id === item.expected_target.source_adapter_id &&
+          target.target_kind === item.expected_target.target_kind &&
+          stableConfigKey(target.target_config) === stableConfigKey(item.expected_target.target_config)
+      )
+    ) {
+      return true;
+    }
     const targetConfigText = JSON.stringify(item.expected_target.target_config);
     return [...targetIds].some((targetId) => targetConfigText.includes(targetId));
   });
@@ -449,6 +437,25 @@ function stableTextKey(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 48);
+}
+
+function stableConfigKey(config: Record<string, unknown>): string {
+  return stableConfigValue(config);
+}
+
+function stableConfigValue(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableConfigValue).join(",")}]`;
+  if (isRecord(value)) {
+    return `{${Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .map((key) => `${JSON.stringify(key)}:${stableConfigValue(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
