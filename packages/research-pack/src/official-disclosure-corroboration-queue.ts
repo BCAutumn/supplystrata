@@ -89,11 +89,9 @@ function corroborationQueueItemForEdge(
   );
   const sourcePlanRefs = uniqueSorted(candidateNodes.flatMap((node) => node.source_plan_refs));
   const disposition = corroborationDisposition({ edge, candidateSourceIds, sourceTargets, latestDisposition });
-  const proposedUnknown =
-    disposition === "needs_explicit_single_source_disposition" ||
-    (latestDisposition?.decision === "record_single_source_unknown" && latestDisposition.unknown_id === null)
-      ? proposedSingleSourceDispositionUnknown(edge)
-      : null;
+  const proposedUnknown = shouldProposeSingleSourceDispositionUnknown(edge, disposition, latestDisposition)
+    ? proposedSingleSourceDispositionUnknown(edge)
+    : null;
   return {
     edge_id: edge.edge_id,
     priority: corroborationPriority({ edge, candidateNodes, sourceTargets }),
@@ -114,6 +112,20 @@ function corroborationQueueItemForEdge(
     proposed_unknown: proposedUnknown,
     action: corroborationAction(disposition, sourceTargets, proposedUnknown)
   };
+}
+
+function shouldProposeSingleSourceDispositionUnknown(
+  edge: OfficialDisclosureReadinessEdge,
+  disposition: OfficialDisclosureCorroborationDisposition,
+  latestDisposition: OfficialDisclosureEdgeCorroborationDispositionSummary | null
+): boolean {
+  if (disposition === "needs_explicit_single_source_disposition") return true;
+  if (latestDisposition?.decision !== "record_single_source_unknown") return false;
+  if (latestDisposition.unknown_id !== null) return false;
+
+  // disposition 是人工/规则审查事件；unknown 可以在后续受控流程里物化。
+  // 如果 edge 已经挂上 single-source unknown，就不要继续把同一个 unknown 显示成 proposed。
+  return edge.single_source_disposition_unknown_ids.length === 0;
 }
 
 function corroborationPriority(input: {

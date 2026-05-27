@@ -121,6 +121,58 @@ export interface AiComputePropagationUnknownBacklogSummary {
   truth_store_write_policy: "review_only_no_automatic_write";
 }
 
+export type AiComputePropagationExecutionAction = "run_source_target" | "repair_source_target" | "review_intelligence_context" | "keep_unknown_open";
+export type AiComputePropagationExecutionPriority = "P0" | "P1" | "P2";
+
+export interface AiComputePropagationExecutionSourceTargetAction {
+  source_target_ref: string;
+  check_target_id: string | null;
+  source_adapter_id: string;
+  target_kind: string | null;
+  state: string | null;
+  failure_kind: string | null;
+  latest_event_type: string | null;
+  recommended_cli_command: string | null;
+  writes_truth_store: boolean;
+  requires_database: boolean;
+}
+
+export interface AiComputePropagationExecutionQueueItem {
+  queue_item_id: string;
+  action: AiComputePropagationExecutionAction;
+  priority: AiComputePropagationExecutionPriority;
+  title: string;
+  reason: string;
+  source_target_refs: string[];
+  official_evidence_gap_refs: string[];
+  unknown_refs: string[];
+  next_research_refs: string[];
+  source_target_actions: AiComputePropagationExecutionSourceTargetAction[];
+  repair_reason: string | null;
+  truth_store_write_policy: "review_only_no_automatic_write";
+  automatic_fact_mutation_allowed: false;
+}
+
+export interface AiComputePropagationExecutionQueueSummary {
+  items: number;
+  run_source_target: number;
+  repair_source_target: number;
+  review_intelligence_context: number;
+  keep_unknown_open: number;
+  p0: number;
+  p1: number;
+  p2: number;
+  runnable_source_targets: number;
+  blocked_source_targets: number;
+  unknown_refs: number;
+}
+
+export interface AiComputePropagationExecutionQueue {
+  schema_version: "1.0.0";
+  summary: AiComputePropagationExecutionQueueSummary;
+  items: AiComputePropagationExecutionQueueItem[];
+}
+
 export interface AiComputePropagationLayerReadinessAnswers {
   fact_edges: {
     count: number;
@@ -176,6 +228,7 @@ export interface AiComputePropagationLayer {
   status: AiComputePropagationLayerStatus;
   status_reason: string;
   readiness_answers: AiComputePropagationLayerReadinessAnswers;
+  execution_queue: AiComputePropagationExecutionQueue;
   evidence_layer_summary: AiComputePropagationEvidenceLayerSummary[];
   component_ids: string[];
   material_or_process_refs: string[];

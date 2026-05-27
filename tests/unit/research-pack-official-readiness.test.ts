@@ -268,6 +268,80 @@ describe("research-pack official disclosure readiness", () => {
     expect(queueItem?.proposed_unknown).toBeNull();
   });
 
+  it("does not re-propose a single-source unknown after the controlled unknown materialization has run", () => {
+    const edge = {
+      edge_id: "EDGE-MATERIALIZED-SINGLE-SOURCE-1",
+      from_id: "ENT-NVIDIA",
+      from_name: "NVIDIA",
+      to_id: "ENT-MICRON",
+      to_name: "Micron",
+      relation: "BUYS_FROM" as const,
+      component: "memory",
+      component_id: "COMP-MEMORY",
+      evidence_level: 5 as const,
+      confidence: 0.95,
+      evidence_ids: ["EV-MATERIALIZED-SINGLE-SOURCE-1"]
+    };
+    const report = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-MEMORY"],
+      edge_corroboration_dispositions: [
+        {
+          change_id: "CHG-EDGE-CORROBORATION-MATERIALIZED-1",
+          edge_id: "EDGE-MATERIALIZED-SINGLE-SOURCE-1",
+          decision: "record_single_source_unknown",
+          reviewer: "unit-test",
+          reason: "Counterparty source target completed without edge-specific second-source evidence.",
+          evidence_id: null,
+          unknown_id: null,
+          check_target_id: "CHK-MICRON-IR",
+          recorded_at: "2026-05-26T00:00:00.000Z"
+        }
+      ],
+      workbench: {
+        ...emptyWorkbench(),
+        companies: [
+          { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
+          { entity_id: "ENT-MICRON", name: "Micron", role: "counterparty" }
+        ],
+        edges: [edge],
+        evidences: [
+          evidenceFixture("EV-MATERIALIZED-SINGLE-SOURCE-1", {
+            edge_id: "EDGE-MATERIALIZED-SINGLE-SOURCE-1",
+            evidence_level: 5,
+            source_adapter_id: "sec-edgar",
+            source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+            cite_text_sha256: "abc123"
+          })
+        ],
+        unknown_items: [
+          {
+            unknown_id: "UNK-EDGE-CORROB-MATERIALIZED",
+            scope_kind: "edge",
+            scope_id: "EDGE-MATERIALIZED-SINGLE-SOURCE-1",
+            question: "Can this edge be corroborated by a second official source?",
+            why_unknown: "A single-source disposition was reviewed and materialized after no counterparty official disclosure evidence was found.",
+            blocking_data_sources: ["single-source disposition", "counterparty official disclosure"],
+            proxies: ["check_target:CHK-MICRON-IR"],
+            status: "open"
+          }
+        ],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+
+    expect(report.summary.corroboration_queue_with_recorded_disposition).toBe(1);
+    expect(report.summary.corroboration_queue_proposed_unknowns).toBe(0);
+    expect(report.corroboration_queue[0]).toEqual(
+      expect.objectContaining({
+        disposition: "single_source_disposition_recorded",
+        unknown_ids: ["UNK-EDGE-CORROB-MATERIALIZED"],
+        proposed_unknown: null
+      })
+    );
+  });
+
   it("measures official disclosure coverage against an explicit target node set", () => {
     const report = buildOfficialDisclosureReadinessReport({
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -352,7 +426,7 @@ describe("research-pack official disclosure readiness", () => {
     const profile = getBuiltInResearchTargetProfile("ai-compute-memory.v0");
 
     expect(profiles.map((item) => item.profile_id)).toEqual(["ai-compute-memory.v0"]);
-    expect(profile.target_nodes).toHaveLength(34);
+    expect(profile.target_nodes).toHaveLength(38);
     expect(profile.target_nodes.find((node) => node.node_id === "ENT-NVIDIA")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
     );
@@ -390,6 +464,18 @@ describe("research-pack official disclosure readiness", () => {
     );
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-CLEANROOM")).toEqual(
       expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-PHOTORESIST")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-TARGET")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-CMP")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-SPECIALTY-GASES")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "edinet"] })
     );
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-HBM")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["skhynix-ir", "samsung-ir", "micron-ir"] })

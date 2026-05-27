@@ -20,13 +20,15 @@ export function buildSourceCheckTargetIdsFromPlan(input: SourcePlanTargetIdInput
   return buildSourceCheckTargetsFromPlan({
     source_plan: input.source_plan,
     namespace: input.namespace,
-    ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids })
+    ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids }),
+    ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids })
   }).map((target) => target.check_target_id);
 }
 
 export function buildSourceCheckTargetsFromPlan(input: SourceTargetsFromPlanInput): SourceManagementTargetInput[] {
   const namespace = normalizeNamespace(input.namespace);
   const sourceAdapterFilter = input.source_adapter_ids === undefined ? null : new Set(input.source_adapter_ids);
+  const checkTargetIdFilter = input.check_target_ids === undefined ? null : new Set(input.check_target_ids);
   const targets: SourceManagementTargetInput[] = [];
   const seen = new Set<string>();
   for (const item of input.source_plan) {
@@ -47,6 +49,7 @@ export function buildSourceCheckTargetsFromPlan(input: SourceTargetsFromPlanInpu
           : { backoff_base_minutes: requirePositiveInteger(input.backoff_base_minutes, "backoff_base_minutes") }),
         ...(input.backoff_max_minutes === undefined ? {} : { backoff_max_minutes: requirePositiveInteger(input.backoff_max_minutes, "backoff_max_minutes") })
       });
+      if (checkTargetIdFilter !== null && !checkTargetIdFilter.has(target.check_target_id)) continue;
       if (seen.has(target.check_target_id)) continue;
       seen.add(target.check_target_id);
       targets.push(target);

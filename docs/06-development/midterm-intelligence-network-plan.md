@@ -48,7 +48,7 @@
 - 通知通道。
 - USGS / IEA 等原材料源 adapter，把 planned material target 进一步变成 runnable connector，并落成 mineral / critical-minerals observations。
 - DART-KR / EDINET / TWSE 等官方披露源，把二级/三级事实边继续做厚。当前 DART 已先接到 disclosure list monitor / source-check / readiness；EDINET 已先接到 `documents.json` daily-filings monitor / source-check / readiness，并在 profile 中覆盖 silicon wafer / ABF substrate 的日本官方目录监控；TWSE MOPS 已接到 `electronic-documents` 目录 monitor / source-check / readiness，先覆盖 Foxconn / Quanta 这类台湾 AI server ODM 节点的官方披露入口。正文下载、XBRL ZIP / PDF 和韩文/HWP 解析继续后排。
-- Propagation readiness 第一版已落地：research-pack 会把需求信号、扩产信号、设施建设、设备安装、工艺材料消耗、原材料价格/贸易/政策信号汇总成 `ready / partial / blocked` 推理输入，并带 `reasoning_input_only_no_fact_mutation` policy。AI compute matrix 和 Gate 1 propagation workbench item 会输出 `readiness_answers`，把 facts、non-fact inputs、official gaps、unknown/backlog、next research、source target state refs 和 output policy 收口成未来 AI/前端可直接消费的 DTO。它只服务前端/AI 研究，不直接生成事实边或自然语言结论；后续仍需把更多真实 typed observations 和 source target coverage 接入这些 context。
+- Propagation readiness 第一版已落地：research-pack 会把需求信号、扩产信号、设施建设、设备安装、工艺材料消耗、原材料价格/贸易/政策信号汇总成 `ready / partial / blocked` 推理输入，并带 `reasoning_input_only_no_fact_mutation` policy。AI compute matrix 和 Gate 1 propagation workbench item 会输出 `readiness_answers`，把 facts、non-fact inputs、official gaps、unknown/backlog、next research、source target state refs 和 output policy 收口成未来 AI/前端可直接消费的 DTO；同时输出 `execution_queue`，把 run source target、repair source target、review intelligence context、keep unknown open 拆成结构化队列。它只服务前端/AI 研究，不直接生成事实边或自然语言结论；后续仍需把更多真实 typed observations 和 source target coverage 接入这些 context。
 - 需要 key 的公开源必须走统一 source credential 配置：key 定义集中在 `@supplystrata/config`，本地真实值集中到 git 忽略的 `config/source-credentials.local.json`，`.env` / 环境变量只作为覆盖入口。未配置 key 时，source-plan smoke / backlog 标记 `missing_credentials`，research-pack 仍能输出当前可审计数据和缺口。
 
 ## 2. 目标形态
@@ -87,6 +87,8 @@ company / facility / component / material / equipment / process / geography
 例如 AI compute 不能只停在 `NVIDIA -> TSMC / SK Hynix`。它还要能把 `GPU / HBM / server / PCB / optical module / cleanroom / semiconductor equipment / photoresist / target / CMP / copper foil / resin / electronic glass cloth / high-purity gas` 这类 component、material、equipment 和 process frontier 放进 taxonomy、source-plan、unknown 和 investigation backlog。后端负责把这些节点、来源、证据和缺口准备好；最终“这条传导链意味着什么”的开放式综合分析，留给未来前端研究流程和安全 AI 消费结构化 DTO 完成。
 
 当前已落地的 frontier 仍是方法学和数据准备层：它能告诉系统“下一层该查哪些组件/材料/官方源/贸易或商品观测”，但不能把“GPU 带动 PCB / CCL / 树脂 / 电子布”的行业叙事直接升级成事实关系。事实层仍必须来自 L4/L5 证据或受控 review。
+
+当前执行目标进一步收口为：围绕 AI compute 主链，把每个 propagation layer 的事实、观测、lead、unknown、source target、official evidence gap、calibration label 和 execution queue 跑成可复现闭环。L4/L5 数量只是健康指标；真正的 Gate 1 进度要看这些层是否能说明“已有证据是什么、缺口是什么、下一步该跑/修/审/保留什么”，并且这些答案能直接被 Workbench、research-pack、未来前端和安全 AI 消费。
 
 一句话：**图不是事实，证据才是事实；观测不是关系，线索不是证据。**
 

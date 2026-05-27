@@ -220,6 +220,9 @@ export interface OfficialDisclosureReadinessSourceTarget {
   target_key: string;
   target_entity_id: string | null;
   target_component_id: string | null;
+  expected_check_target_id: string | null;
+  matched_check_target_id: string | null;
+  match_kind: "check_target_id" | "target_config" | "none" | null;
   check_target_id: string | null;
   state: string | null;
   synced: boolean | null;

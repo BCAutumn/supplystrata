@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectResearchComponentIds, resolveResearchPackWriteSteps, safeFileSegment } from "@supplystrata/research-pack";
+import { collectResearchComponentIds, researchPackUnknownMapTargets, resolveResearchPackWriteSteps, safeFileSegment } from "@supplystrata/research-pack";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 
 describe("research-pack basics", () => {
@@ -50,5 +50,29 @@ describe("research-pack basics", () => {
   it("creates safe deterministic file segments", () => {
     expect(safeFileSegment("COMP-HBM")).toBe("comp-hbm");
     expect(safeFileSegment("HBM / Advanced Packaging")).toBe("hbm-advanced-packaging");
+  });
+
+  it("requires a root unknown only when the selected company has no L4/L5 fact edge", () => {
+    expect(
+      researchPackUnknownMapTargets({
+        selected_company_id: "ENT-FOXCONN",
+        edges: [{ from_id: "ENT-NVIDIA", to_id: "ENT-FOXCONN", evidence_level: 5 }]
+      })
+    ).toEqual([]);
+
+    expect(
+      researchPackUnknownMapTargets({
+        selected_company_id: "ENT-SAMSUNG-ELECTRONICS",
+        edges: [{ from_id: "ENT-NVIDIA", to_id: "ENT-SAMSUNG-MEMORY", evidence_level: 5 }]
+      })
+    ).toEqual([{ scope_id: "ENT-SAMSUNG-ELECTRONICS", minimum_open_items: 1 }]);
+
+    expect(
+      researchPackUnknownMapTargets({
+        selected_company_id: "ENT-SAMSUNG-MEMORY",
+        root_unknown_materialization: { companies_with_l4_l5_edges: 1 },
+        edges: []
+      })
+    ).toEqual([]);
   });
 });

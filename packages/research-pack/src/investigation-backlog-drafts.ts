@@ -154,7 +154,8 @@ function corroborationReviewDrafts(input: InvestigationBacklogInput): BacklogDra
   const coverageByTarget = coverageByRunnableTarget(input);
   const sourcePlanTargetsByKey = runnableTargetsByKey(input.source_plan);
   return input.official_disclosure_readiness.corroboration_queue.slice(0, 40).map((queueItem) => {
-    const runnableCheckTargets = runnableTargetsForCorroborationQueueItem(queueItem, sourcePlanTargetsByKey);
+    const runnableCheckTargets =
+      queueItem.disposition === "single_source_disposition_recorded" ? [] : runnableTargetsForCorroborationQueueItem(queueItem, sourcePlanTargetsByKey);
     return {
       kind: "corroboration_review",
       priority: queueItem.priority,

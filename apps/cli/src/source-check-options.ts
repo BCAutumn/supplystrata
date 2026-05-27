@@ -48,14 +48,18 @@ export async function buildSourceCheckTargetIdsFromSourcePlanFile(input: {
   sourcePlan: string;
   namespace?: string;
   sourceAdapterIds?: readonly string[];
+  checkTargetIds?: readonly string[];
 }): Promise<string[]> {
   const document = await readSourcePlanDocument(input.sourcePlan);
-  if (document.check_target_ids !== undefined) return filterEmbeddedCheckTargetIds(document.check_target_ids, input.sourceAdapterIds);
+  if (document.check_target_ids !== undefined) {
+    return filterEmbeddedCheckTargetIds(document.check_target_ids, input.sourceAdapterIds, input.checkTargetIds);
+  }
   if (input.namespace === undefined) throw new Error("--source-plan requires --namespace unless the source-plan document includes check_target_ids");
   return buildSourceCheckTargetIdsFromPlan({
     source_plan: document.source_plan,
     namespace: input.namespace,
-    ...(input.sourceAdapterIds === undefined ? {} : { source_adapter_ids: input.sourceAdapterIds })
+    ...(input.sourceAdapterIds === undefined ? {} : { source_adapter_ids: input.sourceAdapterIds }),
+    ...(input.checkTargetIds === undefined ? {} : { check_target_ids: input.checkTargetIds })
   });
 }
 
@@ -101,10 +105,17 @@ function namespaceOption(options: { namespace?: string }): { namespace?: string 
   return options.namespace === undefined ? {} : { namespace: options.namespace };
 }
 
-function filterEmbeddedCheckTargetIds(ids: readonly string[], sourceAdapterIds: readonly string[] | undefined): string[] {
-  if (sourceAdapterIds === undefined) return [...ids].sort();
+function filterEmbeddedCheckTargetIds(
+  ids: readonly string[],
+  sourceAdapterIds: readonly string[] | undefined,
+  checkTargetIds: readonly string[] | undefined
+): string[] {
+  const allowedIds = checkTargetIds === undefined ? null : new Set(checkTargetIds);
   const allowedSources = new Set(sourceAdapterIds);
-  return ids.filter((id) => sourceCheckTargetIdMatchesSource(id, allowedSources)).sort();
+  return ids
+    .filter((id) => allowedIds === null || allowedIds.has(id))
+    .filter((id) => sourceAdapterIds === undefined || sourceCheckTargetIdMatchesSource(id, allowedSources))
+    .sort();
 }
 
 function sourceCheckTargetIdMatchesSource(id: string, allowedSources: ReadonlySet<string>): boolean {

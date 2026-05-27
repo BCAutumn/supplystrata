@@ -61,6 +61,12 @@ describe("CLI option parsing", () => {
     await expect(buildSourceCheckTargetIdsFromSourcePlanFile({ sourcePlan: sourcePlanPath, sourceAdapterIds: ["micron-ir"] })).resolves.toEqual([
       "plan:gate1-db-monitoring-config-check:micron-ir:official-html-disclosure:64939e541a7ec958"
     ]);
+    await expect(
+      buildSourceCheckTargetIdsFromSourcePlanFile({
+        sourcePlan: sourcePlanPath,
+        checkTargetIds: ["plan:nvidia-memory-2025:sec-edgar:sec-company-facts:5c40fc865f66f81f"]
+      })
+    ).resolves.toEqual(["plan:nvidia-memory-2025:sec-edgar:sec-company-facts:5c40fc865f66f81f"]);
   });
 });
 

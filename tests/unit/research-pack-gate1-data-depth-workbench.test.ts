@@ -1,26 +1,25 @@
 import { describe, expect, it } from "vitest";
-import type pg from "pg";
 import {
   buildGate1DataDepthActionBatch,
   buildGate1DataDepthWorkbench,
   buildOfficialDisclosureReadinessReport,
   loadGate1AdjacentOfficialFacts,
-  loadGate1EntityAffiliationContexts,
-  type Gate1EntityAffiliationContext,
-  type Gate1AdjacentOfficialFactsReport,
-  type PropagationReadinessReport,
-  type SourceTargetCoverageReport,
-  type SupplyChainExpansionPlan
+  loadGate1EntityAffiliationContexts
 } from "@supplystrata/research-pack";
-import type { DbClient } from "@supplystrata/db/read";
-import type { WorkbenchModel } from "@supplystrata/workbench-export";
+import { gate1DataDepthActionBatchDefinition, officialSourcePlanItem, officialSourceTargetCoverage } from "./research-pack-fixtures.js";
 import {
-  edgeFixture,
-  emptyWorkbench,
-  gate1DataDepthActionBatchDefinition,
-  officialSourcePlanItem,
-  officialSourceTargetCoverage
-} from "./research-pack-fixtures.js";
+  AdjacentFactsDbClient,
+  EntityAffiliationDbClient,
+  adjacentOfficialFactsReport,
+  emptyPropagationReadinessReport,
+  emptySupplyChainExpansionPlan,
+  expansionPlanWithBlockedFacilityAndReadyCompany,
+  expansionPlanWithSamsungMemoryFrontier,
+  samsungMemoryAffiliation,
+  samsungMemoryAffiliationWithDisposition,
+  sourceTargetCoverageWithCalibrationCandidates,
+  workbenchWithSamsungMemoryEdge
+} from "./research-pack-gate1-data-depth-workbench-fixtures.js";
 
 describe("Gate 1 data-depth entity context", () => {
   it("loads parent legal-entity open unknowns into affiliation context", async () => {
@@ -106,6 +105,43 @@ describe("Gate 1 data-depth entity context", () => {
     expect(batch.items[0]?.frontend_action_kind).toBe("review_entity_context");
   });
 
+  it("uses reviewed parent legal-entity scope for frontier business units", () => {
+    const sourceTargetCoverage = officialSourceTargetCoverage("succeeded");
+    const readiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: workbenchWithSamsungMemoryEdge(),
+      component_ids: ["COMP-MEMORY"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: sourceTargetCoverage
+    });
+
+    const workbenchModel = buildGate1DataDepthWorkbench({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      research_context: {
+        depth: 4,
+        official_disclosure_year: "2025",
+        research_target_profile_id: "ai-compute-memory.v0"
+      },
+      official_disclosure_readiness: readiness,
+      source_target_coverage: sourceTargetCoverage,
+      supply_chain_expansion_plan: expansionPlanWithSamsungMemoryFrontier(),
+      propagation_readiness: emptyPropagationReadinessReport(),
+      adjacent_official_facts: adjacentOfficialFactsReport(),
+      entity_affiliation_contexts: [samsungMemoryAffiliationWithDisposition()]
+    });
+
+    const frontierItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-frontier:recursive-depth");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--company ENT-SAMSUNG-ELECTRONICS");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--component COMP-MEMORY");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--source-target-namespace research-ent-samsung-electronics");
+    expect(frontierItem?.command_hints[0]?.command).toContain("--out reports/ent-samsung-electronics-comp-memory-research-pack");
+    expect(frontierItem?.command_hints[0]?.command).not.toContain("--company ENT-SAMSUNG-MEMORY");
+  });
+});
+
+describe("Gate 1 data-depth recursive research actions", () => {
   it("turns adjacent official facts into recursive research context without mutating facts", async () => {
     const adjacentFacts = await loadGate1AdjacentOfficialFacts(new AdjacentFactsDbClient(), {
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -258,9 +294,11 @@ describe("Gate 1 data-depth entity context", () => {
     expect(frontierItem?.command_hints[0]?.command).not.toContain("ENT-FAC-");
     expect(frontierItem?.command_hints[0]?.command).not.toContain("<research-pack-out>");
   });
+});
 
-  it("uses reviewed parent legal-entity scope for frontier business units", () => {
-    const sourceTargetCoverage = officialSourceTargetCoverage("succeeded");
+describe("Gate 1 data-depth source and observation operations", () => {
+  it("uses exact check target ids for source blocker repair commands", () => {
+    const sourceTargetCoverage = officialSourceTargetCoverage("retry_wait");
     const readiness = buildOfficialDisclosureReadinessReport({
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
@@ -273,356 +311,51 @@ describe("Gate 1 data-depth entity context", () => {
     const workbenchModel = buildGate1DataDepthWorkbench({
       generated_at: "2026-01-01T00:00:00.000Z",
       company_id: "ENT-NVIDIA",
-      research_context: {
-        depth: 4,
-        official_disclosure_year: "2025",
-        research_target_profile_id: "ai-compute-memory.v0"
-      },
       official_disclosure_readiness: readiness,
       source_target_coverage: sourceTargetCoverage,
-      supply_chain_expansion_plan: expansionPlanWithSamsungMemoryFrontier(),
+      supply_chain_expansion_plan: emptySupplyChainExpansionPlan(),
       propagation_readiness: emptyPropagationReadinessReport(),
       adjacent_official_facts: adjacentOfficialFactsReport(),
-      entity_affiliation_contexts: [samsungMemoryAffiliationWithDisposition()]
+      entity_affiliation_contexts: []
     });
 
-    const frontierItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-frontier:recursive-depth");
-    expect(frontierItem?.command_hints[0]?.command).toContain("--company ENT-SAMSUNG-ELECTRONICS");
-    expect(frontierItem?.command_hints[0]?.command).toContain("--component COMP-MEMORY");
-    expect(frontierItem?.command_hints[0]?.command).toContain("--source-target-namespace research-ent-samsung-electronics");
-    expect(frontierItem?.command_hints[0]?.command).toContain("--out reports/ent-samsung-electronics-comp-memory-research-pack");
-    expect(frontierItem?.command_hints[0]?.command).not.toContain("--company ENT-SAMSUNG-MEMORY");
+    const sourceBlocker = workbenchModel.items.find((candidate) => candidate.item_id.startsWith("gate1-source-blocker:"));
+    expect(sourceBlocker?.command_hints[0]?.command).toBe(
+      "pnpm --silent cli sources due --check-target-id plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6 --format markdown"
+    );
+    expect(sourceBlocker?.command_hints[1]?.command).toBe(
+      "pnpm --silent cli sources run-due --check-target-id plan:nvidia-memory-2025:samsung-ir:official-html-disclosure:0a2adc4a3479a3f6 --format markdown"
+    );
+    expect(sourceBlocker?.command_hints.some((hint) => hint.command.includes("--source samsung-ir"))).toBe(false);
+  });
+
+  it("creates calibration label commands for the whole next observation batch", () => {
+    const sourceTargetCoverage = sourceTargetCoverageWithCalibrationCandidates();
+    const readiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: workbenchWithSamsungMemoryEdge(),
+      component_ids: ["COMP-MEMORY"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: sourceTargetCoverage
+    });
+
+    const workbenchModel = buildGate1DataDepthWorkbench({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      official_disclosure_readiness: readiness,
+      source_target_coverage: sourceTargetCoverage,
+      supply_chain_expansion_plan: emptySupplyChainExpansionPlan(),
+      propagation_readiness: emptyPropagationReadinessReport(),
+      adjacent_official_facts: adjacentOfficialFactsReport(),
+      entity_affiliation_contexts: []
+    });
+
+    const calibrationItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-observation-calibration:next-labeling-batch");
+    expect(calibrationItem?.command_hints).toHaveLength(2);
+    expect(calibrationItem?.command_hints[0]?.command).toContain("OBS-CAL-1 --label useful_signal");
+    expect(calibrationItem?.command_hints[1]?.command).toContain("OBS-CAL-2 --label needs_context");
+    expect(calibrationItem?.source_adapters).toEqual(["samsung-ir"]);
+    expect(calibrationItem?.automatic_fact_mutation_allowed).toBe(false);
   });
 });
-
-interface QueryCall {
-  sql: string;
-  params: readonly unknown[];
-}
-
-class EntityAffiliationDbClient implements DbClient {
-  readonly calls: QueryCall[] = [];
-
-  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
-    this.calls.push({ sql, params });
-    const rows = rowsForEntityAffiliation<T>(sql);
-    return {
-      command: "MOCK",
-      rowCount: rows.length,
-      oid: 0,
-      fields: [],
-      rows
-    };
-  }
-}
-
-class AdjacentFactsDbClient implements DbClient {
-  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
-    expect(sql).toContain("e.component_id = ANY($1::text[])");
-    expect(sql).toContain("NOT (e.edge_id = ANY($2::text[]))");
-    expect(params[0]).toEqual(["COMP-PCB"]);
-    expect(params[1]).toEqual(["EDGE-VISIBLE"]);
-    const rows = [
-      {
-        edge_id: "EDGE-ADJACENT-NVIDIA-PCB",
-        from_id: "ENT-IBIDEN",
-        from_name: "Ibiden",
-        from_kind: "company",
-        from_industry: ["pcb", "substrate"],
-        to_id: "ENT-NVIDIA",
-        to_name: "NVIDIA",
-        to_kind: "company",
-        to_industry: ["ai-compute"],
-        relation: "SUPPLIES_TO",
-        component_id: null,
-        component_name: null,
-        evidence_level: 4,
-        confidence: 0.97,
-        evidence_ids: ["EV-ADJACENT-NVIDIA-PCB"],
-        source_adapters: ["sec-edgar"],
-        source_urls: ["https://example.test/ibiden-filing"]
-      },
-      {
-        edge_id: "EDGE-ADJACENT-PCB",
-        from_id: "ENT-APPLE",
-        from_name: "Apple",
-        from_kind: "company",
-        from_industry: ["consumer-electronics"],
-        to_id: "ENT-COMPEQ",
-        to_name: "Compeq",
-        to_kind: "company",
-        to_industry: ["pcb", "electronics"],
-        relation: "BUYS_FROM",
-        component_id: null,
-        component_name: null,
-        evidence_level: 4,
-        confidence: 0.92,
-        evidence_ids: ["EV-ADJACENT-PCB"],
-        source_adapters: ["apple-suppliers"],
-        source_urls: ["https://example.test/apple-supplier-list"]
-      }
-    ] as unknown as T[];
-    return { command: "MOCK", rowCount: rows.length, oid: 0, fields: [], rows };
-  }
-}
-
-function rowsForEntityAffiliation<T extends pg.QueryResultRow>(sql: string): T[] {
-  if (sql.includes("FROM entity_master child")) {
-    return [
-      {
-        subject_entity_id: "ENT-SAMSUNG-MEMORY",
-        subject_name: "Samsung Memory",
-        subject_kind: "business_unit",
-        parent_entity_id: "ENT-SAMSUNG-ELECTRONICS",
-        parent_name: "Samsung Electronics",
-        parent_kind: "company"
-      }
-    ] as unknown as T[];
-  }
-  if (sql.includes("FROM unknown_items")) {
-    return [{ scope_id: "ENT-SAMSUNG-ELECTRONICS", unknown_id: "UNK-SAMSUNG-PARENT-ROOT" }] as unknown as T[];
-  }
-  if (sql.includes("FROM change_records")) {
-    return [
-      {
-        change_id: "CHG-ENTITY-AFFILIATION-1",
-        context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
-        after: {
-          context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
-          subject_entity_id: "ENT-SAMSUNG-MEMORY",
-          parent_entity_id: "ENT-SAMSUNG-ELECTRONICS",
-          decision: "research_parent_entity",
-          reviewer: "unit-test",
-          reason: "Parent legal entity owns the official disclosure path.",
-          edge_ids: ["EDGE-1"],
-          component_ids: ["COMP-MEMORY"],
-          unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"],
-          recorded_at: "2026-05-26T00:00:00.000Z",
-          fact_write_policy: {
-            automatic_fact_mutation_allowed: false,
-            allowed_edge_mutation: "none",
-            requires_human_review: true
-          }
-        },
-        caused_by: "unit-test",
-        detected_at: new Date("2026-05-26T00:00:00.000Z")
-      }
-    ] as unknown as T[];
-  }
-  return [];
-}
-
-function workbenchWithSamsungMemoryEdge(): WorkbenchModel {
-  const workbench = emptyWorkbench();
-  workbench.companies = [
-    { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
-    { entity_id: "ENT-SAMSUNG-MEMORY", name: "Samsung Memory", role: "counterparty" }
-  ];
-  workbench.edges = [edgeFixture("EDGE-1", "ENT-NVIDIA", "NVIDIA", "ENT-SAMSUNG-MEMORY", "Samsung Memory", "COMP-MEMORY")];
-  workbench.chain_segments = [];
-  return workbench;
-}
-
-function samsungMemoryAffiliation(): Gate1EntityAffiliationContext {
-  return {
-    context_id: "gate1-entity-affiliation:ENT-SAMSUNG-MEMORY:ENT-SAMSUNG-ELECTRONICS",
-    subject_entity_id: "ENT-SAMSUNG-MEMORY",
-    subject_name: "Samsung Memory",
-    subject_kind: "business_unit",
-    parent_entity_id: "ENT-SAMSUNG-ELECTRONICS",
-    parent_name: "Samsung Electronics",
-    parent_kind: "company",
-    parent_unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"],
-    edge_ids: ["EDGE-1"],
-    component_ids: ["COMP-MEMORY"],
-    latest_disposition: null
-  };
-}
-
-function samsungMemoryAffiliationWithDisposition(): Gate1EntityAffiliationContext {
-  return {
-    ...samsungMemoryAffiliation(),
-    latest_disposition: {
-      change_id: "CHG-ENTITY-AFFILIATION-1",
-      decision: "research_parent_entity",
-      reviewer: "unit-test",
-      reason: "Parent legal entity owns the official disclosure path.",
-      recorded_at: "2026-05-26T00:00:00.000Z",
-      edge_ids: ["EDGE-1"],
-      component_ids: ["COMP-MEMORY"],
-      unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"]
-    }
-  };
-}
-
-function emptySupplyChainExpansionPlan(): SupplyChainExpansionPlan {
-  return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    company_id: "ENT-NVIDIA",
-    max_depth: 7,
-    summary: {
-      fact_edges_considered: 0,
-      frontier_edges: 0,
-      frontier_companies: 0,
-      component_dependency_leads: 0,
-      leads_with_fact_coverage: 0,
-      leads_with_source_path: 0,
-      leads_with_fact_capable_source_path: 0,
-      leads_with_observation_source_path: 0,
-      leads_with_lead_only_source_path: 0,
-      lead_only_items: 0,
-      observation_layer_items: 0,
-      blocked_frontier_edges: 0,
-      stop_conditions: 0,
-      explicit_unknown_refs: 0
-    },
-    frontier: [],
-    component_dependency_leads: [],
-    stop_conditions: []
-  };
-}
-
-function expansionPlanWithSamsungMemoryFrontier(): SupplyChainExpansionPlan {
-  const empty = emptySupplyChainExpansionPlan();
-  return {
-    ...empty,
-    summary: {
-      ...empty.summary,
-      fact_edges_considered: 1,
-      frontier_edges: 1,
-      frontier_companies: 1
-    },
-    frontier: [
-      {
-        frontier_id: "SCF-SAMSUNG-MEMORY",
-        edge_id: "EDGE-1",
-        path_depth: 1,
-        expansion_state: "expand_candidate",
-        from_id: "ENT-NVIDIA",
-        from_name: "NVIDIA",
-        to_id: "ENT-SAMSUNG-MEMORY",
-        to_name: "Samsung Memory",
-        next_company_id: "ENT-SAMSUNG-MEMORY",
-        next_company_name: "Samsung Memory",
-        relation: "supplier",
-        component_id: "COMP-MEMORY",
-        evidence_level: 5,
-        unknown_ids: ["UNK-SAMSUNG-PARENT-ROOT"],
-        source_plan_refs: [],
-        rationale: "Ready business-unit frontier.",
-        action: "Run recursive company research."
-      }
-    ]
-  };
-}
-
-function expansionPlanWithBlockedFacilityAndReadyCompany(): SupplyChainExpansionPlan {
-  const empty = emptySupplyChainExpansionPlan();
-  return {
-    ...empty,
-    summary: {
-      ...empty.summary,
-      fact_edges_considered: 2,
-      frontier_edges: 2,
-      frontier_companies: 2,
-      blocked_frontier_edges: 1
-    },
-    frontier: [
-      {
-        frontier_id: "SCF-FACILITY",
-        edge_id: "EDGE-FACILITY",
-        path_depth: 1,
-        expansion_state: "needs_component_context",
-        from_id: "ENT-NVIDIA",
-        from_name: "NVIDIA",
-        to_id: "ENT-FAC-UNIT-TEST",
-        to_name: "Facility test node",
-        next_company_id: "ENT-FAC-UNIT-TEST",
-        next_company_name: "Facility test node",
-        relation: "facility",
-        component_id: null,
-        evidence_level: 4,
-        unknown_ids: [],
-        source_plan_refs: [],
-        rationale: "Missing component context.",
-        action: "Backfill component context."
-      },
-      {
-        frontier_id: "SCF-TSMC",
-        edge_id: "EDGE-TSMC",
-        path_depth: 1,
-        expansion_state: "expand_candidate",
-        from_id: "ENT-NVIDIA",
-        from_name: "NVIDIA",
-        to_id: "ENT-TSMC",
-        to_name: "TSMC",
-        next_company_id: "ENT-TSMC",
-        next_company_name: "TSMC",
-        relation: "supplier",
-        component_id: "COMP-WAFER",
-        evidence_level: 5,
-        unknown_ids: [],
-        source_plan_refs: [],
-        rationale: "Ready company frontier.",
-        action: "Run recursive company research."
-      }
-    ]
-  };
-}
-
-function emptyPropagationReadinessReport(): PropagationReadinessReport {
-  return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    company_id: "ENT-NVIDIA",
-    summary: {
-      contexts_total: 0,
-      ready: 0,
-      partial: 0,
-      blocked: 0,
-      contexts_with_observations: 0,
-      contexts_with_source_plan: 0,
-      contexts_with_component_leads: 0,
-      reasoning_inputs: 0,
-      no_fact_mutation_policy: "reasoning_input_only_no_fact_mutation"
-    },
-    ai_compute_matrix: {
-      schema_version: "1.0.0",
-      matrix_id: "ai_compute_propagation.v0",
-      policy: "reasoning_input_only_no_fact_mutation",
-      summary: {
-        layers_total: 0,
-        covered_fact: 0,
-        observation_ready: 0,
-        official_target_runnable: 0,
-        lead_only: 0,
-        unknown_open: 0,
-        blocked_source: 0,
-        layers_with_fact_refs: 0,
-        layers_with_observation_refs: 0,
-        layers_with_source_targets: 0,
-        layers_with_frontier_refs: 0
-      },
-      layers: []
-    },
-    items: []
-  };
-}
-
-function adjacentOfficialFactsReport(): Gate1AdjacentOfficialFactsReport {
-  return {
-    schema_version: "1.0.0",
-    generated_at: "2026-01-01T00:00:00.000Z",
-    company_id: "ENT-NVIDIA",
-    summary: {
-      fact_edges: 0,
-      companies: 0,
-      components: 0,
-      source_adapters: 0,
-      visible_edge_exclusions: 0,
-      policy: "adjacent_context_only_no_fact_mutation"
-    },
-    edges: []
-  };
-}

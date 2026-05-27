@@ -250,6 +250,7 @@ function renderResearchPackReadme(pack: ResearchPackModel): string {
     `Generated at: ${pack.manifest.generated_at}`,
     `Company: ${pack.company.entity.canonical_name} [${pack.manifest.selected_company_id}]`,
     `Depth: ${pack.manifest.depth}`,
+    lineageReadmeLine(pack.manifest),
     "",
     "## Stats",
     "",
@@ -285,6 +286,7 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     `Generated at: ${pack.manifest.generated_at}`,
     `Company: ${pack.workbench.chain.root.name} [${pack.manifest.selected_company_id}]`,
     `Depth: ${pack.manifest.depth}`,
+    lineageReadmeLine(pack.manifest),
     "",
     "This pack was built from an existing Workbench JSON export. It does not refresh the SQL truth store, rebuild claims, or run data-quality checks.",
     "",
@@ -312,6 +314,15 @@ function renderWorkbenchSnapshotReadme(pack: WorkbenchSnapshotPackModel): string
     "- `evidence-index.json` contains the evidence records carried by the workbench export."
   ];
   return lines.join("\n");
+}
+
+function lineageReadmeLine(manifest: Pick<ResearchPackModel["manifest"], "research_lineage">): string {
+  const lineage = manifest.research_lineage;
+  if (lineage === null) return "Research lineage: none";
+  const parent = lineage.parent_company_id === null ? "manual" : lineage.parent_company_id;
+  const components = lineage.parent_component_ids.length === 0 ? "none" : lineage.parent_component_ids.join(",");
+  const edges = lineage.seed_edge_ids.length === 0 ? "none" : lineage.seed_edge_ids.join(",");
+  return `Research lineage: ${lineage.kind}; parent=${parent}; parent_components=${components}; seed_edges=${edges}`;
 }
 
 function researchPackStatsLines(

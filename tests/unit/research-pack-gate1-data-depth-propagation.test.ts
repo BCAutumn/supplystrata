@@ -46,6 +46,22 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     if (layer === undefined) throw new Error("Expected construction_to_equipment layer");
     expect(layer.readiness_answers.source_targets.blocked_targets).toBe(1);
     expect(layer.readiness_answers.source_targets.missing_credentials).toBe(1);
+    expect(layer.execution_queue.summary).toEqual(
+      expect.objectContaining({
+        items: 3,
+        repair_source_target: 1,
+        review_intelligence_context: 1,
+        keep_unknown_open: 1,
+        blocked_source_targets: 1
+      })
+    );
+    expect(layer.execution_queue.items.find((item) => item.action === "repair_source_target")).toEqual(
+      expect.objectContaining({
+        source_target_refs: ["source_target:plan:nvidia-equipment-2025:asml-ir:official-html-disclosure:fixture:scheduled"],
+        repair_reason: "failure_kind=missing_credentials; state=scheduled",
+        automatic_fact_mutation_allowed: false
+      })
+    );
     expect(layer.readiness_answers.source_targets.blocked_refs).toEqual([
       "source_target:plan:nvidia-equipment-2025:asml-ir:official-html-disclosure:fixture:scheduled"
     ]);
@@ -152,7 +168,41 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(item?.readiness_answers?.source_targets.targets).toBe(2);
     expect(item?.readiness_answers?.source_targets.runnable_targets).toBe(2);
     expect(item?.readiness_answers?.source_targets.blocked_targets).toBe(0);
-    expect(item?.readiness_answers?.source_targets.runnable_refs).toEqual(["source_target:CHK-ASML:scheduled", "source_target:CHK-CENSUS:not_synced"]);
+    expect(item?.readiness_answers?.source_targets.runnable_refs).toEqual([
+      "source_target:CHK-ASML:scheduled",
+      "source_target:plan:nvidia-memory-2025:census-trade:trade-flow-observation:fixture:not_synced"
+    ]);
+    expect(item?.execution_queue?.summary).toEqual(
+      expect.objectContaining({
+        items: 3,
+        run_source_target: 1,
+        repair_source_target: 0,
+        review_intelligence_context: 1,
+        keep_unknown_open: 1,
+        runnable_source_targets: 1,
+        unknown_refs: 2
+      })
+    );
+    expect(item?.execution_queue?.items.find((queueItem) => queueItem.action === "run_source_target")?.source_target_refs).toEqual([
+      "source_target:CHK-ASML:scheduled"
+    ]);
+    expect(item?.execution_queue?.items.find((queueItem) => queueItem.action === "run_source_target")?.source_target_actions).toEqual([
+      expect.objectContaining({
+        source_target_ref: "source_target:CHK-ASML:scheduled",
+        check_target_id: "CHK-ASML",
+        source_adapter_id: "asml-ir",
+        target_kind: "official-html-disclosure",
+        state: "scheduled",
+        recommended_cli_command: "pnpm --silent cli sources run-due --check-target-id CHK-ASML --format markdown",
+        writes_truth_store: true,
+        requires_database: true
+      })
+    ]);
+    expect(item?.execution_queue?.items.map((queueItem) => queueItem.action)).toEqual([
+      "run_source_target",
+      "review_intelligence_context",
+      "keep_unknown_open"
+    ]);
     expect(item?.evidence_layer_summary?.map((summary) => [summary.layer_kind, summary.count])).toEqual([
       ["unknown", 2],
       ["source_target", 2],
@@ -229,6 +279,19 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       by_state: { retry_wait: 1 },
       by_failure_kind: { missing_credentials: 1 }
     });
+    expect(blockedItem?.execution_queue?.items.find((queueItem) => queueItem.action === "repair_source_target")?.source_target_actions).toEqual([
+      expect.objectContaining({
+        source_target_ref: "source_target:CHK-MATERIALS:retry_wait",
+        check_target_id: "CHK-MATERIALS",
+        source_adapter_id: "materials-ir",
+        target_kind: "official-html-disclosure",
+        state: "retry_wait",
+        failure_kind: "missing_credentials",
+        recommended_cli_command: "pnpm --silent cli sources due --check-target-id CHK-MATERIALS --format markdown",
+        writes_truth_store: false,
+        requires_database: true
+      })
+    ]);
     expect(workbenchModel.summary.ai_compute_propagation_blocked_source).toBe(1);
 
     const batch = buildGate1DataDepthActionBatch(workbenchModel, gate1DataDepthActionBatchDefinition("intelligence_context"));
@@ -243,9 +306,18 @@ describe("Gate 1 data-depth AI compute propagation", () => {
     expect(batch.items.find((candidate) => candidate.item_id === "gate1-ai-compute-propagation:construction_to_equipment")?.readiness_answers).toEqual(
       item?.readiness_answers
     );
+    expect(batch.items.find((candidate) => candidate.item_id === "gate1-ai-compute-propagation:construction_to_equipment")?.execution_queue).toEqual(
+      item?.execution_queue
+    );
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Evidence layer summary: unknown=2");
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
       "Readiness answers: facts=0; non_fact_inputs=0; official_gaps=1(official_source_not_reviewed=1); unknowns=1+1(run_source_target=1)"
+    );
+    expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
+      "Execution queue: items=3; run=1; repair=0; review=1; keep_unknown=1; p1=1; p2=2; runnable_targets=1; blocked_targets=0; unknown_refs=2"
+    );
+    expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(
+      'Execution source-target actions: asml-ir/official-html-disclosure target=CHK-ASML state=scheduled failure=none writes=true command="pnpm --silent cli sources run-due --check-target-id CHK-ASML --format markdown"'
     );
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain("Action source groups: official_evidence");
     expect(renderGate1DataDepthWorkbenchMarkdown(workbenchModel)).toContain(

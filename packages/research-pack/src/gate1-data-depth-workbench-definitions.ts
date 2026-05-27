@@ -3,6 +3,7 @@ import type { SourceTargetCoverageState } from "@supplystrata/source-monitor";
 import type { Gate1AdjacentOfficialFactsReport } from "./gate1-adjacent-official-facts.js";
 import type {
   AiComputePropagationEvidenceLayerSummary,
+  AiComputePropagationExecutionQueue,
   AiComputePropagationLayerReadinessAnswers,
   AiComputePropagationOfficialEvidenceGap,
   AiComputePropagationSourceTargetGroupKind,
@@ -163,6 +164,7 @@ export interface Gate1DataDepthWorkbenchItem {
   action_source_groups?: AiComputePropagationSourceTargetGroupKind[];
   evidence_layer_summary?: AiComputePropagationEvidenceLayerSummary[];
   readiness_answers?: AiComputePropagationLayerReadinessAnswers;
+  execution_queue?: AiComputePropagationExecutionQueue;
   official_evidence_gaps?: AiComputePropagationOfficialEvidenceGap[];
   unknown_backlog_summary?: AiComputePropagationUnknownBacklogSummary;
 }
@@ -218,6 +220,9 @@ export interface Gate1DataDepthCommandHint {
 
 export interface Gate1DataDepthSourceTargetRef {
   check_target_id: string | null;
+  expected_check_target_id: string | null;
+  matched_check_target_id: string | null;
+  match_kind: "check_target_id" | "target_config" | "none" | null;
   source_adapter_id: string;
   target_kind: string;
   state: SourceTargetCoverageState | string | null;

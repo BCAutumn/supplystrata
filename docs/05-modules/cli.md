@@ -454,6 +454,7 @@ supplystrata sources policy smoke-plan-targets --source-plan reports/nvidia-rese
 --source-plan <path>              research-pack 生成的 source-plan.json
 --namespace <name>                生成 check_target_id 的稳定命名空间
 --source <ids>                    可选；只同步这些 source adapter，逗号分隔
+--check-target-id <ids>           可选；只同步这些生成后的 check_target_id，逗号分隔
 --enable                          可选；立即启用生成的 target
 --next-check-at <iso>             可选；target 级初始 next_check_at
 --check-cadence-minutes N         可选；target 级检查频率
@@ -463,7 +464,7 @@ supplystrata sources policy smoke-plan-targets --source-plan reports/nvidia-rese
 --backoff-max-minutes N           可选；target 级退避上限
 ```
 
-把 `research run` / `research from-workbench` 输出的 `source-plan.json` 里的 runnable `suggested_check_targets` 同步成 `source_check_targets`。转换规则在 `@supplystrata/source-management` 内完成：只消费 runnable target，不抓源、不写事实边；`check_target_id` 由 namespace、source、target kind 和 target_config 的稳定 hash 生成；默认 `enabled=false`，只有显式 `--enable` 才进入 `sources due/run-due` 或 worker 调度。`--source` 只同步指定来源，适合先接入 SEC / 官方 IR 这类无 key 或已配置凭据的目标，再单独处理 Census / DART / EDINET / TWSE 等需要凭据或目录策略的来源。
+把 `research run` / `research from-workbench` 输出的 `source-plan.json` 里的 runnable `suggested_check_targets` 同步成 `source_check_targets`。转换规则在 `@supplystrata/source-management` 内完成：只消费 runnable target，不抓源、不写事实边；`check_target_id` 由 namespace、source、target kind 和 target_config 的稳定 hash 生成；默认 `enabled=false`，只有显式 `--enable` 才进入 `sources due/run-due` 或 worker 调度。`--source` 只同步指定来源，适合先接入 SEC / 官方 IR 这类无 key 或已配置凭据的目标，再单独处理 Census / DART / EDINET / TWSE 等需要凭据或目录策略的来源；`--check-target-id` 用于执行 Gate 1 run ledger 或 action batch 给出的精确小批次，避免同一 source adapter 里的其它 target 被顺手同步。
 
 示例：
 
@@ -478,6 +479,7 @@ supplystrata sources policy sync-plan-targets --source-plan reports/nvidia-resea
 --source-plan <path>              research-pack 生成的 source-plan.json
 --namespace <name>                已同步 target 使用的稳定命名空间
 --source <ids>                    可选；只启用这些 source adapter，逗号分隔
+--check-target-id <ids>           可选；只启用这些生成后的 check_target_id，逗号分隔
 --next-check-at <iso>             可选；target 级初始 next_check_at
 --check-cadence-minutes N         可选；target 级检查频率
 --jitter-minutes N                可选；target 级 jitter
@@ -487,7 +489,7 @@ supplystrata sources policy sync-plan-targets --source-plan reports/nvidia-resea
 --notes <text>                    可选；写入启用说明
 ```
 
-启用已经同步过的 runnable source-plan targets。它会重新从同一个 `source-plan.json + namespace` 计算稳定 `check_target_id`，只更新已存在的 `source_check_targets.enabled` 和 target 级 cadence / jitter / retry / `next_check_at` 覆盖值，不改变 `target_config`，不抓源、不写事实边。`--source` 可只启用指定来源，避免全量计划里尚未配置凭据的来源进入 due 队列。manual-only 或 rejected source 会被阻止启用；缺失 target 会在 JSON 结果里列为 `missing_check_target_ids`，方便先回到 `sync-plan-targets`。
+启用已经同步过的 runnable source-plan targets。它会重新从同一个 `source-plan.json + namespace` 计算稳定 `check_target_id`，只更新已存在的 `source_check_targets.enabled` 和 target 级 cadence / jitter / retry / `next_check_at` 覆盖值，不改变 `target_config`，不抓源、不写事实边。`--source` 可只启用指定来源，避免全量计划里尚未配置凭据的来源进入 due 队列；`--check-target-id` 可只启用已审计 action 指定的小批次。manual-only 或 rejected source 会被阻止启用；缺失 target 会在 JSON 结果里列为 `missing_check_target_ids`，方便先回到 `sync-plan-targets`。
 
 示例：
 

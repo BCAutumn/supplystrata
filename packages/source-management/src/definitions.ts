@@ -99,6 +99,7 @@ export interface SourceTargetsFromPlanInput {
   source_plan: readonly ManagedSourcePlanItem[];
   namespace: string;
   source_adapter_ids?: readonly string[];
+  check_target_ids?: readonly string[];
   enabled?: boolean;
   next_check_at?: string;
   check_cadence_minutes?: number;
@@ -112,6 +113,7 @@ export interface SourcePlanTargetIdInput {
   source_plan: readonly ManagedSourcePlanItem[];
   namespace: string;
   source_adapter_ids?: readonly string[];
+  check_target_ids?: readonly string[];
 }
 
 export interface SourcePlanTargetPreviewInput extends SourceTargetsFromPlanInput, SourceManagementInput {}

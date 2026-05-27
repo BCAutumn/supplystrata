@@ -10,6 +10,8 @@ COMP-MANUFACTURING-SERVICES,Manufacturing services,services>manufacturing>contra
 COMP-SILICON-WAFER,Silicon wafer,semiconductor>foundry>wafer>silicon-wafer,prime wafer;semiconductor wafer
 COMP-EUV-LITHOGRAPHY,EUV lithography,semiconductor>equipment>lithography>euv,extreme ultraviolet lithography;EUV scanner
 COMP-PHOTORESIST,Photoresist,semiconductor>materials>chemicals>photoresist,EUV photoresist;semiconductor photoresist
+COMP-TARGET,Sputtering target,semiconductor>materials>metals>sputtering-target,sputtering target;PVD target;semiconductor target
+COMP-CMP,CMP consumables,semiconductor>materials>cmp,CMP slurry;CMP pad;chemical mechanical polishing
 COMP-SPECIALTY-GASES,Specialty gases,semiconductor>materials>gases,special gases;industrial gases;neon;argon;fluorine
 COMP-ABF-SUBSTRATE,ABF substrate,semiconductor>packaging>substrate>abf,Ajinomoto build-up film;package substrate
 COMP-INTERPOSER,Interposer,semiconductor>packaging>interposer,silicon interposer;bridge die

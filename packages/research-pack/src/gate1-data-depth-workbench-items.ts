@@ -1,4 +1,3 @@
-import type { SourceTargetCoverageItem } from "@supplystrata/source-monitor";
 import type {
   Gate1DataDepthCommandHint,
   Gate1DataDepthFrontendActionKind,
@@ -32,11 +31,11 @@ import {
   researchRunCommand
 } from "./gate1-data-depth-research-commands.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
+import { observationCalibrationItems } from "./gate1-data-depth-observation-calibration-items.js";
 import { propagationWorkItems } from "./gate1-data-depth-propagation-items.js";
-import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
+import { sourceBlockerItems } from "./gate1-data-depth-source-blocker-items.js";
+import { commandHint, prefixedRef, uniqueSorted, workItem } from "./gate1-data-depth-workbench-item-shared.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
-
-const REVIEW_POLICY = "review_only_no_fact_mutation";
 
 export function buildGate1DataDepthItems(input: Gate1DataDepthWorkbenchInput): Gate1DataDepthWorkbenchItem[] {
   return [
@@ -65,7 +64,6 @@ function adjacentOfficialFactItems(
   }
   return [...grouped.entries()].map(([componentId, componentEdges]) => {
     const topEdges = componentEdges.slice(0, 12);
-    const companies = uniqueSorted(componentEdges.flatMap((edge) => [edge.from_id, edge.to_id]));
     const rankedCandidates = rankAdjacentOfficialFactCompanyCandidates({
       edges: topEdges,
       selected_company_id: companyId,
@@ -121,41 +119,6 @@ function gapWorkItems(
       source_targets: gap.source_targets.map(toSourceTargetRef)
     })
   );
-}
-
-function sourceBlockerItems(report: SourceTargetCoverageReport): Gate1DataDepthWorkbenchItem[] {
-  const blockers = report.items.filter(isSourceBlocked);
-  if (blockers.length === 0) return [];
-  const grouped = new Map<string, SourceTargetCoverageItem[]>();
-  for (const item of blockers) {
-    const key = `${item.expected_target.source_adapter_id}:${item.latest_job?.failure_kind ?? item.state}`;
-    grouped.set(key, [...(grouped.get(key) ?? []), item]);
-  }
-  return [...grouped.entries()].map(([key, items]) => {
-    const [sourceAdapter, reason] = key.split(":");
-    const sourceAdapterId = sourceAdapter ?? "unknown-source";
-    const blockerReason = reason ?? "unknown";
-    return workItem({
-      item_id: `gate1-source-blocker:${sourceAdapterId}:${blockerReason}`,
-      workstream: "source_blocker",
-      priority: blockerReason === "missing_credentials" || blockerReason === "source_unreachable" ? "P0" : "P1",
-      frontend_action_kind: "repair_source_target",
-      title: `Resolve source blocker for ${sourceAdapterId}`,
-      rationale: `${items.length} expected source target(s) are blocked by ${blockerReason}; without fixing this path, official observations cannot improve corroboration or data depth.`,
-      recommended_action:
-        "Fix the source policy or credential/configuration surface, then rerun the source target sync/check path. Keep resulting observations in review paths until evidence is approved.",
-      recommended_decision:
-        blockerReason === "missing_credentials" || blockerReason === "target_config_invalid" ? "sync_or_enable_source_target" : "rerun_source_check",
-      allowed_decisions: ["sync_or_enable_source_target", "rerun_source_check", "defer"],
-      write_impact: "May update source policy or source_check_targets/jobs only; does not create evidence or fact edges.",
-      command_hints: sourceBlockerCommandHints(sourceAdapterId),
-      refs: items.map((item) => `source_target:${item.matched_check_target_id ?? item.expected_target.check_target_id}`).sort(),
-      edge_ids: [],
-      component_ids: uniqueSorted(items.map((item) => targetConfigString(item, "component_id")).filter(nonEmpty)),
-      source_adapters: [sourceAdapterId],
-      source_targets: items.map(toCoverageSourceTargetRef)
-    });
-  });
 }
 
 function corroborationWorkItems(queue: readonly OfficialDisclosureCorroborationQueueItem[]): Gate1DataDepthWorkbenchItem[] {
@@ -226,37 +189,6 @@ function entityAffiliationWorkItems(
   });
 }
 
-function observationCalibrationItems(report: SourceTargetCoverageReport): Gate1DataDepthWorkbenchItem[] {
-  const plan = report.observation_review.labeling_plan;
-  if (plan.candidates.length === 0) return [];
-  return [
-    workItem({
-      item_id: "gate1-observation-calibration:next-labeling-batch",
-      workstream: "observation_calibration",
-      priority: plan.candidates.some((candidate) => candidate.priority === "P0") ? "P0" : "P1",
-      frontend_action_kind: "label_observation_sample",
-      title: "Label the next observation calibration batch",
-      rationale:
-        "Gate 1 needs a small gold-label sample so metric anomaly, signal usefulness, and source quality can be held stable during later algorithm changes.",
-      recommended_action:
-        "Review the stratified unlabeled batch and persist labels through the observation calibration label path. Labels calibrate algorithms; they do not create fact edges.",
-      recommended_decision: "record_observation_label",
-      allowed_decisions: ["record_observation_label", "defer"],
-      write_impact: "Writes observation_calibration_labels only; does not modify observations, evidence, unknowns, or fact edges.",
-      command_hints: observationCalibrationCommandHints(plan.candidates.map((candidate) => candidate.observation_id)),
-      refs: plan.candidates.map((candidate) => `observation:${candidate.observation_id}`),
-      edge_ids: [],
-      component_ids: [],
-      source_adapters: uniqueSorted(
-        report.items
-          .filter((item) => item.observation_samples.some((sample) => plan.candidates.some((candidate) => candidate.observation_id === sample.observation_id)))
-          .map((item) => item.expected_target.source_adapter_id)
-      ),
-      source_targets: []
-    })
-  ];
-}
-
 function frontierWorkItems(
   plan: SupplyChainExpansionPlan,
   researchContext: Gate1DataDepthResearchContext | undefined,
@@ -291,26 +223,6 @@ function frontierWorkItems(
       source_targets: []
     })
   ];
-}
-
-function workItem(
-  input: Omit<Gate1DataDepthWorkbenchItem, "review_policy" | "automatic_fact_mutation_allowed" | "ranking_contexts"> & {
-    ranking_contexts?: Gate1DataDepthRankingContext[];
-  }
-): Gate1DataDepthWorkbenchItem {
-  return {
-    ...input,
-    refs: uniqueSorted(input.refs).slice(0, 40),
-    edge_ids: uniqueSorted(input.edge_ids).slice(0, 40),
-    component_ids: uniqueSorted(input.component_ids).slice(0, 40),
-    source_adapters: uniqueSorted(input.source_adapters).slice(0, 20),
-    source_targets: input.source_targets.slice(0, 40),
-    allowed_decisions: uniquePreserveOrder(input.allowed_decisions),
-    command_hints: input.command_hints.slice(0, 8),
-    ranking_contexts: (input.ranking_contexts ?? []).slice(0, 4),
-    review_policy: REVIEW_POLICY,
-    automatic_fact_mutation_allowed: false
-  };
 }
 
 function actionKindForWorkstream(workstream: Gate1DataDepthWorkstream): Gate1DataDepthFrontendActionKind {
@@ -395,26 +307,6 @@ function sourcePlanCommandHints(sourceAdapters: readonly string[]): Gate1DataDep
     commandHint(
       "Sync source-plan targets",
       `pnpm --silent cli sources policy sync-plan-targets --source-plan <source-plan.json> --namespace <namespace>${sourceFlag}`,
-      true,
-      true
-    )
-  ];
-}
-
-function sourceBlockerCommandHints(sourceAdapterId: string): Gate1DataDepthCommandHint[] {
-  return [
-    commandHint("Inspect due targets", `pnpm --silent cli sources due --source ${sourceAdapterId}`, false, true),
-    commandHint("Rerun due targets", `pnpm --silent cli sources run-due --source ${sourceAdapterId} --limit 10`, true, true),
-    commandHint("Run one configured check", `pnpm --silent cli sources check --source ${sourceAdapterId} --config-file <target-config.json>`, true, true)
-  ];
-}
-
-function observationCalibrationCommandHints(observationIds: readonly string[]): Gate1DataDepthCommandHint[] {
-  const firstObservationId = observationIds[0] ?? "<observation-id>";
-  return [
-    commandHint(
-      "Record observation label",
-      `pnpm --silent cli intelligence observation-calibration-label ${firstObservationId} --label useful_signal --reviewer <reviewer> --rationale "<why this is a useful calibration sample>"`,
       true,
       true
     )
@@ -582,10 +474,6 @@ function entityContextPriority(parentNode: OfficialDisclosureReadinessNode | und
   return "P2";
 }
 
-function commandHint(label: string, command: string, writesTruthStore: boolean, requiresDatabase: boolean): Gate1DataDepthCommandHint {
-  return { label, command, writes_truth_store: writesTruthStore, requires_database: requiresDatabase };
-}
-
 function workstreamForGap(kind: OfficialDisclosureReadinessGap["kind"]): Gate1DataDepthWorkstream {
   if (kind === "level_4_5_edge_coverage" || kind === "core_node_coverage") return "fact_edge_growth";
   if (kind === "expected_official_source_coverage" || kind === "traceability") return "source_blocker";
@@ -603,30 +491,6 @@ function gapRefs(gap: OfficialDisclosureReadinessGap): string[] {
   ]);
 }
 
-function isSourceBlocked(item: SourceTargetCoverageItem): boolean {
-  return (
-    item.state === "retry_wait" ||
-    item.state === "degraded" ||
-    item.state === "dead" ||
-    (item.latest_job !== null && item.latest_job.failure_kind !== null) ||
-    item.latest_event?.event_type === "SOURCE_FAILED"
-  );
-}
-
-function toCoverageSourceTargetRef(item: SourceTargetCoverageItem): Gate1DataDepthSourceTargetRef {
-  return {
-    check_target_id: item.matched_check_target_id ?? item.expected_target.check_target_id,
-    source_adapter_id: item.expected_target.source_adapter_id,
-    target_kind: item.expected_target.target_kind,
-    state: item.state,
-    latest_event_type: item.latest_event?.event_type ?? null,
-    failure_kind: item.latest_job?.failure_kind ?? null,
-    observations: item.observations,
-    target_entity_id: targetConfigString(item, "entity_id"),
-    target_component_id: targetConfigString(item, "component_id")
-  };
-}
-
 function toSourceTargetRef(target: {
   check_target_id: string | null;
   source_adapter_id: string;
@@ -636,9 +500,15 @@ function toSourceTargetRef(target: {
   observations: number | null;
   target_entity_id: string | null;
   target_component_id: string | null;
+  expected_check_target_id?: string | null;
+  matched_check_target_id?: string | null;
+  match_kind?: "check_target_id" | "target_config" | "none" | null;
 }): Gate1DataDepthSourceTargetRef {
   return {
     check_target_id: target.check_target_id,
+    expected_check_target_id: target.expected_check_target_id ?? null,
+    matched_check_target_id: target.matched_check_target_id ?? null,
+    match_kind: target.match_kind ?? null,
     source_adapter_id: target.source_adapter_id,
     target_kind: target.target_kind,
     state: target.state,
@@ -648,25 +518,4 @@ function toSourceTargetRef(target: {
     target_entity_id: target.target_entity_id,
     target_component_id: target.target_component_id
   };
-}
-
-function targetConfigString(item: SourceTargetCoverageItem, key: string): string | null {
-  const value = item.expected_target.target_config[key];
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function uniqueSorted(values: readonly string[]): string[] {
-  return [...new Set(values)].sort();
-}
-
-function uniquePreserveOrder<TValue extends string>(values: readonly TValue[]): TValue[] {
-  return [...new Set(values)];
-}
-
-function nonEmpty(value: string | null): value is string {
-  return value !== null && value.length > 0;
-}
-
-function prefixedRef(prefix: string, value: string): string {
-  return value.startsWith(`${prefix}:`) ? value : `${prefix}:${value}`;
 }

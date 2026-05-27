@@ -11,6 +11,7 @@ export type Gate1RunActionKind =
   | "sync_targets"
   | "enable_targets"
   | "run_due_targets"
+  | "wait_for_scheduled_targets"
   | "smoke_targets"
   | "investigate_source_failures"
   | "review_observations"
@@ -28,6 +29,7 @@ export interface Gate1RunLedger {
   scorecard: Gate1RunScorecard;
   data_progress: Gate1DataProgressLedger;
   source_path_progress: Gate1SourcePathProgressLedger;
+  propagation_execution: Gate1PropagationExecutionLedger;
   monitoring_config: Gate1MonitoringConfigLedger;
   action_queue: Gate1RunAction[];
   review_workbench: Gate1ReviewWorkbench;
@@ -82,6 +84,43 @@ export interface Gate1SourcePathProgressLedger {
   source_failure_kinds: Record<string, number>;
   targets_with_observations: number;
   next_focus: string;
+}
+
+export interface Gate1PropagationExecutionLedger {
+  summary: Gate1PropagationExecutionSummary;
+  layers: Gate1PropagationExecutionLayer[];
+  next_focus: string;
+  guardrails: string[];
+}
+
+export interface Gate1PropagationExecutionSummary {
+  layers: number;
+  queue_items: number;
+  run_source_target: number;
+  repair_source_target: number;
+  review_intelligence_context: number;
+  keep_unknown_open: number;
+  runnable_source_targets: number;
+  blocked_source_targets: number;
+  unknown_refs: number;
+  p0: number;
+  p1: number;
+  p2: number;
+}
+
+export interface Gate1PropagationExecutionLayer {
+  layer_id: string;
+  title: string;
+  status: string;
+  queue_items: number;
+  run_source_target: number;
+  repair_source_target: number;
+  review_intelligence_context: number;
+  keep_unknown_open: number;
+  runnable_source_targets: number;
+  blocked_source_targets: number;
+  unknown_refs: number;
+  queue_item_refs: string[];
 }
 
 export interface Gate1RunAction {

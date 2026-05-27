@@ -54,6 +54,14 @@ export function propagationReadinessWithAiComputeGaps(): PropagationReadinessRep
             allowed: ["chain_anchor", "corroboration_review", "strength_freshness_review"],
             prohibited: ["raise_evidence_level_without_review", "close_unknown_without_review"]
           }),
+          execution_queue: executionQueue([
+            executionQueueItem({
+              layerId: "demand_to_compute",
+              action: "review_intelligence_context",
+              priority: "P2",
+              officialEvidenceGapRefs: ["official_evidence_gap:component_without_l4_l5_fact:component:COMP-HBM"]
+            })
+          ]),
           evidence_layer_summary: [evidenceLayerSummary("fact_edge", 1), evidenceLayerSummary("official_evidence_gap", 1)],
           component_ids: ["COMP-GPU"],
           material_or_process_refs: [],
@@ -108,11 +116,38 @@ export function propagationReadinessWithAiComputeGaps(): PropagationReadinessRep
               byState: { not_synced: 1, scheduled: 1 }
             }),
             nextTargetCounts: { source_group: 1 },
-            targetRefs: ["source_target:CHK-ASML:scheduled", "source_target:CHK-CENSUS:not_synced"],
-            sourceTargetRefs: { runnable: ["source_target:CHK-ASML:scheduled", "source_target:CHK-CENSUS:not_synced"] },
+            targetRefs: ["source_target:CHK-ASML:scheduled", "source_target:plan:nvidia-memory-2025:census-trade:trade-flow-observation:fixture:not_synced"],
+            sourceTargetRefs: {
+              runnable: ["source_target:CHK-ASML:scheduled", "source_target:plan:nvidia-memory-2025:census-trade:trade-flow-observation:fixture:not_synced"]
+            },
             allowed: ["source_target_action", "review_queue_seed"],
             prohibited: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"]
           }),
+          execution_queue: executionQueue([
+            executionQueueItem({
+              layerId: "construction_to_equipment",
+              action: "run_source_target",
+              priority: "P1",
+              sourceTargetRefs: [
+                "source_target:CHK-ASML:scheduled",
+                "source_target:plan:nvidia-memory-2025:census-trade:trade-flow-observation:fixture:not_synced"
+              ]
+            }),
+            executionQueueItem({
+              layerId: "construction_to_equipment",
+              action: "review_intelligence_context",
+              priority: "P2",
+              officialEvidenceGapRefs: ["official_evidence_gap:official_source_not_reviewed:source_group:official_evidence"],
+              nextResearchRefs: ["next_research_target:source_group:official_evidence"]
+            }),
+            executionQueueItem({
+              layerId: "construction_to_equipment",
+              action: "keep_unknown_open",
+              priority: "P2",
+              sourceTargetRefs: ["source_target:CHK-ASML:scheduled"],
+              unknownRefs: ["unknown:UNK-EQUIPMENT", "unknown_seed:AI-COMPUTE-UNKNOWN-SEED-CONSTRUCTION-TO-EQUIPMENT"]
+            })
+          ]),
           evidence_layer_summary: [
             evidenceLayerSummary("unknown", 2),
             evidenceLayerSummary("source_target", 2),
@@ -138,7 +173,7 @@ export function propagationReadinessWithAiComputeGaps(): PropagationReadinessRep
             {
               group_kind: "observation_proxy",
               source_plan_refs: ["source_plan:census-trade"],
-              source_target_refs: ["source_target:CHK-CENSUS:not_synced"],
+              source_target_refs: ["source_target:plan:nvidia-memory-2025:census-trade:trade-flow-observation:fixture:not_synced"],
               source_adapters: ["census-trade"],
               target_kinds: ["trade-flow-observation"],
               states: ["not_synced"],
@@ -155,7 +190,7 @@ export function propagationReadinessWithAiComputeGaps(): PropagationReadinessRep
               latest_event_type: null
             },
             {
-              ref: "source_target:CHK-CENSUS:not_synced",
+              ref: "source_target:plan:nvidia-memory-2025:census-trade:trade-flow-observation:fixture:not_synced",
               source_adapter_id: "census-trade",
               target_kind: "trade-flow-observation",
               state: "not_synced",
@@ -248,6 +283,29 @@ export function propagationReadinessWithAiComputeGaps(): PropagationReadinessRep
             allowed: ["source_repair_action", "operational_backlog"],
             prohibited: ["create_fact_edge", "raise_evidence_level", "close_unknown", "convert_observation_to_evidence_without_review"]
           }),
+          execution_queue: executionQueue([
+            executionQueueItem({
+              layerId: "equipment_to_process_inputs",
+              action: "repair_source_target",
+              priority: "P1",
+              sourceTargetRefs: ["source_target:CHK-MATERIALS:retry_wait"],
+              repairReason: "failure_kind=missing_credentials; state=retry_wait"
+            }),
+            executionQueueItem({
+              layerId: "equipment_to_process_inputs",
+              action: "review_intelligence_context",
+              priority: "P1",
+              officialEvidenceGapRefs: ["official_evidence_gap:official_source_blocked:source_group:official_evidence"],
+              nextResearchRefs: ["next_research_target:source_group:official_evidence"]
+            }),
+            executionQueueItem({
+              layerId: "equipment_to_process_inputs",
+              action: "keep_unknown_open",
+              priority: "P2",
+              sourceTargetRefs: ["source_target:CHK-MATERIALS:retry_wait"],
+              unknownRefs: ["unknown_seed:AI-COMPUTE-UNKNOWN-SEED-EQUIPMENT-TO-PROCESS-INPUTS"]
+            })
+          ]),
           evidence_layer_summary: [
             evidenceLayerSummary("unknown", 1),
             evidenceLayerSummary("source_target", 1),
@@ -424,6 +482,99 @@ function unknownBacklogSummary(existingUnknowns: number, seeds: number, byAction
   };
 }
 
+function executionQueue(items: PropagationLayer["execution_queue"]["items"]): PropagationLayer["execution_queue"] {
+  return {
+    schema_version: "1.0.0",
+    summary: {
+      items: items.length,
+      run_source_target: items.filter((item) => item.action === "run_source_target").length,
+      repair_source_target: items.filter((item) => item.action === "repair_source_target").length,
+      review_intelligence_context: items.filter((item) => item.action === "review_intelligence_context").length,
+      keep_unknown_open: items.filter((item) => item.action === "keep_unknown_open").length,
+      p0: items.filter((item) => item.priority === "P0").length,
+      p1: items.filter((item) => item.priority === "P1").length,
+      p2: items.filter((item) => item.priority === "P2").length,
+      runnable_source_targets: uniqueSorted(items.filter((item) => item.action === "run_source_target").flatMap((item) => item.source_target_refs)).length,
+      blocked_source_targets: uniqueSorted(items.filter((item) => item.action === "repair_source_target").flatMap((item) => item.source_target_refs)).length,
+      unknown_refs: uniqueSorted(items.flatMap((item) => item.unknown_refs)).length
+    },
+    items
+  };
+}
+
+function executionQueueItem(input: {
+  layerId: string;
+  action: PropagationLayer["execution_queue"]["items"][number]["action"];
+  priority: PropagationLayer["execution_queue"]["items"][number]["priority"];
+  sourceTargetRefs?: string[];
+  officialEvidenceGapRefs?: string[];
+  unknownRefs?: string[];
+  nextResearchRefs?: string[];
+  repairReason?: string | null;
+}): PropagationLayer["execution_queue"]["items"][number] {
+  return {
+    queue_item_id: `ai-compute:${input.layerId}:${input.action}`,
+    action: input.action,
+    priority: input.priority,
+    title: `${input.action} ${input.layerId}`,
+    reason: `${input.action} fixture reason`,
+    source_target_refs: input.sourceTargetRefs ?? [],
+    official_evidence_gap_refs: input.officialEvidenceGapRefs ?? [],
+    unknown_refs: input.unknownRefs ?? [],
+    next_research_refs: input.nextResearchRefs ?? [],
+    source_target_actions: (input.sourceTargetRefs ?? []).map((ref) => sourceTargetAction(input.action, ref)),
+    repair_reason: input.repairReason ?? null,
+    truth_store_write_policy: "review_only_no_automatic_write",
+    automatic_fact_mutation_allowed: false
+  };
+}
+
+function sourceTargetAction(
+  action: PropagationLayer["execution_queue"]["items"][number]["action"],
+  ref: string
+): PropagationLayer["execution_queue"]["items"][number]["source_target_actions"][number] {
+  const checkTargetId = checkTargetIdFromSourceTargetRef(ref);
+  return {
+    source_target_ref: ref,
+    check_target_id: checkTargetId,
+    source_adapter_id: "fixture-source",
+    target_kind: "fixture-target",
+    state: sourceTargetStateFromRef(ref),
+    failure_kind: action === "repair_source_target" ? "missing_credentials" : null,
+    latest_event_type: null,
+    recommended_cli_command:
+      checkTargetId === null
+        ? null
+        : action === "run_source_target"
+          ? `pnpm --silent cli sources run-due --check-target-id ${checkTargetId} --format markdown`
+          : action === "repair_source_target"
+            ? `pnpm --silent cli sources due --check-target-id ${checkTargetId} --format markdown`
+            : null,
+    writes_truth_store: action === "run_source_target",
+    requires_database: true
+  };
+}
+
+function sourceTargetStateFromRef(ref: string): string | null {
+  if (ref.endsWith(":not_synced")) return "not_synced";
+  if (ref.endsWith(":due")) return "due";
+  if (ref.endsWith(":scheduled")) return "scheduled";
+  if (ref.endsWith(":succeeded")) return "succeeded";
+  if (ref.endsWith(":retry_wait")) return "retry_wait";
+  if (ref.endsWith(":degraded")) return "degraded";
+  if (ref.endsWith(":dead")) return "dead";
+  if (ref.endsWith(":source_failed")) return "source_failed";
+  return null;
+}
+
+function checkTargetIdFromSourceTargetRef(ref: string): string | null {
+  if (!ref.startsWith("source_target:")) return null;
+  const body = ref.slice("source_target:".length);
+  const lastSeparator = body.lastIndexOf(":");
+  if (lastSeparator <= 0) return body.length === 0 ? null : body;
+  return body.slice(0, lastSeparator);
+}
+
 function readinessAnswers(input: {
   factEdgeRefs?: string[];
   gapCounts: Record<string, number>;
@@ -464,4 +615,8 @@ function readinessAnswers(input: {
       truth_store_write_policy: "reasoning_input_only_no_fact_mutation"
     }
   };
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort();
 }

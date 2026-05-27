@@ -42,6 +42,16 @@ export interface ResearchPackInput {
   researchTargetProfileId?: ResearchTargetProfileOption;
   officialDisclosureTargetNodes?: readonly OfficialDisclosureReadinessTargetNode[];
   supplyChainExpansionMaxDepth?: number;
+  researchLineage?: ResearchPackLineage;
+}
+
+export interface ResearchPackLineage {
+  kind: "frontier_company_research" | "manual_research";
+  parent_company_id: string | null;
+  parent_component_ids: string[];
+  seed_edge_ids: string[];
+  seed_unknown_ids: string[];
+  note: string | null;
 }
 
 export interface ResearchPackWriteSteps {
@@ -66,6 +76,7 @@ export interface ResearchPackManifest {
   component_risk_refresh: ResearchPackComponentRiskRefresh | null;
   root_unknown_materialization: MaterializeRootResearchUnknownsSummary | null;
   research_target_profile: ResearchPackTargetProfile | null;
+  research_lineage: ResearchPackLineage | null;
 }
 
 export interface ResearchPackFile {
@@ -309,6 +320,7 @@ export interface WorkbenchSnapshotPackInput {
   sourceTargetNamespace?: string;
   sourceTargetPreflight?: SourceTargetPreflightReport;
   supplyChainExpansionMaxDepth?: number;
+  researchLineage?: ResearchPackLineage;
 }
 
 export interface WorkbenchSnapshotPackModel {

@@ -35,6 +35,11 @@ export function registerResearchCommands(program: Command): void {
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
     .option("--source-target-namespace <name>", "optional namespace used when matching research source-plan targets to source_check_targets")
     .option("--source-target-preflight <file>", "optional source-plan smoke JSON to package without rerunning external fetches")
+    .option("--seed-edge <ids>", "optional comma-separated seed edge ids when this pack is opened from a frontier queue")
+    .option("--seed-unknown <ids>", "optional comma-separated seed unknown ids carried from the parent research pack")
+    .option("--parent-company <entityId>", "optional parent company/entity id for recursive research lineage")
+    .option("--parent-component <ids>", "optional comma-separated parent component ids for recursive research lineage")
+    .option("--lineage-note <text>", "optional human-readable note explaining why this research pack was opened")
     .option("--prepare-data", "explicitly refresh claims, edge intelligence, and eligible component risk before exporting")
     .option("--build-claims", "explicitly build active claims before exporting")
     .option("--refresh-intelligence", "explicitly refresh edge strength/freshness context before exporting")
@@ -65,6 +70,11 @@ export function registerResearchCommands(program: Command): void {
         commodityMonth?: string;
         sourceTargetNamespace?: string;
         sourceTargetPreflight?: string;
+        seedEdge?: string;
+        seedUnknown?: string;
+        parentCompany?: string;
+        parentComponent?: string;
+        lineageNote?: string;
         prepareData?: boolean;
         buildClaims?: boolean;
         refreshIntelligence?: boolean;
@@ -104,6 +114,11 @@ export function registerResearchCommands(program: Command): void {
     .option("--commodity-month <yyyy-mm>", "emit monthly commodity price target suggestions")
     .option("--source-target-namespace <name>", "namespace used when rendering expected source target coverage")
     .option("--source-target-preflight <file>", "optional source-plan smoke JSON to package without rerunning external fetches")
+    .option("--seed-edge <ids>", "optional comma-separated seed edge ids when this snapshot is opened from a frontier queue")
+    .option("--seed-unknown <ids>", "optional comma-separated seed unknown ids carried from the parent research pack")
+    .option("--parent-company <entityId>", "optional parent company/entity id for recursive research lineage")
+    .option("--parent-component <ids>", "optional comma-separated parent component ids for recursive research lineage")
+    .option("--lineage-note <text>", "optional human-readable note explaining why this snapshot was opened")
     .option("--out <dir>", "output directory", "reports/research-pack-snapshot")
     .description("build a no-database research snapshot from an existing workbench JSON")
     .action(
@@ -121,6 +136,11 @@ export function registerResearchCommands(program: Command): void {
         commodityMonth?: string;
         sourceTargetNamespace?: string;
         sourceTargetPreflight?: string;
+        seedEdge?: string;
+        seedUnknown?: string;
+        parentCompany?: string;
+        parentComponent?: string;
+        lineageNote?: string;
         out: string;
       }) => {
         const workbench = parseWorkbenchModel(await readFile(options.workbench, "utf8"));
@@ -141,6 +161,7 @@ export function registerResearchCommands(program: Command): void {
           ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
           ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
           ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace }),
+          ...researchLineageFromOptions(options),
           ...(options.sourceTargetPreflight === undefined
             ? {}
             : { sourceTargetPreflight: parseSourceTargetPreflightReport(await readFile(options.sourceTargetPreflight, "utf8")) })
@@ -172,6 +193,11 @@ async function researchPackInputFromOptions(options: {
   materialYear?: string;
   commodityMonth?: string;
   sourceTargetNamespace?: string;
+  seedEdge?: string;
+  seedUnknown?: string;
+  parentCompany?: string;
+  parentComponent?: string;
+  lineageNote?: string;
   skipClaims?: boolean;
   skipIntelligenceRefresh?: boolean;
   skipComponentRiskRefresh?: boolean;
@@ -224,9 +250,41 @@ async function researchPackInputFromOptions(options: {
     ...(options.materialYear === undefined ? {} : { materialObservationYear: options.materialYear }),
     ...(options.commodityMonth === undefined ? {} : { commodityObservationMonth: options.commodityMonth }),
     ...(options.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: options.sourceTargetNamespace }),
+    ...researchLineageFromOptions(options),
     ...(options.sourceTargetPreflight === undefined
       ? {}
       : { sourceTargetPreflight: parseSourceTargetPreflightReport(await readFile(options.sourceTargetPreflight, "utf8")) })
+  };
+}
+
+function researchLineageFromOptions(options: {
+  seedEdge?: string;
+  seedUnknown?: string;
+  parentCompany?: string;
+  parentComponent?: string;
+  lineageNote?: string;
+}): Pick<ResearchPackInput, "researchLineage"> {
+  const seedEdges = options.seedEdge === undefined ? [] : parseCommaSeparated(options.seedEdge);
+  const seedUnknowns = options.seedUnknown === undefined ? [] : parseCommaSeparated(options.seedUnknown);
+  const parentComponents = options.parentComponent === undefined ? [] : parseCommaSeparated(options.parentComponent);
+  if (
+    seedEdges.length === 0 &&
+    seedUnknowns.length === 0 &&
+    parentComponents.length === 0 &&
+    options.parentCompany === undefined &&
+    options.lineageNote === undefined
+  ) {
+    return {};
+  }
+  return {
+    researchLineage: {
+      kind: seedEdges.length > 0 ? "frontier_company_research" : "manual_research",
+      parent_company_id: options.parentCompany ?? null,
+      parent_component_ids: parentComponents,
+      seed_edge_ids: seedEdges,
+      seed_unknown_ids: seedUnknowns,
+      note: options.lineageNote ?? null
+    }
   };
 }
 

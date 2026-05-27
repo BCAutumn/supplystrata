@@ -188,6 +188,104 @@ describe("research-pack corroboration source plan", () => {
     expect(renderCorroborationSourcePlanMarkdown(corroborationSourcePlan)).toContain("Next action: configure_credentials");
   });
 
+  it("keeps recorded single-source disposition out of runnable corroboration targets", () => {
+    const officialDisclosureReadiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      component_ids: ["COMP-DRAM"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: officialSourceTargetCoverage("succeeded"),
+      edge_corroboration_dispositions: [
+        {
+          change_id: "CHG-EDGE-CORROBORATION-RECORDED-1",
+          edge_id: "EDGE-SAMSUNG-RECORDED-1",
+          decision: "record_single_source_unknown",
+          reviewer: "unit-test",
+          reason: "Counterparty official target completed without edge-specific second-source evidence.",
+          evidence_id: null,
+          unknown_id: null,
+          check_target_id: "CHK-SAMSUNG-IR",
+          recorded_at: "2026-05-26T00:00:00.000Z"
+        }
+      ],
+      workbench: {
+        ...emptyWorkbench(),
+        companies: [
+          { entity_id: "ENT-NVIDIA", name: "NVIDIA", role: "root" },
+          { entity_id: "ENT-SAMSUNG-ELECTRONICS", name: "Samsung Electronics", role: "counterparty" }
+        ],
+        edges: [
+          {
+            edge_id: "EDGE-SAMSUNG-RECORDED-1",
+            from_id: "ENT-NVIDIA",
+            from_name: "NVIDIA",
+            to_id: "ENT-SAMSUNG-ELECTRONICS",
+            to_name: "Samsung Electronics",
+            relation: "BUYS_FROM",
+            component: "dram",
+            component_id: "COMP-DRAM",
+            evidence_level: 5,
+            confidence: 0.95,
+            evidence_ids: ["EV-SAMSUNG-RECORDED-1"]
+          }
+        ],
+        evidences: [
+          evidenceFixture("EV-SAMSUNG-RECORDED-1", {
+            edge_id: "EDGE-SAMSUNG-RECORDED-1",
+            evidence_level: 5,
+            source_adapter_id: "sec-edgar",
+            source_url: "https://www.sec.gov/Archives/fixture/nvidia-10k.htm",
+            cite_text_sha256: "abc123"
+          })
+        ],
+        unknown_items: [
+          {
+            unknown_id: "UNK-SAMSUNG-RECORDED-SINGLE-SOURCE",
+            scope_kind: "edge",
+            scope_id: "EDGE-SAMSUNG-RECORDED-1",
+            question: "Can this relationship be corroborated by a second official source?",
+            why_unknown: "A single-source disposition was materialized after official target review.",
+            blocking_data_sources: ["single-source disposition", "counterparty official disclosure"],
+            proxies: ["check_target:CHK-SAMSUNG-IR"],
+            status: "open"
+          }
+        ],
+        intelligence: { edge_strengths: [], edge_freshness: [] }
+      }
+    });
+    const backlog = buildInvestigationBacklog({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      components: [],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: officialSourceTargetCoverage("succeeded"),
+      question_readiness: readyQuestionReadiness(),
+      official_disclosure_readiness: officialDisclosureReadiness
+    });
+
+    expect(backlog.summary.corroboration_reviews).toBe(1);
+    expect(backlog.summary.corroboration_review_runnable_targets).toBe(0);
+    expect(backlog.summary.corroboration_review_explicit_disposition_only).toBe(1);
+    expect(backlog.items.find((item) => item.kind === "corroboration_review")?.runnable_check_targets).toEqual([]);
+
+    const corroborationSourcePlan = buildCorroborationSourcePlan({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      source_plan: [officialSourcePlanItem()],
+      investigation_backlog: backlog
+    });
+    expect(corroborationSourcePlan.summary).toEqual(
+      expect.objectContaining({
+        review_edges: 1,
+        disposition_only_edges: 1,
+        source_plan_items: 0,
+        runnable_targets: 0,
+        by_next_action: {}
+      })
+    );
+  });
+
   it("splits corroboration source plans into action-specific executable batches", () => {
     const sourcePlanItem = officialSourcePlanItem();
     const smokeTarget = sourcePlanItem.suggested_check_targets[0];

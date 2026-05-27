@@ -55,6 +55,13 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
     if (item.readiness_answers !== undefined) {
       lines.push(`- Readiness answers: ${formatReadinessAnswers(item.readiness_answers)}`);
     }
+    if (item.execution_queue !== undefined && item.execution_queue.summary.items > 0) {
+      lines.push(`- Execution queue: ${formatExecutionQueue(item.execution_queue)}`);
+      const sourceTargetActions = item.execution_queue.items.flatMap((queueItem) => queueItem.source_target_actions);
+      if (sourceTargetActions.length > 0) {
+        lines.push(`- Execution source-target actions: ${formatExecutionSourceTargetActions(sourceTargetActions)}`);
+      }
+    }
     if (item.official_evidence_gaps !== undefined && item.official_evidence_gaps.length > 0) {
       lines.push(`- Official evidence gaps: ${item.official_evidence_gaps.map(formatOfficialEvidenceGap).join("; ")}`);
     }
@@ -102,7 +109,7 @@ export function renderGate1DataDepthWorkbenchMarkdown(workbench: Gate1DataDepthW
       lines.push("- Source targets:");
       for (const target of item.source_targets.slice(0, 12)) {
         lines.push(
-          `  - ${target.source_adapter_id}/${target.target_kind}: state=${target.state ?? "n/a"}; observations=${target.observations ?? "n/a"}; failure=${target.failure_kind ?? "none"}; target=${target.check_target_id ?? "n/a"}`
+          `  - ${target.source_adapter_id}/${target.target_kind}: state=${target.state ?? "n/a"}; observations=${target.observations ?? "n/a"}; failure=${target.failure_kind ?? "none"}; target=${target.check_target_id ?? "n/a"}; match=${target.match_kind ?? "n/a"}; expected=${target.expected_check_target_id ?? "n/a"}; matched=${target.matched_check_target_id ?? "n/a"}`
         );
       }
     }
@@ -133,6 +140,55 @@ function formatReadinessAnswers(value: {
     `targets=${value.source_targets.targets}/runnable=${value.source_targets.runnable_targets}/blocked=${value.source_targets.blocked_targets}/missing_credentials=${value.source_targets.missing_credentials}`,
     `policy=${value.output_policy.truth_store_write_policy}`
   ].join("; ");
+}
+
+function formatExecutionQueue(value: {
+  summary: {
+    items: number;
+    run_source_target: number;
+    repair_source_target: number;
+    review_intelligence_context: number;
+    keep_unknown_open: number;
+    p1: number;
+    p2: number;
+    runnable_source_targets: number;
+    blocked_source_targets: number;
+    unknown_refs: number;
+  };
+}): string {
+  return [
+    `items=${value.summary.items}`,
+    `run=${value.summary.run_source_target}`,
+    `repair=${value.summary.repair_source_target}`,
+    `review=${value.summary.review_intelligence_context}`,
+    `keep_unknown=${value.summary.keep_unknown_open}`,
+    `p1=${value.summary.p1}`,
+    `p2=${value.summary.p2}`,
+    `runnable_targets=${value.summary.runnable_source_targets}`,
+    `blocked_targets=${value.summary.blocked_source_targets}`,
+    `unknown_refs=${value.summary.unknown_refs}`
+  ].join("; ");
+}
+
+function formatExecutionSourceTargetActions(
+  actions: readonly {
+    source_target_ref: string;
+    check_target_id: string | null;
+    source_adapter_id: string;
+    target_kind: string | null;
+    state: string | null;
+    failure_kind: string | null;
+    recommended_cli_command: string | null;
+    writes_truth_store: boolean;
+  }[]
+): string {
+  return actions
+    .slice(0, 6)
+    .map(
+      (action) =>
+        `${action.source_adapter_id}/${action.target_kind ?? "unknown"} target=${action.check_target_id ?? action.source_target_ref} state=${action.state ?? "n/a"} failure=${action.failure_kind ?? "none"} writes=${String(action.writes_truth_store)} command="${action.recommended_cli_command ?? "n/a"}"`
+    )
+    .join("; ");
 }
 
 function formatOfficialEvidenceGap(value: { gap_kind: string; target_kind: string; target_id: string; recommended_action: string }): string {

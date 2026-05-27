@@ -22,6 +22,7 @@ import type {
   AiComputePropagationUnknownBacklogSummary
 } from "./ai-compute-propagation-readiness-definitions.js";
 import { buildAiComputePropagationEvidenceLayerSummary } from "./ai-compute-propagation-evidence-summary.js";
+import { buildAiComputePropagationExecutionQueue } from "./ai-compute-propagation-execution-queue.js";
 import { buildAiComputePropagationLayerReadinessAnswers } from "./ai-compute-propagation-layer-answers.js";
 import { buildAiComputePropagationNextResearchTargets } from "./ai-compute-propagation-next-targets.js";
 import { buildAiComputePropagationOfficialEvidenceGaps } from "./ai-compute-propagation-official-evidence-gaps.js";
@@ -42,6 +43,11 @@ export type {
   AiComputePropagationLayerStatus,
   AiComputePropagationEvidenceLayerSummary,
   AiComputePropagationEvidenceLayerKind,
+  AiComputePropagationExecutionAction,
+  AiComputePropagationExecutionPriority,
+  AiComputePropagationExecutionQueue,
+  AiComputePropagationExecutionQueueItem,
+  AiComputePropagationExecutionQueueSummary,
   AiComputePropagationPolicy,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationReadinessSummary,
@@ -187,6 +193,16 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
   const allowedResearchOutputs = allowedResearchOutputsFor(status);
   const prohibitedTruthStoreWrites = prohibitedTruthStoreWritesFor(status);
   const readinessAnswers = readinessAnswersFor(refs, officialEvidenceGaps, unknownBacklogSummary, allowedResearchOutputs, prohibitedTruthStoreWrites);
+  const executionQueue = buildAiComputePropagationExecutionQueue({
+    layer_id: rule.layer_id,
+    layer_title: rule.title,
+    status,
+    source_target_statuses: refs.source_target_statuses,
+    official_evidence_gaps: officialEvidenceGaps,
+    unknown_refs: refs.unknown_refs,
+    unknown_backlog_seeds: unknownBacklogSeeds,
+    next_research_targets: refs.next_research_targets
+  });
   return {
     layer_id: rule.layer_id,
     title: rule.title,
@@ -194,6 +210,7 @@ function layerFromRule(rule: AiComputePropagationLayerRule, input: AiComputeProp
     status,
     status_reason: statusReason(status, refs),
     readiness_answers: readinessAnswers,
+    execution_queue: executionQueue,
     evidence_layer_summary: evidenceLayerSummaryFor(refs, officialEvidenceGaps, unknownBacklogSeeds),
     component_ids: [...rule.component_ids],
     material_or_process_refs: refs.material_or_process_refs,

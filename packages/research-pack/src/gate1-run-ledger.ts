@@ -18,8 +18,10 @@ import type {
 import { gate1DataProgressActions, gate1SourcePathActions } from "./gate1-run-ledger-actions.js";
 import { buildGate1MonitoringConfig, gate1SourcePathProgressFromCoverage } from "./gate1-run-ledger-monitoring.js";
 import { defaultGate1Namespace, safeGate1Segment } from "./gate1-run-ledger-names.js";
+import { buildGate1PropagationExecutionLedger, gate1PropagationExecutionActions } from "./gate1-run-ledger-propagation.js";
 import type { Gate1EntityAffiliationContext } from "./gate1-entity-affiliation-context.js";
 import type { OfficialDisclosureReadinessReport } from "./official-disclosure-readiness.js";
+import type { PropagationReadinessReport } from "./propagation-readiness.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SourceTargetPreflightReport } from "./source-target-preflight.js";
 import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js";
@@ -27,6 +29,7 @@ import type { SupplyChainExpansionPlan } from "./supply-chain-expansion-plan.js"
 export type * from "./gate1-run-ledger-definitions.js";
 
 const GATE1_FACT_EDGE_SCOPE = "research_pack_visible_target_profile_l4_l5_edges";
+type SourceTargetBatchActionKind = Extract<Gate1RunAction["kind"], "smoke_targets" | "sync_targets" | "enable_targets" | "run_due_targets">;
 
 export interface Gate1RunLedgerInput {
   generated_at: string;
@@ -38,6 +41,7 @@ export interface Gate1RunLedgerInput {
   official_disclosure_readiness: OfficialDisclosureReadinessReport;
   corroboration_source_plan: CorroborationSourcePlan;
   supply_chain_expansion_plan: SupplyChainExpansionPlan;
+  propagation_readiness?: PropagationReadinessReport;
   entity_affiliation_contexts?: readonly Gate1EntityAffiliationContext[];
   source_target_coverage?: SourceTargetCoverageReport;
   source_target_preflight?: SourceTargetPreflightReport | null;
@@ -47,6 +51,9 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
   const scorecard = gate1RunScorecard(input.official_disclosure_readiness);
   const dataProgress = gate1DataProgress(input.official_disclosure_readiness);
   const sourcePathProgress = gate1SourcePathProgress(input.official_disclosure_readiness, input.source_target_coverage);
+  const propagationExecution = buildGate1PropagationExecutionLedger({
+    ...(input.propagation_readiness === undefined ? {} : { propagation_readiness: input.propagation_readiness })
+  });
   const mainlinePhase = gate1MainlinePhase({ readiness: input.official_disclosure_readiness, dataProgress, sourcePathProgress });
   const companySwitching = gate1CompanySwitching(input);
   const monitoringConfig = buildGate1MonitoringConfig({
@@ -65,6 +72,7 @@ export function buildGate1RunLedger(input: Gate1RunLedgerInput): Gate1RunLedger 
     scorecard,
     data_progress: dataProgress,
     source_path_progress: sourcePathProgress,
+    propagation_execution: propagationExecution,
     monitoring_config: monitoringConfig,
     action_queue: actionQueue,
     review_workbench: gate1ReviewWorkbench({ input, actionQueue, companySwitching }),
@@ -107,9 +115,7 @@ function gate1ReviewWorkbench(input: {
 
 function sourceTargetBatchReviewItems(actions: readonly Gate1RunAction[]): Gate1ReviewItem[] {
   return actions
-    .filter(
-      (action) => action.kind === "smoke_targets" || action.kind === "sync_targets" || action.kind === "enable_targets" || action.kind === "run_due_targets"
-    )
+    .filter((action): action is Gate1RunAction & { kind: SourceTargetBatchActionKind } => isSourceTargetBatchActionKind(action.kind))
     .map((action) => {
       const recommended = sourceTargetDecision(action.kind);
       return reviewItem({
@@ -129,24 +135,27 @@ function sourceTargetBatchReviewItems(actions: readonly Gate1RunAction[]): Gate1
 }
 
 function edgeCorroborationReviewItems(input: Gate1RunLedgerInput): Gate1ReviewItem[] {
-  return input.official_disclosure_readiness.corroboration_queue.slice(0, 80).map((item) => {
-    const proposedUnknownId = item.proposed_unknown?.unknown_id ?? null;
-    return reviewItem({
-      review_item_id: `gate1:edge-corroboration:${item.edge_id}`,
-      kind: "edge_corroboration",
-      priority: item.priority,
-      title: `Resolve corroboration for ${item.from_name} -> ${item.to_name}`,
-      rationale: item.reason,
-      recommended_decision: item.disposition === "needs_explicit_single_source_disposition" ? "record_single_source_unknown" : "needs_more_evidence",
-      allowed_decisions: edgeCorroborationDecisions(item.disposition),
-      write_effect: proposedUnknownId === null ? "review_change_only" : "unknown_materialization_after_review",
-      policy: reviewPolicy(proposedUnknownId === null ? "auto_rank_only" : "auto_materialize_after_recorded_disposition", true),
-      command_hint: edgeCorroborationDispositionCommand(item, proposedUnknownId),
-      refs: [item.edge_id, ...item.source_plan_refs, ...item.unknown_ids, ...(proposedUnknownId === null ? [] : [proposedUnknownId])],
-      edge_id: item.edge_id,
-      unknown_id: proposedUnknownId
+  return input.official_disclosure_readiness.corroboration_queue
+    .filter((item) => item.disposition !== "single_source_disposition_recorded")
+    .slice(0, 80)
+    .map((item) => {
+      const proposedUnknownId = item.proposed_unknown?.unknown_id ?? null;
+      return reviewItem({
+        review_item_id: `gate1:edge-corroboration:${item.edge_id}`,
+        kind: "edge_corroboration",
+        priority: item.priority,
+        title: `Resolve corroboration for ${item.from_name} -> ${item.to_name}`,
+        rationale: item.reason,
+        recommended_decision: item.disposition === "needs_explicit_single_source_disposition" ? "record_single_source_unknown" : "needs_more_evidence",
+        allowed_decisions: edgeCorroborationDecisions(item.disposition),
+        write_effect: proposedUnknownId === null ? "review_change_only" : "unknown_materialization_after_review",
+        policy: reviewPolicy(proposedUnknownId === null ? "auto_rank_only" : "auto_materialize_after_recorded_disposition", true),
+        command_hint: edgeCorroborationDispositionCommand(item, proposedUnknownId),
+        refs: [item.edge_id, ...item.source_plan_refs, ...item.unknown_ids, ...(proposedUnknownId === null ? [] : [proposedUnknownId])],
+        edge_id: item.edge_id,
+        unknown_id: proposedUnknownId
+      });
     });
-  });
 }
 
 function edgeCorroborationDispositionCommand(
@@ -406,7 +415,11 @@ function phaseReason(phase: Gate1MainlinePhase): string {
   }
 }
 
-function sourceTargetDecision(kind: Gate1RunAction["kind"]): Gate1ReviewDecision {
+function isSourceTargetBatchActionKind(kind: Gate1RunAction["kind"]): kind is SourceTargetBatchActionKind {
+  return kind === "smoke_targets" || kind === "sync_targets" || kind === "enable_targets" || kind === "run_due_targets";
+}
+
+function sourceTargetDecision(kind: SourceTargetBatchActionKind): Gate1ReviewDecision {
   if (kind === "smoke_targets") return "approve_smoke";
   if (kind === "enable_targets") return "approve_enable";
   if (kind === "run_due_targets") return "approve_run_due";
@@ -438,6 +451,10 @@ function gate1RunActions(input: {
   companySwitching: Gate1CompanySwitchingLedger;
 }): Gate1RunAction[] {
   return [
+    ...gate1PropagationExecutionActions({
+      source_target_namespace: input.input.research_input.sourceTargetNamespace ?? defaultGate1Namespace(input.input.company_id),
+      ...(input.input.propagation_readiness === undefined ? {} : { propagation_readiness: input.input.propagation_readiness })
+    }),
     ...gate1SourcePathActions(input.input, input.sourcePathProgress),
     ...gate1DataProgressActions(input.input, input.dataProgress),
     ...companySwitchingActions(input.companySwitching)
@@ -479,7 +496,7 @@ function gate1CompanySwitching(input: Gate1RunLedgerInput): Gate1CompanySwitchin
         entity_context_id: null,
         suggested_company_query: companyId,
         suggested_components: [componentId],
-        command_hint: frontierResearchCommand(input, companyId, componentId),
+        command_hint: frontierResearchCommand(input, companyId, componentId, { seedEdgeId: item.edge_id, seedUnknownIds: item.unknown_ids }),
         rationale: item.rationale,
         unknown_ids: [...item.unknown_ids]
       };
@@ -500,6 +517,7 @@ function affiliationParentResearchTargets(input: Gate1RunLedgerInput): Gate1Comp
   return (input.entity_affiliation_contexts ?? []).filter(shouldOfferParentResearchTarget).flatMap((context) =>
     context.component_ids.map((componentId): Gate1CompanyResearchTarget => {
       const seedEdgeId = context.edge_ids[0] ?? context.context_id;
+      const unknownIds = uniqueSorted([...unknownIdsForContext(input.official_disclosure_readiness, context.edge_ids), ...context.parent_unknown_ids]);
       return {
         company_id: context.parent_entity_id,
         company_name: context.parent_name ?? context.parent_entity_id,
@@ -511,9 +529,9 @@ function affiliationParentResearchTargets(input: Gate1RunLedgerInput): Gate1Comp
         entity_context_id: context.context_id,
         suggested_company_query: context.parent_entity_id,
         suggested_components: [componentId],
-        command_hint: frontierResearchCommand(input, context.parent_entity_id, componentId),
+        command_hint: frontierResearchCommand(input, context.parent_entity_id, componentId, { seedEdgeId, seedUnknownIds: unknownIds }),
         rationale: affiliationParentResearchRationale(context),
-        unknown_ids: uniqueSorted([...unknownIdsForContext(input.official_disclosure_readiness, context.edge_ids), ...context.parent_unknown_ids])
+        unknown_ids: unknownIds
       };
     })
   );
@@ -530,15 +548,24 @@ function affiliationParentResearchRationale(context: Gate1EntityAffiliationConte
   return `${context.subject_name} is attached to ${parentName}; latest disposition ${context.latest_disposition.change_id} chose ${context.latest_disposition.decision}, so this target follows the reviewed parent legal-entity scope.`;
 }
 
-function frontierResearchCommand(input: Gate1RunLedgerInput, companyId: string, componentId: string): string {
+function frontierResearchCommand(
+  input: Gate1RunLedgerInput,
+  companyId: string,
+  componentId: string,
+  lineage: { seedEdgeId: string; seedUnknownIds: readonly string[] }
+): string {
   const parts = [
     "supplystrata research run",
     `--company ${companyId}`,
     `--component ${componentId}`,
     `--depth ${String(input.research_input.depth ?? 3)}`,
+    `--parent-company ${input.company_id}`,
+    `--parent-component ${componentId}`,
+    `--seed-edge ${lineage.seedEdgeId}`,
     `--source-target-namespace ${defaultGate1Namespace(companyId)}`,
     `--out reports/${safeGate1Segment(companyId)}-${safeGate1Segment(componentId)}-research-pack`
   ];
+  if (lineage.seedUnknownIds.length > 0) parts.splice(7, 0, `--seed-unknown ${uniqueSorted(lineage.seedUnknownIds).join(",")}`);
   if (input.research_input.officialDisclosureYear !== undefined) parts.splice(4, 0, `--official-year ${input.research_input.officialDisclosureYear}`);
   if (input.research_input.researchTargetProfileId !== undefined) parts.splice(4, 0, `--target-profile ${input.research_input.researchTargetProfileId}`);
   return parts.join(" ");

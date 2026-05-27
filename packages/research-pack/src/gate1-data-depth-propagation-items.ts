@@ -12,6 +12,7 @@ import type {
   AiComputePropagationSourceTargetGroupKind
 } from "./ai-compute-propagation-readiness.js";
 import type { PropagationReadinessReport } from "./propagation-readiness.js";
+import { buildAiComputePropagationExecutionQueue } from "./ai-compute-propagation-execution-queue.js";
 import { buildAiComputePropagationSourceTargetStatusSummary } from "./ai-compute-propagation-source-target-summary.js";
 
 const REVIEW_POLICY = "review_only_no_fact_mutation";
@@ -64,7 +65,7 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         allowed_decisions: allowedDecisionsForLayer(layer),
         write_impact:
           "No fact-layer write is authorized from this item. Use the refs as frontend/AI research input; only review-approved evidence may later create fact edges or close unknowns.",
-        command_hints: sourcePlanCommandHints(sourceAdapters),
+        command_hints: sourcePlanCommandHints(sourceAdapters, sourceTargets),
         refs: layerRefs(layer),
         edge_ids: layer.fact_edge_refs.map((ref) => ref.replace("edge:", "")),
         component_ids: layer.component_ids,
@@ -73,10 +74,29 @@ function aiComputeLayerWorkItems(layers: readonly AiComputePropagationLayer[]): 
         action_source_groups: actionSourceGroups,
         evidence_layer_summary: layer.evidence_layer_summary,
         readiness_answers: layer.readiness_answers,
+        execution_queue: actionScopedExecutionQueueForLayer(layer, actionSourceGroups),
         official_evidence_gaps: layer.official_evidence_gaps,
         unknown_backlog_summary: layer.unknown_backlog_summary
       });
     });
+}
+
+function actionScopedExecutionQueueForLayer(
+  layer: AiComputePropagationLayer,
+  groupKinds: readonly AiComputePropagationSourceTargetGroupKind[]
+): AiComputePropagationLayer["execution_queue"] {
+  return buildAiComputePropagationExecutionQueue({
+    layer_id: layer.layer_id,
+    layer_title: layer.title,
+    status: layer.status,
+    source_target_statuses: layer.source_target_statuses.filter((status) =>
+      sourceTargetStatusInGroups(layer, status.source_adapter_id, status.target_kind, groupKinds)
+    ),
+    official_evidence_gaps: layer.official_evidence_gaps,
+    unknown_refs: layer.unknown_refs,
+    unknown_backlog_seeds: layer.unknown_backlog_seeds,
+    next_research_targets: layer.next_research_targets
+  });
 }
 
 function priorityForLayer(layer: AiComputePropagationLayer): Gate1DataDepthPriority {
@@ -143,7 +163,7 @@ function recommendedActionForOfficialEvidenceGaps(gaps: readonly AiComputePropag
   return topActions.join(" ");
 }
 
-function sourcePlanCommandHints(sourceAdapters: readonly string[]): Gate1DataDepthCommandHint[] {
+function sourcePlanCommandHints(sourceAdapters: readonly string[], sourceTargets: readonly Gate1DataDepthSourceTargetRef[]): Gate1DataDepthCommandHint[] {
   if (sourceAdapters.length === 0) return [];
   const sourceFlag = ` --source ${uniqueSorted(sourceAdapters).join(",")}`;
   return [
@@ -159,8 +179,34 @@ function sourcePlanCommandHints(sourceAdapters: readonly string[]): Gate1DataDep
       true,
       true
     ),
-    commandHint("Run due AI compute layer targets", `pnpm --silent cli sources run-due${sourceFlag} --limit 10`, true, true)
+    ...sourceTargetRunCommandHints(sourceTargets)
   ];
+}
+
+function sourceTargetRunCommandHints(sourceTargets: readonly Gate1DataDepthSourceTargetRef[]): Gate1DataDepthCommandHint[] {
+  const checkTargetIds = uniqueSorted(sourceTargets.flatMap((target) => (target.check_target_id === null ? [] : [target.check_target_id])));
+  return chunkStrings(checkTargetIds, 10).flatMap((chunk, index) => [
+    commandHint(
+      `Inspect AI compute layer targets ${index + 1}`,
+      `pnpm --silent cli sources due --check-target-id ${chunk.join(",")} --format markdown`,
+      false,
+      true
+    ),
+    commandHint(
+      `Run exact AI compute layer targets ${index + 1}`,
+      `pnpm --silent cli sources run-due --check-target-id ${chunk.join(",")} --format markdown`,
+      true,
+      true
+    )
+  ]);
+}
+
+function chunkStrings(values: readonly string[], size: number): string[][] {
+  const chunks: string[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function sourceAdaptersForLayer(layer: AiComputePropagationLayer, groupKinds: readonly AiComputePropagationSourceTargetGroupKind[]): string[] {
@@ -181,6 +227,9 @@ function sourceTargetsForLayer(
       .filter((status) => sourceTargetStatusInGroups(layer, status.source_adapter_id, status.target_kind, groupKinds))
       .map((status) => ({
         check_target_id: checkTargetIdFromSourceTargetRef(status.ref),
+        expected_check_target_id: null,
+        matched_check_target_id: checkTargetIdFromSourceTargetRef(status.ref),
+        match_kind: null,
         source_adapter_id: status.source_adapter_id,
         target_kind: status.target_kind ?? "unknown",
         state: status.state,
@@ -311,6 +360,7 @@ function workItem(
     source_target_status_summary: buildAiComputePropagationSourceTargetStatusSummary(input.source_targets.slice(0, 40)),
     action_source_groups: input.action_source_groups ?? [],
     evidence_layer_summary: input.evidence_layer_summary ?? [],
+    ...(input.execution_queue === undefined ? {} : { execution_queue: input.execution_queue }),
     official_evidence_gaps: input.official_evidence_gaps ?? [],
     ...(input.unknown_backlog_summary === undefined ? {} : { unknown_backlog_summary: input.unknown_backlog_summary }),
     allowed_decisions: uniquePreserveOrder(input.allowed_decisions),

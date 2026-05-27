@@ -7,6 +7,7 @@ import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listEdgeCorroborationDispositions, type EdgeCorroborationDispositionRecord } from "@supplystrata/review-store";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
 import { buildCorroborationSourcePlan } from "./corroboration-source-plan.js";
+import { researchPackUnknownMapTargets } from "./data-quality-targets.js";
 import { loadGate1AdjacentOfficialFacts } from "./gate1-adjacent-official-facts.js";
 import { loadGate1EntityAffiliationContexts } from "./gate1-entity-affiliation-context.js";
 import { buildGate1DataDepthWorkbench } from "./gate1-data-depth-workbench.js";
@@ -38,6 +39,7 @@ import type { ResearchPackInput, ResearchPackModel, WorkbenchSnapshotPackInput, 
 
 export * from "./investigation-backlog.js";
 export * from "./corroboration-source-plan.js";
+export * from "./data-quality-targets.js";
 export * from "./gate1-adjacent-official-facts.js";
 export * from "./gate1-entity-affiliation-context.js";
 export * from "./gate1-data-depth-workbench.js";
@@ -112,7 +114,10 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     loadComponentCards(client.read, components, generatedAt),
     runDataQualityChecks(client.read, {
       checkedAt: generatedAt,
-      entity_unknown_map_targets: [{ scope_id: workbench.selected_company_id, minimum_open_items: 1 }]
+      entity_unknown_map_targets: researchPackUnknownMapTargets({
+        ...workbench,
+        root_unknown_materialization: rootUnknownMaterialization
+      })
     })
   ]);
   const questionReadiness = buildQuestionReadinessMatrix({
@@ -270,6 +275,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
       official_disclosure_readiness: officialDisclosureReadiness,
       corroboration_source_plan: corroborationSourcePlan,
       supply_chain_expansion_plan: supplyChainExpansionPlan,
+      propagation_readiness: propagationReadiness,
       entity_affiliation_contexts: entityAffiliationContexts,
       source_target_coverage: sourceTargetCoverage,
       source_target_preflight: sourceTargetPreflight
@@ -311,7 +317,8 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     materialObservationYear: sourcePlanInputWithDefaults.materialObservationYear,
     commodityObservationMonth: sourcePlanInputWithDefaults.commodityObservationMonth,
     ...(input.sourceTargetNamespace === undefined ? {} : { sourceTargetNamespace: input.sourceTargetNamespace }),
-    ...(input.supplyChainExpansionMaxDepth === undefined ? {} : { supplyChainExpansionMaxDepth: input.supplyChainExpansionMaxDepth })
+    ...(input.supplyChainExpansionMaxDepth === undefined ? {} : { supplyChainExpansionMaxDepth: input.supplyChainExpansionMaxDepth }),
+    ...(input.researchLineage === undefined ? {} : { researchLineage: input.researchLineage })
   };
   const sourceTargetCoverage = buildExpectedSourceTargetCoverageReport({
     generated_at: generatedAt,
@@ -442,6 +449,7 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
       official_disclosure_readiness: officialDisclosureReadiness,
       corroboration_source_plan: corroborationSourcePlan,
       supply_chain_expansion_plan: supplyChainExpansionPlan,
+      propagation_readiness: propagationReadiness,
       entity_affiliation_contexts: [],
       source_target_coverage: sourceTargetCoverage,
       source_target_preflight: sourceTargetPreflight

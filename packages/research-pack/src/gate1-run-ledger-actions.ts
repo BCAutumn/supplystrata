@@ -3,10 +3,12 @@ import type { CorroborationSourcePlan } from "./corroboration-source-plan.js";
 import type { CorroborationSourcePlanNextAction } from "./corroboration-source-plan-definitions.js";
 import type { Gate1DataProgressLedger, Gate1RunAction, Gate1SourcePathProgressLedger } from "./gate1-run-ledger-definitions.js";
 import { defaultGate1Namespace } from "./gate1-run-ledger-names.js";
+import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 
 interface SourcePathActionInput {
   company_id: string;
   research_input: Pick<ResearchPackInput, "sourceTargetNamespace">;
+  source_target_coverage?: SourceTargetCoverageReport;
 }
 
 interface DataProgressActionInput {
@@ -18,6 +20,7 @@ interface DataProgressActionInput {
 export function gate1SourcePathActions(input: SourcePathActionInput, progress: Gate1SourcePathProgressLedger): Gate1RunAction[] {
   const sourcePlanRef = "source-plan.json";
   const namespace = input.research_input.sourceTargetNamespace ?? defaultGate1Namespace(input.company_id);
+  const targetIds = officialSourcePathTargetIds(input.source_target_coverage);
   const actions: Gate1RunAction[] = [];
   if (progress.source_failed_targets > 0 || progress.retry_wait_targets > 0 || progress.dead_targets > 0) {
     actions.push({
@@ -26,7 +29,10 @@ export function gate1SourcePathActions(input: SourcePathActionInput, progress: G
       priority: "P0",
       title: "Triage failed official source targets",
       rationale: sourceFailureActionRationale(progress),
-      command_hint: `supplystrata sources due --source-plan ${sourcePlanRef} --namespace ${namespace} --format markdown`,
+      command_hint: dueCommandForTargetIds(
+        targetIds.failure,
+        `supplystrata sources due --source-plan ${sourcePlanRef} --namespace ${namespace} --format markdown`
+      ),
       refs: ["source-target-coverage.json", "gate1-run-ledger.json"]
     });
   }
@@ -37,7 +43,7 @@ export function gate1SourcePathActions(input: SourcePathActionInput, progress: G
       priority: "P0",
       title: "Sync runnable official source targets",
       rationale: `${progress.runnable_targets - progress.synced_targets} runnable official targets are not yet synced into source_check_targets.`,
-      command_hint: `supplystrata sources policy sync-plan-targets --source-plan ${sourcePlanRef} --namespace ${namespace}`,
+      command_hint: sourcePolicyPlanCommand("sync-plan-targets", sourcePlanRef, namespace, targetIds.notSynced),
       refs: [sourcePlanRef, "source-target-coverage.json"]
     });
   }
@@ -48,7 +54,7 @@ export function gate1SourcePathActions(input: SourcePathActionInput, progress: G
       priority: "P0",
       title: "Enable synced official source targets",
       rationale: `${progress.synced_targets - progress.enabled_targets} synced official targets are disabled; approve cadence and retry policy before due processing.`,
-      command_hint: `supplystrata sources policy enable-plan-targets --source-plan ${sourcePlanRef} --namespace ${namespace}`,
+      command_hint: sourcePolicyPlanCommand("enable-plan-targets", sourcePlanRef, namespace, targetIds.disabled),
       refs: [sourcePlanRef, "source-target-coverage.json"]
     });
   }
@@ -59,7 +65,7 @@ export function gate1SourcePathActions(input: SourcePathActionInput, progress: G
       priority: "P0",
       title: "Run due official source targets",
       rationale: `${progress.due_targets} official source targets are due in the current coverage report.`,
-      command_hint: `supplystrata sources run-due --source-plan ${sourcePlanRef} --namespace ${namespace}`,
+      command_hint: runDueCommandForTargetIds(targetIds.due, `supplystrata sources run-due --source-plan ${sourcePlanRef} --namespace ${namespace}`),
       refs: [sourcePlanRef, "source-target-coverage.json"]
     });
   }
@@ -124,6 +130,51 @@ function sourceFailureActionRationale(progress: Gate1SourcePathProgressLedger): 
     .join(", ");
   const details = failureKinds.length === 0 ? "unclassified" : failureKinds;
   return `${progress.source_failed_targets} official source targets have latest SOURCE_FAILED events; retry_wait=${progress.retry_wait_targets}, dead=${progress.dead_targets}, failure kinds ${details}. Resolve credentials, config, source reachability, rate limits, or adapter errors before rerunning.`;
+}
+
+function sourcePolicyPlanCommand(command: string, sourcePlanRef: string, namespace: string, checkTargetIds: readonly string[]): string {
+  const suffix = checkTargetIds.length === 0 ? "" : ` --check-target-id ${checkTargetIds.join(",")}`;
+  return `supplystrata sources policy ${command} --source-plan ${sourcePlanRef} --namespace ${namespace}${suffix}`;
+}
+
+function runDueCommandForTargetIds(checkTargetIds: readonly string[], fallback: string): string {
+  if (checkTargetIds.length === 0) return fallback;
+  return `supplystrata sources run-due --check-target-id ${checkTargetIds.join(",")} --format markdown`;
+}
+
+function dueCommandForTargetIds(checkTargetIds: readonly string[], fallback: string): string {
+  if (checkTargetIds.length === 0) return fallback;
+  return `supplystrata sources due --check-target-id ${checkTargetIds.join(",")} --format markdown`;
+}
+
+function officialSourcePathTargetIds(coverage: SourceTargetCoverageReport | undefined): {
+  notSynced: string[];
+  disabled: string[];
+  due: string[];
+  failure: string[];
+} {
+  if (coverage === undefined) return { notSynced: [], disabled: [], due: [], failure: [] };
+  return {
+    notSynced: coverageIdsByState(coverage, ["not_synced"]),
+    disabled: coverageIdsByState(coverage, ["disabled", "policy_disabled"]),
+    due: coverageIdsByState(coverage, ["due"]),
+    failure: uniqueSorted(
+      coverage.items
+        .filter(
+          (item) => item.state === "retry_wait" || item.state === "degraded" || item.state === "dead" || item.latest_event?.event_type === "SOURCE_FAILED"
+        )
+        .map((item) => item.expected_target.check_target_id)
+    )
+  };
+}
+
+function coverageIdsByState(coverage: SourceTargetCoverageReport, states: readonly SourceTargetCoverageReport["items"][number]["state"][]): string[] {
+  const stateSet = new Set(states);
+  return uniqueSorted(coverage.items.filter((item) => stateSet.has(item.state)).map((item) => item.expected_target.check_target_id));
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
 
 function corroborationSourcePlanActions(input: DataProgressActionInput, plan: CorroborationSourcePlan): Gate1RunAction[] {

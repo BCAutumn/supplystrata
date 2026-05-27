@@ -46,7 +46,7 @@ export function previewSourceCheckTargetsFromPlan(input: SourcePlanTargetPreview
     ...(input.sources === undefined ? {} : { sources: input.sources }),
     ...(input.connector_capabilities === undefined ? {} : { connector_capabilities: input.connector_capabilities })
   });
-  const runnableSuggestions = countRunnableSuggestions(input.source_plan, input.source_adapter_ids);
+  const runnableSuggestions = countRunnableSuggestions(input.source_plan, input.source_adapter_ids, input.check_target_ids, input.namespace);
   return {
     schema_version: "1.0.0",
     namespace: normalizeSourceTargetNamespace(input.namespace),
@@ -225,8 +225,20 @@ function compareConnectorCapabilities(
   return connectorKey(left).localeCompare(connectorKey(right));
 }
 
-function countRunnableSuggestions(sourcePlan: readonly ManagedSourcePlanItem[], sourceAdapterIds?: readonly string[]): number {
+function countRunnableSuggestions(
+  sourcePlan: readonly ManagedSourcePlanItem[],
+  sourceAdapterIds: readonly string[] | undefined,
+  checkTargetIds: readonly string[] | undefined,
+  namespace: string
+): number {
   const sourceAdapterFilter = sourceAdapterIds === undefined ? null : new Set(sourceAdapterIds);
+  if (checkTargetIds !== undefined) {
+    return buildSourceCheckTargetsFromPlan({
+      source_plan: sourcePlan,
+      namespace,
+      ...(sourceAdapterIds === undefined ? {} : { source_adapter_ids: sourceAdapterIds })
+    }).filter((target) => checkTargetIds.includes(target.check_target_id)).length;
+  }
   return sourcePlan.reduce(
     (count, item) =>
       count +

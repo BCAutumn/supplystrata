@@ -282,6 +282,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .requiredOption("--source-plan <path>", "research-pack source-plan.json")
     .requiredOption("--namespace <name>", "stable namespace for generated check_target_id values, e.g. nvidia-memory-2025")
     .option("--source <ids>", "comma-separated source adapter ids to include")
+    .option("--check-target-id <ids>", "comma-separated generated check_target_id values to include")
     .option("--enable", "preview generated targets as enabled", false)
     .option("--next-check-at <iso>", "optional initial next_check_at for generated targets")
     .option("--check-cadence-minutes <minutes>", "optional target-level cadence override")
@@ -296,6 +297,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         sourcePlan: string;
         namespace: string;
         source?: string;
+        checkTargetId?: string;
         enable: boolean;
         nextCheckAt?: string;
         checkCadenceMinutes?: string;
@@ -312,6 +314,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
           enabled: options.enable,
           connector_capabilities: listRegisteredSourceCheckConnectorCapabilities(),
           ...(options.source === undefined ? {} : { source_adapter_ids: parseCommaSeparated(options.source) }),
+          ...(options.checkTargetId === undefined ? {} : { check_target_ids: parseCommaSeparated(options.checkTargetId) }),
           ...parseSourceCheckScheduleOptions(options)
         });
         write(renderSourcePlanTargetPreview(report, parseFormat(options.format)));
@@ -347,6 +350,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .requiredOption("--source-plan <path>", "research-pack source-plan.json")
     .requiredOption("--namespace <name>", "stable namespace for generated check_target_id values, e.g. nvidia-memory-2025")
     .option("--source <ids>", "comma-separated source adapter ids to include")
+    .option("--check-target-id <ids>", "comma-separated generated check_target_id values to include")
     .option("--enable", "enable generated targets immediately", false)
     .option("--next-check-at <iso>", "optional initial next_check_at for generated targets")
     .option("--check-cadence-minutes <minutes>", "optional target-level cadence override")
@@ -360,6 +364,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         sourcePlan: string;
         namespace: string;
         source?: string;
+        checkTargetId?: string;
         enable: boolean;
         nextCheckAt?: string;
         checkCadenceMinutes?: string;
@@ -374,6 +379,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
           namespace: options.namespace,
           enabled: options.enable,
           ...(options.source === undefined ? {} : { source_adapter_ids: parseCommaSeparated(options.source) }),
+          ...(options.checkTargetId === undefined ? {} : { check_target_ids: parseCommaSeparated(options.checkTargetId) }),
           ...parseSourceCheckScheduleOptions(options)
         });
         await withDatabase(async (pool) => {
@@ -402,6 +408,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
     .requiredOption("--source-plan <path>", "research-pack source-plan.json")
     .requiredOption("--namespace <name>", "stable namespace used when the plan targets were synced")
     .option("--source <ids>", "comma-separated source adapter ids to include")
+    .option("--check-target-id <ids>", "comma-separated generated check_target_id values to include")
     .option("--next-check-at <iso>", "optional target-level initial next_check_at")
     .option("--check-cadence-minutes <minutes>", "optional target-level cadence override")
     .option("--jitter-minutes <minutes>", "optional target-level jitter override")
@@ -415,6 +422,7 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         sourcePlan: string;
         namespace: string;
         source?: string;
+        checkTargetId?: string;
         nextCheckAt?: string;
         checkCadenceMinutes?: string;
         jitterMinutes?: string;
@@ -426,7 +434,8 @@ export function registerSourcesAndChangesCommands(program: Command): void {
         const checkTargetIds = await buildSourceCheckTargetIdsFromSourcePlanFile({
           sourcePlan: options.sourcePlan,
           namespace: options.namespace,
-          ...(options.source === undefined ? {} : { sourceAdapterIds: parseCommaSeparated(options.source) })
+          ...(options.source === undefined ? {} : { sourceAdapterIds: parseCommaSeparated(options.source) }),
+          ...(options.checkTargetId === undefined ? {} : { checkTargetIds: parseCommaSeparated(options.checkTargetId) })
         });
         await withDatabase(async (pool) => {
           const result = await pool.transaction((client) =>

@@ -8,6 +8,7 @@ import type {
   ResearchPackClaimBuild,
   ResearchPackComponentRiskRefresh,
   ResearchPackInput,
+  ResearchPackLineage,
   ResearchPackManifest,
   ResearchPackTargetProfile
 } from "./definitions.js";
@@ -240,7 +241,8 @@ export function manifestFromModel(input: {
     intelligence_refresh: input.intelligenceRefresh,
     component_risk_refresh: input.componentRiskRefresh,
     root_unknown_materialization: input.rootUnknownMaterialization,
-    research_target_profile: researchPackTargetProfile(input.targetProfileSelection)
+    research_target_profile: researchPackTargetProfile(input.targetProfileSelection),
+    research_lineage: researchPackLineage(input.input.researchLineage)
   };
 }
 
@@ -262,6 +264,18 @@ function researchPackTargetProfile(selection: ResearchTargetProfileSelection): R
     description: selection.profile.description,
     selection_reason: selection.reason,
     target_nodes: selection.profile.target_nodes.length
+  };
+}
+
+function researchPackLineage(lineage: ResearchPackLineage | undefined): ResearchPackLineage | null {
+  if (lineage === undefined) return null;
+  return {
+    kind: lineage.kind,
+    parent_company_id: lineage.parent_company_id,
+    parent_component_ids: [...lineage.parent_component_ids].sort(),
+    seed_edge_ids: [...lineage.seed_edge_ids].sort(),
+    seed_unknown_ids: [...lineage.seed_unknown_ids].sort(),
+    note: lineage.note
   };
 }
 

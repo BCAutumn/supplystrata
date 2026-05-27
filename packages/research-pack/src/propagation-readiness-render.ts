@@ -45,6 +45,9 @@ export function renderPropagationReadinessMarkdown(report: PropagationReadinessR
     lines.push(`  Source target groups: ${formatList(layer.source_target_groups.map(formatSourceTargetGroup))}`);
     lines.push(`  Source target status summary: ${formatSourceTargetStatusSummary(layer.source_target_status_summary)}`);
     lines.push(`  Readiness answers: ${formatReadinessAnswers(layer.readiness_answers)}`);
+    lines.push(`  Execution queue: ${formatExecutionQueue(layer.execution_queue)}`);
+    const executionSourceTargetActions = layer.execution_queue.items.flatMap((item) => item.source_target_actions);
+    lines.push(`  Execution source-target actions: ${formatList(executionSourceTargetActions.map(formatExecutionSourceTargetAction))}`);
     lines.push(`  Source target states: ${formatList(layer.source_target_statuses.map(formatSourceTargetStatus))}`);
     lines.push(`  Next research targets: ${formatList(layer.next_research_targets.map(formatNextResearchTarget))}`);
     lines.push(`  Source plan: ${formatList(layer.source_plan_refs)}`);
@@ -140,6 +143,42 @@ function formatReadinessAnswers(value: {
     `targets=${value.source_targets.targets}/runnable=${value.source_targets.runnable_targets}/blocked=${value.source_targets.blocked_targets}/missing_credentials=${value.source_targets.missing_credentials}`,
     `policy=${value.output_policy.truth_store_write_policy}`
   ].join("; ");
+}
+
+function formatExecutionQueue(value: {
+  summary: {
+    items: number;
+    run_source_target: number;
+    repair_source_target: number;
+    review_intelligence_context: number;
+    keep_unknown_open: number;
+    runnable_source_targets: number;
+    blocked_source_targets: number;
+    unknown_refs: number;
+  };
+}): string {
+  return [
+    `items=${value.summary.items}`,
+    `run=${value.summary.run_source_target}`,
+    `repair=${value.summary.repair_source_target}`,
+    `review=${value.summary.review_intelligence_context}`,
+    `keep_unknown=${value.summary.keep_unknown_open}`,
+    `runnable_targets=${value.summary.runnable_source_targets}`,
+    `blocked_targets=${value.summary.blocked_source_targets}`,
+    `unknown_refs=${value.summary.unknown_refs}`
+  ].join("; ");
+}
+
+function formatExecutionSourceTargetAction(value: {
+  check_target_id: string | null;
+  source_adapter_id: string;
+  target_kind: string | null;
+  state: string | null;
+  failure_kind: string | null;
+  recommended_cli_command: string | null;
+  writes_truth_store: boolean;
+}): string {
+  return `${value.source_adapter_id}/${value.target_kind ?? "unknown"} target=${value.check_target_id ?? "n/a"} state=${value.state ?? "n/a"} failure=${value.failure_kind ?? "none"} writes=${String(value.writes_truth_store)} command="${value.recommended_cli_command ?? "n/a"}"`;
 }
 
 function formatSourceTargetGroup(value: {
