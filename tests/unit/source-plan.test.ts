@@ -16,6 +16,21 @@ describe("source-plan", () => {
     expect(byId.get("usgs-mcs")?.target_ids).toContain("COMP-SILICON-WAFER");
   });
 
+  it("routes export-control hints into constraint context sources without fact-edge authority", () => {
+    const plan = planSourcesForComponent("COMP-WAFER", 1);
+    const byId = new Map(plan.map((item) => [item.source_id, item]));
+
+    for (const sourceId of ["bis-entity-list", "ofac-sanctions", "eu-sanctions"]) {
+      const source = byId.get(sourceId);
+
+      expect(source?.purpose).toBe("policy");
+      expect(source?.priority).toBe("P0");
+      expect(source?.relation_policy).toBe("observation_only");
+      expect(source?.expected_output_layer).toBe("observation");
+      expect(source?.suggested_check_targets).toEqual([]);
+    }
+  });
+
   it("keeps memory supplier plan entries connected to registered free source definitions", () => {
     const plan = planSourcesForComponent("COMP-MEMORY", 2);
     const byId = new Map(plan.map((item) => [item.source_id, item]));

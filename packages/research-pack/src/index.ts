@@ -7,6 +7,7 @@ import { planSourcesForComponents } from "@supplystrata/source-plan";
 import { listEdgeCorroborationDispositions, type EdgeCorroborationDispositionRecord } from "@supplystrata/review-store";
 import { buildWorkbenchModel, type WorkbenchModel } from "@supplystrata/workbench-export";
 import { buildCorroborationSourcePlan } from "./corroboration-source-plan.js";
+import { buildConsumerReadModel } from "./consumer-read-model.js";
 import { researchPackUnknownMapTargets } from "./data-quality-targets.js";
 import { loadGate1AdjacentOfficialFacts } from "./gate1-adjacent-official-facts.js";
 import { loadGate1EntityAffiliationContexts } from "./gate1-entity-affiliation-context.js";
@@ -22,6 +23,7 @@ import {
 } from "./official-disclosure-readiness.js";
 import { buildPropagationReadinessReport } from "./propagation-readiness.js";
 import { buildQuestionReadinessMatrix } from "./question-readiness.js";
+import { buildReasoningWalkthrough } from "./reasoning-walkthrough.js";
 import { selectResearchTargetProfile, type ResearchTargetProfile, type ResearchTargetProfileSelection } from "./research-target-profile.js";
 import {
   maybeBuildClaims,
@@ -39,6 +41,8 @@ import type { ResearchPackInput, ResearchPackModel, WorkbenchSnapshotPackInput, 
 
 export * from "./investigation-backlog.js";
 export * from "./corroboration-source-plan.js";
+export * from "./consumer-read-model.js";
+export type * from "./consumer-read-model-definitions.js";
 export * from "./data-quality-targets.js";
 export * from "./gate1-adjacent-official-facts.js";
 export * from "./gate1-entity-affiliation-context.js";
@@ -51,6 +55,8 @@ export * from "./official-disclosure-signal-correlation.js";
 export * from "./ai-compute-propagation-readiness.js";
 export * from "./propagation-readiness.js";
 export * from "./question-readiness.js";
+export * from "./reasoning-walkthrough.js";
+export type * from "./reasoning-walkthrough-definitions.js";
 export * from "./research-target-profile.js";
 export * from "./source-target-coverage.js";
 export * from "./source-target-observation-review.js";
@@ -250,6 +256,29 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     rootUnknownMaterialization,
     targetProfileSelection
   });
+  const gate1RunLedger = buildGate1RunLedger({
+    generated_at: generatedAt,
+    company_id: workbench.selected_company_id,
+    research_input: sourcePlanInputWithDefaults,
+    official_disclosure_readiness: officialDisclosureReadiness,
+    corroboration_source_plan: corroborationSourcePlan,
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness,
+    entity_affiliation_contexts: entityAffiliationContexts,
+    source_target_coverage: sourceTargetCoverage,
+    source_target_preflight: sourceTargetPreflight
+  });
+  const consumerReadModel = buildConsumerReadModel({
+    manifest,
+    workbench,
+    propagation_readiness: propagationReadiness,
+    gate1_data_depth_workbench: gate1DataDepthWorkbench,
+    investigation_backlog: investigationBacklog
+  });
+  const reasoningWalkthrough = buildReasoningWalkthrough({
+    manifest,
+    propagation_readiness: propagationReadiness
+  });
   return {
     manifest,
     workbench,
@@ -268,18 +297,9 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     supply_chain_expansion_plan: supplyChainExpansionPlan,
     propagation_readiness: propagationReadiness,
     gate1_data_depth_workbench: gate1DataDepthWorkbench,
-    gate1_run_ledger: buildGate1RunLedger({
-      generated_at: generatedAt,
-      company_id: workbench.selected_company_id,
-      research_input: sourcePlanInputWithDefaults,
-      official_disclosure_readiness: officialDisclosureReadiness,
-      corroboration_source_plan: corroborationSourcePlan,
-      supply_chain_expansion_plan: supplyChainExpansionPlan,
-      propagation_readiness: propagationReadiness,
-      entity_affiliation_contexts: entityAffiliationContexts,
-      source_target_coverage: sourceTargetCoverage,
-      source_target_preflight: sourceTargetPreflight
-    })
+    gate1_run_ledger: gate1RunLedger,
+    consumer_read_model: consumerReadModel,
+    reasoning_walkthrough: reasoningWalkthrough
   };
 }
 
@@ -427,6 +447,29 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     targetProfileSelection,
     mode: "workbench_snapshot"
   });
+  const gate1RunLedger = buildGate1RunLedger({
+    generated_at: generatedAt,
+    company_id: input.workbench.selected_company_id,
+    research_input: staticInput,
+    official_disclosure_readiness: officialDisclosureReadiness,
+    corroboration_source_plan: corroborationSourcePlan,
+    supply_chain_expansion_plan: supplyChainExpansionPlan,
+    propagation_readiness: propagationReadiness,
+    entity_affiliation_contexts: [],
+    source_target_coverage: sourceTargetCoverage,
+    source_target_preflight: sourceTargetPreflight
+  });
+  const consumerReadModel = buildConsumerReadModel({
+    manifest,
+    workbench: input.workbench,
+    propagation_readiness: propagationReadiness,
+    gate1_data_depth_workbench: gate1DataDepthWorkbench,
+    investigation_backlog: investigationBacklog
+  });
+  const reasoningWalkthrough = buildReasoningWalkthrough({
+    manifest,
+    propagation_readiness: propagationReadiness
+  });
   return {
     manifest,
     workbench: input.workbench,
@@ -442,18 +485,9 @@ export function buildResearchPackFromWorkbench(input: WorkbenchSnapshotPackInput
     supply_chain_expansion_plan: supplyChainExpansionPlan,
     propagation_readiness: propagationReadiness,
     gate1_data_depth_workbench: gate1DataDepthWorkbench,
-    gate1_run_ledger: buildGate1RunLedger({
-      generated_at: generatedAt,
-      company_id: input.workbench.selected_company_id,
-      research_input: staticInput,
-      official_disclosure_readiness: officialDisclosureReadiness,
-      corroboration_source_plan: corroborationSourcePlan,
-      supply_chain_expansion_plan: supplyChainExpansionPlan,
-      propagation_readiness: propagationReadiness,
-      entity_affiliation_contexts: [],
-      source_target_coverage: sourceTargetCoverage,
-      source_target_preflight: sourceTargetPreflight
-    })
+    gate1_run_ledger: gate1RunLedger,
+    consumer_read_model: consumerReadModel,
+    reasoning_walkthrough: reasoningWalkthrough
   };
 }
 

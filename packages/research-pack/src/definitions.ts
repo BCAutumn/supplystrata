@@ -4,6 +4,7 @@ import type { ChainViewModel, CompanyCardModel, ComponentCardModel } from "@supp
 import type { SourcePlanItem, TradeObservationDirection } from "@supplystrata/source-plan";
 import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import type { CorroborationSourcePlan } from "./corroboration-source-plan.js";
+import type { ConsumerReadModel } from "./consumer-read-model-definitions.js";
 import type { Gate1DataDepthWorkbench, Gate1DataDepthWorkstream } from "./gate1-data-depth-workbench.js";
 import type { Gate1RunLedger } from "./gate1-run-ledger.js";
 import type { InvestigationBacklog } from "./investigation-backlog.js";
@@ -11,6 +12,7 @@ import type { ObservationCoverageReport } from "./observation-coverage.js";
 import type { OfficialDisclosureReadinessReport, OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
 import type { PropagationReadinessReport } from "./propagation-readiness.js";
 import type { QuestionReadinessMatrix } from "./question-readiness.js";
+import type { ReasoningWalkthrough } from "./reasoning-walkthrough-definitions.js";
 import type { ResearchTargetProfileOption } from "./research-target-profile.js";
 import type { SourceTargetCoverageReport } from "./source-target-coverage.js";
 import type { SourceTargetPreflightReport } from "./source-target-preflight.js";
@@ -312,6 +314,8 @@ export interface ResearchPackModel {
   propagation_readiness: PropagationReadinessReport;
   gate1_data_depth_workbench: Gate1DataDepthWorkbench;
   gate1_run_ledger: Gate1RunLedger;
+  consumer_read_model: ConsumerReadModel;
+  reasoning_walkthrough: ReasoningWalkthrough;
 }
 
 export interface WorkbenchSnapshotPackInput {
@@ -349,6 +353,8 @@ export interface WorkbenchSnapshotPackModel {
   propagation_readiness: PropagationReadinessReport;
   gate1_data_depth_workbench: Gate1DataDepthWorkbench;
   gate1_run_ledger: Gate1RunLedger;
+  consumer_read_model: ConsumerReadModel;
+  reasoning_walkthrough: ReasoningWalkthrough;
 }
 
 export interface ResearchPackTargetProfile {

@@ -23,15 +23,18 @@ describe("source registry", () => {
     expect(ids.has("census-trade")).toBe(true);
     expect(ids.has("noaa-ais")).toBe(true);
     expect(ids.has("usgs-mcs")).toBe(true);
+    expect(ids.has("ofac-sanctions")).toBe(true);
+    expect(ids.has("bis-entity-list")).toBe(true);
+    expect(ids.has("eu-sanctions")).toBe(true);
   });
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 33,
+      total: 36,
       implemented: 2,
       preview: 16,
       planned: 1,
-      scoped: 13,
+      scoped: 16,
       manualOnly: 1,
       requiresKey: 10
     });
@@ -92,6 +95,21 @@ describe("source registry", () => {
       publisher_type: "regulator",
       relation_authority: "self_disclosure",
       max_evidence_level: 5
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "ofac-sanctions", document_type: "manual" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "macro_trend",
+      max_evidence_level: 4
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "bis-entity-list", document_type: "manual" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "macro_trend",
+      max_evidence_level: 4
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "eu-sanctions", document_type: "manual" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "macro_trend",
+      max_evidence_level: 4
     });
     expect(sourceAuthorityFor({ source_adapter_id: "manual", document_type: "manual" })).toMatchObject({
       publisher_type: "manual",

@@ -21,6 +21,7 @@ import { renderObservationCoverageMarkdown } from "./observation-coverage.js";
 import { renderOfficialDisclosureReadinessMarkdown } from "./official-disclosure-readiness.js";
 import { renderPropagationReadinessMarkdown } from "./propagation-readiness.js";
 import { renderQuestionReadinessMarkdown } from "./question-readiness.js";
+import { renderReasoningWalkthroughMarkdown } from "./reasoning-walkthrough.js";
 import { renderSourceTargetCoverageMarkdown } from "./source-target-coverage.js";
 import { renderSourceTargetPreflightMarkdown, type SourceTargetPreflightReport } from "./source-target-preflight.js";
 import { renderSupplyChainExpansionPlanMarkdown } from "./supply-chain-expansion-plan.js";
@@ -83,6 +84,14 @@ export async function writeResearchPack(outDir: string, pack: ResearchPackModel)
     ...(await gate1DataDepthActionBatchFiles(outDir, pack.gate1_data_depth_workbench)),
     await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
     await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
+    await writeJsonFile(outDir, "consumer-read-model.json", pack.consumer_read_model, "Gate 8-lite stable consumer read model"),
+    await writeJsonFile(outDir, "reasoning-walkthrough.json", pack.reasoning_walkthrough, "Deterministic reasoning walkthrough"),
+    await writeMarkdownFile(
+      outDir,
+      "reasoning-walkthrough.md",
+      renderReasoningWalkthroughMarkdown(pack.reasoning_walkthrough),
+      "Deterministic reasoning walkthrough markdown"
+    ),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
       outDir,
@@ -196,6 +205,14 @@ export async function writeWorkbenchSnapshotPack(outDir: string, pack: Workbench
     ...(await gate1DataDepthActionBatchFiles(outDir, pack.gate1_data_depth_workbench)),
     await writeJsonFile(outDir, "gate1-run-ledger.json", pack.gate1_run_ledger, "Gate 1 execution ledger"),
     await writeMarkdownFile(outDir, "gate1-run-ledger.md", renderGate1RunLedgerMarkdown(pack.gate1_run_ledger), "Gate 1 execution ledger markdown"),
+    await writeJsonFile(outDir, "consumer-read-model.json", pack.consumer_read_model, "Gate 8-lite stable consumer read model"),
+    await writeJsonFile(outDir, "reasoning-walkthrough.json", pack.reasoning_walkthrough, "Deterministic reasoning walkthrough"),
+    await writeMarkdownFile(
+      outDir,
+      "reasoning-walkthrough.md",
+      renderReasoningWalkthroughMarkdown(pack.reasoning_walkthrough),
+      "Deterministic reasoning walkthrough markdown"
+    ),
     await writeJsonFile(outDir, "investigation-backlog.json", pack.investigation_backlog, "Investigation backlog"),
     await writeMarkdownFile(
       outDir,

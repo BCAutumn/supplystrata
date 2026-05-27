@@ -25,7 +25,7 @@ const SUGGESTION_SOURCE_RULES = [
   { token: "trade observations", sourceIds: ["un-comtrade", "census-trade", "usitc-dataweb"] },
   { token: "asml annual report", sourceIds: ["asml-ir"] },
   { token: "foundry capex", sourceIds: ["tsmc-ir", "samsung-ir", "dart-kr"] },
-  { token: "export control", sourceIds: ["eu-crma", "sec-edgar"] },
+  { token: "export control", sourceIds: ["bis-entity-list", "ofac-sanctions", "eu-sanctions", "eu-crma", "sec-edgar"] },
   { token: "chemical supplier filings", sourceIds: ["company-ir", "sec-edgar", "edinet"] },
   { token: "facility environmental permits", sourceIds: ["company-ir", "osh"] },
   { token: "facility permits", sourceIds: ["company-ir", "osh"] },

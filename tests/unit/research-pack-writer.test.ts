@@ -27,6 +27,23 @@ describe("research-pack writer", () => {
       expect(readme).toContain("`gate1-data-depth-workbench.json` and `gate1-data-depth-workbench.md`");
       expect(readme).toContain("`gate1-run-ledger.json` and `gate1-run-ledger.md`");
       expect(readme).toContain("`evidence-index.json` contains the evidence records carried by the workbench export.");
+      const consumerReadModel = JSON.parse(await readFile(join(outDir, "consumer-read-model.json"), "utf8")) as {
+        contract_id?: string;
+        policy?: { fact_mutation_allowed?: boolean };
+        constraints?: { truth_store_write_policy?: string };
+      };
+      expect(consumerReadModel.contract_id).toBe("gate8_lite_consumer_read_model.v0");
+      expect(consumerReadModel.policy?.fact_mutation_allowed).toBe(false);
+      expect(consumerReadModel.constraints?.truth_store_write_policy).toBe("constraint_context_only_no_fact_mutation");
+
+      const reasoningWalkthrough = JSON.parse(await readFile(join(outDir, "reasoning-walkthrough.json"), "utf8")) as {
+        walkthrough_id?: string;
+        summary?: { prohibited_truth_store_writes?: string[] };
+      };
+      expect(reasoningWalkthrough.walkthrough_id).toBe("gate8_lite_reasoning_walkthrough.v0");
+      expect(reasoningWalkthrough.summary?.prohibited_truth_store_writes).toContain("create_fact_edge");
+      const walkthroughMarkdown = await readFile(join(outDir, "reasoning-walkthrough.md"), "utf8");
+      expect(walkthroughMarkdown).toContain("This walkthrough is deterministic and read-only");
       const p0Batch = JSON.parse(await readFile(join(outDir, "gate1-data-depth-p0.json"), "utf8")) as {
         batch_kind?: string;
         automatic_fact_mutation_allowed?: boolean;
