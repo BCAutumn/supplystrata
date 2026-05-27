@@ -44,6 +44,7 @@ const AI_COMPUTE_MEMORY_TARGET_NODES = [
   targetComponent("COMP-CLEANROOM", "Cleanroom", "P1", ["company-ir"]),
   edinetDailyFilingsTargetComponent("COMP-SILICON-WAFER", "Silicon wafer", "P1", ["company-ir", "edinet"]),
   targetComponent("COMP-EUV-LITHOGRAPHY", "EUV lithography", "P0", ["asml-ir"]),
+  targetComponent("COMP-SEMICONDUCTOR-EQUIPMENT", "Semiconductor equipment", "P1", ["asml-ir", "company-ir", "sec-edgar", "edinet"]),
   targetComponent("COMP-PHOTORESIST", "Photoresist", "P1", ["company-ir", "edinet"]),
   targetComponent("COMP-TARGET", "Sputtering target", "P1", ["company-ir", "edinet"]),
   targetComponent("COMP-CMP", "CMP consumables", "P1", ["company-ir", "edinet"]),

@@ -237,7 +237,7 @@ describe("research-pack workbench snapshot", () => {
     expect(pack.supply_chain_expansion_plan.generated_at).toBe("2026-05-23T00:00:00.000Z");
     expect(pack.propagation_readiness.generated_at).toBe("2026-05-23T00:00:00.000Z");
     expect(pack.manifest.research_target_profile?.profile_id).toBe("ai-compute-memory.v0");
-    expect(pack.manifest.stats.official_disclosure_target_nodes).toBe(38);
+    expect(pack.manifest.stats.official_disclosure_target_nodes).toBe(39);
     expect(pack.manifest.stats.fact_edges).toBe(1);
     expect(pack.manifest.components).toEqual(["COMP-HBM", "COMP-MEMORY"]);
     const secTargets = pack.source_plan.find((item) => item.source_id === "sec-edgar")?.suggested_check_targets ?? [];

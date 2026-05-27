@@ -70,6 +70,20 @@
     "unknowns": ["tool allocation", "facility-specific capacity", "maintenance bottlenecks"]
   },
   {
+    "dependency_id": "CDEP-WAFER-SEMICONDUCTOR-EQUIPMENT",
+    "parent_component_id": "COMP-WAFER",
+    "target_kind": "component",
+    "target_id": "COMP-SEMICONDUCTOR-EQUIPMENT",
+    "target_name": "Semiconductor equipment",
+    "tier_depth": 1,
+    "category": "equipment",
+    "title": "Trace wafer capacity into broader semiconductor equipment constraints",
+    "summary": "Wafer output depends on multiple equipment classes beyond lithography; equipment remains capacity context until official disclosures identify a specific tool supplier, facility, or installation.",
+    "confidence": 0.22,
+    "source_suggestions": ["ASML annual report", "foundry capex disclosures", "supplier annual reports", "export control notices"],
+    "unknowns": ["tool class", "equipment supplier", "installation or qualification timing"]
+  },
+  {
     "dependency_id": "CDEP-WAFER-PHOTORESIST",
     "parent_component_id": "COMP-WAFER",
     "target_kind": "component",
@@ -82,6 +96,34 @@
     "confidence": 0.2,
     "source_suggestions": ["chemical supplier filings", "facility environmental permits", "trade observations"],
     "unknowns": ["specific chemical supplier", "grade and node compatibility"]
+  },
+  {
+    "dependency_id": "CDEP-WAFER-TARGET",
+    "parent_component_id": "COMP-WAFER",
+    "target_kind": "component",
+    "target_id": "COMP-TARGET",
+    "target_name": "Sputtering target",
+    "tier_depth": 2,
+    "category": "material",
+    "title": "Track sputtering target exposure for wafer fabrication",
+    "summary": "Deposition and metallization steps can create sputtering target demand; this is a process-material lead until a supplier disclosure, facility filing, or reviewed import context supports a company-specific relationship.",
+    "confidence": 0.18,
+    "source_suggestions": ["supplier annual reports", "chemical supplier filings", "trade observations"],
+    "unknowns": ["target material", "qualified target supplier", "fab-specific consumption"]
+  },
+  {
+    "dependency_id": "CDEP-WAFER-CMP",
+    "parent_component_id": "COMP-WAFER",
+    "target_kind": "component",
+    "target_id": "COMP-CMP",
+    "target_name": "CMP consumables",
+    "tier_depth": 2,
+    "category": "material",
+    "title": "Track CMP slurry and pad exposure for wafer fabrication",
+    "summary": "CMP slurries and pads are process consumables; they should remain material/process context until official evidence names the supplier, facility, or qualified product family.",
+    "confidence": 0.18,
+    "source_suggestions": ["chemical supplier filings", "supplier annual reports", "trade observations"],
+    "unknowns": ["slurry chemistry", "pad supplier", "process-node qualification"]
   },
   {
     "dependency_id": "CDEP-WAFER-SPECIALTY-GASES",

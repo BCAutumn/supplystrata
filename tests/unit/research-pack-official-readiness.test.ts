@@ -426,7 +426,7 @@ describe("research-pack official disclosure readiness", () => {
     const profile = getBuiltInResearchTargetProfile("ai-compute-memory.v0");
 
     expect(profiles.map((item) => item.profile_id)).toEqual(["ai-compute-memory.v0"]);
-    expect(profile.target_nodes).toHaveLength(38);
+    expect(profile.target_nodes).toHaveLength(39);
     expect(profile.target_nodes.find((node) => node.node_id === "ENT-NVIDIA")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
     );
@@ -467,6 +467,9 @@ describe("research-pack official disclosure readiness", () => {
     );
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-PHOTORESIST")).toEqual(
       expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "edinet"] })
+    );
+    expect(profile.target_nodes.find((node) => node.node_id === "COMP-SEMICONDUCTOR-EQUIPMENT")).toEqual(
+      expect.objectContaining({ priority: "P1", expected_source_ids: ["asml-ir", "company-ir", "sec-edgar", "edinet"] })
     );
     expect(profile.target_nodes.find((node) => node.node_id === "COMP-TARGET")).toEqual(
       expect.objectContaining({ priority: "P1", expected_source_ids: ["company-ir", "edinet"] })

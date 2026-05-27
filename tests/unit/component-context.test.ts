@@ -18,7 +18,10 @@ describe("component-context", () => {
 
     expect(leads.map((lead) => lead.target_id)).toContain("COMP-SILICON-WAFER");
     expect(leads.map((lead) => lead.target_id)).toContain("COMP-EUV-LITHOGRAPHY");
+    expect(leads.map((lead) => lead.target_id)).toContain("COMP-SEMICONDUCTOR-EQUIPMENT");
     expect(leads.map((lead) => lead.target_id)).toContain("COMP-PHOTORESIST");
+    expect(leads.map((lead) => lead.target_id)).toContain("COMP-TARGET");
+    expect(leads.map((lead) => lead.target_id)).toContain("COMP-CMP");
     expect(leads.map((lead) => lead.target_id)).toContain("COMP-CLEANROOM");
     expect(leads.every((lead) => lead.parent_component_id === "COMP-WAFER")).toBe(true);
     expect(leads.every((lead) => lead.confidence > 0 && lead.confidence < 1)).toBe(true);
@@ -50,6 +53,7 @@ describe("component-context", () => {
     expect(listKnownComponentContextIds()).toContain("COMP-ABF-SUBSTRATE");
     expect(listKnownComponentContextIds()).toContain("COMP-CCL");
     expect(listKnownComponentContextIds()).toContain("COMP-COPPER-FOIL");
+    expect(listKnownComponentContextIds()).toContain("COMP-SEMICONDUCTOR-EQUIPMENT");
   });
 
   it("loads HS proxy codes for component trade observations", () => {

@@ -7,6 +7,9 @@ describe("source-plan", () => {
     const byId = new Map(plan.map((item) => [item.source_id, item]));
 
     expect(byId.get("asml-ir")?.relation_policy).toBe("can_create_fact_edge");
+    expect(byId.get("asml-ir")?.target_ids).toEqual(expect.arrayContaining(["COMP-EUV-LITHOGRAPHY", "COMP-SEMICONDUCTOR-EQUIPMENT"]));
+    expect(byId.get("company-ir")?.target_ids).toEqual(expect.arrayContaining(["COMP-TARGET", "COMP-CMP", "COMP-PHOTORESIST"]));
+    expect(byId.get("edinet")?.target_ids).toEqual(expect.arrayContaining(["COMP-TARGET", "COMP-CMP", "COMP-PHOTORESIST"]));
     expect(byId.get("usgs-mcs")?.expected_output_layer).toBe("observation");
     expect(byId.get("un-comtrade")?.relation_policy).toBe("observation_only");
     expect(byId.get("census-trade")?.relation_policy).toBe("observation_only");

@@ -198,7 +198,7 @@ packages/risk-view
 [ ] 每个核心 propagation layer 至少有一种明确状态：covered_fact、official_target_runnable、observation_ready、lead_only、unknown_open 或 blocked_source，并能解释为什么
 [ ] 至少 30% fact edge 有第二来源 corroboration 或明确标为 single-source
 [ ] 任一 fact edge 都能追到 evidence_id、doc_id、source_url、cite_text、offset/fingerprint
-[ ] AI compute / memory profile 不只覆盖公司，还覆盖核心 component / material / equipment / process frontier，并为缺失上游材料节点生成 explicit backlog
+[x] AI compute / memory profile 不只覆盖公司，还覆盖核心 component / material / equipment / process frontier，并为缺失上游材料节点生成 explicit backlog
 [ ] AI compute propagation matrix 必须把 source targets 按 `official_evidence / observation_proxy / entity_or_facility_context / lead_or_manual_review` 分组，供前端/AI 选择受控动作；不能把 observation proxy 或 lead source 当成 fact-capable 官方证据
 [ ] AI compute propagation matrix 必须输出 `next_research_targets`，明确下一步该查 company、component、material/process 还是 source group；该字段只做研究导航，不证明关系、不写 truth store
 [ ] AI compute propagation matrix 必须输出结构化 `official_evidence_gaps`，即使 layer 有 L4/L5 anchor，也要列出层内尚未被 L4/L5 覆盖的 component/material/process/source group/observation-only gap
@@ -450,8 +450,8 @@ PROCESS_MATERIAL_OBSERVATION
 [x] research-pack 能输出 observation series readiness，区分 sparse / explicit-baseline ready / time-series ready
 [x] investigation-backlog 能把 sparse observation series 转成可执行的数据积累任务
 [x] research-pack 能输出 propagation readiness，把需求、扩产、设施建设、设备安装、材料消耗、原材料/贸易/价格信号拆成 ready / partial / blocked
-[ ] component-context / source-plan 能覆盖 AI compute 上游材料与设备 frontier，例如 PCB、光模块、电源/冷却、树脂、电子布、铜箔、高纯气体、光刻胶、靶材、CMP、洁净室、半导体设备
-[ ] 上游材料和工程建设信号默认只生成 observation / lead / backlog，不自动生成公司 fact edge
+[x] component-context / source-plan 能覆盖 AI compute 上游材料与设备 frontier，例如 PCB、光模块、电源/冷却、树脂、电子布、铜箔、高纯气体、光刻胶、靶材、CMP、洁净室、半导体设备
+[x] 上游材料和工程建设信号默认只生成 observation / lead / backlog，不自动生成公司 fact edge
 ```
 
 当前状态：observation-store 已形成统一写入边界，`FINANCIAL_METRIC_OBSERVATION` 由 SEC companyfacts 结构化 JSON 写入，`TRADE_FLOW_OBSERVATION` 由 Census Trade target 写入，`COMMODITY_PRICE_OBSERVATION` 由 World Bank Pink Sheet target 写入，官方披露语义抽取器可生成 `INVENTORY_OBSERVATION` / `BACKLOG_OBSERVATION` / `CAPEX_OBSERVATION` / `CUSTOMER_CONCENTRATION_OBSERVATION` / `PROCUREMENT_OBSERVATION`，OSH 路径可生成 `FACILITY_PROFILE_OBSERVATION`。这些路径都必须保留 `source_item / doc / time_window / metric / scope / geography / component_id / provenance` 语义，不进入 graph-builder，不生成事实边。

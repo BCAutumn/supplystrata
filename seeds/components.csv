@@ -9,6 +9,7 @@ COMP-SERVER,AI server,hardware>server>ai-server,GPU server;accelerated server
 COMP-MANUFACTURING-SERVICES,Manufacturing services,services>manufacturing>contract-manufacturing,contract manufacturing;assembly testing and packaging;manufacturing services
 COMP-SILICON-WAFER,Silicon wafer,semiconductor>foundry>wafer>silicon-wafer,prime wafer;semiconductor wafer
 COMP-EUV-LITHOGRAPHY,EUV lithography,semiconductor>equipment>lithography>euv,extreme ultraviolet lithography;EUV scanner
+COMP-SEMICONDUCTOR-EQUIPMENT,Semiconductor equipment,semiconductor>equipment,semiconductor manufacturing equipment;wafer fab equipment;process tool
 COMP-PHOTORESIST,Photoresist,semiconductor>materials>chemicals>photoresist,EUV photoresist;semiconductor photoresist
 COMP-TARGET,Sputtering target,semiconductor>materials>metals>sputtering-target,sputtering target;PVD target;semiconductor target
 COMP-CMP,CMP consumables,semiconductor>materials>cmp,CMP slurry;CMP pad;chemical mechanical polishing
