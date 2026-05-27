@@ -15,7 +15,6 @@ import type {
   AiComputePropagationOfficialEvidenceGap,
   AiComputePropagationReadinessMatrix,
   AiComputePropagationSourceTargetGroup,
-  AiComputePropagationSourceTargetGroupKind,
   AiComputePropagationSourceTargetStatus,
   AiComputePropagationSourceTargetStatusSummary,
   AiComputePropagationUnknownBacklogSeed,
@@ -33,7 +32,8 @@ import {
   nextActionsFor,
   prohibitedTruthStoreWritesFor
 } from "./ai-compute-propagation-policy.js";
-import { buildAiComputePropagationSourceTargetStatusSummary } from "./ai-compute-propagation-source-target-summary.js";
+import { isBlockedSourceTarget } from "./ai-compute-propagation-source-target-summary.js";
+import { buildAiComputePropagationLayerSourceTargets } from "./ai-compute-propagation-source-targets.js";
 import { buildAiComputePropagationUnknownBacklogSummary } from "./ai-compute-propagation-unknown-backlog-summary.js";
 
 export type {
@@ -291,12 +291,17 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
     (item) => rule.observation_types.includes(item.observation_type) && observationMatchesRule(item, rule)
   );
   const series = input.observation_coverage.series.filter((item) => rule.observation_types.includes(item.observation_type) && seriesMatchesRule(item, rule));
-  const coverageItems = sourceCoverageItemsFor(sourcePlanItems, input.source_target_coverage);
   const officialNodes = input.official_disclosure_readiness.nodes.filter((node) => node.node_kind === "component" && componentMatchesRule(node.node_id, rule));
   const unknownIds = unknownRefsFor(rule, input, frontier, leads);
-  const sourceTargetStatuses = sourceTargetStatusesFor(coverageItems, officialNodes);
-  const sourceTargetGroups = sourceTargetGroupsFor(sourcePlanItems, sourceTargetStatuses);
-  const sourceTargetStatusSummary = buildAiComputePropagationSourceTargetStatusSummary(sourceTargetStatuses);
+  const sourceTargets = buildAiComputePropagationLayerSourceTargets({
+    scope: {
+      component_ids: rule.component_ids,
+      material_or_process_prefixes: rule.material_or_process_prefixes
+    },
+    source_plan_items: sourcePlanItems,
+    source_target_coverage: input.source_target_coverage,
+    official_nodes: officialNodes
+  });
   const materialOrProcessRefs = uniqueSorted([
     ...sourcePlanItems.flatMap((item) => item.target_ids.filter((targetId) => materialOrProcessMatchesRule(targetId, rule))),
     ...leads.map((lead) => lead.target_id).filter((targetId) => materialOrProcessMatchesRule(targetId, rule))
@@ -304,7 +309,7 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
   const nextResearchTargets = buildAiComputePropagationNextResearchTargets({
     component_ids: rule.component_ids,
     material_or_process_refs: materialOrProcessRefs,
-    source_target_groups: sourceTargetGroups,
+    source_target_groups: sourceTargets.source_target_groups,
     leads,
     frontier
   });
@@ -317,10 +322,10 @@ function refsForRule(rule: AiComputePropagationLayerRule, input: AiComputePropag
       ...sourcePlanItems.map((item) => `source_plan:${item.source_id}`),
       ...officialNodes.flatMap((node) => node.source_plan_refs)
     ]),
-    source_target_refs: uniqueSorted(sourceTargetStatuses.map((item) => item.ref)),
-    source_target_groups: sourceTargetGroups,
-    source_target_statuses: sourceTargetStatuses,
-    source_target_status_summary: sourceTargetStatusSummary,
+    source_target_refs: uniqueSorted(sourceTargets.source_target_statuses.map((item) => item.ref)),
+    source_target_groups: sourceTargets.source_target_groups,
+    source_target_statuses: sourceTargets.source_target_statuses,
+    source_target_status_summary: sourceTargets.source_target_status_summary,
     next_research_targets: nextResearchTargets,
     component_dependency_refs: uniqueSorted(leads.map((lead) => `component_dependency:${lead.dependency_id}`)),
     frontier_refs: uniqueSorted(frontier.map((item) => `supply_chain_frontier:${item.frontier_id}`)),
@@ -436,169 +441,6 @@ function frontierForRule(rule: AiComputePropagationLayerRule, frontier: readonly
   return frontier.filter((item) => item.component_id !== null && componentMatchesRule(item.component_id, rule));
 }
 
-function sourceCoverageItemsFor(sourcePlanItems: readonly SourcePlanItem[], coverage: SourceTargetCoverageReport): SourceTargetCoverageReport["items"] {
-  const targetIds = new Set(sourcePlanItems.flatMap((item) => item.target_ids));
-  const suggestedTargets = sourcePlanItems.flatMap((item) => item.suggested_check_targets);
-  return coverage.items.filter((item) => {
-    if (
-      suggestedTargets.some(
-        (target) =>
-          target.source_adapter_id === item.expected_target.source_adapter_id &&
-          target.target_kind === item.expected_target.target_kind &&
-          stableConfigKey(target.target_config) === stableConfigKey(item.expected_target.target_config)
-      )
-    ) {
-      return true;
-    }
-    const targetConfigText = JSON.stringify(item.expected_target.target_config);
-    return [...targetIds].some((targetId) => targetConfigText.includes(targetId));
-  });
-}
-
-function sourceTargetStatusesFor(
-  coverageItems: SourceTargetCoverageReport["items"],
-  officialNodes: OfficialDisclosureReadinessReport["nodes"]
-): AiComputePropagationSourceTargetStatus[] {
-  return uniqueSourceTargetStatuses([
-    ...coverageItems.map((item) => ({
-      ref: `source_target:${item.matched_check_target_id ?? item.expected_target.check_target_id}:${item.state}`,
-      source_adapter_id: item.expected_target.source_adapter_id,
-      target_kind: item.expected_target.target_kind,
-      state: item.state,
-      failure_kind: item.latest_job?.failure_kind ?? null,
-      latest_event_type: item.latest_event?.event_type ?? null
-    })),
-    ...officialNodes.flatMap((node) =>
-      node.source_targets.map((target) => ({
-        ref: `source_target:${target.check_target_id ?? target.target_key}:${target.state ?? "planned"}`,
-        source_adapter_id: target.source_adapter_id,
-        target_kind: target.target_kind,
-        state: target.state,
-        failure_kind: null,
-        latest_event_type: target.latest_event_type
-      }))
-    )
-  ]);
-}
-
-function sourceTargetGroupsFor(
-  sourcePlanItems: readonly SourcePlanItem[],
-  statuses: readonly AiComputePropagationSourceTargetStatus[]
-): AiComputePropagationSourceTargetGroup[] {
-  const groups = new Map<AiComputePropagationSourceTargetGroupKind, MutableSourceTargetGroup>();
-  for (const item of sourcePlanItems) {
-    const kind = sourceTargetGroupKindFor(item);
-    const group = getMutableSourceTargetGroup(groups, kind);
-    group.source_plan_refs.push(`source_plan:${item.source_id}`);
-    for (const target of sourceTargetsForSourcePlanItem(item)) {
-      group.source_adapters.push(target.source_adapter_id);
-      if (target.target_kind !== null) group.target_kinds.push(target.target_kind);
-    }
-  }
-
-  for (const status of statuses) {
-    const matchingGroups = [...groups.values()].filter((group) => sourceTargetStatusMatchesGroup(status, group));
-    const targets = matchingGroups.length === 0 ? [getMutableSourceTargetGroup(groups, sourceTargetGroupKindForStatus(status))] : matchingGroups;
-    for (const group of targets) {
-      group.source_adapters.push(status.source_adapter_id);
-      if (status.target_kind !== null) group.target_kinds.push(status.target_kind);
-      group.source_target_refs.push(status.ref);
-      if (status.state !== null) group.states.push(status.state);
-      if (status.failure_kind !== null) group.failure_kinds.push(status.failure_kind);
-    }
-  }
-
-  return GROUP_ORDER.flatMap((kind) => {
-    const group = groups.get(kind);
-    if (group === undefined) return [];
-    return [
-      {
-        group_kind: kind,
-        source_plan_refs: uniqueSorted(group.source_plan_refs),
-        source_target_refs: uniqueSorted(group.source_target_refs),
-        source_adapters: uniqueSorted(group.source_adapters),
-        target_kinds: uniqueSorted(group.target_kinds),
-        states: uniqueSorted(group.states),
-        failure_kinds: uniqueSorted(group.failure_kinds)
-      }
-    ];
-  });
-}
-
-const GROUP_ORDER: readonly AiComputePropagationSourceTargetGroupKind[] = [
-  "official_evidence",
-  "observation_proxy",
-  "entity_or_facility_context",
-  "lead_or_manual_review"
-];
-
-interface MutableSourceTargetGroup {
-  source_plan_refs: string[];
-  source_target_refs: string[];
-  source_adapters: string[];
-  target_kinds: string[];
-  states: string[];
-  failure_kinds: string[];
-}
-
-function getMutableSourceTargetGroup(
-  groups: Map<AiComputePropagationSourceTargetGroupKind, MutableSourceTargetGroup>,
-  kind: AiComputePropagationSourceTargetGroupKind
-): MutableSourceTargetGroup {
-  const existing = groups.get(kind);
-  if (existing !== undefined) return existing;
-  const group = { source_plan_refs: [], source_target_refs: [], source_adapters: [], target_kinds: [], states: [], failure_kinds: [] };
-  groups.set(kind, group);
-  return group;
-}
-
-function sourceTargetGroupKindFor(item: SourcePlanItem): AiComputePropagationSourceTargetGroupKind {
-  if (item.relation_policy === "can_create_fact_edge" || item.expected_output_layer === "edge" || item.purpose === "official_disclosure") {
-    return "official_evidence";
-  }
-  if (
-    item.relation_policy === "entity_only" ||
-    item.expected_output_layer === "entity" ||
-    item.purpose === "entity_resolution" ||
-    item.purpose === "facility"
-  ) {
-    return "entity_or_facility_context";
-  }
-  if (item.relation_policy === "lead_only" || item.expected_output_layer === "lead" || item.purpose === "manual_review" || item.purpose === "logistics") {
-    return "lead_or_manual_review";
-  }
-  return "observation_proxy";
-}
-
-function sourceTargetStatusMatchesGroup(status: AiComputePropagationSourceTargetStatus, group: MutableSourceTargetGroup): boolean {
-  if (!group.source_adapters.includes(status.source_adapter_id)) return false;
-  return status.target_kind === null || group.target_kinds.length === 0 || group.target_kinds.includes(status.target_kind);
-}
-
-function sourceTargetGroupKindForStatus(status: AiComputePropagationSourceTargetStatus): AiComputePropagationSourceTargetGroupKind {
-  const targetKind = status.target_kind ?? "";
-  if (targetKind.includes("trade") || targetKind.includes("commodity") || targetKind.includes("metric") || targetKind.includes("observation")) {
-    return "observation_proxy";
-  }
-  if (targetKind.includes("entity") || targetKind.includes("facility")) return "entity_or_facility_context";
-  if (targetKind.includes("manual") || targetKind.includes("lead") || targetKind.includes("logistics")) return "lead_or_manual_review";
-  return "official_evidence";
-}
-
-function sourceTargetsForSourcePlanItem(item: SourcePlanItem): { source_adapter_id: string; target_kind: string | null }[] {
-  if (item.suggested_check_targets.length === 0) return [{ source_adapter_id: item.source_id, target_kind: null }];
-  return item.suggested_check_targets.map((target) => ({
-    source_adapter_id: target.source_adapter_id,
-    target_kind: target.target_kind
-  }));
-}
-
-function isBlockedSourceTarget(item: AiComputePropagationSourceTargetStatus): boolean {
-  if (item.failure_kind !== null) return true;
-  if (item.latest_event_type === "SOURCE_FAILED") return true;
-  return item.state === "retry_wait" || item.state === "degraded" || item.state === "dead" || item.state === "disabled" || item.state === "policy_disabled";
-}
-
 function unknownRefsFor(
   rule: AiComputePropagationLayerRule,
   input: AiComputePropagationReadinessInput,
@@ -645,48 +487,6 @@ function stableTextKey(value: string): string {
     .slice(0, 48);
 }
 
-function stableConfigKey(config: Record<string, unknown>): string {
-  return stableConfigValue(config);
-}
-
-function stableConfigValue(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableConfigValue).join(",")}]`;
-  if (isRecord(value)) {
-    return `{${Object.keys(value)
-      .sort((left, right) => left.localeCompare(right))
-      .map((key) => `${JSON.stringify(key)}:${stableConfigValue(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))].sort((left, right) => left.localeCompare(right));
-}
-
-function uniqueSourceTargetStatuses(values: readonly AiComputePropagationSourceTargetStatus[]): AiComputePropagationSourceTargetStatus[] {
-  const byRef = new Map<string, AiComputePropagationSourceTargetStatus>();
-  for (const value of values) {
-    const existing = byRef.get(value.ref);
-    byRef.set(value.ref, existing === undefined ? value : mergeSourceTargetStatus(existing, value));
-  }
-  return [...byRef.values()].sort((left, right) => left.ref.localeCompare(right.ref));
-}
-
-function mergeSourceTargetStatus(
-  left: AiComputePropagationSourceTargetStatus,
-  right: AiComputePropagationSourceTargetStatus
-): AiComputePropagationSourceTargetStatus {
-  return {
-    ref: left.ref,
-    source_adapter_id: left.source_adapter_id,
-    target_kind: left.target_kind ?? right.target_kind,
-    state: left.state ?? right.state,
-    failure_kind: left.failure_kind ?? right.failure_kind,
-    latest_event_type: left.latest_event_type ?? right.latest_event_type
-  };
 }

@@ -330,6 +330,59 @@ describe("Gate 1 data-depth AI compute propagation", () => {
       "Unknown/backlog summary: existing=1; seeds=1; by_action=run_source_target=1; policy=review_only_no_automatic_write"
     );
   });
+
+  it("does not borrow unrelated source targets from a broad source-plan item", () => {
+    const sourcePlan = [broadEquipmentAndMaterialsSourcePlanItem()];
+    const sourceTargetCoverage = sourceTargetCoverageForUnrelatedProcessInput();
+    const officialDisclosureReadiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      component_ids: ["COMP-SEMICONDUCTOR-EQUIPMENT", "COMP-CMP"],
+      source_plan: sourcePlan,
+      source_target_coverage: sourceTargetCoverage
+    });
+
+    const report = buildPropagationReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-NVIDIA",
+      workbench: emptyWorkbench(),
+      observation_coverage: emptyObservationCoverageReport(),
+      official_disclosure_readiness: officialDisclosureReadiness,
+      source_plan: sourcePlan,
+      source_target_coverage: sourceTargetCoverage,
+      supply_chain_expansion_plan: emptySupplyChainExpansionPlanFixture()
+    });
+
+    const equipmentLayer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "construction_to_equipment");
+    const processInputLayer = report.ai_compute_matrix.layers.find((item) => item.layer_id === "equipment_to_process_inputs");
+    expect(equipmentLayer?.source_target_status_summary).toEqual({
+      targets: 0,
+      runnable_targets: 0,
+      blocked_targets: 0,
+      degraded_targets: 0,
+      missing_credentials: 0,
+      source_failed_targets: 0,
+      by_state: {},
+      by_failure_kind: {}
+    });
+    expect(equipmentLayer?.source_target_statuses).toEqual([]);
+    expect(processInputLayer?.source_target_status_summary).toEqual(
+      expect.objectContaining({
+        targets: 1,
+        runnable_targets: 1,
+        blocked_targets: 0,
+        by_state: { scheduled: 1 }
+      })
+    );
+    expect(processInputLayer?.source_target_statuses).toEqual([
+      expect.objectContaining({
+        source_adapter_id: "census-trade",
+        target_kind: "trade-flow-observation",
+        state: "scheduled"
+      })
+    ]);
+  });
 });
 
 function equipmentSourcePlanItem(): SourcePlanItem {
@@ -393,6 +446,58 @@ function sourceTargetCoverageWithMissingCredentials(): SourceTargetCoverageRepor
           created_at: "2026-01-01T00:00:00.000Z",
           updated_at: "2026-01-01T00:30:00.000Z"
         }
+      }
+    ]
+  };
+}
+
+function broadEquipmentAndMaterialsSourcePlanItem(): SourcePlanItem {
+  return {
+    source_id: "sec-edgar",
+    source_name: "SEC EDGAR",
+    purpose: "official_disclosure",
+    priority: "P0",
+    status: "preview",
+    automation: "allowed",
+    requires_key: false,
+    expected_output_layer: "edge",
+    relation_policy: "can_create_fact_edge",
+    parent_component_ids: ["COMP-SEMICONDUCTOR-EQUIPMENT"],
+    target_ids: ["COMP-SEMICONDUCTOR-EQUIPMENT", "COMP-CMP", "ENT-NVIDIA"],
+    trigger_dependency_ids: ["CDEP-BROAD"],
+    reasons: ["Broad company filings can mention multiple components, but a layer must not inherit unrelated target status."],
+    suggested_check_targets: [
+      {
+        source_adapter_id: "sec-edgar",
+        target_kind: "sec-company-facts",
+        runnable: true,
+        target_config: { entity_id: "ENT-NVIDIA", cik: "0001045810" },
+        reason: "Company-level financial target is intentionally not component-scoped."
+      }
+    ]
+  };
+}
+
+function sourceTargetCoverageForUnrelatedProcessInput(): SourceTargetCoverageReport {
+  const report = officialSourceTargetCoverage("scheduled");
+  const item = report.items[0];
+  if (item === undefined) throw new Error("Expected source target coverage fixture item");
+  return {
+    ...report,
+    items: [
+      {
+        ...item,
+        expected_target: {
+          ...item.expected_target,
+          check_target_id: "plan:nvidia-process-2025:census-trade:trade-flow-observation:cmp",
+          source_adapter_id: "census-trade",
+          target_kind: "trade-flow-observation",
+          target_config: { component_id: "COMP-CMP", scope_kind: "component", scope_id: "COMP-CMP", commodity_code: "382499" }
+        },
+        matched_check_target_id: "plan:nvidia-process-2025:census-trade:trade-flow-observation:cmp",
+        state: "scheduled",
+        latest_job: null,
+        latest_event: null
       }
     ]
   };
