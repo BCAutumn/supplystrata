@@ -611,7 +611,7 @@ POST /review/:id/reject
 完成标准：
 
 ```text
-[ ] apps/api 有 contract tests
+[x] apps/api 有 contract tests
 [ ] research-preview 或未来正式前端只消费 API/Workbench DTO
 [ ] 无 Docker snapshot path 与 DB-backed path 都保留
 [x] research-pack 能输出 question readiness matrix
@@ -650,6 +650,7 @@ POST /review/:id/reject
 [x] research-pack 能输出 `propagation-readiness.json/md` 或等价 DTO，作为 AI/前端分析产业传导链路的结构化输入，不直接生成结论或事实边
 [x] research-pack 能输出 `consumer-read-model.json`，作为 Gate 8-lite 稳定只读消费契约，覆盖 company / chain / pack / changes / derived context / risk / unknown / backlog / next actions / constraint context
 [x] research-pack 能输出 `reasoning-walkthrough.json/md`，把 propagation matrix 转成已知事实、明确 unknown、受限证据、下一步动作和不能说的结论，且保持 deterministic/read-only/no AI
+[x] `apps/api` 已建立 Gate 8 v0 contract：固定 company/component/chain/claim/evidence/observation/risk/change/source/unknown/read-model/walkthrough/review 路由，生成 OpenAPI 3.1 文档，并用 contract audit 测试确保 DTO 来源来自 public contract 而不是 DB Row；当前仍是 contract-only，未启动 HTTP adapter
 [x] source registry / source-plan 已登记 OFAC sanctions、BIS Entity List、EU sanctions 作为 P0 policy constraint context；它们当前只具备 observation-only/alert-context 权限，不具备 fact edge 写入权限
 [x] policy / sanctions connector fast lane 第一版已接通 OFAC SDN：source-check 抓取官方 XML 快照，按 target_names 精确规范化匹配写入 `POLICY_OBSERVATION`，`refreshAlertCandidates()` 生成 `policy_constraint` alert candidate；未命中不写 clean 结论，BIS / EU 仍待后续结构化 connector，且全链路不写 fact edge
 [x] AI compute propagation matrix 能输出 `evidence_layer_summary`，把 fact edge / observation / lead / unknown / source target / official evidence gap 分开解释，并显式列出允许输出和禁止 truth-store 写入

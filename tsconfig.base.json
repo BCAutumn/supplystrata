@@ -18,6 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@supplystrata/core": ["packages/core/src/index.ts"],
+      "@supplystrata/api": ["apps/api/src/index.ts"],
       "@supplystrata/config": ["packages/config/src/index.ts"],
       "@supplystrata/card-builder": ["packages/card-builder/src/index.ts"],
       "@supplystrata/claim-builder": ["packages/claim-builder/src/index.ts"],

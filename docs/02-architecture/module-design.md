@@ -16,6 +16,7 @@
 supplystrata/
 ├── apps/
 │   ├── cli/                 # 薄命令入口：参数解析、env/logger/db 装配、调用 use-case
+│   ├── api/                 # Gate 8 API 契约：路由、DTO 来源、OpenAPI；暂不承载 HTTP 服务
 │   ├── worker/              # source-check 常驻 worker；复用 source-workflows
 │   └── research-preview/    # 本地 Workbench JSON 预览，不承载业务规则
 ├── packages/
@@ -89,7 +90,7 @@ pipeline + graph-builder + observation-store + review-store + claim-builder + ev
   ↑
 chain-view-builder + card-builder + workbench-export + research-pack + data-quality
   ↑
-apps/cli + apps/worker + apps/research-preview
+apps/cli + apps/api + apps/worker + apps/research-preview
 ```
 
 约束：
@@ -102,7 +103,8 @@ apps/cli + apps/worker + apps/research-preview
 - `pipeline` 是 normalized document engine；它不直接依赖具体源，也不做 source policy 调度。
 - `graph-builder` 只能通过 `graph-store` port 做图投影；truth-store 写入以 Postgres 为准。
 - `workbench-export` 和 `research-pack` 是输出/研究编排层；默认只读，只有显式 prepare/refresh flag 才能调用受控派生维护 use-case。
-- `apps/*` 不写业务规则；它们只装配环境、DB、logger、命令参数和输出。
+- `apps/*` 不写业务规则；它们只装配环境、DB、logger、命令参数、契约和输出。
+- `apps/api` 当前只定义 Gate 8 contract：路由表、DTO 来源、schema registry 和 OpenAPI 生成。它不启动 HTTP server、不连接 DB、不把 research-pack 文件格式伪装成正式 API。
 
 ## Source Domain
 
@@ -185,6 +187,7 @@ NormalizedDocument
 | `chain-view-builder`、`card-builder`          | card / chain DTO                                                                  | 从 `DbClient` 组装稳定 DTO     |
 | `workbench-export`                            | Workbench JSON                                                                    | 稳定 machine-readable contract |
 | `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、Gate 8-lite read model / walkthrough | 研究编排和审计账本             |
+| `apps/api`                                    | API route contract、DTO source map、OpenAPI                                       | 正式消费入口的版本化契约       |
 | `render` / `scripts/render-research-html.mjs` | Markdown/HTML/JSON 可读输出                                                       | 不查库、不写库                 |
 
 `research-pack` 是当前 Gate 1 主工作台。它应回答：

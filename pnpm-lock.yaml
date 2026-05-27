@@ -58,6 +58,21 @@ importers:
         specifier: ~2.1.8
         version: 2.1.9(@types/node@22.10.10)
 
+  apps/api:
+    dependencies:
+      '@supplystrata/chain-view':
+        specifier: workspace:*
+        version: link:../../packages/chain-view
+      '@supplystrata/render':
+        specifier: workspace:*
+        version: link:../../packages/render
+      '@supplystrata/research-pack':
+        specifier: workspace:*
+        version: link:../../packages/research-pack
+      '@supplystrata/workbench-export':
+        specifier: workspace:*
+        version: link:../../packages/workbench-export
+
   apps/cli:
     dependencies:
       '@supplystrata/card-builder':
