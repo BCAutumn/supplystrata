@@ -294,6 +294,39 @@ describe("Gate 1 data-depth recursive research actions", () => {
     expect(frontierItem?.command_hints[0]?.command).not.toContain("ENT-FAC-");
     expect(frontierItem?.command_hints[0]?.command).not.toContain("<research-pack-out>");
   });
+
+  it("keeps frontier research commands generic when no target profile is selected", () => {
+    const sourceTargetCoverage = officialSourceTargetCoverage("succeeded");
+    const readiness = buildOfficialDisclosureReadinessReport({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-GENERIC-LISTED-COMPANY",
+      workbench: workbenchWithSamsungMemoryEdge(),
+      component_ids: ["COMP-WAFER"],
+      source_plan: [officialSourcePlanItem()],
+      source_target_coverage: sourceTargetCoverage
+    });
+
+    const workbenchModel = buildGate1DataDepthWorkbench({
+      generated_at: "2026-01-01T00:00:00.000Z",
+      company_id: "ENT-GENERIC-LISTED-COMPANY",
+      research_context: {
+        depth: 4
+      },
+      official_disclosure_readiness: readiness,
+      source_target_coverage: sourceTargetCoverage,
+      supply_chain_expansion_plan: expansionPlanWithBlockedFacilityAndReadyCompany(),
+      propagation_readiness: emptyPropagationReadinessReport(),
+      adjacent_official_facts: adjacentOfficialFactsReport(),
+      entity_affiliation_contexts: []
+    });
+
+    const frontierItem = workbenchModel.items.find((candidate) => candidate.item_id === "gate1-frontier:recursive-depth");
+    expect(frontierItem?.command_hints[0]?.command).toBe(
+      "pnpm --silent cli research run --company ENT-TSMC --component COMP-WAFER --depth 4 --prepare-data --source-target-namespace research-ent-tsmc --out reports/ent-tsmc-comp-wafer-research-pack"
+    );
+    expect(frontierItem?.command_hints[0]?.command).not.toContain("--target-profile");
+    expect(frontierItem?.command_hints[0]?.command).not.toContain("ENT-NVIDIA");
+  });
 });
 
 describe("Gate 1 data-depth source and observation operations", () => {

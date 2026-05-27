@@ -89,7 +89,13 @@ equipment ramp -> process materials -> photoresist / target / CMP / high-purity 
 
 ## 当前执行目标
 
-当前阶段的目标不是继续泛化口号，也不是用全库 L4/L5 总数证明进度。当前阶段只盯一个可验收问题：
+当前阶段的目标不是继续泛化口号，也不是用全库 L4/L5 总数证明进度。架构目标必须始终是通用 listed-company research loop：
+
+```text
+给定任意上市公司，系统用统一 entity resolver、source-plan、source-target、research-pack、review/disposition/unknown/calibration loop 组织研究。
+```
+
+NVIDIA / AI compute 只是 Gate 1 的 gold path：它是一条足够难的验收样板链，用来压测通用能力是否真的能跑深，而不是产品边界，也不是公司专用 workflow。当前阶段用这条 gold path 验收下面这个问题：
 
 ```text
 把 AI compute 主链从 NVIDIA / AI demand 沿 GPU、HBM、AI server、PCB、光模块、电源/冷却、晶圆/封装、洁净室、设备、工艺材料和上游原材料逐层跑深。
@@ -103,7 +109,7 @@ equipment ramp -> process materials -> photoresist / target / CMP / high-purity 
 - 下一步应运行哪个 source target、修哪个 source target、审哪个 context、保留哪个 unknown。
 - 该层是否已经足够进入前端/AI 综合研究；如果不够，缺的是事实、观测、实体、来源、校准样本还是人工 disposition。
 
-这个目标的成功标准是“层内可解释、可执行、可复现”，不是“边数漂亮”。全库 L4/L5、Apple Supplier List 广度边、Samsung / SK Hynix / Micron 等 counterparty 递归研究都只能服务这条主链；如果它们不能增加 AI compute propagation layer 的事实厚度、观测厚度、source coverage、unknown/disposition 或 calibration label，就不算 Gate 1 主线进度。
+这个目标的成功标准是“层内可解释、可执行、可复现”，不是“边数漂亮”。全库 L4/L5、Apple Supplier List 广度边、Samsung / SK Hynix / Micron 等 counterparty 递归研究都只能服务这条 gold path 的验收；如果它们不能增加 AI compute propagation layer 的事实厚度、观测厚度、source coverage、unknown/disposition 或 calibration label，就不算 Gate 1 主线进度。同时，任何为 gold path 做出的能力都必须保持通用入口：不能新增 `<company>-suppliers` 这类公司专用 workflow，不能把 `ENT-NVIDIA` 写成递归研究默认值，不能让未知上市公司自动套入 AI profile。
 
 ## 不可违反的边界
 
@@ -202,7 +208,7 @@ packages/risk-view
 [ ] 任意上市公司入口仍走通用 entity/source-plan/research loop，不新增 `<company>-suppliers` 这类公司专用 workflow
 ```
 
-说明：早期可以继续保留 “100 条 profile-visible L4/L5 fact edge” 作为压力测试目标，但它不是后端完成的充分条件，也不是优先级排序器。更重要的是：围绕一个问题能否逐层说明“已有事实是什么、哪些只是观测或线索、缺哪些证据、下一步该查谁和哪个 source”。如果系统为了凑 L4/L5 数量转向无关公司或无关链路，即使超过 100 条也不能算 Gate 1 完成。
+说明：早期可以继续保留 “100 条 profile-visible L4/L5 fact edge” 作为压力测试目标，但它不是后端完成的充分条件，也不是优先级排序器。更重要的是：通用 company research loop 能否在一个 gold path 问题上逐层说明“已有事实是什么、哪些只是观测或线索、缺哪些证据、下一步该查谁和哪个 source”。如果系统为了凑 L4/L5 数量转向无关公司或无关链路，即使超过 100 条也不能算 Gate 1 完成；如果系统只能跑 NVIDIA 不能跑任意上市公司，也不能算 Gate 1 完成。
 
 当前完成态：
 

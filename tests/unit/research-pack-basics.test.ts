@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { collectResearchComponentIds, researchPackUnknownMapTargets, resolveResearchPackWriteSteps, safeFileSegment } from "@supplystrata/research-pack";
+import {
+  collectResearchComponentIds,
+  researchPackUnknownMapTargets,
+  resolveResearchPackWriteSteps,
+  safeFileSegment,
+  selectResearchTargetProfile
+} from "@supplystrata/research-pack";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
 
 describe("research-pack basics", () => {
@@ -74,5 +80,21 @@ describe("research-pack basics", () => {
         edges: []
       })
     ).toEqual([]);
+  });
+
+  it("keeps built-in target profiles as optional validation anchors, not a default product boundary", () => {
+    expect(selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: [] })).toEqual({
+      profile: null,
+      reason: "No built-in research target profile matched this company/component scope."
+    });
+
+    expect(selectResearchTargetProfile({ company_id: "ENT-NVIDIA", component_ids: [], profile_id: "none" })).toEqual({
+      profile: null,
+      reason: "Research target profile disabled by caller."
+    });
+
+    expect(selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: ["COMP-PCB"] }).profile?.profile_id).toBe(
+      "ai-compute-memory.v0"
+    );
   });
 });

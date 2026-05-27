@@ -201,6 +201,8 @@ Observation 不是关系。它回答：
 
 #### Propagation Context Methodology
 
+Propagation methodology 可以按行业问题定制，但 research loop 必须保持通用。AI compute / NVIDIA 是当前 Gate 1 gold path，因为它能压测深层上游递归；它不是产品边界。其它上市公司仍应通过同一套 entity resolver、source-plan、source-target、research-pack、review/disposition、unknown 和 calibration 契约进入研究。内置 profile 只是验收锚点：可以按公司或组件 scope 自动选择，也可以由调用方关闭，未来也可以被其它行业 profile 替换；任何 profile 都不能退化成公司专用 workflow。
+
 产业传导分析需要的不是一条新事实边，而是一组可审计的推理输入。后端必须把下面这些信号准备成 observation / lead / backlog，而不是直接写成公司关系：
 
 | propagation context                   | 回答的问题                           | 默认层级                 |
