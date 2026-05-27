@@ -6,6 +6,7 @@ import {
   writeResearchPack,
   writeWorkbenchSnapshotPack,
   parseSourceTargetPreflightReport,
+  isResearchTargetProfileId,
   type ResearchPackInput,
   type ResearchTargetProfileOption
 } from "@supplystrata/research-pack";
@@ -294,6 +295,7 @@ function shouldRunWriteStep(input: { prepareData: boolean | undefined; explicit:
 }
 
 function parseResearchTargetProfileOption(value: string): ResearchTargetProfileOption {
-  if (value === "ai-compute-memory.v0" || value === "none") return value;
+  if (value === "none") return value;
+  if (isResearchTargetProfileId(value)) return value;
   throw new Error(`Unsupported research target profile: ${value}`);
 }

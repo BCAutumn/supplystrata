@@ -12,6 +12,7 @@
 - 把 `partial/blocked` propagation readiness 转成 investigation backlog，使补 observation / source target 的动作可排队、可审计。
 - 把 source target 的 metric 覆盖转成只读 observation review seeds、calibration candidates 和下一批分层 labeling plan，并在 truth-store 模式回填已持久化 observation calibration label，给前端/host app 做指标审查、calibration 和 gold label 抽样；这些产物明确禁止自动写事实边。
 - 为相邻官方事实的下一轮 research target ranking 输出稳定 `ranking_context` / `candidate_id`、`model_version`、assumptions 和 feature breakdown，供前端/host app 标注 ranking calibration gold labels。
+- 通过内置 research target profile registry 选择可审计的行业验收锚点；profile 只在公司或组件 scope 命中时自动启用，通用上市公司研究不命中时仍按当前可见事实、source target 和 unknown 正常运行。
 - 从 `generatedAt` 派生保守的 source-plan 默认窗口：官方披露和年度材料观测默认取上一 UTC 年，贸易和商品价格观测默认取上一 UTC 月；调用方仍可显式覆盖。
 - 支持 DB-backed `research run` 和无数据库 `from-workbench` snapshot 两条路径。
 - 在显式 `prepare-data` 输入下调用派生刷新步骤。
@@ -22,6 +23,7 @@
 - 默认不写 claims、edge intelligence 或 component risk。
 - 不写 fact edge、evidence、observation 或 source target。
 - 不把 source-plan、smoke 成功、observation、official signal 或 unknown 解释成事实证据。
+- 不把内置 profile 当成产品边界；profile 是 gold path / validation anchor，不是让研究只能围绕 NVIDIA 或 AI compute 跑。
 - 不把同组件相邻官方事实自动并入当前研究公司的可见链路；它们只是递归研究候选。
 - 不把相邻事实的 company rank 解释成概率结论；rank 只用于生成下一轮研究目标，且必须抑制披露中心节点、品牌方和高频 source-subject 偏差。ranking label 只进入 calibration 样本池，不会自动改 research target、fact edge 或 unknown。
 - 不把 AI compute propagation layer 的 `official_target_runnable`、`observation_ready` 或 `lead_only` 解释成事实覆盖；这些状态只能驱动 source target、unknown/backlog 或人工审查动作。

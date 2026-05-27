@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collectResearchComponentIds,
+  listBuiltInResearchTargetProfiles,
   researchPackUnknownMapTargets,
   resolveResearchPackWriteSteps,
   safeFileSegment,
@@ -96,5 +97,14 @@ describe("research-pack basics", () => {
     expect(selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: ["COMP-PCB"] }).profile?.profile_id).toBe(
       "ai-compute-memory.v0"
     );
+  });
+
+  it("returns cloned built-in target profiles so callers cannot mutate registry state", () => {
+    const firstRead = listBuiltInResearchTargetProfiles()[0];
+    expect(firstRead).toBeDefined();
+    firstRead?.applies_to_company_ids.push("ENT-MUTATED");
+
+    const secondRead = listBuiltInResearchTargetProfiles()[0];
+    expect(secondRead?.applies_to_company_ids).not.toContain("ENT-MUTATED");
   });
 });
