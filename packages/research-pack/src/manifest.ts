@@ -77,6 +77,8 @@ export function manifestFromModel(input: {
       intelligence_edge_freshness: input.workbench.intelligence.edge_freshness.length,
       component_risk_views_refreshed: input.componentRiskRefresh?.risk_views_refreshed ?? 0,
       component_risk_metrics_written: input.componentRiskRefresh?.metrics_written ?? 0,
+      component_risk_visible_edges: input.componentRiskRefresh?.research_pack_visible_edge_count ?? 0,
+      component_risk_global_edges: input.componentRiskRefresh?.edge_count ?? 0,
       component_risk_changes_recorded: input.componentRiskRefresh?.risk_changes_recorded ?? 0,
       question_readiness_ready: input.questionReadiness.summary.ready,
       question_readiness_partial: input.questionReadiness.summary.partial,

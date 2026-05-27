@@ -107,7 +107,7 @@ export async function buildResearchPack(client: DatabaseStore, input: ResearchPa
     edgeIds: workbench.edges.map((edge) => edge.edge_id),
     limit: 500
   });
-  const componentRiskRefresh = await maybeRefreshComponentRiskViews(client, writeSteps, input, components, generatedAt);
+  const componentRiskRefresh = await maybeRefreshComponentRiskViews(client, writeSteps, input, components, workbench.edges, generatedAt);
   const [company, chain, componentCards, dataQuality] = await Promise.all([
     loadCompanyCard(client.read, workbench.selected_company_id, { computedAt: generatedAt }),
     loadChainCard(client.read, workbench.selected_company_id, { depth }),

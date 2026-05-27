@@ -363,7 +363,7 @@ function researchPackStatsLines(
     `- Observation types present: ${stats.observation_types_present}`,
     `- Observation series readiness: ${stats.observation_time_series_ready} time-series ready, ${stats.observation_explicit_baseline_ready} explicit-baseline ready, ${stats.observation_sparse_series} sparse`,
     `- Observation methodology types missing: ${stats.observation_methodology_types_missing}`,
-    `- Component risk views refreshed: ${stats.component_risk_views_refreshed}`,
+    `- Component risk views refreshed: ${stats.component_risk_views_refreshed} (component-global edges ${stats.component_risk_global_edges}; research-pack visible edges ${stats.component_risk_visible_edges})`,
     `- Component risk metrics written: ${stats.component_risk_metrics_written}`,
     `- Question readiness: ${stats.question_readiness_ready} ready, ${stats.question_readiness_partial} partial, ${stats.question_readiness_blocked} blocked`,
     `- Investigation backlog: ${stats.investigation_backlog_items} open (${stats.investigation_backlog_p0} P0, ${stats.investigation_backlog_p1} P1); ${stats.investigation_backlog_propagation_readiness_items} propagation readiness items; ${stats.investigation_backlog_corroboration_reviews} corroboration reviews (${stats.investigation_backlog_corroboration_review_runnable_targets} runnable targets, ${stats.investigation_backlog_corroboration_review_need_sync} need sync, ${stats.investigation_backlog_corroboration_review_need_enable} need enable, ${stats.investigation_backlog_corroboration_review_due} due, ${stats.investigation_backlog_corroboration_review_failed_preflight} failed preflight, ${stats.investigation_backlog_corroboration_review_explicit_disposition_only} disposition-only)`,

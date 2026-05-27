@@ -8,6 +8,8 @@ import {
   selectResearchTargetProfile
 } from "@supplystrata/research-pack";
 import type { ChainViewSegmentModel } from "@supplystrata/chain-view";
+import type { ComponentRiskRefreshSummary } from "@supplystrata/evidence-maintenance";
+import { decorateComponentRiskRefreshSummary, summarizeComponentRiskRefresh } from "../../packages/research-pack/src/prepare-data.js";
 
 describe("research-pack basics", () => {
   it("keeps research-pack write steps opt-in", () => {
@@ -107,4 +109,37 @@ describe("research-pack basics", () => {
     const secondRead = listBuiltInResearchTargetProfiles()[0];
     expect(secondRead?.applies_to_company_ids).not.toContain("ENT-MUTATED");
   });
+
+  it("keeps component risk global scope separate from research-pack visible edges", () => {
+    const globalMemoryRisk = decorateComponentRiskRefreshSummary(componentRiskSummary("COMP-MEMORY", 3), new Map([["COMP-MEMORY", 0]]));
+    const visiblePcbRisk = decorateComponentRiskRefreshSummary(componentRiskSummary("COMP-PCB", 5), new Map([["COMP-PCB", 2]]));
+
+    const summary = summarizeComponentRiskRefresh({
+      componentIds: ["COMP-MEMORY", "COMP-PCB", "COMP-WAFER"],
+      refreshableComponentIds: ["COMP-MEMORY", "COMP-PCB"],
+      components: [globalMemoryRisk, visiblePcbRisk],
+      generatedBy: "unit-test"
+    });
+
+    expect(summary.scope_kind).toBe("component_global");
+    expect(summary.edge_count).toBe(8);
+    expect(summary.research_pack_visible_edge_count).toBe(2);
+    expect(summary.components[0]?.research_pack_visible_edge_count).toBe(0);
+    expect(summary.components[1]?.research_pack_visible_edge_count).toBe(2);
+    expect(summary.interpretation).toContain("component-global scope");
+  });
 });
+
+function componentRiskSummary(componentId: string, edgeCount: number): ComponentRiskRefreshSummary {
+  return {
+    risk_view_id: `RISK-${componentId}`,
+    component_id: componentId,
+    metrics: 4,
+    edge_count: edgeCount,
+    supplier_count: 2,
+    share_unknown: componentId === "COMP-PCB",
+    risk_changes_recorded: 1,
+    model_version: "component-risk-baseline.v1",
+    inputs_fingerprint: `fingerprint-${componentId}`
+  };
+}

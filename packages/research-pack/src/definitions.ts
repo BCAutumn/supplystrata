@@ -111,6 +111,8 @@ export interface ResearchPackStats {
   intelligence_edge_freshness: number;
   component_risk_views_refreshed: number;
   component_risk_metrics_written: number;
+  component_risk_visible_edges: number;
+  component_risk_global_edges: number;
   component_risk_changes_recorded: number;
   question_readiness_ready: number;
   question_readiness_partial: number;
@@ -271,16 +273,24 @@ export interface ResearchPackClaimBuild {
 }
 
 export interface ResearchPackComponentRiskRefresh {
+  scope_kind: "component_global";
+  interpretation: string;
   components_considered: number;
   components_eligible: number;
   risk_views_refreshed: number;
   metrics_written: number;
   edge_count: number;
+  research_pack_visible_edge_count: number;
   supplier_count: number;
   share_unknown_count: number;
   risk_changes_recorded: number;
   generated_by: string;
-  components: ComponentRiskRefreshSummary[];
+  components: ResearchPackComponentRiskRefreshComponent[];
+}
+
+export interface ResearchPackComponentRiskRefreshComponent extends ComponentRiskRefreshSummary {
+  scope_kind: "component_global";
+  research_pack_visible_edge_count: number;
 }
 
 export interface ResearchPackModel {

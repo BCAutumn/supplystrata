@@ -9,7 +9,13 @@ import {
   type EdgeIntelligenceRefreshSummary,
   type MaterializeRootResearchUnknownsSummary
 } from "@supplystrata/evidence-maintenance";
-import type { ResearchPackClaimBuild, ResearchPackComponentRiskRefresh, ResearchPackInput, ResearchPackWriteSteps } from "./definitions.js";
+import type {
+  ResearchPackClaimBuild,
+  ResearchPackComponentRiskRefresh,
+  ResearchPackComponentRiskRefreshComponent,
+  ResearchPackInput,
+  ResearchPackWriteSteps
+} from "./definitions.js";
 
 export function resolveResearchPackWriteSteps(
   input: Pick<ResearchPackInput, "buildClaims" | "refreshIntelligence" | "refreshComponentRisk" | "materializeRootUnknowns">
@@ -63,36 +69,75 @@ export async function maybeRefreshComponentRiskViews(
   writeSteps: ResearchPackWriteSteps,
   input: ResearchPackInput,
   componentIds: readonly string[],
+  visibleEdges: readonly { component_id: string | null }[],
   computedAt: string
 ): Promise<ResearchPackComponentRiskRefresh | null> {
   if (!writeSteps.refreshComponentRisk) return null;
   const generatedBy = input.generatedBy ?? "research-pack.component-risk-refresh.v1";
+  const visibleEdgeCountsByComponentId = countVisibleEdgesByComponentId(visibleEdges);
   const refreshableComponentIds = await listRefreshableComponentRiskComponentIds(client.read, componentIds);
   const components = await client.transaction(async (tx) => {
-    const summaries: ComponentRiskRefreshSummary[] = [];
+    const summaries: ResearchPackComponentRiskRefreshComponent[] = [];
     for (const componentId of refreshableComponentIds) {
-      summaries.push(
-        await refreshComponentRiskView(tx, {
-          component_id: componentId,
-          computed_at: computedAt,
-          generated_by: generatedBy
-        })
-      );
+      const summary = await refreshComponentRiskView(tx, {
+        component_id: componentId,
+        computed_at: computedAt,
+        generated_by: generatedBy
+      });
+      summaries.push(decorateComponentRiskRefreshSummary(summary, visibleEdgeCountsByComponentId));
     }
     return summaries;
   });
+  return summarizeComponentRiskRefresh({
+    componentIds,
+    refreshableComponentIds,
+    components,
+    generatedBy
+  });
+}
+
+export function summarizeComponentRiskRefresh(input: {
+  componentIds: readonly string[];
+  refreshableComponentIds: readonly string[];
+  components: readonly ResearchPackComponentRiskRefreshComponent[];
+  generatedBy: string;
+}): ResearchPackComponentRiskRefresh {
   return {
-    components_considered: componentIds.length,
-    components_eligible: refreshableComponentIds.length,
-    risk_views_refreshed: components.length,
-    metrics_written: components.reduce((count, component) => count + component.metrics, 0),
-    edge_count: components.reduce((count, component) => count + component.edge_count, 0),
-    supplier_count: components.reduce((count, component) => count + component.supplier_count, 0),
-    share_unknown_count: components.filter((component) => component.share_unknown).length,
-    risk_changes_recorded: components.reduce((count, component) => count + component.risk_changes_recorded, 0),
-    generated_by: generatedBy,
-    components
+    scope_kind: "component_global",
+    interpretation:
+      "Component risk is refreshed at component-global scope. research_pack_visible_edge_count shows how many current pack fact edges support that component for the selected company.",
+    components_considered: input.componentIds.length,
+    components_eligible: input.refreshableComponentIds.length,
+    risk_views_refreshed: input.components.length,
+    metrics_written: input.components.reduce((count, component) => count + component.metrics, 0),
+    edge_count: input.components.reduce((count, component) => count + component.edge_count, 0),
+    research_pack_visible_edge_count: input.components.reduce((count, component) => count + component.research_pack_visible_edge_count, 0),
+    supplier_count: input.components.reduce((count, component) => count + component.supplier_count, 0),
+    share_unknown_count: input.components.filter((component) => component.share_unknown).length,
+    risk_changes_recorded: input.components.reduce((count, component) => count + component.risk_changes_recorded, 0),
+    generated_by: input.generatedBy,
+    components: [...input.components]
   };
+}
+
+export function decorateComponentRiskRefreshSummary(
+  summary: ComponentRiskRefreshSummary,
+  visibleEdgeCountsByComponentId: ReadonlyMap<string, number>
+): ResearchPackComponentRiskRefreshComponent {
+  return {
+    ...summary,
+    scope_kind: "component_global",
+    research_pack_visible_edge_count: visibleEdgeCountsByComponentId.get(summary.component_id) ?? 0
+  };
+}
+
+function countVisibleEdgesByComponentId(visibleEdges: readonly { component_id: string | null }[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const edge of visibleEdges) {
+    if (edge.component_id === null) continue;
+    counts.set(edge.component_id, (counts.get(edge.component_id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export async function maybeMaterializeRootUnknowns(

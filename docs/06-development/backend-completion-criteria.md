@@ -290,7 +290,7 @@ pnpm cli intelligence refresh --min-evidence-level 4 --limit 1000
 pnpm cli research run --company nvidia --depth 3 --out reports/nvidia-research-pack
 ```
 
-`intelligence refresh` 是薄 CLI 入口，业务编排在 `@supplystrata/evidence-maintenance`。`research run` 默认只读打包，导出已有 Workbench / CompanyCard / ComponentCard / ChainView / question readiness / readiness/backlog context；只有显式传 `--prepare-data` 或单项刷新 flag 时，才会先刷新 claims、edge intelligence context，或筛出当前研究包里已有 Level 4/5 component fact edge 的 eligible 组件刷新 component risk baseline。
+`intelligence refresh` 是薄 CLI 入口，业务编排在 `@supplystrata/evidence-maintenance`。`research run` 默认只读打包，导出已有 Workbench / CompanyCard / ComponentCard / ChainView / question readiness / readiness/backlog context；只有显式传 `--prepare-data` 或单项刷新 flag 时，才会先刷新 claims、edge intelligence context，或筛出当前研究包里已有 Level 4/5 component fact edge 的 eligible 组件刷新 component risk baseline。component risk baseline 是 `component_global` 派生视图；research-pack manifest 必须把 `component_risk_global_edges` 和 `component_risk_visible_edges` 分开，避免递归子包把全局组件风险误读成当前公司已经拥有的 fact edge。
 
 必须新增或等价实现：
 
