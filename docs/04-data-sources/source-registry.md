@@ -83,17 +83,15 @@ pnpm cli sources plan --component COMP-MANUFACTURING-SERVICES --entity ENT-APPLE
 
 这层设计是为了避免把免费宏观源直接污染事实图谱：Comtrade/AIS/EIA/USGS 这类数据可以支持研究判断，但默认只能进入 observation；ImportYeti/BOL 只能手工进入 lead。公司专属来源也不能被通用化，例如 `apple-suppliers` 只有在计划 Apple 链路（传入 `--entity ENT-APPLE`）时才会出现，避免二/三级链路被某个测试公司硬耦合。
 
-## 各数据源的细节文档
+## 数据源细节归属
 
-每层都有独立文档，含字段映射、限速、已知盲区、错误码处理：
+`docs/` 不再为每个数据源 tier 保留长文档。当前规则：
 
-- [tier-A-disclosures.md](./tier-A-disclosures.md) — sec-edgar / company-ir / dart-kr / apple-suppliers
-- [tier-B-entity-resolution.md](./tier-B-entity-resolution.md) — opencorporates / companies-house
-- [tier-C-facility-data.md](./tier-C-facility-data.md) — osh / apple-suppliers (作为 facility 视角)
-- [tier-D-trade-customs.md](./tier-D-trade-customs.md) — un-comtrade / census-trade / usitc-dataweb / import-yeti（手工）
-- [tier-E-shipping-logistics.md](./tier-E-shipping-logistics.md) — noaa-ais / port dashboards
-- [tier-F-energy-commodities.md](./tier-F-energy-commodities.md) — eia / fred / worldbank-pink / usgs-mcs / iea-critical-minerals / rmi-facilities / eu-crma
-- [tier-G-procurement-news.md](./tier-G-procurement-news.md) — sam-gov / usaspending / eu-ted / gdelt
+- 可信等级和 source authority 归本文件维护。
+- adapter contract 归 `packages/source-adapter-spec/README.md`。
+- 运行时 fetch/cache/normalize 归 `packages/source-adapter-runtime/README.md`。
+- 已实现来源的细节归对应 `packages/sources/*/README.md` 或 `packages/source-workflows/README.md`。
+- 合规边界归 [compliance.md](../09-risks-compliance/compliance.md)。
 
 ## Source Authority Matrix
 
@@ -139,7 +137,7 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 
 ## 接入 checklist（PR 必须包含）
 
-详见 [extensibility.md](../02-architecture/extensibility.md)。简版：
+简版新增流程：
 
 ```
 [ ] 在本文件加一行
@@ -147,8 +145,7 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 [ ] tos_url 实测可访问
 [ ] fixture 测试 ≥ 5
 [ ] source-registry 增加 `publisher_type` / `relation_authority` / `max_evidence_level`
-[ ] legal-tos.md 加条目
-[ ] data-licenses.md 加条目（如果是新许可）
+[ ] compliance.md 加条目（如果是新许可、ToS 或伦理边界）
 ```
 
 ## 数据源退役

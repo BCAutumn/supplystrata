@@ -132,7 +132,7 @@ Pipeline 拿每个 chunk 跑：
 
 scorer 输入候选 + 文档元数据，输出 evidence_level / confidence / is_inferred / needs_review / rationale。
 
-打分规则（落 [evidence-model.md](../03-data-model/evidence-model.md) 与 [confidence-scoring.md](../03-data-model/confidence-scoring.md)）：
+打分规则（落 [evidence-model.md](../03-data-model/evidence-model.md)，派生方法见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md)）：
 
 ```
 if extractor is rule AND document_type in ("10-K", "10-Q", "20-F"):
@@ -239,4 +239,4 @@ if extractor is "trade.bol.repeat-importer" AND evidence_count >= 6:
 { stage: "apply",   edge_id, is_new: true }
 ```
 
-详见 [observability.md](../07-operations/observability.md)。
+日志与运行时观察点的当前实现见 `packages/observability/README.md`，本地运行入口见 [quickstart.md](../06-development/quickstart.md)。

@@ -1,581 +1,268 @@
 # Backend Completion Criteria — 后端完成门槛
 
-本文是 SupplyStrata 后端是否“完成”的权威判断标准。旧的 `v0.2-alpha-plan.md`、`release-criteria.md`、`midterm-intelligence-network-plan.md` 仍然有效，但它们只代表阶段性里程碑，不再代表后端完成。
+本文是判断 SupplyStrata 后端是否完成的权威标准。它不记录每次迭代的实现流水账；具体方法学见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md)，模块边界见 [module-design.md](../02-architecture/module-design.md)。
 
-如果其它路线图、Phase 文档或模块文档与本文冲突，以本文为准。`roadmap.md` 是历史阶段记录；本文的十个 gate 才是“能否称为全球供应链监控后端完成”的判断标准。
+## 完成定义
 
-## 核心判断
-
-SupplyStrata 当前已经有一套可审计的事实图谱底座：
+后端完成不是“能生成一份报告”，也不是“有足够多的边”。只有下面这句话成立，才可以称为后端基本完成：
 
 ```text
-公开源 -> 标准化文档 -> 关系候选 -> 实体解析 -> 证据评分 -> review/apply -> fact edge / claim / observation / lead / unknown
+给定一个公司、组件或外部事件，系统能用公开源自动维护可审计事实图谱；
+用 observation 解释变化；
+用 risk/intelligence view 计算暴露、瓶颈和新鲜度；
+用 unknown map 说明盲区；
+把上游材料、设备、设施、工艺 frontier 和时间窗口准备成结构化 reasoning inputs；
+并通过 API / Workbench 给前端研究员和内部只读 AI 可靠消费。
 ```
 
-但“全球供应链监控系统”的后端还差一层派生能力：
+当前更准确的状态是：
 
 ```text
-Fact Layer
-  事实边、证据、claim、unknown
-
-Observation Layer
-  财报指标、贸易流、能源/商品、政策、新闻、物流、设施观测
-
-Risk / Intelligence Layer
-  关系强度、集中度、瓶颈、暴露、变化信号、风险传播、告警
+证据优先、公开数据驱动、面向关键技术产业链研究的供应链情报图谱 alpha。
 ```
 
-**结论：后端完成不能只看事实边能不能跑通。只有事实层、观测层、风险派生层都稳定，才能说后端完成。**
-
-方法学细节见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md)。本文的 gate 只列验收门槛；具体算法边界、输入输出和禁止事项以方法学文档为准。
-
-## 产品成熟度边界
-
-当前对外最稳妥的表述是：
-
-```text
-一个证据优先、公开数据驱动、面向关键技术产业链研究的供应链情报图谱 alpha。
-```
-
-不要把当前状态包装成：
+不要包装成：
 
 - 全球供应链监控系统。
-- 实时或准实时货物流追踪平台。
-- 自动供应链发现系统。
+- 实时货物流追踪平台。
 - 成熟风险评分 / 风险提示产品。
 - 投资推断或投资建议系统。
-
-本文的十个 gate 完成前，项目只能称为 evidence-backed supply-chain intelligence workbench / alpha。尤其要区分四类成熟度：
-
-| 维度     | 当前判断                                                    | 后端完成前必须补齐                                                   |
-| -------- | ----------------------------------------------------------- | -------------------------------------------------------------------- |
-| 全球监控 | 官方披露与 source monitor baseline 已有                     | 多市场官方披露覆盖、足量 Level 4/5 边、API/worker 产品化闭环         |
-| 风险提示 | deterministic risk baseline 已有                            | 校准样本、可解释风险模型、alert 消费路径和误报治理                   |
-| 动态追踪 | document/source/risk change + attention queue baseline 已有 | relation diff、evidence supersession timeline、正式消费 API/产品入口 |
-| 货物流向 | trade/material/source-plan observation 起步                 | trade/port/route observations、review 后 inferred edge、弱信号隔离   |
-
-这个边界不是自我否定，而是保护项目最核心的价值：可信度优先。覆盖规模、风险算法和货物流推断都必须在证据、观测、线索、未知的分层上增长，不能用“看起来完整”的图来替代可审计数据。
-
-## 数据准备与推理边界
-
-后端完成标准衡量的是“数据和关系网是否足够可靠”，不是“系统是否已经能自动写出完整产业判断”。真正要服务的问题不是“有多少条边”，而是类似下面这种链式研究：
-
-```text
-AI demand -> GPU -> data center -> PCB / optical module / power / cooling
-PCB -> copper clad laminate -> resin / electronic glass cloth / copper foil -> upstream materials
-fab expansion -> cleanroom construction -> equipment delivery / installation / qualification
-equipment ramp -> process materials -> photoresist / target / CMP / high-purity gas -> raw material constraints
-```
-
-后端必须准备好结构化输入，让未来前端研究员或安全 AI 能回答这类问题，而且要比“GPU 火了，所以 PCB、电子布、树脂、洁净室、设备、材料依次受益”这种口头推理更深：每一跳都要能说明已有证据、观测窗口、缺失证据、候选上游、可运行 source target 和不能自动断言的 unknown。但后端本身不应把开放式推理、投资叙事或时间滞后判断硬编码成事实。
-
-因此后端完成前必须具备三类可消费数据：
-
-- `relationship_network`：公司、设施、组件、材料、设备、工艺、地区之间的事实边、claim、unknown、source coverage 和 frontier path。
-- `propagation_context`：需求、扩产、建设、设备进场、调试、材料消耗、价格/贸易/政策变化等 observation 与 time window。
-- `reasoning_inputs`：question readiness matrix、frontier expansion plan、source target gaps、corroboration/disposition state、calibration/gold labels、risk/intelligence derived metrics。
-
-边界如下：
-
-| 后端应该做                                                                                 | 后端不应该做                                                |
-| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| 把 `GPU -> HBM -> DRAM equipment/materials` 拆成可追踪 component/material frontier         | 直接断言“某材料明年必涨”                                    |
-| 把 cleanroom、equipment install、process material 作为 facility/capex/process observations | 把工程进度 observation 自动写成供应商 fact edge             |
-| 把铜、树脂、电子布、光刻胶、靶材、CMP、高纯气体等上游材料做成 taxonomy/source targets      | 没有证据时用行业常识补齐公司级买卖关系                      |
-| 输出 `ready / partial / blocked` 的 question readiness、链路 coverage 和缺口               | 自动替用户完成最终综合判断并写入 truth store                |
-| 为 AI/前端提供 schema 化、可审计、可引用的输入                                             | 让 LLM 直接写 fact edge、提高 evidence_level 或关闭 unknown |
-
-一句话：**后端先把“事实、观测、缺口、候选路径、时间窗口、证据引用”准备到足够厚；最终综合推理由未来 AI 和前端研究流程读取这些结构化输入完成。**
-
-## 当前执行目标
-
-当前阶段的目标不是继续泛化口号，也不是用全库 L4/L5 总数证明进度。架构目标必须始终是通用 listed-company research loop：
-
-```text
-给定任意上市公司，系统用统一 entity resolver、source-plan、source-target、research-pack、review/disposition/unknown/calibration loop 组织研究。
-```
-
-NVIDIA / AI compute 只是 Gate 1 的 gold path：它是一条足够难的验收样板链，用来压测通用能力是否真的能跑深，而不是产品边界，也不是公司专用 workflow。当前阶段用这条 gold path 验收下面这个问题：
-
-```text
-把 AI compute 主链从 NVIDIA / AI demand 沿 GPU、HBM、AI server、PCB、光模块、电源/冷却、晶圆/封装、洁净室、设备、工艺材料和上游原材料逐层跑深。
-```
-
-每一层都必须能输出同一组结构化答案：
-
-- 已有哪几条 L4/L5 fact edge，证据在哪里。
-- 哪些只是 observation、lead 或 source-plan，不是事实。
-- 哪些关系强度、份额、产能、时间窗口或二源 corroboration 仍未知。
-- 下一步应运行哪个 source target、修哪个 source target、审哪个 context、保留哪个 unknown。
-- 该层是否已经足够进入前端/AI 综合研究；如果不够，缺的是事实、观测、实体、来源、校准样本还是人工 disposition。
-
-这个目标的成功标准是“层内可解释、可执行、可复现”，不是“边数漂亮”。全库 L4/L5、Apple Supplier List 广度边、Samsung / SK Hynix / Micron 等 counterparty 递归研究都只能服务这条 gold path 的验收；如果它们不能增加 AI compute propagation layer 的事实厚度、观测厚度、source coverage、unknown/disposition 或 calibration label，就不算 Gate 1 主线进度。同时，任何为 gold path 做出的能力都必须保持通用入口：不能新增 `<company>-suppliers` 这类公司专用 workflow，不能把 `ENT-NVIDIA` 写成递归研究默认值，不能让未知上市公司自动套入 AI profile。
+- 自动供应链发现系统。
 
 ## 不可违反的边界
 
-### 1. `evidence_level` 不是 `risk_score`
+- `evidence_level` 不是 `risk_score`。
+- fact edge 只能来自可追溯 evidence 和受控 review/apply。
+- observation、lead、official signal、source health、risk metric、AI 输出都不能直接写 fact edge。
+- strength / freshness / risk / alert 都属于派生层。
+- unknown 是一等公民，不能用猜测或 fallback 填掉。
+- 内部 AI 只读分析，不做 agent；外部 AI 只读消费，不提供提交内容接口。
 
-`evidence_level` 只回答一个问题：
+## 当前阶段目标
 
-```text
-这条事实有没有可靠证据？
-```
-
-它不回答：
-
-```text
-这条关系有多重要？
-这个节点出事影响多大？
-供应链是否脆弱？
-```
-
-因此禁止：
-
-- 把 `evidence_level` 当风险分数。
-- 因为风险看起来高，就提升事实边等级。
-- 在 `edges` 上直接写没有来源的 `risk_score`。
-
-风险只能是派生视图，必须能追溯到事实边、观测和计算方法。
-
-### 2. 事实层必须保持纯净
-
-事实层只能保存可追溯事实：
-
-- `edges`
-- `evidence`
-- `claims`
-- `unknown_items`
-- source provenance
-
-以下内容不能写成事实边：
-
-- 宏观贸易趋势。
-- 新闻热度。
-- 港口拥堵。
-- 商品价格变化。
-- 单条 BOL 或灰色来源线索。
-- LLM 判断。
-- 风险模型输出。
-
-这些只能进入 `observations`、`lead_observations`、`risk_views` 或 review queue。
-
-### 3. Risk / Intelligence Layer 必须独立
-
-可以在本仓库实现，也可以后续拆成 `apps/risk-engine`，但它必须通过稳定契约消费事实层，不允许反向污染事实层。
-
-推荐边界：
+当前阶段围绕通用 listed-company research loop 推进：
 
 ```text
-packages/risk-view
-  输入：edges / claims / observations / leads / unknowns
-  输出：risk view DTO、graph metrics、alerts
-  禁止：写 edges、提升 evidence_level、自动 approve review candidate
+给定任意上市公司，系统用统一 entity resolver、source-plan、source-target、
+research-pack、review/disposition、unknown、calibration loop 组织研究。
 ```
 
-## 后端完成的十个 gate
+NVIDIA / AI compute 是 Gate 1 gold path，不是产品边界。它用来压测系统能否沿 GPU、HBM、AI server、PCB、光模块、电源/冷却、晶圆/封装、洁净室、设备、工艺材料和上游原材料逐层跑深。
 
-任何一个 gate 未完成，都不能说 SupplyStrata 后端完成。
+每层都必须说明：
 
-### Gate 1 — AI Compute 研究链路覆盖
+- 已有哪几条 L4/L5 fact edge，证据在哪里。
+- 哪些只是 observation、lead 或 source-plan。
+- 哪些 strength、份额、产能、时间窗口或二源 corroboration 仍未知。
+- 下一步应运行哪个 source target、修哪个 source target、审哪个 context、保留哪个 unknown。
+- 是否足够进入前端/内部 AI 综合分析；如果不够，缺的是事实、观测、实体、来源、校准样本还是人工 disposition。
 
-目标：事实图谱不只靠 NVIDIA 10-K，也不靠机械凑边数；它必须能围绕 AI compute / memory 研究问题，把官方事实、观测、unknown、source target 和下一层 frontier 组织成可递归展开的研究链路。
+成功标准是“层内可解释、可执行、可复现”，不是“全库边数漂亮”。
 
-必须完成：
+## Gate 总览
 
-- SEC EDGAR 覆盖 `10-K / 10-Q / 20-F / 8-K` 的持久化监控链路。
-- DART-KR 接入，用于 Samsung / SK Hynix 等韩国公司监管披露。当前至少要先做到 official source monitor / target / readiness 覆盖；正文下载、韩文/HWP 解析可留后续阶段。
-- EDINET 接入，用于日本半导体、材料、设备公司披露。当前至少要先做到 `documents.json` daily-filings 目录监控、target 和 readiness 覆盖；XBRL ZIP / PDF 正文下载解析可留后续阶段。
-- 至少一个非美国/非日韩市场披露源进入 source registry 和 connector 计划，例如 HKEX、SGX、TWSE、上交所/深交所公告中的一个。当前已接入 `twse-mops/electronic-documents` 目录 monitor，作为 Hon Hai / Quanta 等台湾 AI server ODM 节点的官方披露覆盖入口；PDF 正文下载、解析和关系抽取仍待后续。
-- GLEIF LEI 作为跨市场实体标识锚点进入 entity lookup / review 候选流，服务 SEC、DART、EDINET、TWSE/HKEX 等后续官方源的实体对齐；它只生成实体候选，不写事实边。
-- 每个 adapter 有 contract test：`plan -> fetch -> normalize -> source monitor event`。
+| Gate | 名称                    | 当前判断                                                  |
+| ---- | ----------------------- | --------------------------------------------------------- |
+| 1    | AI compute 研究链路覆盖 | 进行中                                                    |
+| 2    | 财报/年报结构化指标     | baseline 完成，仍需扩样                                   |
+| 3    | 关系强度与时间衰减      | baseline 完成，仍需更多真实 evidence                      |
+| 4    | Claim 多源融合          | baseline 完成                                             |
+| 5    | Observation / signal 层 | baseline 完成，覆盖仍浅                                   |
+| 6    | 图算法与风险派生视图    | deterministic baseline 完成，统计输出契约和校准仍需加强   |
+| 7    | 持续监控与告警          | worker / source monitor baseline 完成，正式通知入口未完成 |
+| 8    | API 与嵌入契约          | contract-only v0 完成，HTTP adapter 未完成                |
+| 9    | 内部 AI 分析层安全接入  | 未开始                                                    |
+| 10   | 质量、性能、可维护性    | 持续推进                                                  |
+
+## Gate 1 — AI Compute 研究链路覆盖
+
+目标：围绕 AI compute / memory 问题，把官方事实、观测、unknown、source target 和下一层 frontier 组织成可递归展开的研究链路。
+
+必须具备：
+
+- SEC、DART-KR、EDINET、TWSE/HKEX 等多市场官方披露 source coverage。
+- GLEIF / registry / entity metadata 支撑跨市场实体对齐。
+- AI compute profile 覆盖公司、组件、材料、设备、工艺 frontier。
+- 每个 propagation layer 输出 fact、observation、lead、unknown、source target、official evidence gap。
+- source targets 按 `official_evidence / observation_proxy / entity_or_facility_context / lead_or_manual_review` 分组。
+- `next_research_targets` 和 `execution_queue` 能告诉前端/host app 下一步该跑、修、审还是保留 unknown。
+- 任意上市公司入口仍走通用 research loop，不新增公司专用 workflow。
 
 完成标准：
 
 ```text
 [ ] 至少 25 个核心研究节点有官方披露 source coverage
-[ ] 当前 Gate 1 research target profile / research-pack 对 AI compute propagation question 输出 relationship / observation / unknown / source-target / frontier readiness matrix，覆盖 GPU、HBM、AI server、PCB、光模块、电源/冷却、晶圆/封装、洁净室、设备、工艺材料和上游原材料
-[ ] Level 4/5 fact edge 数量只作为证据厚度健康指标；必须按每个 propagation layer 统计，不允许用全库总数、Apple 广度边或单一公司专题替代 NVIDIA / AI compute 主链深度
-[ ] 每个核心 propagation layer 至少有一种明确状态：covered_fact、official_target_runnable、observation_ready、lead_only、unknown_open 或 blocked_source，并能解释为什么
-[ ] 至少 30% fact edge 有第二来源 corroboration 或明确标为 single-source
+[ ] 每个核心 propagation layer 有明确状态和解释
+[ ] 至少 30% fact edge 有第二来源 corroboration 或明确 single-source disposition
 [ ] 任一 fact edge 都能追到 evidence_id、doc_id、source_url、cite_text、offset/fingerprint
-[x] AI compute / memory profile 不只覆盖公司，还覆盖核心 component / material / equipment / process frontier，并为缺失上游材料节点生成 explicit backlog
-[ ] AI compute propagation matrix 必须把 source targets 按 `official_evidence / observation_proxy / entity_or_facility_context / lead_or_manual_review` 分组，供前端/AI 选择受控动作；不能把 observation proxy 或 lead source 当成 fact-capable 官方证据
-[ ] AI compute propagation matrix 必须输出 `next_research_targets`，明确下一步该查 company、component、material/process 还是 source group；该字段只做研究导航，不证明关系、不写 truth store
-[ ] AI compute propagation matrix 必须输出结构化 `official_evidence_gaps`，即使 layer 有 L4/L5 anchor，也要列出层内尚未被 L4/L5 覆盖的 component/material/process/source group/observation-only gap
-[ ] AI compute propagation matrix 必须输出 `evidence_layer_summary`，把 fact edge、observation、lead、unknown、source target、official evidence gap 的 count、refs、解释、允许输出和禁止写入分开
-[ ] AI compute propagation matrix 和 Gate 1 propagation action 必须输出 `readiness_answers`，把每层七个核心问题整理为 facts / non-fact inputs / official gaps / unknowns / next research / source target state refs / output policy
-[ ] AI compute propagation matrix 和 Gate 1 propagation action 必须输出 `execution_queue`，把每层下一步拆成 run source target、repair source target、review intelligence context、keep unknown open，并带 priority、refs、repair reason、结构化 `source_target_actions[]` 和 no-fact-mutation policy；`source_target_actions[]` 至少要包含 `check_target_id / source_adapter_id / target_kind / state / failure_kind / latest_event_type / recommended_cli_command / writes_truth_store / requires_database`，消费层不能靠 Markdown 或 refs 反推执行状态
-[ ] 任意上市公司入口仍走通用 entity/source-plan/research loop，不新增 `<company>-suppliers` 这类公司专用 workflow
+[x] AI compute / memory profile 覆盖核心 component / material / equipment / process frontier
+[x] propagation readiness 输出 evidence_layer_summary / source_target_groups / official_evidence_gaps / readiness_answers / execution_queue
+[x] source target 状态能回流到 Gate 1 workbench 和 run ledger
+[x] 递归 frontier research 带 lineage，不自动继承父包事实
 ```
 
-说明：早期可以继续保留 “100 条 profile-visible L4/L5 fact edge” 作为压力测试目标，但它不是后端完成的充分条件，也不是优先级排序器。更重要的是：通用 company research loop 能否在一个 gold path 问题上逐层说明“已有事实是什么、哪些只是观测或线索、缺哪些证据、下一步该查谁和哪个 source”。如果系统为了凑 L4/L5 数量转向无关公司或无关链路，即使超过 100 条也不能算 Gate 1 完成；如果系统只能跑 NVIDIA 不能跑任意上市公司，也不能算 Gate 1 完成。
+当前状态：Gate 1 的 readiness、backlog、run ledger、data-depth workbench、propagation matrix、corroboration source plan 已经能输出。SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF 的基础路径已接入；DART/EDINET/TWSE 当前仍主要是目录/target/readiness/monitor 骨架，正文解析与可审计 evidence 提取仍待后续。
 
-当前完成态：
+主要缺口：
 
-- Gate 1 已有只读 readiness / backlog / run ledger / data-depth workbench 输出，能量化事实边覆盖、traceability、二源或 single-source disposition、expected source coverage、source target coverage、source blocker、gold label 批次、相邻官方事实池和下一层 frontier research。
-- 官方源路径已覆盖 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF entity lookup 的基础接线；DART/EDINET/TWSE 当前定位为目录/target/readiness/monitor 骨架，不解析正文、不写事实边。
-- `propagation-readiness.json/md` 已内置 `ai_compute_propagation.v0` matrix，把 demand、server、PCB/materials、fab capacity、cleanroom、equipment、process inputs、raw materials 逐层标成 `covered_fact / observation_ready / official_target_runnable / lead_only / unknown_open / blocked_source`，并列出 evidence layer summary、fact、observation、source target、source-plan、source target group、source target status summary、next research target、official evidence gap、frontier、lead、unknown refs、只读 unknown/backlog seed、unknown/backlog summary、`readiness_answers`、`execution_queue` 和下一步动作。`readiness_answers` 把每层七个核心问题直接整理成 DTO：已有 L4/L5 fact、non-fact reasoning inputs、official evidence gap、explicit unknown/backlog、next research target、source target 可运行/阻塞/degraded/missing credentials/source failed 的 summary 与 refs、允许输出和禁止 truth-store 写入；`execution_queue` 则进一步把这些答案转成 run / repair / review / keep unknown open 四类队列项，带 source target refs、official gap refs、unknown refs、next research refs、repair reason、`source_target_actions[]` 和 no-fact-mutation policy。`source_target_actions[]` 会把每个可运行或需修复 target 的 `check_target_id`、adapter、target kind、state、failure kind、latest event、推荐 CLI 命令、是否写 truth-store 和是否需要数据库显式列出，方便未来 AI/前端直接消费，不需要解析 Markdown、拆 refs 或重算 source monitor。evidence layer summary 会把 fact edge、observation、lead、unknown、source target、official gap 分开解释，避免消费层自己猜 truth-store 权限；source target group 会区分 official evidence、observation proxy、entity/facility context 和 lead/manual review，避免把可运行 source 大列表误读成同一种证据能力；source target status summary 会把 layer 内 runnable、blocked、degraded、missing credentials、source failed 和 by-state / by-failure 状态结构化暴露出来；unknown/backlog summary 会把 existing unknown、只读 seed、推荐 review action、target scope 和 source target refs 前置给前端/host app；next research target 会把下一步公司、组件、材料/工艺或 source group 显式列出，避免消费层从 refs 里猜；official evidence gap 会把尚未有 L4/L5 fact 的组件/材料/工艺、未审查或 blocked 的官方源、observation-only layer 单独列出，避免把局部 covered layer 误读成整层完整覆盖。该 matrix 是 reasoning input，不写 fact edge、不提升 evidence level、不关闭 unknown；seed、target、gap、readiness answers 和 execution queue 只告诉前端/安全 AI “已有数据能回答什么、缺什么、该跑/修/审/保留什么”，不能绕过 review/apply。
-- `gate1-data-depth-workbench` 会把 `official_evidence_gaps` 接进行动闭环：即使 layer 状态是 `covered_fact`，只要层内仍有 component/material/process/source gap，也会生成 `review_intelligence_context` item，并在 summary 中统计 gap 总数和 by-kind 分布。propagation workbench item 会携带同一层的 `evidence_layer_summary`、`readiness_answers` 和结构化 `official_evidence_gaps[]`，让 `gate1-data-depth-intelligence-context.json` 自身就能说明哪些是 fact、observation、lead、unknown、source target 或 official gap，具体缺口是什么、推荐动作是什么，以及哪些 truth-store 写入被禁止。它还会输出 `action_source_groups`，把本次 action 需要操作的 official evidence / observation proxy / entity facility / lead manual source group 与其它背景 source 分开，并输出 `source_target_status_summary` 把 runnable、blocked、degraded、missing credentials、source failed 和 by-state / by-failure 计数前置给前端/host app。这样 Gate 1 不会把“有一个 L4/L5 anchor”误认为“该层已经完整结束”，也不会让消费层自己解析 source target 状态来判断下一步。
-- propagation workbench item 必须携带结构化 `source_targets[]`，至少包含 `check_target_id / source_adapter_id / target_kind / state / latest_event_type / failure_kind`，让未来前端或安全 AI 可以直接区分 runnable、blocked、missing credentials、degraded 等状态，而不是解析字符串 refs。
-- propagation workbench item 必须透传同一层 `execution_queue`，让 `gate1-data-depth-intelligence-context.json` 能直接告诉消费层该 run、repair、review 还是 keep unknown open；该队列仍然只读，不代表 worker 已执行，也不授权 truth-store 自动写入。
-- `gate1-run-ledger` 会汇总 propagation execution queue 到 `propagation_execution`，并把 run / repair / review / keep unknown open 转成主 `action_queue` 条目。run 类动作还会按 source target 运行态继续分流：`not_synced` 生成 sync target 动作，`due` 生成 run-due 动作，`scheduled` 只生成 wait/preview 动作，`succeeded` 生成 observation/context review 动作；`retry_wait / degraded / dead / missing_credentials / SOURCE_FAILED` 生成 repair/triage 动作。可执行 source target action 必须继续按 `source_adapter_id / target_kind` 分组，并把过大的同类目标切成小批次；命令提示必须使用精确 `--check-target-id`，不能退回 `--source` 粗过滤。这样前端或 host app 可以从同一个 Gate 1 主账本看到产业传导层该跑哪些 source target、修哪些失败 target、审哪些 context、保留哪些 unknown；仍然不能把这些 action 当成 evidence 或 fact mutation 授权。
-- Matrix 覆盖判断已经收紧为 component/material/process 精确匹配：不再按 source purpose 大类借用 source-plan，也不再把 lead 的 supporting edge 计为当前 layer 的 fact edge。混合 source 状态下，只有全部可见 target 都不可用时才标 `blocked_source`；只要还有 not_synced / scheduled / succeeded 等可执行路径，layer 保持 `official_target_runnable`，同时保留 blocked target 的明细给前端排障。
-- `ai-compute-memory.v0` 已从公司/一阶组件覆盖扩展到 AI server 与 PCB 上游 frontier：`COMP-SERVER -> GPU / HBM / manufacturing services / PCB / optical module / power / cooling`，以及 `PCB -> CCL -> copper foil / electronic glass cloth / laminate resin`、`wafer -> cleanroom`。这些都是 source-plan / observation / backlog 输入，不是事实边。
-- profile 里的 process input frontier 已补齐到可校验组件节点：`photoresist`、`sputtering target`、`CMP consumables`、`specialty gases` 都进入 `ai-compute-memory.v0` target nodes 和 seed taxonomy。它们仍然只是官方 source coverage / backlog / propagation input，不代表已经存在公司级供应事实。
-- `supply-chain-expansion-plan` 已区分 component dependency lead 的 source path authority：fact-capable official path、observation-only trade/commodity path、lead-only path 会分别统计和渲染；只有命中具体 dependency、target，或锚定到 target component 的 source-plan item 才能改变 lead 状态，parent component 的泛化 source-plan 不会被借给所有下游材料。
-- 二源检查已形成标准 source-plan 子集和 action-specific 批次，支持 preview、无数据库 smoke、sync、enable、run-due，并能把 preflight / DB-backed failure kind 回流到 Gate 1 action queue。action batch 会携带已匹配到的 `check_target_ids`，因此 enable / run-due 会优先操作真实已同步 target；只有普通 source-plan 才按 namespace 重新生成 target id。
-- `gate1-run-ledger` 已提供 frontend-ready `monitoring_config` 和 `review_workbench`：前者收口 cadence / jitter / retry / backoff / `next_check_at`，后者收口 source target、edge corroboration、official signal disposition、frontier company research 的 review-only 决策入口。
-- edge corroboration queue 已有独立 review-only disposition 出口：`review edge-corroboration-disposition` 只写 `EDGE_CORROBORATION_DISPOSITION_RECORDED` change，不写 evidence / fact edge / source target；research-pack 会读回每条 edge 的最新 disposition，让前端/host app 能审查单源 L4/L5 边并记录 single-source unknown、继续找二源或创建 counterparty target，而不是让沉默缺口长期悬空。
-- `gate1-data-depth-workbench` 已新增 `entity_context` workstream：当 visible chain 里的节点是业务单元/子实体且 source path 配在父级法人的时候，研究包会输出 review-only affiliation item，提示应审查父级、子级或两者的递归研究范围；如果父级法人已有 open company unknown，该 item 会把 unknown ref 带回当前报告，避免递归研究目标和未知边界分叉。它不自动合并实体、不把父级 evidence 复制到子级、不传播 fact edge。审查结论通过 `review entity-affiliation-disposition` 写入 `ENTITY_AFFILIATION_DISPOSITION_RECORDED` change，供前端/host app 复用；该 disposition 仍带 `automatic_fact_mutation_allowed=false`。research-pack 会读回每个 context 的最新 disposition：未记录时进入 `review_workbench(kind='entity_affiliation_disposition')`，已记录 parent/both scope 时才把 frontier research command 路由到父级法人，已记录 child/not relevant/keep unknown 时不会反复推荐父级 research。
-- single-source disposition unknown 和 official signal disposition unknown 都有受控物化路径；它们只写 `unknown_items` 与审计 change，不写 evidence、fact edge 或 source target。
-- root research coverage unknown 已进入 `--prepare-data` 显式写入路径：当 selected company / 父级法人研究入口没有任何 reviewed L4/L5 fact edge 且没有 open company unknown 时，系统会物化一个 company-scoped unknown，用来说明“这个研究范围已经打开，但官方关系证据仍缺失”。该路径只写 unknown 和 semantic change，不写 evidence、fact edge，也不把 observation/lead 升级为事实。
-- `supply-chain-expansion-plan` 已能把 L4/L5 frontier 转成下一层通用 research plan；它是递归研究计划，不是事实写入流程。Gate 1 workbench 的 frontier 命令只选择 `expand_candidate` 的 company frontier，不把缺 component context 的 facility node 当作下一家公司研究入口；宽口径 fact-edge gap 会优先给 profile 级 research 命令，避免把大量组件塞进不可维护的输出目录。
-- `gate1-data-depth-workbench` 已新增 `adjacent_official_facts` workstream：truth-store 模式会按当前 profile 组件读取“同组件、非当前可见链路”的 L4/L5 current fact edge，作为相邻官方事实池输出。它解释全库 L4/L5 增长为什么不等于 NVIDIA 可见链路增长，并把这些边转成下一轮 listed-company research 候选；命令提示会保留当前递归上下文里的 company、component、depth、target profile、official year、source target namespace 和输出目录，确保候选可以直接进入下一轮研究跑数。该路径只读，不把 Apple/其它官方名单边复制到 NVIDIA 链路，不写 fact edge，不关闭 unknown。
-- adjacent official facts 的下一轮 company ranking 已收口为独立纯函数：组件/行业相关性和 likely upstream role 优先，edge frequency 只能作为弱 tie-breaker；当存在组件相关候选时，披露中心节点或品牌方不会因为出现次数多而排在前面。每个 ranking context 会输出稳定 context/candidate id、model version、assumptions 和 score breakdown，并已有 `ranking_calibration_labels` 持久化契约用于标注 `useful_target / wrong_direction / brand_center_bias / needs_more_context / not_relevant`；truth-store research-pack 会把已持久化 ranking label 回灌到 candidate 的 `review_status / latest_label / existing_labels`，并在 manifest 中统计 labeled/unlabeled 与 persisted label 分布。该 rank 仍只是 review-only research target 建议，不是概率结论；进入概率化候选评分前必须有足量 gold label、校准报告和 bias / reliability bucket 输出。
-- 2026-05-26 最新本地跑数：全库 L4/L5 current fact edge refresh 扫到 238 条；NVIDIA research-pack 可见 L4/L5 fact edge 仍为 23 条，Gate 1 目标缺口 77 条，相邻官方事实池增至 21 条、14 个公司。Apple Supplier List 受限批处理继续用“官方名单行 + curated entity + 可复现 citation”的门槛推进事实边；实体解析新增受控法律后缀变体查询与 GLEIF reviewed alias 自动解析边界，本轮对 Skyworks、Parade、Power Integrations、Qorvo 等实体应用 4 个 GLEIF entity-source review，并受控应用 17 个 supplier-list review candidate。相关边已进入 `claim_build` / `intelligence_refresh`，但仍只作为相邻官方事实和递归研究入口，不计入 NVIDIA profile 可见 L4/L5 深度。缺失 strength 继续保持为 explicit unknown，避免把官方名单关系伪装成已知份额或依赖强度。Samsung Foundry / Samsung Memory 的父级法人研究范围已记录 review-only disposition；2 条 single-source proposed unknown 已物化为 edge-scoped unknown。source monitor 已跑完当前 due official targets，`source_target_due_targets=0`，625 条 SEC observation 进入 review/calibration 层；remaining source blocker 包括 DART/EDINET missing credentials、Micron IR source unreachable 和 Samsung IR degraded，报告会按具体 `check_target_id` 给出 inspect/rerun 命令，不能退回 `--source` 粗过滤。Micron IR corroboration target 真实抓取结果仍为 `source_unreachable` / timeout，因此报告将其保留为 retry/wait source blocker，而不是写入事实边。SK hynix IR 产生的 facility-edge correlation hints 已全部记录为 `needs_more_evidence` review-only disposition：它们保留为 AI memory/HBM 研究信号，但不计入二源 corroboration，也不写 fact edge。
+- NVIDIA / AI compute 可见 L4/L5 深度仍不足，不能用全库边数或 Apple 广度边替代。
+- Counterparty 官方二源 corroboration 和 disposition 样本仍不足。
+- DART / EDINET / TWSE 正文下载、解析、关系抽取仍未完成。
+- 真实 gold label / calibration 样本仍少。
 
-仍未完成：
+## Gate 2 — 财报/年报结构化指标
 
-- 全库 L4/L5 current fact edge 已超过 100 条，说明 review / evidence / graph 写入闭环跑通；但 NVIDIA research-pack 可见 L4/L5 仍只有 23 条，且 AI compute propagation layer 仍缺足够的 observation/source target/frontier readiness，因此 Gate 1 主链深度尚未完成，不能用全库总数、Apple supplier 广度边或 Samsung 单点递归替代问题驱动验收。
-- target profile 中仍只有 7 个 target nodes 有 fact edge；34 个 target nodes 中还有 3 个缺官方 coverage，source path progress 仍约 0.67。
-- counterparty 官方披露还缺足够的人工/规则裁决样本；最新报告中 open official signal correlation hints 和 open official signal review candidates 都已降为 0，corroboration action queue 还剩 5 个 review-observation target 和 2 个 wait-for-job target，但这些 disposition / job states 只是 review-only 研究结论或监控状态，不能把它们当成 evidence 或二源 corroboration。
-- EDINET / DART / TWSE 正文下载、正文解析和可审计 evidence 提取仍是后续阶段。
+目标：财报不只是供应商文本来源，也要变成可比较的供应链前导指标。
 
-边界约束：
+必须具备：
 
-- readiness、backlog、source-plan、run ledger、smoke 成功都不能被解释为事实证据。
-- observation、official signal、lead、unknown 都不能自动升级成 fact edge。
-- profile 是 Gate 1 验收锚点，不是全球供应链全集；不在 profile 里的已发现节点应进入 expansion backlog。
-
-参考官方源：
-
-- SEC EDGAR 官方检索与 API 入口：<https://www.sec.gov/search-filings>
-- OPENDART Open API：<https://engopendart.fss.or.kr/intro/main.do>
-- EDINET API v2 由日本 FSA 提供，项目应使用官方 API 规格和 `api.edinet-fsa.go.jp`，不依赖非官方镜像作为事实来源：<https://disclosure2.edinet-fsa.go.jp/week0020.aspx>
-
-### Gate 2 — 财报/年报结构化指标
-
-目标：年报财报不只是抽几句供应商文本，而是变成可比较的供应链前导指标。
-
-当前状态：SEC companyfacts JSON 第一版已落地为 `sec-edgar/sec-company-facts` source-check target。它读取官方 `https://data.sec.gov/api/xbrl/companyfacts/CIK<10-digit>.json`，按指标 catalog 解析 inventory、cost of revenue、capex、purchase obligations、accounts payable 和 revenue，并写入 company-scoped `FINANCIAL_METRIC_OBSERVATION`。同一 metric/unit 会保留上一期 observation 作为 `baseline_value` 并计算 `change_value / change_percent`，供 observation anomaly 和研究输出复用。`config/source-policies.example.json` 已配置 NVIDIA / AMD / Micron / Intel / Microsoft 五家公司 companyfacts target，并由 source-management 单测校验 target 可运行。`segment_revenue` 和 customer concentration 不用总收入 tag 伪造，后续需要维度/文本证据增强。该路径只消费结构化 JSON，不解析 PDF，不写 fact edge；每个 observation provenance 记录 accession、form、filed、taxonomy tag 和 source URL。`@supplystrata/evidence-maintenance` 已提供 `refreshFinancialMetricPeerComparisonViews()`：它只比较同 metric、unit 和 fiscal period 的公司级观测；缺 fiscal period 的旧观测才退回到精确 time window 对齐。样本数达到阈值后写入 `financial_metric_peer_zscore` risk metric，并在 attrs 中保存 percentile、rank、peer_count、mean/stddev 和 peer ids。CompanyCard / research-pack 会把这些指标作为 financial peer position 带进 JSON/Markdown。该结果是同行位置上下文，不是事实边、不是风险分，也不推断供应关系。
-
-必须完成：
-
-- SEC companyfacts / XBRL company facts 结构化读取。
+- SEC companyfacts / XBRL company facts 读取。
 - 指标 catalog：inventory、cost of revenue、capex、purchase obligations、accounts payable、customer concentration、segment revenue。
-- 公司内跨期序列：至少 12 个季度或 5 个年度。
-- 同行横向比较：同一指标在同行之间做 z-score 或 percentile。
-- 指标 provenance：每个数值能追溯到 accession、period、taxonomy tag 和 source URL。
+- 公司内跨期序列。
+- 同行横向比较。
+- 每个数值可追溯到 accession、period、taxonomy tag、source URL。
 
 完成标准：
 
 ```text
-[x] NVIDIA / AMD / Micron / Intel / Microsoft 至少 5 家公司有财报指标时序
-[x] ComponentCard 能展示相关财报指标变化，而不是只展示文本边
-[x] changes timeline 能展示指标拐点或显著变化
+[x] 至少 5 家核心公司有财报指标时序
+[x] ComponentCard / CompanyCard / research-pack 能展示相关指标变化
 [x] 同一指标同一期间能生成 deterministic peer z-score / percentile
-[x] CompanyCard / research-pack 能展示 company financial peer position
+[ ] customer concentration / segment revenue 仍需更强维度解析或文本证据
 ```
 
-### Gate 3 — 关系强度与时间衰减
+## Gate 3 — 关系强度与时间衰减
 
 目标：事实边从“有/无”升级到“有多重要、多久没验证”。
 
-当前状态：第一版 schema 和导出契约已经落地。`edge_strength_estimates` 用显式业务身份键做幂等 upsert，`edge_freshness` 保存确定性的 `methodology.v1` 新鲜度结果；`@supplystrata/workbench-export` 会把两者作为 `intelligence.edge_strengths / intelligence.edge_freshness` 导出。它们仍然是 intelligence context，不改变 `edges.evidence_level`。
+必须具备：
 
-新增后端可运行路径：
-
-```bash
-pnpm cli intelligence refresh --min-evidence-level 4 --limit 1000
-pnpm cli research run --company nvidia --depth 3 --out reports/nvidia-research-pack
-```
-
-`intelligence refresh` 是薄 CLI 入口，业务编排在 `@supplystrata/evidence-maintenance`。`research run` 默认只读打包，导出已有 Workbench / CompanyCard / ComponentCard / ChainView / question readiness / readiness/backlog context；只有显式传 `--prepare-data` 或单项刷新 flag 时，才会先刷新 claims、edge intelligence context，或筛出当前研究包里已有 Level 4/5 component fact edge 的 eligible 组件刷新 component risk baseline。component risk baseline 是 `component_global` 派生视图；research-pack manifest 必须把 `component_risk_global_edges` 和 `component_risk_visible_edges` 分开，避免递归子包把全局组件风险误读成当前公司已经拥有的 fact edge。
-
-必须新增或等价实现：
-
-```text
-edge_strength_estimates
-  edge_id
-  strength_kind: share | spend_band | dependency | capacity | qualitative
-  value
-  lower_bound
-  upper_bound
-  unit
-  evidence_id
-  method
-  valid_from
-  valid_to
-
-edge_freshness
-  edge_id
-  last_verified_at
-  decay_model
-  freshness_score
-```
-
-规则：
-
-- `share_estimate` 可以为空。未知就明确 unknown，不许伪造。
-- 匿名客户集中度只能生成 observation 或 unknown 约束，不能自动命名客户。
-- 旧证据不删除，但风险派生层必须知道它是否过期。
+- `edge_strength_estimates`
+- `edge_freshness`
+- edge-scoped strength unknown。
+- freshness-adjusted risk context。
 
 完成标准：
 
 ```text
-[x] edge_strength_estimates / edge_freshness schema 已落库
-[x] WorkbenchModel 可导出 strength / freshness context
-[x] Level 4/5 fact edge 可通过 refresh 获得 strength 或 edge-scoped explicit unknown
-[x] 过期/未复核边在 risk view 中自动降权
-[x] CompanyCard / ComponentCard / ChainView / research-pack 能显示 strength、freshness 和 strength unknown context
-[x] `official-disclosure-readiness` 的 single-source disposition `proposed_unknown` 可通过 evidence-maintenance 受控落库为 edge-scoped explicit unknown，默认只处理仍为 current 的 fact edge，且不写事实边
+[x] strength / freshness schema 已落库
+[x] Workbench / research-pack / cards 可导出 intelligence context
+[x] L4/L5 fact edge 可通过 refresh 获得 strength 或 explicit unknown
+[x] 过期/未复核边在 risk view 中降权
+[ ] 更多真实关系仍缺 share / capacity / dependency evidence
 ```
 
-当前新增：component risk baseline 的 `supplier_concentration_hhi` 已从纯 share HHI 改为 freshness-adjusted baseline：只有在 share 和 freshness 都可追溯时才计算，计算时每条供应商 share 会先乘对应 `edge_freshness.freshness_score`，同时在 attrs 中保留 `raw_hhi`、`supplier_share_inputs`、`missing_share_edge_ids` 和 `missing_freshness_edge_ids`。这不会改变 fact edge 或 evidence_level；它只让陈旧/未复核关系在派生 risk view 中降权。
-
-### Gate 4 — Claim 层多源融合
+## Gate 4 — Claim 多源融合
 
 目标：解决单条 evidence min-cap 的天花板问题。
 
-必须完成：
+必须具备：
 
-- claim 支持多 evidence 聚合。
-- claim 记录 source independence：自披露、对手方披露、供应商披露、政府/监管、第三方观测。
-- claim confidence 由多源融合计算，而不是只取单条边最高证据。
-- 融合算法必须确定性、可解释、可测试。
-
-推荐第一版：
-
-```text
-Noisy-OR 或 Dempster-Shafer 的简化确定性版本。
-```
-
-当前状态：
-
-`packages/claim-builder` 已接入第一版 deterministic Noisy-OR 融合：同一 current fact edge 下未 supersede、非 inferred 的 evidence 会按 `primary` / `supporting` 写入 `claim_evidence`，claim confidence 由 primary confidence 加 source-independence weight 后的 supporting evidence 融合得到。source independence 目前按 same doc / same source adapter / different source adapter 分层，并在 claim semantic change payload 中记录可审计贡献。官方披露 relation `*_REMOVED` 语义变化会生成确定性 `UNK-CONFLICT-*` unknown，并通过 `claim_unknowns` 挂到 draft claim 与匹配到的 active claim；它不会自动 deprecate fact edge。`linkContradictingEvidenceToClaim()` 可以把现有 evidence 以 `claim_evidence.role='contradicting'` 挂到 claim，并生成 blocking conflict unknown；`resolveClaimConflictUnknown()` 通过 unknown resolve 收口并记录 claim-scoped semantic change。Workbench / research-pack 已导出 `evidence_refs`、`unknown_refs` 和派生 `conflict_state`，AI 前置数据可以直接消费 claim 的支持源、反证源和冲突未知。Workbench / research-pack 还会导出 active claim 的 edge lifecycle context；active claim 如果仍挂在 deprecated/historical edge 上，会显示 `active_claim_on_inactive_edge` warning，而不会被默默当成当前事实。claim lifecycle 维护已下沉到 `claim-builder`：`supersede_claim` / `reject_claim` 只更新 claim status，`keep_with_context` 只写上下文，三者都要求可验证 source ref 并写 `CLAIM_LIFECYCLE_ACTION_RECORDED`，不会修改 fact edge。`adjudicateClaimConflict()` 已给出确定性裁决策略：输出 severity、recommended_action、edge_review_required 和 `allowed_edge_mutation='none'`，只建议 review/deprecation，不自动改事实层。`buildClaimConflictReviewPacket()` 已把该裁决包装成 safe-write 审阅包，明确 `review_queue_kind`、`safe_write_status`、`required_review_steps` 和 `automatic_fact_mutation_allowed=false`；Workbench claim DTO 已输出 `conflict_review`，让后续 worker/AI 读取同一结构化安全边界。`enqueueClaimConflictReviewCandidates()` 已能把 unresolved conflict 幂等写入 `review_candidates(kind='claim_conflict_review')`，CLI 只提供 `claims enqueue-conflicts` 薄入口。`review apply` 对 approved claim conflict review 只写 `CLAIM_CONFLICT_REVIEW_APPLIED` 和 `REVIEW_APPLIED` 审计事件，不修改 `edges`、claim status 或 unknown status；rejected / blocked 继续由 review-store 写审计事件。更细的人工 resolution action 已下沉到 `claim-builder`：`confirm_claim_valid` 必须带 resolution evidence 并关闭 linked unknown，`recommend_edge_deprecation` 只记录人工建议，`request_more_evidence` 只记录继续调查需求；三者都写 `CLAIM_CONFLICT_RESOLUTION_ACTION_RECORDED`，并保持 `automatic_fact_mutation_allowed=false`。
-
-禁止：
-
-- 多条弱新闻把事实边升到 Level 4/5。
-- LLM summary 参与证据融合。
-- 在 evidence scorer 单条打分阶段偷偷 promotion。
+- claim 支持 primary / supporting / contradicting evidence。
+- source independence weight。
+- deterministic confidence fusion。
+- conflict unknown 和 lifecycle warning。
+- review-safe conflict handling。
 
 完成标准：
 
 ```text
-[x] 同一 relation claim 可列出 primary / supporting evidence
-[x] 同一 relation claim 可列出 conflict unknown
-[x] 同一 relation claim 可列出 contradicting evidence source
-[x] claim confidence 有 regression fixtures
-[x] 官方披露 relation removal 会生成 `CONFLICTING_EVIDENCE` 类 unknown
-[x] contradicting evidence 会写入 `claim_evidence.role='contradicting'`
-[x] Workbench / research-pack 可导出 claim conflict_state
-[x] conflict adjudication policy 完成第一版，且不允许自动改 facts
-[x] conflict adjudication 可生成 safe-write review packet，且 Workbench / research-pack 可导出
-[x] conflict review packet 可幂等进入持久化 review queue
-[x] claim conflict review 的 approved / rejected / blocked 决策接入可审计 safe-write apply path，且不改 facts
-[x] claim conflict review 支持更细的人工 resolution action
-[x] active claim 挂在 deprecated/historical edge 上时，Workbench / research-pack 输出 lifecycle warning
-[x] claim lifecycle 支持 supersede / reject / keep-with-context 人工动作，且要求 source refs、不改 facts
+[x] claim fusion 有 deterministic regression fixtures
+[x] contradicting evidence 与 conflict unknown 可导出
+[x] conflict adjudication 不允许自动改 facts
+[x] conflict review 可进入 review queue 并走 safe-write apply path
+[x] active claim 挂在 deprecated/historical edge 上时有 lifecycle warning
 ```
 
-### Gate 5 — Observation / Signal 层
+## Gate 5 — Observation / Signal 层
 
-目标：建立真正的供应链信号，而不是把 signal 当正则背景句。
+目标：建立真正的供应链信号，而不是把 signal 当背景句或事实边。
 
-Gate 5 还承担“产业传导推理输入”的数据准备责任。后端不直接输出投资结论，但必须把需求传导、扩产周期和上游材料约束拆成可审计 observation / lead / unknown：
+必须具备：
 
-```text
-demand_signal
-capacity_expansion_signal
-facility_construction_signal
-equipment_installation_signal
-process_material_consumption_signal
-material_price_or_trade_signal
-policy_or_export_control_signal
-```
-
-这些 signal 只能进入 observation / lead / risk / backlog 层。只有当公司级关系有官方证据、review/apply 和可追溯 cite 时，才能进入 fact edge。
-
-必须完成至少五类 observation：
-
-```text
-FINANCIAL_METRIC_OBSERVATION
-TRADE_FLOW_OBSERVATION
-COMMODITY_PRICE_OBSERVATION
-ENERGY_PRICE_OBSERVATION
-POLICY_OBSERVATION
-PORT_ACTIVITY_OBSERVATION
-PROCUREMENT_OBSERVATION
-INVENTORY_OBSERVATION
-BACKLOG_OBSERVATION
-CAPEX_OBSERVATION
-CUSTOMER_CONCENTRATION_OBSERVATION
-FACILITY_PROFILE_OBSERVATION
-CAPACITY_EXPANSION_OBSERVATION
-FACILITY_CONSTRUCTION_OBSERVATION
-EQUIPMENT_INSTALLATION_OBSERVATION
-PROCESS_MATERIAL_OBSERVATION
-```
-
-说明：新闻类公开信号当前应优先进入 `lead_observations`，不能写成不存在的 `NEWS_EVENT_OBSERVATION` 类型，也不能直接升级为事实边。
-
-第一批免费源优先级：
-
-- U.S. Census International Trade API：官方月度贸易数据，适合 HS / country / district 观测。
-- USITC DataWeb API：美国进出口与关税数据，适合补充 Census trade view。
-- EIA API：能源价格与电力/燃料数据。
-- FRED API：宏观时间序列。
-- GDELT 2.0：新闻/事件线索，只进 observation / lead。
-- BIS Entity List、OFAC sanctions、EU sanctions：政策与管制 observation。
-
-参考官方源：
-
-- Census International Trade API：<https://www.census.gov/data/developers/data-sets/international-trade.html>
-- USITC DataWeb API：<https://www.usitc.gov/applications/dataweb/api/dataweb_query_api.html>
-- EIA API：<https://www.eia.gov/opendata/documentation.php>
-- FRED API：<https://fred.stlouisfed.org/docs/api/fred/overview.html>
-- GDELT 2.0：<https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/>
-- BIS Entity List：<https://www.bis.gov/entity-list>
-- OFAC Sanctions List Service：<https://ofac.treasury.gov/sanctions-list-service>
+- `FINANCIAL_METRIC_OBSERVATION`
+- `TRADE_FLOW_OBSERVATION`
+- `COMMODITY_PRICE_OBSERVATION`
+- `ENERGY_PRICE_OBSERVATION`
+- `POLICY_OBSERVATION`
+- facility / capacity / construction / equipment / process material observations
+- observation coverage 与 series readiness。
+- propagation readiness。
 
 完成标准：
 
 ```text
 [x] observations 有统一 source_item / time_window / metric / geography / component_id contract
 [x] observations 不会被 graph-builder 当成 fact edge
-[x] 至少 3 类 observation 能在 ComponentCard / research-pack 中显示
+[x] 至少 3 类 observation 能在 cards / research-pack 中显示
 [x] 至少 1 类 observation 有变化检测
-[x] research-pack 能输出 observation coverage，列出 present types 与 methodology gaps
-[x] research-pack 能输出 observation series readiness，区分 sparse / explicit-baseline ready / time-series ready
-[x] investigation-backlog 能把 sparse observation series 转成可执行的数据积累任务
-[x] research-pack 能输出 propagation readiness，把需求、扩产、设施建设、设备安装、材料消耗、原材料/贸易/价格信号拆成 ready / partial / blocked
-[x] component-context / source-plan 能覆盖 AI compute 上游材料与设备 frontier，例如 PCB、光模块、电源/冷却、树脂、电子布、铜箔、高纯气体、光刻胶、靶材、CMP、洁净室、半导体设备
-[x] 上游材料和工程建设信号默认只生成 observation / lead / backlog，不自动生成公司 fact edge
+[x] observation coverage 能区分 sparse / explicit-baseline ready / time-series ready
+[x] propagation readiness 能把需求、扩产、设施、设备、材料、政策信号拆成 ready / partial / blocked
+[x] explicit baseline / trailing median-MAD 变化检测有 deterministic fixtures
+[ ] trade / policy / facility / process-material 覆盖仍需扩深
 ```
 
-当前状态：observation-store 已形成统一写入边界，`FINANCIAL_METRIC_OBSERVATION` 由 SEC companyfacts 结构化 JSON 写入，`TRADE_FLOW_OBSERVATION` 由 Census Trade target 写入，`COMMODITY_PRICE_OBSERVATION` 由 World Bank Pink Sheet target 写入，官方披露语义抽取器可生成 `INVENTORY_OBSERVATION` / `BACKLOG_OBSERVATION` / `CAPEX_OBSERVATION` / `CUSTOMER_CONCENTRATION_OBSERVATION` / `PROCUREMENT_OBSERVATION`，OSH 路径可生成 `FACILITY_PROFILE_OBSERVATION`。这些路径都必须保留 `source_item / doc / time_window / metric / scope / geography / component_id / provenance` 语义，不进入 graph-builder，不生成事实边。
+## Gate 6 — 图算法与风险派生视图
 
-`@supplystrata/research-pack` 已新增 `propagation-readiness.json/md`：它只读消费 observation coverage、source-plan、source target coverage、official disclosure readiness 和 supply-chain expansion plan，把 `demand_signal`、`capacity_expansion_signal`、`facility_construction_signal`、`equipment_installation_signal`、`process_material_consumption_signal`、`material_price_or_trade_signal`、`policy_or_export_control_signal` 统一标为 `ready / partial / blocked`。同时它输出 `ai_compute_propagation.v0` matrix，逐层说明 AI compute 传导链目前是 fact-covered、observation-ready、source-target-runnable、lead-only、unknown-open 还是 blocked-source。每个 item/layer 都带 `reasoning_input_only_no_fact_mutation` policy、ready signals/status reason、missing requirements 或 fact/observation/source/lead/frontier/unknown refs；未覆盖 layer 还带 deterministic `unknown_backlog_seeds`，用于前端/host app 显示 create explicit unknown、keep existing unknown open、run source target 或 repair source target 这类受控动作。matrix layer 会进一步输出 `evidence_layer_summary`，把 fact edge、observation、lead、unknown、source target、official evidence gap 分开计数、列 refs、解释允许输出和禁止写入；未来 AI/前端必须先按这个 summary 判断信息层级，不能从 status 或 refs 数量自行推断 truth-store 权限。matrix layer 还会输出 `source_target_groups`，把 official evidence、observation proxy、entity/facility context 和 lead/manual review 分开，未来 AI/前端只能据此选择受控 run/sync/review/label 动作，不能把 source role 当作事实结论；`next_research_targets` 会把下一步 company、component、material/process 或 source group 单独列出来，作为研究导航，不作为证据；`official_evidence_gaps` 会把 `component_without_l4_l5_fact`、`material_or_process_without_l4_l5_fact`、`official_source_not_reviewed`、`official_source_blocked`、`observation_only` 等缺口结构化暴露出来，避免消费层把局部 fact anchor 当作整层完整覆盖。`investigation-backlog` 会把 `partial/blocked` context 转成 `propagation_readiness` backlog item，并继承 source target coverage，让后续前端/host app 能排队补 observation 或 source target。research-pack 会从 `generatedAt` 派生默认 source-plan 窗口：官方披露和年度材料观测默认上一 UTC 年，贸易和商品价格观测默认上一 UTC 月；这些默认只让 target 可排队，调用方仍可显式覆盖窗口。policy / export-control context 可以消费官方披露 source-plan 路径作为待抽取政策观测的来源，但不能把披露沉默或 source-plan runnable 解释成风险结论。它不写 DB、不生成 fact edge、不关闭 unknown，也不输出最终产业结论。
+目标：识别集中度、单点失效、替代路径、瓶颈和传播影响。
 
-`@supplystrata/research-pack` 已新增 `observation-coverage.json/md`：它从 CompanyCard / ComponentCard / linked company observations 和 ChainView observation segments 汇总本研究包内可见的 typed observation、source adapter、scope、component、geography、metric、样本 id 和缺失 methodology type。它还会按 `observation_type / scope / geography / component_id / metric / unit` 生成 series readiness：有 `baseline_value + change_percent` 的序列标为 `explicit_baseline_ready`；至少 6 个同序列数值窗口点的序列标为 `time_series_ready`；其余保持 `sparse`。ChainView 仍只负责分层 context lane；正式类型覆盖以 observation DTO / card / coverage JSON 为准，避免靠 label 猜类型。
+必须具备：
 
-`investigation-backlog` 会消费 observation coverage，把 `sparse` series 转成 `observation_series` backlog item。该 item 只提示继续积累同一序列的 numeric/windowed observations，或寻找带 explicit baseline/change 的官方披露；它不会自动运行 source，不会写 observation，也不会把 signal 升级成 fact edge。
-
-当前状态：`@supplystrata/evidence-maintenance` 提供 `refreshObservationAnomalyViews()`，薄 CLI 入口如下：
-
-```bash
-pnpm cli intelligence observation-anomalies --limit 1000 --threshold-percent 25 --z-threshold 3.5
-```
-
-该能力优先读取已有 `baseline_value / change_percent` 或可由 `metric_value / baseline_value` 复算的 observation；没有显式 baseline 时，会批量查找同一 observation type、scope、geography、component、metric 和 unit 的可比较历史点，用 trailing median/MAD 计算 z-like anomaly。输出写入 observation-scoped `risk_views / risk_metrics`，metric kind 为 `observation_anomaly`。真实异常会幂等写入 `OBSERVATION_ANOMALY` semantic change，供 changes timeline / alert rules 消费；timeline 会展示 metric、observation scope、baseline、change percent、severity 和 source/doc 上下文。它不写 `edges`，不把 observation 升级成事实关系。CompanyCard / ComponentCard / research-pack 在已有 anomaly view 时展示 anomaly summary；ComponentCard 还会把当前组件 Level 4/5 fact edges 上的 supplier/consumer 公司财务 observations 作为 linked company financial signals 带入组件上下文。历史不足或不可比较的 observation 继续保持普通 observation，而不是伪造异常。
-
-### Gate 6 — 图算法与风险派生视图
-
-目标：从“能画链路”升级为“能识别瓶颈、集中度、单点失效和传播影响”。
-
-必须完成：
-
-```text
-risk_views
-  risk_view_id
-  scope_kind
-  scope_id
-  generated_at
-  model_version
-  inputs_fingerprint
-  summary
-
-risk_metrics
-  risk_view_id
-  metric_kind:
-    supplier_concentration_hhi
-    single_source_exposure
-    path_redundancy
-    freshness_adjusted_exposure
-    betweenness_centrality
-    node_knockout_reach
-    node_knockout_weighted_impact
-  subject_kind
-  subject_id
-  component_id
-  value
-  confidence
-  provenance
-```
-
-第一版算法：
-
-- HHI by component：已实现 deterministic baseline；只有完整 share 输入时写数值，缺 share 时写 explicit unknown context。
-- single-source exposure：已实现 component baseline，来自单一供应商 topology 或明确 `dependency=single_source`。
-- path redundancy / alternate supplier count：已实现 terminal consumer simple-path baseline；会区分“直接 supplier 数”与“真实上游替代路径数”，单链不会被误判为替代路径；attrs 已输出 weighted alternate-path context，缺权重时不补值。
-- freshness-adjusted exposure：已实现 experimental baseline，消费 edge strength + freshness，不污染事实层。
-- node knockout reachability：已实现 directed component fact-edge reachability baseline。
-- node knockout weighted impact：已实现 strength/freshness max-product propagation baseline；缺权重边显式暴露，不补值。
-- betweenness centrality：已实现 directed component fact-edge graph baseline；attrs 已输出 weighted path centrality context，用 strength/freshness path product 标出高权重路径瓶颈。
-- risk metric semantic change：已实现 component risk view 对上一版指标的稳定 key 对比；超过每类指标绝对阈值或 25% 相对阈值时，写入 `RISK_METRIC_CHANGED`，供 timeline / alert rules 后续消费。
-
-规则：
-
-- 风险指标是派生结果，不写回 fact edge。
-- 每个指标必须记录输入数据版本和模型版本。
-- 没有 relation strength 时，指标必须显示不确定性，不能假装精确。
+- HHI / concentration。
+- single-source exposure。
+- path redundancy。
+- node knockout reach / weighted impact。
+- betweenness / weighted path centrality。
+- freshness-adjusted exposure。
+- policy exposure。
+- risk metric semantic change。
 
 完成标准：
 
 ```text
 [x] ComponentCard 能显示集中度和单点失效候选
 [x] CompanyCard 能显示 top exposure nodes
-[x] risk metrics 可重算且结果 determinism test 通过
-[x] 多跳 path redundancy / alternate supplier aggregation 有 regression fixtures
-[x] weighted centrality / impact 指标有 deterministic regression fixtures
-[ ] weighted centrality / impact 指标完成真实样本校准和阈值治理，不只停留在 baseline
+[x] risk metrics 可重算且 determinism test 通过
+[x] path redundancy / weighted impact / weighted centrality 有 regression fixtures
+[x] 同期 peer z-score / percentile 有 deterministic fixtures
+[x] calibration labels 能输出 precision / reliability bucket / error summary
+[ ] 统计输出需要统一暴露 sample size、window、method、model version、calibration status
+[ ] weighted metrics 真实样本校准和阈值治理未完成
+[ ] 默认报告不能出现未经契约化的 p-value、显著性、贝叶斯、因果或预测结论
 ```
 
-### Gate 7 — 持续监控与告警
+## Gate 7 — 持续监控与告警
 
-目标：从“一次性研究工具”升级为“持续运行系统”。
+目标：从一次性研究工具升级为持续运行系统。
 
-必须完成：
+必须具备：
 
-- job queue。可以是 `pg-boss` 或等价 Postgres-backed queue。
-- source_check_targets 支持 per target cadence、jitter、priority、failure policy。
-- semantic change events：`EDGE_ADDED`、`EDGE_UPDATED`、`EDGE_DEPRECATED`、`CLAIM_CHANGED`、`OBSERVATION_ANOMALY`、`SOURCE_FAILED`。
-- alert rules：基于 observation、risk metric、source failure、new official filing。
-- alert lifecycle：`open / acknowledged / resolved / suppressed` 的状态变更必须可审计。
-- component risk alert threshold policy 必须集中定义，alert payload 必须记录 evaluated value、threshold 和 value source。
-- component risk alert policy 必须有不写库的校准入口，用于人工 gold set 落库前固定 trigger/skip/reason。
-- dead-letter / retry / backoff。
+- durable source check jobs。
+- per-target cadence / jitter / priority / retry / backoff。
+- source health / degraded / failure semantics。
+- semantic change events。
+- alert candidate lifecycle。
+- worker loop。
+- attention queue。
 
 完成标准：
 
 ```text
-[x] sources run-due 不再是人工 CLI 主路径，而有常驻 worker loop
-[x] 任一 source failure 不会被 cached fallback 误记为成功
-[x] changes timeline 能区分 raw document change、semantic change、risk change
-[x] source check 有 durable job/outbox、claim、retry/backoff 和 dead 状态
-[x] 持续监控 cadence、jitter、priority、初始检查时间和 retry/backoff 统一由外部 source policy config 配置
-[x] due/run-due 支持按 source-plan namespace、check_target_id 或 source adapter 小批量过滤，避免一次运行全局 due 队列
-[x] source target coverage 能区分 succeeded 与 degraded，避免 cached fallback / 源退化被误读成完全成功
-[x] source target preflight 结果能回流 investigation backlog，避免 source 预检失败时继续误导用户同步或启用 target
-[x] source target preflight summary 能按 source 输出 readiness matrix 和 issue kind 分类，方便 Gate 1 多官方源体检
-[x] alerts 只引用 risk_view / observation，不直接改变事实层
-[x] alert 状态维护会记录 `ALERT_STATUS_CHANGED` semantic change
-[x] component risk alert threshold policy 有 deterministic regression fixture，覆盖 weighted centrality trigger 与低于阈值 skip
-[x] component risk alert policy summary 能输出 trigger/skip、expected match 和 by-metric 统计
-[x] `EDGE_DEPRECATED` 有受控 fact edge lifecycle workflow，必须带可验证 source ref，且只 soft-deprecate current edge
-[x] Workbench / research-pack 有统一 attention queue，能消费 claim conflict、claim lifecycle、alert、source degraded 和 requires-attention change
-[x] evidence supersession 与 relation diff 能进入 changes timeline，并带结构化 evidence / relation / document 字段
-[ ] attention queue 仍缺正式消费 API / host app 入口；当前只有 Workbench JSON 与 research-pack JSON/Markdown
+[x] source check 有 durable job/outbox、lease、retry/backoff、dead 状态
+[x] worker loop 复用 runDueSourceChecks
+[x] cached fallback 不会被误记为成功
+[x] changes timeline 区分 source / graph / semantic / risk change
+[x] alerts 只引用 risk_view / observation / source event，不改事实层
+[x] attention queue 汇总 claim conflict、claim lifecycle、alert、source degraded、requires-attention change
+[ ] attention queue 缺正式消费 API / host app 入口
+[ ] 通知通道未完成
 ```
 
-当前状态：`source_check_jobs` 已提供 Postgres-backed durable job/outbox；`sources run-due` 会先 enqueue due target，再用 `FOR UPDATE SKIP LOCKED` claim job，失败写入 `failed` 并按 backoff 重试，超过 `max_attempts` 进入 `dead`。`in_progress` job 会写入 `lease_expires_at`，claim 阶段可回收超时 lease，避免 worker 崩溃后唯一 active job 永久堵住同一 target。`sources due/run-due` 支持按 `source-plan.json + namespace`、`check_target_id` 或 source adapter 过滤小批量目标；过滤只限制 enqueue/claim 范围，不改变 source policy 或 target config。`apps/worker` 已提供常驻 source-check worker loop，负责按固定 poll interval 复用同一条 `runDueSourceChecks()` 业务路径；CLI 不再是唯一执行入口。cadence、jitter、priority、初始 `next_check_at`、max attempts 和 backoff 已统一收口到外部 source policy config：source policy 提供默认值，target 可覆盖，enqueue 阶段不再接受调用方绕过配置传入 retry 参数；配置同步未提供 `next_check_at` 时不会覆盖运行态调度，显式 `null` 才清空。cached fallback 会记录 `SOURCE_DEGRADED`，不会被误记为成功；coverage 会把 latest event 为 `SOURCE_DEGRADED` 的 target 标成 `degraded`，即使 job 本身已完成，也不会被解释为完全成功。显式传入 research-pack 的 source target preflight 会被 `investigation-backlog` 消费：failed/skipped/degraded preflight 会先提示修凭据、target config、connector 注册或源连通性，再进入同步/启用/运行建议；preflight summary 也会按 source 输出 readiness matrix，列出 checked/failed/skipped、normalized/degraded、target kind 和 issue kind 分布，方便一次性审计多官方源覆盖健康度；缺凭据、target config 错误、connector 未注册、源不可达和源响应异常会有明确分类。preflight 本身仍不写库、不写 observation、不生成事实边。`OBSERVATION_ANOMALY` 已由 observation anomaly refresh 幂等写入 `change_records`，并被 changes timeline 标记为 requires attention。`RISK_METRIC_CHANGED` 已由 component risk refresh 在新版 risk view 与上一版指标存在实质变化时写入，changes timeline 会把它归为 risk family。事实边废弃已从 claim conflict 建议后移到独立 `graph deprecate-edge` / `deprecateEdge()` lifecycle：只能 soft-deprecate `validity='current'` 的 edge，必须带已存在的 `evidence / review / claim / unknown / semantic_change` source ref，并写 `EDGE_DEPRECATED` change record；它不会删除 evidence，也不会自动修改 claim status。`EVIDENCE_SUPERSEDED` 和官方披露 relation semantic diff 已进入 changes timeline：timeline 会带出 superseded evidence ids、replacement evidence、relation surfaces、relation type、component、fingerprint 和 previous/next document id，Markdown 也能给出可读摘要；这些仍是审计/监控上下文，不自动写事实边。`refreshAlertCandidates()` 已能从 observation anomaly、source failure 和 component risk metric 生成 `alert_candidates`，并通过 `dedupe_key` 去重；component risk alert 使用 `alert-rules.component-risk.threshold-policy.v1` 统一评估 single-source、HHI、node reach、weighted impact 和 weighted path centrality，并在 `attrs.alert_policy` 记录阈值、取值来源与 evaluated value。`evaluateComponentRiskAlertPolicy()` 和 `summarizeComponentRiskAlertPolicy()` 提供不写库的 policy calibration 入口，可在人工 gold set 落库前输出 trigger/skip/reason、expected match 和 by-metric 统计。alert 只引用 `observation / risk_view / risk_metric / change / source_event`，不写事实边。`updateAlertCandidateStatus()` 和 CLI `intelligence alert-status` 已支持状态维护，并用 `scope_kind='alert'` 写入 `ALERT_STATUS_CHANGED` semantic change。Workbench / research-pack 已新增统一 `attention_queue`，把 claim conflict、claim lifecycle warning、open alert candidates、degraded source health 和 requires-attention change 收口成即时处理队列；它只读派生上下文，不自动裁决冲突或修改事实层。通知通道和正式 host app/API 入口仍未完成。
+## Gate 8 — API 与嵌入契约
 
-### Gate 8 — API 与嵌入契约
+目标：后端能被正式前端、内部只读 AI 分析层和外部只读 app/AI 消费。
 
-目标：后端能被正式前端和外部 agent/app 消费。
-
-必须完成：
+当前 v0 contract surface：
 
 ```text
 GET /companies/:id/card
@@ -583,10 +270,13 @@ GET /components/:id/card
 GET /chains/:scope
 GET /claims/:id
 GET /evidence/:id
-GET /observations
+GET /observations/:scope
 GET /risk-views/:scope
 GET /changes
 GET /sources/health
+GET /unknowns/:scope
+GET /companies/:id/consumer-read-model
+GET /companies/:id/reasoning-walkthrough
 POST /review/:id/approve
 POST /review/:id/reject
 ```
@@ -597,263 +287,105 @@ POST /review/:id/reject
 - JSON schema / OpenAPI 版本化。
 - WorkbenchModel 继续保留离线导出能力。
 - GraphStore / DatabaseStore 可由宿主 app 注入。
-- research-pack 输出 `question-readiness.json/md`，把核心问题标为 ready / partial / blocked，并列出 supporting refs、missing requirements 和 unknown ids；它只评估可答性，不生成自然语言结论。
-- research-pack 输出 `investigation-backlog.json/md`，把 readiness gap、explicit unknown、组件覆盖缺口和 source-plan item 汇总为可审计调查任务；它只规划，不抓取、不落库、不写事实边。
-- research-pack / Workbench DTO 必须能作为未来 AI 和前端研究员的推理输入：输出 relationship network、propagation context、source gaps、unknown、calibration 和 risk/intelligence metrics；但 API 不输出未经 schema 化的“最终判断”作为 truth-store 数据。
-- Gate 8-lite 可以先用 `research-pack` 输出稳定只读 read model：`consumer-read-model.json` 必须覆盖 company summary、chain summary、research-pack summary、changes、derived context / risk views、unknown / backlog / next actions 和 constraint context；它不是正式 HTTP API，但字段要按未来 API 消费方向收口，且不能泄漏 DB row。
-- Gate 8-lite 还必须输出 deterministic `reasoning-walkthrough.json/md`：它只把 propagation matrix 渲染成已知事实、明确 unknown、受限证据、下一步动作和“哪些结论不能说”，不调用 AI、不做投资推理、不写 truth store。
-- policy / sanctions / export-control 先作为 constraint context 接入。OFAC sanctions、BIS Entity List、EU sanctions 这类来源可以进入 source registry / source-plan / alert context，但 relation policy 必须保持 observation-only 或 constraint-only；它们不能生成供应链 fact edge，也不能把制裁/管制沉默解释成“无风险”。
-- source-plan 支持消费 target profile official source hints：带 SEC CIK 的公司可生成 `sec-edgar/sec-company-filings` runnable target，并同时生成 observation-only `sec-edgar/sec-company-facts` target，用于把结构化财报指标纳入 source-target coverage；显式 `officialDisclosureYear` 存在时，已注册官方 IR connector 可生成 node-specific `official-html-disclosure` target，`company-ir` 这类长尾入口必须额外带审计过的显式 HTTPS URL，DART / EDINET 这类监管目录 connector 可生成目录 monitor target；Apple Supplier List 这类 publisher-specific 官方名单只能作为 review-only 来源接入，不能成为每个研究对象一个 `<company>-suppliers` 文件的先例；无年份或缺 connector/config/URL 时保持 gap，避免猜默认披露期、猜 IR 页面或伪造可运行能力。
-- 任意上市公司入口必须保持 `--company <query>` 语义：先解析实体，再由 registry/source-plan/source-target coverage 输出可执行目标和缺口。陌生公司没有足够 metadata 时应显式进入 entity/source discovery backlog，不能要求用户手写完整 profile，也不能用公司名硬编码新 workflow。
-- source-management 提供 `source-plan.json` 到 `source_check_targets` 的稳定转换和无数据库预览；CLI 只做 `sources policy preview-plan-targets` / `sync-plan-targets` / `enable-plan-targets` 薄入口。预览只生成稳定 target id、去重统计、source / target kind / priority 汇总和 validation 结果，不写库、不抓源。预览、同步和启用都可按 source adapter 过滤，方便先接入 SEC / 官方 IR 这类当前可运行来源，再单独处理需要凭据或目录策略的 Census / DART / EDINET / TWSE 目标。同步默认 disabled，审计后可用同一 `source-plan.json + namespace` 受控启用已同步 target，并统一写入 target 级 cadence / jitter / retry / `next_check_at` 覆盖值。
-- source-monitor 通过 `source_change_events.check_target_id` 保留 target 级事件链；research-pack 输出 `source-target-coverage.json/md`，把 runnable target 的 sync、enable、due、job、event、observation 状态回流到研究包，并让 `investigation-backlog` 的 action 随 coverage 状态变化。显式传入 `source-target-preflight.json` 时，backlog 还会把预检 failed/skipped/degraded 放进同一任务的 action 和 coverage 行，作为同步前排错入口。preflight 可展示 normalized document 的只读 observation draft / semantic section 计数，用来衡量数据是否进入可抽取层；这些计数不是已落库 observation，也不是事实边证据。
+- 外部 AI / 外部 agent 只读消费，不提供外部 AI 提交候选、证据、source target 或爬虫结果的写接口。
 
 完成标准：
 
 ```text
 [x] apps/api 有 contract tests
-[ ] research-preview 或未来正式前端只消费 API/Workbench DTO
-[ ] 无 Docker snapshot path 与 DB-backed path 都保留
-[x] research-pack 能输出 question readiness matrix
-[x] research-pack 能输出 investigation backlog，供人工或后续安全 agent 消费
-[x] research-pack/source-plan 能把 target profile 的 SEC CIK 和官方 IR 年份配置转成 runnable target suggestions
-[x] runnable source-plan target suggestions 能同步到 source_check_targets，并复用统一监控频率/重试配置入口
-[x] runnable source-plan target suggestions 能在无数据库场景下预览，将 target id、去重、credentials warning 和 validation 暴露给宿主 App / CLI 审计
-[x] runnable source-plan target suggestions 能在无数据库场景下执行 plan/fetch/normalize smoke，提前暴露外部源连通性、凭据和 target config 问题
-[x] 已同步 source-plan target 能在审计后受控启用，并把调度参数继续收口到 source policy/target config
-[x] research-pack 能输出 source target coverage，展示 runnable target 是否已同步、启用、due、运行、失败或产出 observation，并汇总 observation 总量、已观测主体数、按 source / target kind / metric 的观测量
-[x] source target coverage / Gate 1 workbench 能显式区分 `expected_check_target_id`、`matched_check_target_id` 和 `match_kind`；跨 namespace 的同配置 target 复用必须可见，不能让递归 pack 把复用运行态误读为当前 namespace 已创建目标
-[x] source target coverage 能把 metric 覆盖转成只读 observation review seeds 和 calibration candidates，按 P0/P1/P2 区分供应链信号、财务背景和 metric mapping gap，并显式声明 review-only/no fact mutation policy；每个 candidate 会带可追溯 sample observation refs、推荐 label、已持久化 label 状态和下一批 priority/metric 分层 labeling plan，供前端审查和 calibration/gold label 抽样
-[x] investigation-backlog 能消费 source target coverage，把下一步 action 从通用 source check 提示细化为同步、启用、运行、等待、排错或 review observation
-[x] investigation-backlog 能消费 source target preflight，把无数据库预检失败转成同步前排错动作
-[x] source target preflight 能输出按 source 聚合的 checked / failed / skipped / normalized / degraded / issue kind 矩阵
-[x] source-check connector capability 统一声明 target 级 credential requirements，并被 catalog / preview / smoke 复用
-[x] official-disclosure readiness 能输出 Gate 1 scorecard，区分 data progress 与 source path progress
-[x] official-disclosure readiness 能输出 edge-level corroboration queue，逐条标出 single-source edge 的二源检查路径或 explicit disposition 缺口
-[x] official-disclosure readiness 能区分已记录 single-source disposition unknown 与缺失 disposition 的边，并为缺失项生成确定性 proposed unknown payload
-[x] evidence-maintenance 能把 readiness 的 proposed single-source disposition unknown 受控落库到 `unknown_items`，并记录 unknown semantic change；缺失或已失效 edge 默认跳过
-[x] evidence-maintenance 能把 official signal disposition 中的 `record_single_source_unknown` 审计结论受控落库到 edge-scoped `unknown_items`，并保持 review-store / workbench-export / fact edge 写入边界清晰
-[x] CLI 暴露 `review signal-disposition` 和 `intelligence official-signal-unknowns` 薄入口，让 official signal 审阅结论和后续 unknown materialization 可由 host app 复用，且仍不授权事实层自动变更
-[x] Workbench unknown DTO 导出 `scope_kind / scope_id`，official-disclosure readiness 优先用结构化 edge scope 识别已记录 disposition unknown
-[x] investigation-backlog 能消费 corroboration queue，生成逐 edge `corroboration_review` 任务并继承 source target coverage / preflight 状态
-[x] investigation-backlog / research-pack manifest 能汇总 corroboration review 的 runnable / sync / enable / due / preflight / credential / disposition-only 状态
-[x] research-pack 能输出 `corroboration-source-plan.json/md`，把 edge-level corroboration runnable target 过滤成可直接交给 source-management 的标准 source-plan 子集
-[x] `corroboration-source-plan` 能为每个 filtered target 输出确定性 `next_action`，把 preflight/coverage 状态收口成配置凭据、修配置、smoke、sync、enable、run due、等待、排错或 review observation
-[x] `corroboration-source-plan` 的 next-action 状态机优先尊重已同步 source target 的真实运行态；`succeeded` target 直接进入 review observation，不因缺少 preflight 快照而重复提示 smoke
-[x] research-pack manifest / README 汇总 `corroboration-source-plan` 的 next-action 分布，让 Gate 1 卡点不用打开明细 JSON 也能看到
-[x] research-pack 能输出 `gate1-run-ledger.json/md`，把 Gate 1 data progress、source path progress、corroboration 批次和 supply-chain frontier company switching 合成一个只读执行账本
-[x] 递归 frontier research 命令能把父公司、父组件、seed edge 和 seed unknown 传入 research-pack，manifest / README 能输出 `research_lineage`，用于审计子研究来源且不自动继承父包事实
-[x] research-pack 能输出 `gate1-data-depth-workbench.json/md`，把 Gate 1 数据深度缺口收敛成 review-only 优先级清单，覆盖 L4/L5 增长、adjacent official facts、entity affiliation context、二源 corroboration、source blocker、strength 缺失、gold label 批次和 propagation context
-[x] research-pack 能把 Gate 1 data-depth workbench 拆成 action batch JSON，至少覆盖 P0、source blockers、labeling、corroboration、entity context、adjacent official facts 和 intelligence context，供前端/host app 做受控审查或配置动作
-[x] Gate 1 data-depth action item 能输出推荐决策、允许决策、写入影响、frontend action kind 和命令提示；这些字段只授权配置/审查/标注/递归研究动作，不授权自动写 fact edge 或关闭 unknown
-[x] Gate 1 entity affiliation context 能通过 review-store / CLI 记录审阅结论，明确下一轮应研究父级法人、子实体、双范围或保持 unknown；research-pack 会读回最新 disposition，并把未裁决 context 放入 frontend-ready review workbench，已裁决 context 不再重复催审；该路径只写 semantic change，不合并实体、不继承 evidence、不传播 fact edge
-[x] research-pack 能输出 `propagation-readiness.json/md` 或等价 DTO，作为 AI/前端分析产业传导链路的结构化输入，不直接生成结论或事实边
-[x] research-pack 能输出 `consumer-read-model.json`，作为 Gate 8-lite 稳定只读消费契约，覆盖 company / chain / pack / changes / derived context / risk / unknown / backlog / next actions / constraint context
-[x] research-pack 能输出 `reasoning-walkthrough.json/md`，把 propagation matrix 转成已知事实、明确 unknown、受限证据、下一步动作和不能说的结论，且保持 deterministic/read-only/no AI
-[x] `apps/api` 已建立 Gate 8 v0 contract：固定 company/component/chain/claim/evidence/observation/risk/change/source/unknown/read-model/walkthrough/review 路由，生成 OpenAPI 3.1 文档，并用 contract audit 测试确保 DTO 来源来自 public contract 而不是 DB Row；当前仍是 contract-only，未启动 HTTP adapter
-[x] source registry / source-plan 已登记 OFAC sanctions、BIS Entity List、EU sanctions 作为 P0 policy constraint context；它们当前只具备 observation-only/alert-context 权限，不具备 fact edge 写入权限
-[x] policy / sanctions connector fast lane 第一版已接通 OFAC SDN：source-check 抓取官方 XML 快照，按 target_names 精确规范化匹配写入 `POLICY_OBSERVATION`，`refreshAlertCandidates()` 生成 `policy_constraint` alert candidate；未命中不写 clean 结论，BIS / EU 仍待后续结构化 connector，且全链路不写 fact edge
-[x] AI compute propagation matrix 能输出 `evidence_layer_summary`，把 fact edge / observation / lead / unknown / source target / official evidence gap 分开解释，并显式列出允许输出和禁止 truth-store 写入
-[x] AI compute propagation matrix 能输出 `source_target_groups`，把 official evidence、observation proxy、entity/facility context 和 lead/manual review 分开，防止后续消费层误把所有 source target 当成同等官方证据
-[x] AI compute propagation matrix 能输出 `source_target_status_summary`，把每一层 source target 的 runnable / blocked / degraded / missing credentials / source failed 状态结构化暴露出来
-[x] AI compute propagation matrix 能输出 `unknown_backlog_summary`，把每一层 explicit unknown 和 deterministic unknown/backlog seed 按推荐 review action 汇总，且明确 review-only 写入策略
-[x] AI compute propagation matrix 能输出 `next_research_targets`，把下一步 company / component / material-or-process / source-group 研究目标结构化给前端/AI，且仍保持 no fact mutation policy
-[x] AI compute propagation matrix 能输出 `official_evidence_gaps`，把 layer 内未被 L4/L5 覆盖的组件/材料/工艺、未审查或 blocked 的官方源、observation-only gap 结构化暴露出来，避免 covered_fact 状态被误读成整层完整覆盖
-[x] AI compute propagation matrix 和 Gate 1 propagation workbench item 能输出 `readiness_answers`，把每层七个核心问题前置成 facts / non-fact inputs / official gaps / unknowns / next research / source target state refs / output policy
-[x] AI compute propagation matrix 和 Gate 1 propagation workbench item 能输出 `execution_queue`，把 run / repair / review / keep unknown open 队列项结构化给前端/host app，且每项都带 review-only 写入策略和 `automatic_fact_mutation_allowed=false`
-[x] Gate 1 data-depth propagation workbench item 能透传 `evidence_layer_summary` 到 action batch，让未来前端/AI 不必二次读取 matrix 也能遵守 no fact mutation 边界
-[x] Gate 1 data-depth propagation workbench item 能输出 `action_source_groups`，并按当前 official gap 类型收窄 command/source target 列表，避免把 observation proxy、facility context 或 manual lead source 混进 official evidence repair 动作
-[x] Gate 1 data-depth propagation workbench item 能透传结构化 `official_evidence_gaps[]`，让前端/host app 不需要解析 refs 或 rationale 就能审查 gap kind、target、推荐动作和 review-only 写入策略
-[x] Gate 1 data-depth propagation workbench item 能输出 `source_target_status_summary`，把 action 范围内 source target 的 runnable / blocked / degraded / missing credentials / source failed 状态结构化暴露出来，避免未来消费层自己复算 source monitor 状态
-[x] `gate1-run-ledger` 能输出 frontend-ready `monitoring_config`，把 source policy / source target 的 cadence、jitter、retry、backoff、初始 `next_check_at` 和 source-plan 批次建议统一暴露给后续前端配置
-[x] `gate1-run-ledger.monitoring_config.batches[]` 能输出 state counts、attention hint 和 recommended operational action，区分 sync、enable、run due、wait、investigate failure、review observation
-[x] `gate1-run-ledger.action_queue` 能消费 `corroboration-source-plan.summary.by_next_action`，在 smoke 回灌后输出 review observations / configure credentials / retry preflight / sync / enable / run due 等精确动作，避免重复提示 smoke
-[x] `gate1-run-ledger.action_queue` 的 review observations / fact edge growth / source failure 动作能输出可执行 command hint：observation review 只进入 calibration label，corroboration observation review 只记录 edge disposition，fact-edge growth 先跑 Gate 1 supplier-list dry-run；这些命令不授权自动写 fact edge
-[x] `gate1-run-ledger.action_queue` 能把 open official disclosure signal correlation hints 输出为 `record_official_signal_dispositions` 动作，给后续前端/host app 一个统一 review-only 审批入口
-[x] `gate1-run-ledger.review_workbench` 的 official signal disposition item 能输出可执行 `review signal-disposition` 命令提示；规则可以预填推荐 decision，人只确认 reason / evidence / unknown / target 绑定，且该命令仍只写 review semantic change
-[x] DB-backed source target coverage 能输出 source-check failure kind，并把缺凭据、限流、源不可达、源响应错误、adapter 错误和未知失败带入 manifest / README / Gate 1 monitoring batch
-[x] `gate1-run-ledger` 能输出 frontend-ready `review_workbench`，为 source target 批次、edge corroboration、official signal disposition 和 frontier company research 给出推荐决策、允许决策、命令提示、写入影响与 `review_only_no_fact_mutation` policy，让规则自动排优先级、人工只确认受控动作
-[x] research-pack 能按 audited next-action 输出非空的 action-specific corroboration source-plan 批次，避免把仍需 smoke / 修凭据 / 修配置的 target 直接混入 sync / enable / run-due 执行
-[x] research-pack manifest / README 汇总 source target preflight issue kind 分布，让 Gate 1 smoke 卡点能直接显示为缺凭据、配置错误、connector 未实现、源不可达或 adapter 异常
-[x] supply-chain expansion plan 能把 L4/L5 fact frontier、component taxonomy lead、source path、unknown 和 stop condition 接进 research-pack / backlog，形成下一层递归研究计划且不写事实边
-[x] research-pack 显式开启后刷新 eligible component risk baseline，并在 manifest 记录 considered / eligible / refreshed / metrics_written
+[x] OpenAPI 3.1 contract 可生成
+[x] contract audit 能检查 DTO 不来自 DB Row
+[x] consumer-read-model / reasoning-walkthrough 已纳入 API contract
+[ ] HTTP adapter 未完成
+[ ] research-preview 或未来正式前端尚未只消费 API/Workbench DTO
+[ ] 无 Docker snapshot path 与 DB-backed path 仍需同时保留并验证
 ```
 
-### Gate 9 — Agent / LLM 安全接入
+## Gate 9 — 内部 AI 分析层安全接入
 
-目标：让 LLM 做复杂判断和调查规划，但不污染事实层。
+目标：让内部 AI 基于可信结构化上下文做解释、摘要、判断草稿和下一步研究建议，但不污染事实层，也不演变成自动行动 agent。
 
-允许的 agent：
+允许：
 
-- Unknown-driven investigation agent：从 unknown 出发生成 source plan、运行 adapter、产出 lead/review candidate。
-- Report/explanation agent：基于 claims / evidence / observations / risk_view 写人类可读报告。
-- Query assistant：把自然语言问题翻译成只读查询。
+- Read-only analyst。
+- Report / explanation renderer。
+- Query assistant，把自然语言问题转为只读查询或只读 API 调用计划。
 
 禁止：
 
-- LLM 直接写 `edges`。
-- LLM 自动 approve review candidate。
+- LLM 写 `edges`。
+- LLM approve review。
 - LLM 提升 `evidence_level`。
-- LLM 把 observation 解释成 fact edge。
+- LLM 运行 source connector、联网爬虫或抓外部网页。
+- LLM 创建、关闭或 resolve unknown。
+- 外部 AI 提交 evidence/review/source/crawl/correction 内容。
 
 完成标准：
 
 ```text
-[ ] LLM 输出都有 schema validation
-[ ] cite_text 必须是原文子串或引用已有 evidence_id
-[ ] 所有 agent write path 都进入 review queue
-[ ] audit log 能复现 agent 输入、输出、模型、prompt version
+[ ] 内部 AI 输出有 schema validation
+[ ] 内部 AI 输出引用已有 evidence_id / claim_id / observation_id / unknown_id / source target ref
+[ ] 内部 AI 输出明确区分 fact / observation / lead / unknown / risk metric / policy constraint
+[ ] 内部 AI 输出包含 cannot_conclude / assumptions / next_actions
+[ ] next_actions 不授权自动写 truth store
+[ ] audit log 能复现内部 AI 输入、输出、模型、prompt version
+[ ] 外部 AI 只有只读 API 消费路径
 ```
 
-### Gate 10 — 质量、性能、可维护性
+## Gate 10 — 质量、性能、可维护性
 
 目标：系统能长期扩展，不靠补丁。
 
-必须完成：
+必须具备：
 
-- 每个 source adapter 都有 contract test。
-- 每个 extractor rule pack 有 positive / negative fixtures。
-- EntityResolver golden set 持续扩充，关键实体 false merge 零容忍。
-- 50 万 entity/edge 规模下的 chain/risk query benchmark。
-- 所有跨表写入有事务边界。
-- DTO / DB row / domain type 不混用。
-- Env / logger 不在深层 feature 隐式读取；app/CLI/worker/use-case 边界负责注入，配置和凭据判断统一走 `@supplystrata/config`。
-- 文档与代码差异有检查或明确维护流程。
+- 文件不过度膨胀，核心代码文件超过 700 行必须评估拆分。
+- 业务规则在 domain / feature 内聚，CLI / apps 保持薄入口。
+- Row / DTO / Domain Contract 边界清晰。
+- upsert / terminal state / job lease / review decision 有并发保护。
+- package 数量受控；合并必须基于职责和依赖审计，不机械搬文件。
+- 每个核心输出有 regression fixture 或 contract test。
 
 完成标准：
 
 ```text
-[ ] pnpm type-check / lint / dep-check / unit / contract / integration / perf baseline 全绿
-[ ] 每个新增 domain/feature 遵守 definitions / functions / orchestration 分层
-[ ] docs/06-development/code-quality-hardening.md 无 P0/P1 open item
+[x] type-check / lint / unit / dep-check / format-check / build 可通过
+[x] source job lease、policy sync、research-pack 写库边界等高风险问题已处理
+[x] module-design 已更新当前模块边界
+[ ] Entity / DTO / DB Row 边界仍需继续全项目治理
+[ ] env / logger 隐式全局依赖仍需继续治理
+[ ] 大文件和历史胶水仍需持续拆分
 ```
 
-## 远期方法学：概率与贝叶斯层
+## 当前优先级
 
-贝叶斯更新、概率图模型、因果图和供应链冲击概率传播是远期方向，不计入当前后端完成门槛。
+接下来不应继续无穷打磨底座，也不应马上做自动 AI agent。建议顺序：
 
-启动条件：
+1. 补 Gate 8 HTTP adapter 的最小只读实现，围绕现有 contract，不另造 DTO。
+2. 建内部 AI analysis contract，只读消费 `consumer-read-model` 和 `reasoning-walkthrough`。
+3. 继续 Gate 1 数据深度：更多二源 corroboration、single-source disposition、official evidence gap、gold label。
+4. 推进真实样本 calibration 和 risk threshold 治理。
+5. 继续质量治理：大文件拆分、DTO/Row 边界、source domain 内聚。
+
+## 最终判定
+
+当前可以说：
 
 ```text
-[ ] 事实层 Level 4/5 precision 已校准
-[ ] observation time series 足够长
-[ ] relation strength / freshness 已稳定
-[x] risk_view 已有确定性 baseline
-[x] 有人工 review gold label/run 契约可用于 calibration
-[x] observation calibration candidates 能进入持久化 label 样本池，且不会自动写 fact edge 或修改 observation
-[x] research-pack / manifest 能把已持久化 observation calibration label 回灌到 source-target coverage，区分 recommended label、persisted label、labeled/unlabeled 候选数，避免把未审查候选误读成 gold label
-[x] research-pack 能生成 deterministic next labeling batch，按 priority/metric 分层抽取未标注 observation calibration candidates，帮助扩大 gold set 时保持覆盖面
-[x] adjacent official facts 的 research-target ranking 能输出稳定 context/candidate id 和 feature breakdown，并有独立 ranking calibration label 表记录 useful target、方向错误、品牌/披露中心偏差、需要更多上下文或不相关；这些 label 不写 fact edge，也不把 rank 解释成概率
-[ ] ranking calibration run 能在样本量足够后输出 precision / recall / bias summary / reliability bucket，并把未校准 rank 继续标为 candidate-generation only
-[ ] 人工 gold set 样本量足够并完成季度 precision 校准
+SupplyStrata 已经是证据优先的供应链情报后端 alpha，
+具备事实、观测、unknown、risk baseline、source monitor、research-pack 和 API contract。
 ```
 
-边界：
-
-- 概率模型只能生成 `risk_view`、`alert_priority` 或 `investigation_priority`。
-- 不允许用概率模型提升 `evidence_level`。
-- 不允许用概率模型自动写入 fact edge。
-- 没有校准样本的概率输出必须标 `experimental`。
-
-详见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md) 的 `Probabilistic Intelligence Layer`。
-
-## 当前状态盘点
-
-不要用单个百分比替代 gate 判断。当前最准确的描述是：
+当前还不能说：
 
 ```text
-中期 intelligence network 骨架基本成立；
-财报指标、关系强度/新鲜度、风险 baseline、source worker/alert baseline 已落地；
-claim fusion baseline、observation coverage、source target coverage、official disclosure target-node/profile readiness、profile expansion backlog 和 attention queue 已可在 research-pack 里复现；
-但官方披露事实覆盖规模、真实样本校准、API、安全 agent 和质量/性能 gate 仍未完成。
-作为早期供应链情报底座可以展示；
-作为全球级综合监控、风险提示、动态追踪和货物流向系统仍明显不足。
+SupplyStrata 已经是全球供应链监控、风险提示、动态追踪、货物流向综合情报系统。
 ```
 
-| 能力                        | 当前状态                                                                                                            | 判断                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| SEC / 10-K 事实边           | 已可用                                                                                                              | 事实底座成立                                                          |
-| 10-Q / 8-K plan/fetch       | 已接入                                                                                                              | 尚需深度语义变化                                                      |
-| Apple Supplier review/apply | 纵向链路已通                                                                                                        | 设施边需要继续做厚                                                    |
-| IR 年报页面                 | TSMC/Samsung/SK hynix/ASML preview                                                                                  | 官方上下文可用，事实边偏薄                                            |
-| Claim / Observation / Lead  | 已建骨架                                                                                                            | 需要时序、融合、风险派生                                              |
-| ChainView / Workbench       | 已可视化第一版                                                                                                      | 不是正式前端，不是完整分析系统                                        |
-| Research Pack readiness     | question / observation / official disclosure readiness 已输出                                                       | 只能说明当前 pack 是否够用，不能替代真实覆盖扩容                      |
-| Census / WorldBank          | 第一版 observation target                                                                                           | 需要变化检测与 ComponentCard 深接                                     |
-| DART / EDINET / TWSE        | DART 已接 metadata monitor；EDINET 已接 daily-filings metadata monitor；TWSE 已接 electronic-documents 目录 monitor | 韩日台监管披露已能进入 target/readiness；正文解析和公司级筛选仍是短板 |
-| 新闻 / 政策 / 制裁          | registry/计划层                                                                                                     | 信号层短板                                                            |
-| 图算法 / 风险视图           | deterministic baseline 已实现                                                                                       | 真实样本校准、阈值治理和加权路径冗余治理仍是核心缺口                  |
-| API / 告警 / worker         | 告警/worker baseline 已实现                                                                                         | API 与通知通道仍是产品化后端缺口                                      |
-| 货物流向                    | source-plan / observation 起步                                                                                      | AIS/BOL/港口/HS flow 只能先做 observation/lead                        |
+缺口主要在：
 
-## 后续执行顺序
-
-### Phase A — 先把现有数据跑深
-
-不急着继续堆新源，先把已有官方披露和财报变成指标与强度。
-
-```text
-1. SEC companyfacts / XBRL 指标读取
-2. 财报指标时序与同行横向
-3. relation strength / freshness schema
-4. claim 多源融合 ADR + 第一版实现
-```
-
-### Phase B — 官方披露扩源
-
-```text
-1. DART-KR
-2. EDINET
-3. 一个非美日韩市场披露源
-4. adapter contract tests
-```
-
-### Phase C — Observation / Signal 层
-
-```text
-1. Census / USITC trade flow 深接 ComponentCard / ChainView
-2. EIA / FRED / WorldBank commodity/energy
-3. route / port / HS flow observation，不直接生成公司货物流事实边
-4. GDELT news lead
-5. BIS / OFAC / EU sanctions policy observation
-6. observation anomaly detection
-```
-
-### Phase D — Risk View
-
-```text
-1. HHI / concentration
-2. path redundancy
-3. centrality / bottleneck
-4. exposure model
-5. risk_view API / workbench display
-```
-
-### Phase E — 持续监控产品化
-
-```text
-1. worker queue
-2. alert rules
-3. read API
-4. official frontend / host app integration
-5. safe agent layer
-```
-
-## 后端完成判定
-
-只有下面这句话成立时，才可以说后端基本完成：
-
-```text
-给定一个公司、组件或外部事件，系统能用公开源自动维护事实图谱，
-用结构化观测解释变化，用风险派生视图计算暴露和瓶颈，
-用 unknown map 说明盲区，把上游材料/设备/设施/工艺 frontier 和时间窗口准备成结构化 reasoning inputs，
-并通过 API / Workbench 给下游前端研究员和安全 AI 可靠消费。
-```
-
-现在还不能这么说。当前更准确的状态是：
-
-```text
-事实图谱与研究工作台骨架成立；
-后端正在从 evidence graph 迈向 intelligence network；
-风险监控层尚未完成。
-```
+- 官方事实覆盖规模。
+- 真实样本校准。
+- 正式 HTTP/API 消费路径。
+- 内部 AI 只读分析层。
+- 通知/告警消费入口。
+- 货物流向与上游材料 observation 深度。

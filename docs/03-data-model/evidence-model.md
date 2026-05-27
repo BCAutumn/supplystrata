@@ -190,7 +190,7 @@ MVP 实现里 `extraction_method` 从 `extractor_id` 前缀派生：`rule.*` →
 | 是否可自动 promote   | 否（需 review）      | 是（可随新证据自动调整）     |
 | 是否影响默认输出过滤 | 是                   | 不直接（但低置信会显式标注） |
 
-详见 [confidence-scoring.md](./confidence-scoring.md)。
+`confidence` 是证据/抽取置信度，不是风险概率；派生统计和校准边界见 [intelligence-methodology.md](./intelligence-methodology.md)。
 
 ## 与风险方法学的边界
 
