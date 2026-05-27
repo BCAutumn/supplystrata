@@ -651,7 +651,7 @@ POST /review/:id/reject
 [x] research-pack 能输出 `consumer-read-model.json`，作为 Gate 8-lite 稳定只读消费契约，覆盖 company / chain / pack / changes / derived context / risk / unknown / backlog / next actions / constraint context
 [x] research-pack 能输出 `reasoning-walkthrough.json/md`，把 propagation matrix 转成已知事实、明确 unknown、受限证据、下一步动作和不能说的结论，且保持 deterministic/read-only/no AI
 [x] source registry / source-plan 已登记 OFAC sanctions、BIS Entity List、EU sanctions 作为 P0 policy constraint context；它们当前只具备 observation-only/alert-context 权限，不具备 fact edge 写入权限
-[ ] policy / sanctions / export-control connector fast lane 能从官方源抓取结构化约束事件并写入 alert candidate / policy constraint context，仍不写 fact edge
+[x] policy / sanctions connector fast lane 第一版已接通 OFAC SDN：source-check 抓取官方 XML 快照，按 target_names 精确规范化匹配写入 `POLICY_OBSERVATION`，`refreshAlertCandidates()` 生成 `policy_constraint` alert candidate；未命中不写 clean 结论，BIS / EU 仍待后续结构化 connector，且全链路不写 fact edge
 [x] AI compute propagation matrix 能输出 `evidence_layer_summary`，把 fact edge / observation / lead / unknown / source target / official evidence gap 分开解释，并显式列出允许输出和禁止 truth-store 写入
 [x] AI compute propagation matrix 能输出 `source_target_groups`，把 official evidence、observation proxy、entity/facility context 和 lead/manual review 分开，防止后续消费层误把所有 source target 当成同等官方证据
 [x] AI compute propagation matrix 能输出 `source_target_status_summary`，把每一层 source target 的 runnable / blocked / degraded / missing credentials / source failed 状态结构化暴露出来

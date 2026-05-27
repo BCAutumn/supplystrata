@@ -640,7 +640,7 @@ risk_metrics
 ```text
 alert_candidates
   alert_id
-  alert_kind: observation_anomaly | source_failure | component_risk
+  alert_kind: observation_anomaly | source_failure | component_risk | policy_constraint
   severity: low | medium | high | critical
   status: open | acknowledged | resolved | suppressed
   scope_kind / scope_id
@@ -662,6 +662,7 @@ alert_candidates
 - `observation_anomaly` 来自 `change_records.change_type='OBSERVATION_ANOMALY'`，必须引用 observation 和 risk view。
 - `source_failure` 来自 `source_change_events.event_type='SOURCE_FAILED'`，必须引用 source event 和 source adapter。
 - `component_risk` 来自 `risk_metrics` 中的 `single_source_exposure`、高 HHI 或 node knockout baseline，必须引用 risk view / metric。
+- `policy_constraint` 来自 `POLICY_OBSERVATION`，第一版由 OFAC SDN 精确命中生成，必须引用 observation；它是制裁/管制约束上下文，不是供应链 fact edge。
 - `dedupe_key` 是业务幂等键；重复 refresh 只能更新同一 alert candidate，不能刷出重复告警。
 - `status` 是 alert 自身的维护状态；`open / acknowledged / resolved / suppressed` 的变更必须通过 alert lifecycle repository 写入，并记录 `change_records.change_type='ALERT_STATUS_CHANGED'`。
 - `ALERT_STATUS_CHANGED` 使用 `scope_kind='alert'` / `scope_id=alert_id`，用于 changes timeline 审计“谁在什么原因下处理了这个告警”。

@@ -27,6 +27,7 @@ import { sql as migration0025SourceCheckJobLeaseSql } from "./migration-sql/0025
 import { sql as migration0026ClaimHumanEditGuardSql } from "./migration-sql/0026_claim_human_edit_guard.js";
 import { sql as migration0027ObservationCalibrationSql } from "./migration-sql/0027_observation_calibration.js";
 import { sql as migration0028RankingCalibrationSql } from "./migration-sql/0028_ranking_calibration.js";
+import { sql as migration0029PolicyConstraintAlertKindSql } from "./migration-sql/0029_policy_constraint_alert_kind.js";
 
 export interface Migration {
   readonly id: string;
@@ -174,6 +175,11 @@ const MIGRATIONS: readonly Migration[] = [
     id: "0028_ranking_calibration",
     description: "Create ranking calibration labels for review-only research target candidate gold sets.",
     sql: migration0028RankingCalibrationSql
+  },
+  {
+    id: "0029_policy_constraint_alert_kind",
+    description: "Allow policy constraint alert candidates from sanctions and export-control observations.",
+    sql: migration0029PolicyConstraintAlertKindSql
   }
 ];
 

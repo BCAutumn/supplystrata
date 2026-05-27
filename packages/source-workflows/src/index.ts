@@ -16,6 +16,8 @@ export {
   twseMopsAdapter
 } from "./twse-mops-checks.js";
 export type { TwseMopsDocumentKind, TwseMopsElectronicDocumentEntry, TwseMopsElectronicDocumentsInput } from "./twse-mops-checks.js";
+export { createOfacSanctionsAdapterContext, matchOfacSanctionsEntries, ofacSanctionsAdapter, parseOfacSdnEntries } from "./ofac-sanctions-checks.js";
+export type { OfacSanctionsEntry, OfacSanctionsInput, OfacSanctionsMatch } from "./ofac-sanctions-checks.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
 export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
 export {

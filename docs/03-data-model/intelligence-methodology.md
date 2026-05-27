@@ -199,7 +199,7 @@ Observation 不是关系。它回答：
 
 `official_disclosure_signal` 由 source-check / pipeline 在保存官方文档后生成 review candidate。它只把已有文档中的可引用句子推进到人工复核队列，帮助研究员寻找 corroboration、补 claim 或记录 unknown；即使 approved，也只能 acknowledge 并写审计 change，不能自动生成供应链事实边。
 
-`policy_event` 是 constraint context，不是供应链关系。OFAC sanctions、BIS Entity List、EU sanctions 这类官方来源可以触发 alert candidate、policy constraint 或 investigation priority，但不能直接写 `edges`，也不能把“未命中清单”解释成“没有政策风险”。它们的 source registry / source-plan relation policy 必须保持 observation-only 或 constraint-only，直到未来有单独的 policy constraint store 和人工/规则审查闭环。
+`policy_event` 是 constraint context，不是供应链关系。OFAC sanctions、BIS Entity List、EU sanctions 这类官方来源可以触发 alert candidate、policy constraint 或 investigation priority，但不能直接写 `edges`，也不能把“未命中清单”解释成“没有政策风险”。第一版 fast lane 只把 OFAC SDN 的精确规范化命中写入 `POLICY_OBSERVATION`，再由 `refreshAlertCandidates()` 生成 `policy_constraint` alert candidate；未命中不会写“clean”结论，BIS / EU 仍保持 source-plan/registry 骨架，等待对应结构化 connector。
 
 #### Propagation Context Methodology
 

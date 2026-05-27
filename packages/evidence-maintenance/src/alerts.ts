@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { RiskMetricKind } from "@supplystrata/core";
 import type { AlertSeverity, DbClient } from "@supplystrata/db/read";
 import { upsertAlertCandidate, type DatabaseStore, type DbTxClient, type UpsertAlertCandidateInput } from "@supplystrata/db/write";
-import type { ComponentRiskMetricAlertRow, ObservationAnomalyChangeRow, SourceFailureEventRow } from "./db-rows.js";
+import type { ComponentRiskMetricAlertRow, ObservationAnomalyChangeRow, PolicyConstraintObservationAlertRow, SourceFailureEventRow } from "./db-rows.js";
 
 export interface ComponentRiskAlertPolicyInput {
   metric_kind: RiskMetricKind;
@@ -65,6 +65,7 @@ export interface AlertCandidateRefreshSummary {
   observation_anomaly_alerts: number;
   source_failure_alerts: number;
   component_risk_alerts: number;
+  policy_constraint_alerts: number;
   generated_by: string;
   since: string;
 }
@@ -121,12 +122,13 @@ export async function refreshAlertCandidates(client: DbTxClient, input: RefreshA
   const limit = input.limit ?? 1000;
   if (!Number.isInteger(limit) || limit <= 0) throw new Error(`Alert refresh limit must be a positive integer: ${limit}`);
   const generatedBy = input.generated_by ?? "evidence-maintenance.alert-rules.v1";
-  const [observationAlerts, sourceAlerts, componentAlerts] = await Promise.all([
+  const [observationAlerts, sourceAlerts, componentAlerts, policyAlerts] = await Promise.all([
     observationAnomalyAlertDrafts(client, { since, limit, generatedBy }),
     sourceFailureAlertDrafts(client, { since, limit, generatedBy }),
-    componentRiskAlertDrafts(client, { since, limit, generatedBy })
+    componentRiskAlertDrafts(client, { since, limit, generatedBy }),
+    policyConstraintAlertDrafts(client, { since, limit, generatedBy })
   ]);
-  const drafts = [...observationAlerts, ...sourceAlerts, ...componentAlerts];
+  const drafts = [...observationAlerts, ...sourceAlerts, ...componentAlerts, ...policyAlerts];
   let inserted = 0;
   let updated = 0;
   for (const draft of drafts) {
@@ -145,6 +147,7 @@ export async function refreshAlertCandidates(client: DbTxClient, input: RefreshA
     observation_anomaly_alerts: observationAlerts.length,
     source_failure_alerts: sourceAlerts.length,
     component_risk_alerts: componentAlerts.length,
+    policy_constraint_alerts: policyAlerts.length,
     generated_by: generatedBy,
     since
   };
@@ -267,6 +270,54 @@ async function componentRiskAlertDrafts(client: DbClient, input: { since: string
   });
 }
 
+async function policyConstraintAlertDrafts(
+  client: DbClient,
+  input: { since: string; limit: number; generatedBy: string }
+): Promise<UpsertAlertCandidateInput[]> {
+  const result = await client.query<PolicyConstraintObservationAlertRow>(
+    `SELECT observation_id, created_at, source_adapter_id, scope_kind, scope_id,
+            metric_name, confidence, provenance, attrs
+     FROM observations
+     WHERE observation_type = 'POLICY_OBSERVATION'
+       AND created_at >= $1::timestamptz
+       AND (
+         attrs->>'alert_candidate_eligible' = 'true'
+         OR attrs->>'constraint_kind' IN ('sanctions','export_control')
+       )
+     ORDER BY created_at DESC, observation_id
+     LIMIT $2`,
+    [input.since, input.limit]
+  );
+  return result.rows.map((row) => {
+    const constraintSource = stringField(row.attrs, "constraint_source") ?? row.source_adapter_id;
+    const constraintKind = stringField(row.attrs, "constraint_kind") ?? "policy";
+    const matchedName = stringField(row.provenance, "matched_name") ?? row.scope_id;
+    const dedupeKey = `policy_constraint:${row.observation_id}`;
+    return {
+      alert_id: deterministicAlertId(dedupeKey),
+      alert_kind: "policy_constraint",
+      severity: policyConstraintSeverity(row),
+      scope_kind: row.scope_kind,
+      scope_id: row.scope_id,
+      title: `Policy constraint: ${constraintSource}`,
+      summary: `${constraintSource} ${constraintKind} observation matched ${matchedName} and needs review before any operational conclusion.`,
+      dedupe_key: dedupeKey,
+      observation_id: row.observation_id,
+      source_adapter_id: row.source_adapter_id,
+      detected_at: row.created_at.toISOString(),
+      provenance: { rule: "alert-rules.policy-constraint.v1", generated_by: input.generatedBy },
+      attrs: {
+        source_observation_type: "POLICY_OBSERVATION",
+        metric_name: row.metric_name,
+        confidence: row.confidence,
+        observation_provenance: row.provenance,
+        observation_attrs: row.attrs,
+        fact_edge_policy: "policy_constraint_alert_cannot_create_supply_chain_edge"
+      }
+    };
+  });
+}
+
 function evaluateComponentRiskAlert(metricKind: RiskMetricKind, value: number | undefined, attrs: Record<string, unknown>): ComponentRiskAlertPolicyDecision {
   if (metricKind === "single_source_exposure") {
     return evaluateNumericComponentRiskMetric(metricKind, value, { medium: 1, high: 1, source: "metric_value" });
@@ -363,6 +414,13 @@ function alertSeverityFromAnomaly(value: string | undefined): AlertSeverity {
 function sourceFailureSeverity(attrs: Record<string, unknown>): AlertSeverity {
   const failureCount = numberField(attrs, "failure_count");
   return failureCount !== undefined && failureCount >= 3 ? "high" : "medium";
+}
+
+function policyConstraintSeverity(row: PolicyConstraintObservationAlertRow): AlertSeverity {
+  const constraintKind = stringField(row.attrs, "constraint_kind");
+  if (constraintKind === "sanctions" && row.confidence >= 0.9) return "critical";
+  if (constraintKind === "export_control" && row.confidence >= 0.9) return "high";
+  return "medium";
 }
 
 function deterministicAlertId(dedupeKey: string): string {

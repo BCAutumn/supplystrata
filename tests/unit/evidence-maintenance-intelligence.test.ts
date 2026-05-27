@@ -813,17 +813,18 @@ describe("evidence-maintenance intelligence refresh", () => {
     });
 
     expect(summary).toMatchObject({
-      scanned: 4,
-      upserted: 4,
-      inserted: 4,
+      scanned: 5,
+      upserted: 5,
+      inserted: 5,
       updated: 0,
       observation_anomaly_alerts: 1,
       source_failure_alerts: 1,
       component_risk_alerts: 2,
+      policy_constraint_alerts: 1,
       generated_by: "unit-test"
     });
     const alertInserts = client.calls.filter((call) => call.sql.includes("INSERT INTO alert_candidates"));
-    expect(alertInserts).toHaveLength(4);
+    expect(alertInserts).toHaveLength(5);
     expect(alertInserts.some((call) => call.params[1] === "observation_anomaly" && call.params[9] === "RSK-OBS-1")).toBe(true);
     expect(alertInserts.some((call) => call.params[1] === "source_failure" && call.params[13] === "sec-edgar")).toBe(true);
     expect(alertInserts.some((call) => call.params[1] === "component_risk" && call.params[10] === "RKM-SINGLE" && call.params[2] === "high")).toBe(true);
@@ -837,6 +838,10 @@ describe("evidence-maintenance intelligence refresh", () => {
       high_threshold: 0.8,
       value_source: "metric_attrs.weighted_path_centrality_score"
     });
+    const policyConstraintAlert = alertInserts.find((call) => call.params[1] === "policy_constraint");
+    expect(policyConstraintAlert?.params[2]).toBe("critical");
+    expect(policyConstraintAlert?.params[8]).toBe("OBS-OFAC-MATCH");
+    expect(jsonObjectFromParam(policyConstraintAlert?.params[16])["fact_edge_policy"]).toBe("policy_constraint_alert_cannot_create_supply_chain_edge");
     expect(alertInserts.some((call) => call.params[10] === "RKM-WEIGHTED-BELOW")).toBe(false);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
@@ -1917,6 +1922,31 @@ function rowsForAlertRules<T extends pg.QueryResultRow>(sql: string, params: rea
         value: "0.100000",
         confidence: 0.75,
         attrs: { weighted_impact_score: 0.1 }
+      }
+    ] as unknown as T[];
+  }
+
+  if (sql.includes("FROM observations") && sql.includes("POLICY_OBSERVATION")) {
+    expect(params).toEqual(["2026-05-01T00:00:00.000Z", 50]);
+    return [
+      {
+        observation_id: "OBS-OFAC-MATCH",
+        created_at: new Date("2026-05-19T00:15:00.000Z"),
+        source_adapter_id: "ofac-sanctions",
+        scope_kind: "company",
+        scope_id: "ENT-ACME",
+        metric_name: "ofac_sdn.match",
+        confidence: 0.96,
+        provenance: {
+          matched_name: "ACME SEMICONDUCTOR CO., LTD.",
+          matched_target_name: "ACME Semiconductor Co Ltd",
+          uid: "123"
+        },
+        attrs: {
+          constraint_kind: "sanctions",
+          constraint_source: "OFAC_SDN",
+          alert_candidate_eligible: true
+        }
       }
     ] as unknown as T[];
   }

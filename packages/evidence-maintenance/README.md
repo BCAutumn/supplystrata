@@ -13,6 +13,7 @@
 - 物化 official signal disposition 中的 `record_single_source_unknown`。
 - 物化 Gate 1 递归研究根实体的 coverage unknown：当一个研究入口已经进入目标链路，但没有任何 reviewed L4/L5 fact edge 且没有 open entity unknown 时，只写 explicit unknown，不写事实边。
 - 刷新 component risk、alert、calibration、observation anomaly 等派生视图。
+- 从 `POLICY_OBSERVATION` 生成 `policy_constraint` alert candidate；它只把制裁/管制命中变成可审阅告警，不写事实边。
 
 ## 不负责什么
 

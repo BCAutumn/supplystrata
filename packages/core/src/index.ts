@@ -118,7 +118,7 @@ export const RISK_METRIC_KINDS = [
 
 export type RiskMetricKind = (typeof RISK_METRIC_KINDS)[number];
 
-export const ALERT_KINDS = ["observation_anomaly", "source_failure", "component_risk"] as const;
+export const ALERT_KINDS = ["observation_anomaly", "source_failure", "component_risk", "policy_constraint"] as const;
 
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
@@ -233,7 +233,7 @@ export interface AliasRecord {
 export interface FetchTask {
   task_id: string;
   url: string;
-  expected_format: "html" | "pdf" | "json" | "csv" | "xbrl" | "excel";
+  expected_format: "html" | "pdf" | "json" | "csv" | "xbrl" | "excel" | "xml";
   params?: Record<string, unknown>;
   hint?: { entity_id?: string; document_type?: DocumentType; period?: string };
 }

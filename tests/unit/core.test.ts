@@ -7,6 +7,7 @@ import {
   EXTRACTOR_ID_PREFIXES,
   LEAD_TYPES,
   OBSERVATION_TYPES,
+  ALERT_KINDS,
   RANKING_CALIBRATION_LABELS,
   SEMANTIC_LAYERS,
   calculateEdgeFreshness,
@@ -41,6 +42,7 @@ describe("core intelligence-network contract constants", () => {
     expect(OBSERVATION_TYPES).toContain("PORT_ACTIVITY_OBSERVATION");
     expect(LEAD_TYPES).toContain("BOL_SINGLE_RECORD");
     expect(LEAD_TYPES).toContain("UNVERIFIED_FACILITY_SIGNAL");
+    expect(ALERT_KINDS).toContain("policy_constraint");
   });
 
   it("supports chain endpoints beyond company-to-company graph edges", () => {

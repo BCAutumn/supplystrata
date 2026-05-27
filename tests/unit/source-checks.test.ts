@@ -23,7 +23,8 @@ describe("source check registry", () => {
         "twse-mops/electronic-documents",
         "census-trade/trade-flow-observation",
         "osh/facility-search",
-        "worldbank-pink/commodity-price-observation"
+        "worldbank-pink/commodity-price-observation",
+        "ofac-sanctions/policy-constraint-observation"
       ])
     );
     expect(listRegisteredSourceCheckConnectorCapabilities()).toEqual(
@@ -67,6 +68,11 @@ describe("source check registry", () => {
           source_adapter_id: "twse-mops",
           target_kind: "electronic-documents",
           key: "twse-mops/electronic-documents"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "ofac-sanctions",
+          target_kind: "policy-constraint-observation",
+          key: "ofac-sanctions/policy-constraint-observation"
         })
       ])
     );

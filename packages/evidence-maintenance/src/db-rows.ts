@@ -70,6 +70,18 @@ export interface ComponentRiskMetricAlertRow extends pg.QueryResultRow {
   attrs: Record<string, unknown>;
 }
 
+export interface PolicyConstraintObservationAlertRow extends pg.QueryResultRow {
+  observation_id: string;
+  created_at: Date;
+  source_adapter_id: string;
+  scope_kind: string;
+  scope_id: string;
+  metric_name: string;
+  confidence: number;
+  provenance: Record<string, unknown>;
+  attrs: Record<string, unknown>;
+}
+
 export interface EdgeCalibrationSampleRow extends pg.QueryResultRow {
   label_id: string;
   edge_id: string;

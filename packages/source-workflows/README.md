@@ -5,7 +5,7 @@
 ## 负责什么
 
 - 注册并运行已支持的 source check connector。
-- 为 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF 等来源提供 workflow 入口。
+- 为 SEC、官方 IR、DART-KR、EDINET、TWSE MOPS、Apple Supplier List、GLEIF、OFAC sanctions 等来源提供 workflow 入口。
 - 执行无数据库 `source-plan` connectivity smoke。
 - 在 smoke normalize 成功后运行只读 observation / semantic section 抽取，输出每份文档的抽取潜力计数；这只是数据准备信号，不写库、不生成事实边。
 - 通过窄接口把 document observation 持久化委托给上层注入的 port。
@@ -29,6 +29,10 @@
 ## 手动检查约定
 
 `runManualSourceCheck` 在没有显式 `check_target_id` 时，会登记一个 disabled manual target。这样手动 DB-backed check 仍有稳定的 source event / observation 归属，也能复用统一的 `next_check_at` 计算；但它不会被自动调度，避免一次性研究动作悄悄变成持续监控任务。
+
+## Policy Constraint Fast Lane
+
+`ofac-sanctions/policy-constraint-observation` 是第一条制裁/管制 fast lane。它抓取 OFAC SDN 官方 XML 快照，只对 target config 中的 `target_names` 做精确规范化命中；命中写入 `POLICY_OBSERVATION`，并标记 `policy_constraint_cannot_create_supply_chain_edge`。未命中不会写“无风险”或“clean”结论，后续只能由 alert / review / risk context 消费，不能自动写 fact edge。
 
 ## Source-plan smoke
 

@@ -29,6 +29,12 @@ import {
   skHynixIrInputFromConfig,
   tsmcIrInputFromConfig
 } from "./official-ir-checks.js";
+import {
+  createOfacSanctionsAdapterContext,
+  ofacSanctionsAdapter,
+  ofacSanctionsInputFromConfig,
+  ofacSanctionsSourceCheckConnector
+} from "./ofac-sanctions-checks.js";
 import { oshInputFromConfig, oshSourceCheckConnector } from "./osh-checks.js";
 import {
   secCompanyFactsInputFromTargetConfig,
@@ -161,6 +167,12 @@ export const SOURCE_CHECK_CATALOG = [
     adapter: worldBankPinkAdapter,
     inputFromConfig: worldBankPinkInputFromConfig,
     createContext: (runtime) => createWorldBankPinkAdapterContext(runtime.adapterContextInput)
+  }),
+  sourceCheckCatalogEntry({
+    connector: ofacSanctionsSourceCheckConnector,
+    adapter: ofacSanctionsAdapter,
+    inputFromConfig: ofacSanctionsInputFromConfig,
+    createContext: (runtime) => createOfacSanctionsAdapterContext(runtime.adapterContextInput)
   })
 ] as const;
 
