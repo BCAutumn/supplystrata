@@ -46,11 +46,20 @@
 
 ## LLM / AI 边界
 
-- LLM 只做候选抽取、片段定位、只读解释。
+核心架构：
+
+- 核心代码**不内置 agent loop**；`@supplystrata/agent` 是独立 npm 包，optional dependency。
+- 核心 LLM 调用**只能经过 `@supplystrata/llm-helpers`**，全局可禁用；任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import 该包。
+- 外部 agent（Cursor / Claude Desktop / 自建）通过 MCP 接入；MCP write tools 必须标 `requires_user_confirmation`，agent 不能自动批准。
+- 详见 [decisions.md](../10-decisions/decisions.md) #3、#7、#9。
+
+执行约束：
+
+- LLM 只做候选抽取、片段定位、只读解释、entity 消歧、dynamic profile derive、source target 建议。
 - LLM 输出必须有 cite text，且不能生成 Level 5。
-- 内部 AI 不写 truth store、不审批 review、不关闭 unknown。
-- 外部 AI 只读消费，不提供回写接口。
-- 不公开未脱敏 prompt / response。
+- LLM 不写本地 cache、不审批 review、不关闭 unknown、不修改 fact edge。
+- 外部 AI 不提供 evidence / review / 爬虫结果回写接口；MCP 暴露的写工具只能触发受控 source-check 或研究 run，不能直接写事实。
+- 不公开未脱敏 prompt / response；prompt / output hash 写入 `ai_analysis_runs` 审计表。
 
 ## License
 

@@ -232,13 +232,21 @@ confidence = clip(base + 0.2 * strength + adjust, 0, 1)
 
 1. 新证据本身 evidence_level >= 目标 level
 2. 新证据来源与原有证据不同 source_adapter_id
-3. 新证据通过 review（即使是高 level 自动通过的来源也要写一行 ChangeRecord）
+3. 任何写入必须产生 ChangeRecord（无论自动还是 review）
+
+**默认写入策略**（与 [decisions.md](../10-decisions/decisions.md) #13 一致）：
+
+- `extractor 是 rule AND source 是官方 AND evidence_level ≥ 4` → **自动写入**，不要求人工 review
+- 双源 corroboration（独立官方源命中同一关系）任一来源是 LLM 抽取的，**仍可自动写入**
+- LLM 单源抽取 / 弱源 / 单一来源 / 有冲突 → 留作 `review_candidates`，由调用 agent 或用户决定
+- Review queue 仍然存在（`@supplystrata/review-store`），但是 **opt-in 高风险部署模式**，不是默认体验
 
 **禁止**：
 
-- 仅靠"多个 LLM 抽取一致"就把 level 升到 4
-- 仅因为时间过去得久了就降级（关系可能仍然有效）
+- 仅靠"多个 LLM 抽取一致"就把 level 升到 4（必须有独立官方源）
+- 仅因为时间过去得久了就降级（关系可能仍然有效；走 freshness 派生层而不是改 evidence_level）
 - 自动 promote 之后回头修改老 evidence 的 level（老的不动，新的加入）
+- 让 LLM 直接产生 Level 5（任何路径都不允许；见 methodology 的"LLM Helper 边界"）
 
 ## 等级降级（demotion）
 

@@ -7,19 +7,21 @@
 第一次接手只读下面这些：
 
 1. [00-overview/overview.md](./00-overview/overview.md) — 定位、边界、术语。
-2. [03-data-model/intelligence-methodology.md](./03-data-model/intelligence-methodology.md) — 情报方法学边界。
-3. [06-development/backend-completion-criteria.md](./06-development/backend-completion-criteria.md) — 后端完成 gate。
-4. [02-architecture/module-design.md](./02-architecture/module-design.md) — 模块和 package 边界。
-5. [02-architecture/data-flow.md](./02-architecture/data-flow.md) — 从 source 到 evidence / graph / research output 的主链路。
-6. [03-data-model/schema.md](./03-data-model/schema.md) — truth store / derived view schema。
-7. [04-data-sources/source-registry.md](./04-data-sources/source-registry.md) — 数据源权威表。
-8. [06-development/quickstart.md](./06-development/quickstart.md) — 本地运行入口。
+2. [10-decisions/decisions.md](./10-decisions/decisions.md) — 架构决策（其它文档都基于此）。
+3. [02-architecture/data-flow.md](./02-architecture/data-flow.md) — 端到端 9 步主流程。
+4. [03-data-model/intelligence-methodology.md](./03-data-model/intelligence-methodology.md) — 方法学 + Fact 写入不变式 + LLM helper 边界。
+5. [02-architecture/module-design.md](./02-architecture/module-design.md) — 模块和 package 边界。
+6. [06-development/backend-completion-criteria.md](./06-development/backend-completion-criteria.md) — 后端完成 gate。
+7. [03-data-model/schema.md](./03-data-model/schema.md) — 本地 cache + audit ledger schema。
+8. [04-data-sources/source-registry.md](./04-data-sources/source-registry.md) — 数据源权威表。
+9. [06-development/quickstart.md](./06-development/quickstart.md) — 本地运行入口。
 
 ## 活动文档
 
 ### Overview
 
 - [overview.md](./00-overview/overview.md)
+- [competitive-landscape.md](./00-overview/competitive-landscape.md)
 
 ### Architecture
 

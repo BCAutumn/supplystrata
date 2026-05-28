@@ -1,42 +1,49 @@
 # Module Design — 当前模块边界与接口契约
 
-本文描述当前代码库真实模块边界。它不是早期 MVP 包清单，也不是所有实现细节的流水账；审计时应以这里的边界判断“高内聚、低耦合、事实层和派生层是否分离”。
+本文描述代码库真实模块边界与目标架构。它不是早期 MVP 包清单，也不是所有实现细节的流水账；审计时应以这里的边界判断"高内聚、低耦合、事实层和派生层是否分离"。
+
+本文反映 2026-05-28 产品定位重构后的目标架构（详见 [decisions.md](../10-decisions/decisions.md) #7–#15）。标记为**新增**的 package 在 v0.x 内陆续落地；旧 `apps/api` REST 路径和 `seed-entities` 路径在 MCP / registry bootstrap 落地后逐步迁出。
 
 核心原则：
 
-- Postgres / `@supplystrata/db` 是 truth store；图、报告、risk/intelligence 都是可重建视图或派生层。
-- fact edge 只能来自可追溯 evidence 和受控 review/apply 流程；LLM、observation、lead、source health、risk metric 都不能直接写 fact edge。
+- **MCP-first**：唯一对外 surface 是 MCP server (`@supplystrata/mcp`)；REST/OpenAPI 推迟到 v1.x（#7）。
+- **No agent in core**：核心代码不内置 agent loop；`@supplystrata/agent` 是独立 optional 包（#9）。
+- **LLM helper 唯一入口**：核心所有 LLM 调用必须经过 `@supplystrata/llm-helpers`；任何写 `edges`/`evidence`/`claims` 的代码路径不允许 import 它（#3）。
+- **Postgres = 本地 cache + audit ledger**，不是 truth store；truth 永远在官方源；可从官方源 + community-pack 重建（#2、#8）。
+- **fact edge 只能来自可追溯 evidence + evidence-gated promote**；LLM、observation、lead、source health、risk metric、AI 输出都不能直接写 fact edge（#3、#13）。
 - `evidence_level` 不是 `risk_score`。风险、强度、新鲜度、异常和 alert 只属于派生层。
-- CLI、worker、HTML report 都是入口或输出层；业务编排应下沉到 package use-case。
+- CLI、worker、MCP、HTML report 都是入口或输出层；业务编排下沉到 package use-case。
 - package 数量已经偏多。新增能力优先放进现有 domain package 的 feature 文件，只有独立依赖、独立生命周期或独立消费价值明确时才新增 package。
 
-## 当前工作区结构
+## 工作区结构（当前 + 目标）
 
 ```text
 supplystrata/
 ├── apps/
 │   ├── cli/                 # 薄命令入口：参数解析、env/logger/db 装配、调用 use-case
-│   ├── api/                 # Gate 8 API 契约：路由、DTO 来源、OpenAPI；暂不承载 HTTP 服务
+│   ├── mcp/                 # 【新增，目标】MCP server：tools / resources / prompts；唯一对外 surface
 │   ├── worker/              # source-check 常驻 worker；复用 source-workflows
-│   └── research-preview/    # 本地 Workbench JSON 预览，不承载业务规则
+│   ├── web-demo/            # 【新增，目标】薄 demo（~100 行）拼接 @supplystrata/web 组件
+│   └── api/                 # 【迁移中】Gate 8 REST 契约 + DTO；逐步迁出到 mcp + scbom-spec；v1.x 前可保留
 ├── packages/
 │   ├── core/                # 纯领域类型、ID、证据等级、edge freshness 纯函数
 │   ├── config/              # app 边界显式读取环境和凭据配置
 │   ├── observability/       # logger port；库默认不应隐式读 env
-│   ├── db/                  # Postgres truth-store adapter、migration、read/write repository
+│   ├── db/                  # 本地 cache + audit ledger（旧称 truth-store）；migration、read/write repository
+│   ├── llm-helpers/         # 【新增】LLM 调用唯一入口：4 用法 (disambiguate/derive_profile/suggest_target/summarize_with_cite)；可全局禁用
 │   ├── source-registry/     # 权威数据源目录和 source metadata
 │   ├── source-adapter-spec/ # SourceAdapter / AdapterContext 契约
 │   ├── source-adapter-runtime/
 │   ├── source-connectors/   # source-check connector port / target config 契约
 │   ├── source-management/   # source catalog、policy/target config 校验
 │   ├── source-monitor/      # source_check_targets/jobs、health、coverage、调度状态
-│   ├── source-workflows/    # SEC/IR/DART/EDINET/TWSE/Apple/OSH 等公开源 use-case 编排
+│   ├── source-workflows/    # SEC/IR/DART/EDINET/TWSE/Apple/OSH 等公开源 use-case 编排；含 universal identity bootstrap
 │   ├── sources/*            # 仍保留独立生命周期的源 adapter：SEC、Apple、OSH、Census 等
 │   ├── source-plan/         # 根据组件/profile/registry 生成 source plan，不抓源不写库
-│   ├── component-context/   # 组件上游 taxonomy / dependency lead；不产 fact edge
+│   ├── component-context/   # 组件上游 taxonomy / dependency lead；不产 fact edge；接管原 seeds/components.csv
 │   ├── parsers/html|pdf|text/
 │   ├── source-normalizers/  # source document normalization glue
-│   ├── entity-source/       # 外部实体候选统一契约
+│   ├── entity-source/       # 外部实体候选统一契约（GLEIF / OpenFIGI / Wikidata 等）
 │   ├── entity-resolver/     # entity_id 解析；不写供应链事实
 │   ├── entity-import/       # 受控导入 alias / identifier / pending entity
 │   ├── relation-extractor/rule/
@@ -50,61 +57,90 @@ supplystrata/
 │   ├── graph-builder/       # fact edge / evidence / change 写入与图投影 outbox
 │   ├── pipeline/            # normalized document -> candidate/evidence/apply/review glue
 │   ├── review-candidates/   # review candidate DTO 与纯转换
-│   ├── review-store/        # review queue/disposition/change repository
+│   ├── review-store/        # review queue/disposition/change repository（review 现为 opt-in，#13）
 │   ├── claim-builder/       # claim draft/fusion/conflict/lifecycle
 │   ├── evidence-maintenance/# trace/intelligence/risk/unknown/calibration 派生维护 use-case
 │   ├── chain-view/          # 纯 ChainView DTO
 │   ├── chain-view-builder/  # DbClient -> ChainViewModel
 │   ├── card-builder/        # DbClient -> Company/Component/Chain/Evidence/Unknown card DTO
-│   ├── workbench-export/    # 稳定 Workbench JSON DTO
+│   ├── workbench-export/    # 稳定 Workbench JSON DTO；逐步对齐 SCBOM v0.x
 │   ├── research-pack/       # 研究包、Gate 1 readiness/backlog/run ledger/report artifact
+│   ├── ai-analysis/         # 【拆分计划】provider config + audit run 留核心；agent 行为迁出到 @supplystrata/agent
+│   ├── agent/               # 【新增，目标】reference agent（GPT-Researcher 形态），调本机 MCP；optional dep
+│   ├── web/                 # 【新增，目标】framework-agnostic 可嵌入可视化：Web Components + Canvas/SVG
 │   ├── data-quality/
 │   ├── render/
 │   ├── runtime-profile/
 │   ├── object-store/
 │   └── supplier-list/
 ├── docs/
-├── seeds/
+├── tests/
+│   └── fixtures/
+│       └── dev-entities/    # 【新增，目标】原 seeds/entities.csv + seeds/aliases.csv 迁入；仅 CI 用
+├── seeds/                   # 【废弃，目标】仅保留过渡占位；entity 走 registry bootstrap (#11)
+├── scbom-spec/              # 【新增，独立 repo，目标】SCBOM 开放交换格式 JSON Schema + 规范文档
 ├── data/                    # 本地原始/缓存数据，gitignored
-└── reports/                 # 本地生成报告，gitignored
+├── reports/                 # 本地生成报告，gitignored
+└── releases/                # 【新增，目标】community-pack parquet/sqlite 发布产物
 ```
 
 说明：
 
-- `packages/sources/asml-ir`、`samsung-ir`、`skhynix-ir`、`tsmc-ir` 已不再是 workspace package；如本地残留 `dist/` 文件，只是历史构建产物，不代表当前模块边界。
-- 当前没有 `llm-bridge` package，也没有 `parsers/xbrl` 或 `sidecars/xbrl-py`。AI / XBRL ZIP / PDF 正文解析属于后续能力，不能在审计中当成已实现边界。
+- `packages/sources/asml-ir`、`samsung-ir`、`skhynix-ir`、`tsmc-ir` 已不再是 workspace package；如本地残留 `dist/` 文件，只是历史构建产物。
+- `ai-analysis` 当前承担 provider config + AI artifact 写入双重职责。新形态下：provider config / `ai_analysis_runs` audit / cite-summarize helper 留在核心（迁入 `llm-helpers`）；"作为 agent 跑分析"行为迁出到 `@supplystrata/agent`。
+- `seed-entities` 在 [source-registry.md](../04-data-sources/source-registry.md) 已标 `deprecated`；生产代码不允许新增依赖该路径。
 - `reports/` 是本地输出目录，不属于代码模块；可清理、可重建。
+- `releases/` 是 community-pack 发布产物目录（按 `pack-YYYY.QN.parquet` 命名），分发通过 GitHub Release / 公开对象存储。
 
 ## 依赖方向
 
 ```text
-core
-  ↑
-db/read, db/write, source-registry, source-adapter-spec, graph-store, chain-view, render contracts
-  ↑
-sources/* + parsers/* + source-adapter-runtime
-  ↑
-source-workflows + source-management + source-monitor + source-plan
-  ↑
-pipeline + graph-builder + observation-store + review-store + claim-builder + evidence-maintenance
-  ↑
-chain-view-builder + card-builder + workbench-export + research-pack + data-quality
-  ↑
-apps/cli + apps/api + apps/worker + apps/research-preview
+Layer 1: 纯类型 + schema
+  core, scbom-spec (独立 repo)
+    ↑
+Layer 1.5: 共享世界知识 + 适配契约
+  db/read, db/write, source-registry, source-adapter-spec, graph-store, chain-view,
+  component-context, render contracts
+    ↑
+Layer 2: 数据获取 + 解析 + 抽取 + LLM helper
+  sources/* + parsers/* + source-adapter-runtime
+  source-workflows + source-management + source-monitor + source-plan
+  llm-helpers (唯一 LLM 入口)
+    ↑
+Layer 2.5: 事实写入 + 派生维护
+  pipeline + graph-builder + observation-store + review-store + claim-builder
+  evidence-maintenance
+    ↑
+Layer 3: 编排 + 输出 + 接入面
+  chain-view-builder + card-builder + workbench-export + research-pack + data-quality
+  ai-analysis (provider config + audit)
+  apps/mcp ← 唯一对外 surface
+    ↑
+Layer 4: 参考客户端（独立 release cadence，optional）
+  apps/cli + apps/worker + apps/web-demo
+  agent (调本机 MCP, 用户自带 LLM provider)
+  web (Web Components，调本机或远程 MCP HTTP)
 ```
 
 约束：
 
 - `core` 纯净：不得读 `.env`、不得实例化 logger、不得 fetch、不得访问文件系统。
+- `scbom-spec` 不依赖任何 SupplyStrata 包；它定义 schema，SupplyStrata 是它的参考实现之一（#10）。
+- `llm-helpers` 只对外暴露 4 个具名 helper；**任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import 它**（CI 通过 dep-check 拦截）。
 - `sources/*` 不直接写 Postgres / Neo4j；抓取、snapshot、normalize 后交由 workflow / pipeline / monitor 编排。
 - `source-plan` 只输出计划和 target suggestion；不抓源、不写库、不把弱源升级成事实。
 - `source-monitor` 只维护 source target/job/health/coverage 状态；不承载 connector 业务规则。
 - `source-workflows` 可以组合 adapter、connector、normalizer、observation persistence，但不得把 observation/lead 写成 fact edge。
+- `source-workflows` 的 **universal identity bootstrap** 走 GLEIF / OpenFIGI / Wikidata / 各国官方目录链路；US 走 SEC、KR 走 DART、JP 走 EDINET、TW 走 TWSE、HK 走 HKEX、UK 走 Companies House、EU 各国 OAM。这是 entity identity bootstrap，不是供应链事实写入。
 - `pipeline` 是 normalized document engine；它不直接依赖具体源，也不做 source policy 调度。
-- `graph-builder` 只能通过 `graph-store` port 做图投影；truth-store 写入以 Postgres 为准。
+- `graph-builder` 只能通过 `graph-store` port 做图投影；事实写入以 Postgres cache + audit ledger 为准（不再叫 truth store；#2）。
 - `workbench-export` 和 `research-pack` 是输出/研究编排层；默认只读，只有显式 prepare/refresh flag 才能调用受控派生维护 use-case。
+- `apps/mcp` 是 v0.x 唯一对外 surface；暴露 tools / resources / prompts，write tools 必须标 `requires_user_confirmation`。它只做 app-level 装配，不承载业务规则。
+- `apps/api`（旧 REST）在 v0.x 内逐步迁入 `apps/mcp`；contract test、DTO 来源、schema registry 复用。v1.x 评估是否补 REST shim。
+- `apps/cli` / `apps/worker` / `apps/web-demo` / `agent` / `web` 都是 Layer 4 客户端，可独立装/卸；删掉它们核心仍完整可用。
+- `agent` 永远不被任何核心 / Layer 1-3 package 依赖；核心不知道它存在。
+- `web` 以 Web Components 形式发布，IIFE bundle 和 npm ESM 双形态，不依赖 React / Vue / Svelte。
 - `apps/*` 不写业务规则；它们只装配环境、DB、logger、命令参数、契约和输出。
-- `apps/api` 当前只定义 Gate 8 contract：路由表、DTO 来源、schema registry 和 OpenAPI 生成。它不启动 HTTP server、不连接 DB、不把 research-pack 文件格式伪装成正式 API。
 
 ## Source Domain
 
@@ -123,7 +159,7 @@ Source domain 分成五层，避免新增来源时改主路径：
 - 公司 IR / 监管目录 / 轻量 HTML/JSON official source：优先放 `source-workflows` feature，复用 runtime 和 connector catalog。
 - 已有独立依赖或独立生命周期的源：保留或新增 `sources/<source>` package。
 - 宏观、贸易、设施、价格、新闻、港口、制裁等弱源：默认 observation/lead/review-only，不能直接进入 fact edge。
-- 任意上市公司研究不能新增 `nvidia-suppliers.ts`、`tesla-suppliers.ts` 这类公司专属 workflow。公司差异应通过 entity metadata、source target config、official source hints 和 review/backlog 表达。
+- 任意上市公司研究不能新增 `nvidia-suppliers.ts`、`tesla-suppliers.ts` 这类公司专属 workflow。公司差异应通过 entity metadata、source target config、official source hints 和 review/backlog 表达。美国上市公司入口优先通过 SEC company ticker directory 动态 bootstrap；其它市场要补对应官方目录 bootstrap，而不是把全世界公司预塞进 seed。
 
 ## Fact Pipeline 与 Review
 
@@ -181,14 +217,18 @@ NormalizedDocument
 
 输出层分三类：
 
-| Package                                       | 输出                                                                              | 责任                           |
-| --------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------ |
-| `chain-view`                                  | 纯 ChainView DTO                                                                  | 不查库                         |
-| `chain-view-builder`、`card-builder`          | card / chain DTO                                                                  | 从 `DbClient` 组装稳定 DTO     |
-| `workbench-export`                            | Workbench JSON                                                                    | 稳定 machine-readable contract |
-| `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、Gate 8-lite read model / walkthrough | 研究编排和审计账本             |
-| `apps/api`                                    | API route contract、DTO source map、OpenAPI                                       | 正式消费入口的版本化契约       |
-| `render` / `scripts/render-research-html.mjs` | Markdown/HTML/JSON 可读输出                                                       | 不查库、不写库                 |
+| Package                                       | 输出                                                                                        | 责任                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `chain-view`                                  | 纯 ChainView DTO                                                                            | 不查库                                   |
+| `chain-view-builder`、`card-builder`          | card / chain DTO                                                                            | 从 `DbClient` 组装稳定 DTO               |
+| `workbench-export`                            | Workbench JSON（v0.x 内对齐 SCBOM v0.x schema）                                              | 稳定 machine-readable contract           |
+| `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、read model / walkthrough                       | 研究编排和审计账本                       |
+| `ai-analysis`                                 | provider config / `ai_analysis_runs` audit；agent 行为迁出后只留 audit + config             | LLM 调用审计；行为收敛到 `llm-helpers`     |
+| `apps/mcp`                                    | MCP tools / resources / prompts 契约、薄装配层                                                | 唯一对外 surface；版本化 MCP 契约         |
+| `apps/api`（迁移中）                            | 旧 REST contract；逐步迁入 `apps/mcp`，v1.x 再评估 REST shim                                  | 过渡期保留                                |
+| `agent`                                       | 参考 agent 进程；用户带 LLM provider，调本机 MCP                                              | optional；不被核心依赖                    |
+| `web`                                         | Web Components：`<supplystrata-supply-chain-graph>` 等；canvas/SVG 渲染                       | 可嵌入；调本机或远程 MCP HTTP             |
+| `render` / `scripts/render-research-html.mjs` | Markdown / HTML / JSON 可读输出                                                              | 不查库、不写库                            |
 
 `research-pack` 是当前 Gate 1 主工作台。它应回答：
 
@@ -198,8 +238,22 @@ NormalizedDocument
 - 哪些 edge 需要二源 corroboration 或 explicit disposition？
 - 哪些 observation 值得标注为 useful/background/not useful？
 - 递归 frontier company research 下一批该跑谁，为什么？
-- 下游 API / host app 能先消费哪些只读 summary 和 constraint context？
+- 下游 MCP consumer 能先读哪些只读 summary 和 constraint context？
 - 审计者不读全量 JSON 时，能否看到已知事实、unknown、受限证据、下一步动作和不能说的结论？
+
+### MCP 接入面（v0.x 唯一对外 surface）
+
+`apps/mcp` 暴露三类 surface：
+
+| 类别       | 例子                                                                                                                                                                                          | 写入约束                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Resources  | `supplystrata://scbom/company/{lei}`、`evidence/edge/{id}`、`unknowns/company/{id}`、`changes/entity/{id}`、`source-health`                                                                    | 只读；返回当前 cache + audit 状态                                                                  |
+| Read Tools | `resolve_company`、`poll_research_run`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets`                                                                       | 只读；可触发 LLM helper 但不入库                                                                    |
+| Write Tools | `start_research_session`、`run_source_check`、`review.approve`、`review.reject`                                                                                                                  | 必须标 `requires_user_confirmation`；agent 不能自动批准；任何写入仍走 evidence-gated promote        |
+
+旧 `apps/api` 的 REST endpoint（`GET /companies/:id/supply-chain-report`、`POST /companies/:id/research-runs`、`GET /research-runs/:id` 等）逐步迁入对应 MCP tool / resource；DTO 复用，不重新设计。完整 MCP 契约见 `apps/mcp/README.md`（落地时建）。
+
+外部 agent 通过 MCP 消费 SupplyStrata 时的允许 / 禁止边界详见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md) 的 "MCP Handoff" 一节。
 
 它不应该回答：
 
@@ -248,17 +302,20 @@ NormalizedDocument
 
 ## 运行形态
 
-当前支持：
+当前 + 目标支持：
 
-- 本地 Postgres truth store。
-- 可选 Neo4j graph projection。
-- 无 Docker 静态 research snapshot / HTML report 路径。
-- `apps/worker` 常驻 source-check loop。
-- 未来宿主 app 可通过 CLI/use-case/API 包装相同后端能力。
+- **Local-first 默认**：每个用户本地实例，本地 Postgres（cache + audit），可选 Neo4j projection。
+- **MCP server 默认启动**：`apps/mcp` 作为唯一对外 surface；HTTP/SSE transport 让浏览器和远程 agent 直接连接。
+- **Community-pack warm start**（目标）：启动时可选 `--pack=supplystrata-pack-YYYY.QN.parquet`；pack 是 read-only baseline，本地写入覆盖 pack 字段但不污染 pack（#14）。
+- **无 Docker 静态 research snapshot / HTML report 路径**（保留，用于 CI 和无数据库验证）。
+- `apps/worker` 常驻 source-check loop（opt-in，#8 不假设 7x24 部署）。
+- 任何宿主 app 可通过：(a) 嵌入 MCP server (b) 直接调 use-case package (c) 嵌入 `@supplystrata/web` 组件，三种方式按需选择。
 
-不要在现阶段把架构目标写成“已完成全球实时监控平台”。当前定位更准确：
+定位（与 [overview.md](../00-overview/overview.md) 一致）：
 
-> evidence-first supply-chain intelligence backend alpha，正在通过 Gate 1 把公开官方披露、source monitoring、递归 research loop、unknown/disposition/calibration 做扎实。
+> Local-first, evidence-first, MCP-native supply-chain intelligence backbone for AI agents.
+
+不再把架构目标写成"已完成全球实时监控平台"或"开源 Bloomberg"（详见 [competitive-landscape.md](../00-overview/competitive-landscape.md) "不学的对照系"）。
 
 ## 测试与审计边界
 
@@ -273,8 +330,14 @@ NormalizedDocument
 
 审计重点：
 
+- **Fact 写入不变式**（[intelligence-methodology.md](../03-data-model/intelligence-methodology.md) 6 条）是否被 CI 拦截。
+- `llm-helpers` import 边界：任何写 `edges`/`evidence`/`claims` 的 package 不允许 import `@supplystrata/llm-helpers`（dep-check）。
+- `agent` package 不被任何核心 / Layer 1-3 package 依赖（dep-check）。
+- MCP write tools 是否全部标 `requires_user_confirmation`（contract test）。
 - source target / source job 是否有 lease、retry、policy 状态保护。
 - review/disposition 是否不会自动生成 fact edge。
+- evidence-gated auto-promote 是否严格满足 `extractor=rule AND source=官方 AND L≥4` 或双源 corroboration 条件（unit + integration）。
 - research-pack 是否诚实区分事实、observation、unknown、global derived context。
 - L4/L5 edge 是否有 evidence trace。
 - 递归 research loop 是否产出可审计 backlog/commands，而不是把缺口伪装成结论。
+- community-pack 加载是否校验 sha256；本地写入是否能正确覆盖而不污染 pack 内容。

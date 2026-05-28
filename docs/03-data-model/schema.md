@@ -1,17 +1,21 @@
 # Schema — 数据模型地图
 
-本文只记录当前 schema 的分层、权威边界和不能破坏的契约。实际 DDL 以 `packages/db/src/migration-sql/*.ts` 和 `packages/db/src/migrations.ts` 为准；读写 API 以 `packages/db/README.md` 和 `@supplystrata/db` 子路径出口为准。
+本文只记录当前 schema 的分层、权威边界和不能破坏的契约。实际 DDL 以 `packages/db/src/migration-sql/0001_current_schema_baseline.ts` 和 `packages/db/src/migrations.ts` 为准；读写 API 以 `packages/db/README.md` 和 `@supplystrata/db` 子路径出口为准。
 
-不要在本文复制完整 SQL。新增表、字段、约束或索引必须进入新 migration，并同步更新本文的分层地图。
+不要在本文复制完整 SQL。当前无人生产使用的历史 migration 已 squash 为 current schema baseline；后续新增表、字段、约束或索引必须进入 baseline 之后的新 migration，并同步更新本文的分层地图。
 
 ## 存储边界
 
-| 存储                | 角色                         | 规则                                                 |
-| ------------------- | ---------------------------- | ---------------------------------------------------- |
-| PostgreSQL          | truth store                  | 唯一事实来源；保存证据、历史、队列、review、派生视图 |
-| GraphStore / Neo4j  | materialized graph view      | 只保存当前态图查询所需字段；可从 Postgres 重建       |
-| ObjectStore / local | raw bytes / normalized files | 保存原始 HTML/PDF/JSON/CSV 等抓取结果                |
-| Workbench/research  | read contract                | 稳定消费 DTO，不是 truth-store schema                |
+| 存储                | 角色                                   | 规则                                                                                              |
+| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 官方源（外部）       | **truth**                              | 真相永远在 SEC / DART / EDINET / TWSE / HKEX / Companies House / GLEIF / OpenFIGI / Wikidata / 公司 IR；本地任何存储都是它的派生 |
+| PostgreSQL          | **本地 cache + audit ledger**          | 缓存证据、关系、observation、unknown、change、job 与审计；不是事实唯一来源；可从官方源 + community-pack 重建        |
+| GraphStore / Neo4j  | materialized graph view                | 只保存当前态图查询所需字段；可从 Postgres 重建                                                       |
+| ObjectStore / local | raw bytes / normalized files           | 保存原始 HTML / PDF / JSON / CSV 等抓取结果，做内容寻址（sha256）                                  |
+| community-pack      | **read-only warm baseline**            | 维护团队周期发布的预跑数据集；本地写入覆盖 pack 字段，但不污染 pack；详见 `decisions.md` #14         |
+| Workbench / SCBOM   | read contract                          | 稳定消费 DTO / 开放交换格式；不是存储 schema                                                       |
+
+参见 [decisions.md](../10-decisions/decisions.md) #2 和 #8。
 
 ## PostgreSQL 表分层
 
@@ -189,7 +193,7 @@ Neo4j 只保存当前态查询所需节点和关系：
 
 - 只投影 `validity='current'` 的事实边。
 - 完整 evidence、claim、unknown、risk、audit 信息必须回 Postgres 读。
-- GraphStore 失败不回滚 truth store；可以重试或 rebuild。
+- GraphStore 失败不回滚本地 cache；可以重试或 rebuild。
 
 ## Object Storage
 
@@ -207,8 +211,10 @@ data/raw/<source_adapter_id>/<entity_or_unknown>/<year>/<month>/<sha256>.<ext>
 
 ## Migration Rules
 
-- DDL 只通过新 migration 变更。
-- 已发布 migration 不回写修改。
+- 当前 schema 起点是 `0001_current_schema_baseline`；新库只需要应用 baseline。
+- 已有本地库如果已经跑完历史 `0001_entity_core` 到 `0031_research_runs`，迁移器会补记 baseline marker，避免重复执行旧 DDL。
+- baseline 之后的 DDL 只通过新 migration 变更。
+- baseline 之后已发布的 migration 不回写修改。
 - 新表/字段必须同步本文的分层地图。
 - 终态保护、幂等键、唯一约束和 provenance 字段优先在 SQL 层表达。
 - schema 改动必须跑 type-check、unit test、dep-check 和 format check。

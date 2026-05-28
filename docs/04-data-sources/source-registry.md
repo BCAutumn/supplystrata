@@ -22,7 +22,10 @@
 | `apple-suppliers`       | P0   | Apple Supplier List + 报告                     | 供应商名单（含工厂地点）                     | 4                      | 半自动 PDF + 校验                     | 公开              | preview     |
 | `opencorporates`        | P0   | OpenCorporates                                 | 全球公司实体 / 别名                          | 用于 entity-resolution | 官方 API + token（限速）              | 公开 + 注明来源   | preview     |
 | `companies-house`       | P0   | UK Companies House                             | 英国公司登记                                 | 用于 entity-resolution | 官方 API + key                        | OGL v3            | preview     |
-| `seed-entities`         | P0   | 项目内 curated seed CSV                        | 核心公司 / 高频供应商 / ticker / CIK / alias | 用于 entity-resolution | 手工维护 + 官方来源校验               | 仅存事实标识      | implemented |
+| `seed-entities`         | -    | （已废弃）项目内 curated seed CSV              | 旧形态下作为 entity 兜底；新形态走 registry bootstrap | -                      | 改为 `tests/fixtures/dev-entities/` | -                 | deprecated  |
+| `gleif`                 | P0   | GLEIF Golden Copy / LEI search                 | 全球法人识别码（LEI）/ 法定名称 / 国家       | 用于 entity-resolution | 官方 API（免费、无 key）              | 公开 + 归因       | preview     |
+| `openfigi`              | P0   | Bloomberg OpenFIGI                             | Ticker / CUSIP / ISIN → 全球金融工具 ID     | 用于 entity-resolution | 官方 API（免费、可选 key 提速）       | 公开 + UA         | preview     |
+| `wikidata`              | P1   | Wikidata SPARQL / EntityData                   | 公司公开简介、行业、官网 URL、跨标识符链接   | 用于 entity-resolution + dynamic profile | 官方 SPARQL/REST                      | CC0 + 归因        | scoped      |
 | `dart-kr`               | P1   | 韩国 DART                                      | Samsung / SK Hynix 韩文披露                  | 4-5                    | API                                   | 公开              | scoped      |
 | `edinet`                | P1   | 日本 EDINET                                    | 日本上市公司监管披露                         | 4-5                    | API / 下载                            | 公开              | scoped      |
 | `twse-mops`             | P1   | 台湾公开资讯观测站 MOPS                        | 台湾上市公司公告 / 年报                      | 4-5                    | 电子文件目录 monitor                  | 公开              | preview     |
@@ -109,7 +112,7 @@ evidence-scorer 不只看 `document_type`，而是通过 `packages/source-regist
 | `tsmc-ir` / `samsung-ir` / `skhynix-ir` / `micron-ir` / `asml-ir` | `company_official`         | `self_disclosure`  | 4                  | 公司官方材料可到 Level 4；除非未来建模为同等监管文件，否则不自动升 Level 5。         |
 | `apple-suppliers`                                                 | `official_supplier_list`   | `facility_claim`   | 4                  | 官方供应商/设施名单，必须经过 review/apply。                                         |
 | `opencorporates` / `companies-house`                              | `government_registry`      | `registry_fact`    | 4                  | 可证明注册、控制、设施等实体事实；对 `BUYS_FROM` / `SUPPLIES_TO` 只能到低等级线索。  |
-| `seed-entities`                                                   | `manual`                   | `registry_fact`    | 4                  | 只用于实体解析，不作为供应链关系证据。                                               |
+| `gleif` / `openfigi` / `wikidata`                                 | `government_registry`*     | `registry_fact`    | 4                  | 全球身份上游：LEI / FIGI / Wikidata 用于 entity bootstrap，不作为供应链关系证据。(*Wikidata 严格说是 collaborative，作为身份用途与 registry 并列) |
 | `manual`                                                          | `manual`                   | `lead_only`        | 2                  | 人工录入本身不是原始来源；没有 underlying official source 时只能作为线索。           |
 | `import-yeti`                                                     | `manual`                   | `lead_only`        | 3                  | 不做 adapter；手工摘录也只能作为低等级线索，默认需要 review。                        |
 | `dart-kr` / `edinet` / `twse-mops`                                | `regulator`                | `self_disclosure`  | 5                  | 同等监管披露可到 Level 5；当前先实现目录 monitor，正文 parser 完成前不自动写事实边。 |
