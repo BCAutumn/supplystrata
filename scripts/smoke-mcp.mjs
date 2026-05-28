@@ -86,8 +86,17 @@ async function runSmoke() {
 
 async function callStructuredTool(name, args) {
   const result = await client.callTool({ name, arguments: args });
+  if (result.isError === true) throw new Error(`${name} returned MCP error: ${toolErrorText(result)}`);
   if (!isRecord(result.structuredContent)) throw new Error(`${name} did not return structuredContent.`);
   return result.structuredContent;
+}
+
+function toolErrorText(result) {
+  const messages = result.content
+    .filter((item) => isRecord(item) && item.type === "text" && typeof item.text === "string")
+    .map((item) => item.text.trim())
+    .filter((text) => text.length > 0);
+  return messages.length > 0 ? messages.join("\n") : JSON.stringify(result);
 }
 
 function assertPath(root, path, expected) {

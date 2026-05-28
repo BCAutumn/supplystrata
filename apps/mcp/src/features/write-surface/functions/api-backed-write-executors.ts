@@ -71,14 +71,18 @@ async function callApiWriteOperation(
   const route = findWriteRoute(operationId);
   const handler = handlers[operationId];
   if (handler === undefined) throw new Error(`MCP write surface is missing api-orchestration handler: ${operationId}`);
-  const data = await handler({
-    route,
-    path_params: input.path_params,
-    query: new URLSearchParams(),
-    body: input.body,
-    now: input.now
-  });
-  return buildApiOperationEnvelope(route, data, input.now);
+  try {
+    const data = await handler({
+      route,
+      path_params: input.path_params,
+      query: new URLSearchParams(),
+      body: input.body,
+      now: input.now
+    });
+    return buildApiOperationEnvelope(route, data, input.now);
+  } catch (error) {
+    throw new Error(`MCP write operation ${operationId} failed: ${formatUnknownError(error)}`);
+  }
 }
 
 function findWriteRoute(operationId: ApiOperationId): ApiRouteContract {
@@ -87,4 +91,16 @@ function findWriteRoute(operationId: ApiOperationId): ApiRouteContract {
   if (route.access !== "review_write" && route.access !== "workflow_write")
     throw new Error(`MCP write surface cannot execute non-write api-orchestration operation: ${operationId}`);
   return route;
+}
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof AggregateError) {
+    const childMessages = error.errors.map((childError: unknown) => formatUnknownError(childError)).filter((message) => message.length > 0);
+    if (childMessages.length > 0) return `${error.name}: ${childMessages.join("; ")}`;
+  }
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    return message.length > 0 ? `${error.name}: ${message}` : error.name;
+  }
+  return String(error);
 }
