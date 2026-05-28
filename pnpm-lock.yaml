@@ -168,6 +168,12 @@ importers:
       '@supplystrata/api-orchestration':
         specifier: workspace:*
         version: link:../../packages/api-orchestration
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       zod:
         specifier: 3.25.76
         version: 3.25.76

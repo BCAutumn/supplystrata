@@ -1,10 +1,11 @@
 import type { Server } from "node:http";
 
+import type { SupplyStrataMcpServerOptions } from "../../../definitions/mcp-server.js";
 import { type McpHttpCliOptions } from "../../transport/definitions/mcp-transport.js";
 import { createMcpHttpNodeServer } from "./create-mcp-http-node-server.js";
 
-export async function runHttpMcpServer(options: McpHttpCliOptions): Promise<void> {
-  const { endpointPath, nodeServer } = await createMcpHttpNodeServer();
+export async function runHttpMcpServer(options: McpHttpCliOptions, mcp: SupplyStrataMcpServerOptions = {}): Promise<void> {
+  const { endpointPath, nodeServer } = await createMcpHttpNodeServer({ mcp });
   await listen(nodeServer, options.port, options.bind);
   process.stderr.write(`SupplyStrata MCP HTTP listening on http://${formatBindForUrl(options.bind)}:${options.port}${endpointPath}\n`);
 }

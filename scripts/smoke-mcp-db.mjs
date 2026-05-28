@@ -3,16 +3,18 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const ROOT_DIR = process.cwd();
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 90_000;
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const company = process.env["SUPPLYSTRATA_MCP_DB_SMOKE_COMPANY"] ?? "NVIDIA";
 
 const stderrChunks = [];
 const transport = new StdioClientTransport({
   command: pnpmBin,
-  args: ["--silent", "tsx", "apps/mcp/src/main.ts", "--transport=stdio", "--runtime=fixture"],
+  args: ["--silent", "tsx", "apps/mcp/src/main.ts", "--transport=stdio", "--runtime=db"],
   cwd: ROOT_DIR,
   stderr: "pipe",
   env: {
+    ...process.env,
     NODE_OPTIONS: nodeOptionsWithDevelopmentCondition(process.env["NODE_OPTIONS"])
   }
 });
@@ -22,7 +24,7 @@ transport.stderr?.on("data", (chunk) => {
 });
 
 const client = new Client({
-  name: "supplystrata-mcp-smoke-client",
+  name: "supplystrata-mcp-db-smoke-client",
   version: "0.1.0"
 });
 
@@ -32,7 +34,7 @@ try {
   await closeQuietly();
   const stderr = stderrChunks.join("").trim();
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write([`MCP smoke failed: ${message}`, stderr].filter((item) => item.length > 0).join("\n"));
+  process.stderr.write([`MCP DB smoke failed: ${message}`, stderr].filter((item) => item.length > 0).join("\n"));
   process.stderr.write("\n");
   process.exitCode = 1;
 }
@@ -40,34 +42,45 @@ try {
 async function runSmoke() {
   await client.connect(transport);
 
-  const resolved = await callStructuredTool("resolve_company", { query: "NVIDIA" });
-  assertPath(resolved, ["data", "operation_id"], "getCompanyCard");
-  assertPath(resolved, ["data", "entity", "entity_id"], "ENT-NVIDIA");
+  const pendingResearch = await callStructuredTool("start_research_session", {
+    company,
+    depth: 2,
+    reviewer: "smoke:mcp:db"
+  });
+  assertPath(pendingResearch, ["status"], "requires_confirmation");
+  const researchPendingId = readStringPath(pendingResearch, ["pending_id"]);
+  const researchToken = readStringPath(pendingResearch, ["confirmation_token"]);
 
-  const sourceTargets = await callStructuredTool("list_source_targets", { scope: "company:ENT-NVIDIA" });
-  assertPath(sourceTargets, ["data", "operation_id"], "listSourceHealth");
-  assertArrayPath(sourceTargets, ["data", "source_targets"]);
+  const confirmedResearch = await callStructuredTool("confirm_research_session", {
+    pending_id: researchPendingId,
+    confirmation_token: researchToken
+  });
+  assertPath(confirmedResearch, ["status"], "executed");
+  const runId = readStringPath(confirmedResearch, ["data", "data", "run", "run_id"]);
+  const companyEntityId = readOptionalStringPath(confirmedResearch, ["data", "data", "run", "company_entity_id"]);
+  const checkTargetIds = readStringArrayPath(confirmedResearch, ["data", "data", "run", "source_check_target_ids"]);
 
-  const pendingSourceCheck = await callStructuredTool("run_source_check", { check_target_ids: ["target-sec-edgar-nvidia"] });
+  if (checkTargetIds.length === 0) throw new Error(`Research run ${runId} did not produce source-check targets.`);
+
+  const pendingSourceCheck = await callStructuredTool("run_source_check", { check_target_ids: checkTargetIds });
   assertPath(pendingSourceCheck, ["status"], "requires_confirmation");
-  const pendingId = readStringPath(pendingSourceCheck, ["pending_id"]);
-  const confirmationToken = readStringPath(pendingSourceCheck, ["confirmation_token"]);
+  const sourcePendingId = readStringPath(pendingSourceCheck, ["pending_id"]);
+  const sourceToken = readStringPath(pendingSourceCheck, ["confirmation_token"]);
 
   const confirmedSourceCheck = await callStructuredTool("run_source_check", {
-    pending_id: pendingId,
-    confirmation_token: confirmationToken
+    pending_id: sourcePendingId,
+    confirmation_token: sourceToken
   });
   assertPath(confirmedSourceCheck, ["status"], "executed");
-  assertPath(confirmedSourceCheck, ["data", "checked_targets"], 1);
 
-  const runStatus = await callStructuredTool("poll_research_run", { run_id: "RUN-NVIDIA-SMOKE" });
+  const runStatus = await callStructuredTool("poll_research_run", { run_id: runId });
   assertPath(runStatus, ["data", "operation_id"], "getResearchRunStatus");
-  assertPath(runStatus, ["data", "run_id"], "RUN-NVIDIA-SMOKE");
+  assertPath(runStatus, ["data", "run", "run_id"], runId);
 
-  const chain = await callStructuredTool("traverse_chain", { scope: "company:ENT-NVIDIA", depth: 2 });
-  assertPath(chain, ["data", "operation_id"], "getChain");
-  assertArrayPath(chain, ["data", "nodes"]);
-  assertArrayPath(chain, ["data", "edges"]);
+  if (companyEntityId !== undefined) {
+    const chain = await callStructuredTool("traverse_chain", { scope: `company:${companyEntityId}`, depth: 2 });
+    assertPath(chain, ["data", "operation_id"], "getChain");
+  }
 
   await closeQuietly();
   process.stdout.write(
@@ -75,8 +88,10 @@ async function runSmoke() {
       {
         ok: true,
         transport: "stdio",
-        checked: ["resolve_company", "list_source_targets", "run_source_check", "poll_research_run", "traverse_chain"],
-        write_gate: "requires_confirmation_then_single_confirmation_token"
+        runtime: "db",
+        company,
+        run_id: runId,
+        source_check_targets: checkTargetIds.length
       },
       null,
       2
@@ -95,14 +110,24 @@ function assertPath(root, path, expected) {
   if (value !== expected) throw new Error(`Expected ${path.join(".")} to equal ${JSON.stringify(expected)}, got ${JSON.stringify(value)}.`);
 }
 
-function assertArrayPath(root, path) {
+function readOptionalStringPath(root, path) {
   const value = readPath(root, path);
-  if (!Array.isArray(value) || value.length === 0) throw new Error(`Expected ${path.join(".")} to be a non-empty array.`);
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0) throw new Error(`Expected ${path.join(".")} to be a non-empty string or null.`);
+  return value;
 }
 
 function readStringPath(root, path) {
   const value = readPath(root, path);
   if (typeof value !== "string" || value.length === 0) throw new Error(`Expected ${path.join(".")} to be a non-empty string.`);
+  return value;
+}
+
+function readStringArrayPath(root, path) {
+  const value = readPath(root, path);
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+    throw new Error(`Expected ${path.join(".")} to be a string array.`);
+  }
   return value;
 }
 

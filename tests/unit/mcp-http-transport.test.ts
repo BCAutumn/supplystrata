@@ -13,6 +13,8 @@ import {
   DEFAULT_MCP_HTTP_BIND,
   DEFAULT_MCP_HTTP_PORT,
   MCP_HTTP_ENDPOINT_PATH,
+  MCP_RUNTIME_DB,
+  MCP_RUNTIME_FIXTURE,
   MCP_TRANSPORT_HTTP,
   MCP_TRANSPORT_STDIO,
   parseMcpCliOptions,
@@ -23,18 +25,21 @@ const FIXED_NOW = "2026-05-28T00:00:00.000Z";
 
 describe("mcp http transport", () => {
   it("parses stdio and http CLI options without accepting transport-specific leakage", () => {
-    expect(parseMcpCliOptions([])).toEqual({ transport: MCP_TRANSPORT_STDIO });
+    expect(parseMcpCliOptions([])).toEqual({ transport: MCP_TRANSPORT_STDIO, runtime: MCP_RUNTIME_FIXTURE });
     expect(parseMcpCliOptions(["--transport=http"])).toEqual({
       transport: MCP_TRANSPORT_HTTP,
+      runtime: MCP_RUNTIME_FIXTURE,
       port: DEFAULT_MCP_HTTP_PORT,
       bind: DEFAULT_MCP_HTTP_BIND
     });
-    expect(parseMcpCliOptions(["--transport=http", "--port=7474", "--bind=0.0.0.0"])).toEqual({
+    expect(parseMcpCliOptions(["--transport=http", "--runtime=db", "--port=7474", "--bind=0.0.0.0"])).toEqual({
       transport: MCP_TRANSPORT_HTTP,
+      runtime: MCP_RUNTIME_DB,
       port: 7474,
       bind: "0.0.0.0"
     });
     expect(() => parseMcpCliOptions(["--transport=stdio", "--port=7474"])).toThrow("--port is only supported with --transport=http.");
+    expect(() => parseMcpCliOptions(["--runtime=prod"])).toThrow('Unsupported MCP runtime "prod"');
     expect(() => parseMcpCliOptions(["--transport=http", "--port=0"])).toThrow("Invalid MCP HTTP port: 0");
   });
 

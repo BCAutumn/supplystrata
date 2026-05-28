@@ -14,7 +14,8 @@ export type ApiJsonSchemaProperty =
   | { type: "boolean"; const?: boolean; description?: string }
   | { type: "integer"; minimum?: number; description?: string }
   | { type: "object"; description?: string; additionalProperties?: boolean }
-  | { type: "array"; description?: string; items: { type: "object"; additionalProperties: boolean } };
+  | { type: "array"; description?: string; items: { type: "object"; additionalProperties: boolean } }
+  | { type: "array"; description?: string; items: { type: "string" } };
 
 const readEnvelope = (schemaId: ApiSchemaId, description: string): ApiJsonSchema => ({
   $id: schemaId,
@@ -70,6 +71,20 @@ export const API_SCHEMA_REGISTRY = {
   SourcesHealthApiResponse: readEnvelope("SourcesHealthApiResponse", "Source health API read envelope."),
   SourceCheckRunsApiResponse: readEnvelope("SourceCheckRunsApiResponse", "Source check run/status API read envelope."),
   ResearchRunStatusApiResponse: readEnvelope("ResearchRunStatusApiResponse", "Research run/status API read envelope."),
+  SourceCheckRunRequest: {
+    $id: "SourceCheckRunRequest",
+    type: "object",
+    additionalProperties: false,
+    description: "Explicit source-check execution request. Confirmation is required at the MCP layer before this write workflow runs.",
+    required: [],
+    properties: {
+      limit: { type: "integer", minimum: 1, description: "Optional maximum due source checks to run." },
+      check_target_ids: { type: "array", items: { type: "string" }, description: "Optional source-check target ids." },
+      source_adapter_ids: { type: "array", items: { type: "string" }, description: "Optional source adapter ids." },
+      reviewer: { type: "string", description: "Optional host-app actor id for audit-facing callers." }
+    }
+  },
+  SourceCheckRunApiResponse: writeEnvelope("SourceCheckRunApiResponse", "Source check execution API write envelope."),
   ResearchRunRequest: {
     $id: "ResearchRunRequest",
     type: "object",

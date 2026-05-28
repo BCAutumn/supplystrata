@@ -26,7 +26,8 @@ describe("api contract", () => {
       "GET /unknowns/:scope",
       "POST /companies/:id/research-runs",
       "POST /review/:id/approve",
-      "POST /review/:id/reject"
+      "POST /review/:id/reject",
+      "POST /source-checks/run"
     ]);
   });
 
@@ -34,13 +35,13 @@ describe("api contract", () => {
     const audit = auditApiContract();
 
     expect(audit).toMatchObject({
-      route_count: 22,
-      schema_count: 23,
+      route_count: 23,
+      schema_count: 25,
       db_row_leak_count: 0,
       missing_schema_ids: []
     });
     expect(API_ROUTES.filter((route) => route.access === "review_write")).toHaveLength(2);
-    expect(API_ROUTES.filter((route) => route.access === "workflow_write")).toHaveLength(1);
+    expect(API_ROUTES.filter((route) => route.access === "workflow_write")).toHaveLength(2);
     expect(API_ROUTES.filter((route) => route.access === "read_through_research")).toHaveLength(1);
     expect(
       API_ROUTES.filter((route) => route.handler_status === "http_adapter_backed")
@@ -68,7 +69,8 @@ describe("api contract", () => {
       "listSourceCheckRuns",
       "listSourceHealth",
       "listUnknowns",
-      "rejectReviewCandidate"
+      "rejectReviewCandidate",
+      "runSourceChecks"
     ]);
     expect(API_ROUTES.filter((route) => route.handler_status === "contract_only")).toHaveLength(0);
     expect(
@@ -110,6 +112,7 @@ describe("api contract", () => {
       "/risk-views/{scope}",
       "/runs/ai-analysis",
       "/runs/source-checks",
+      "/source-checks/run",
       "/sources/health",
       "/unknowns/{scope}"
     ]);
@@ -119,10 +122,15 @@ describe("api contract", () => {
     expect(document.paths["/companies/{id}/research-runs"]?.post?.requestBody?.content["application/json"].schema).toEqual({
       $ref: "#/components/schemas/ResearchRunRequest"
     });
+    expect(document.paths["/source-checks/run"]?.post?.requestBody?.content["application/json"].schema).toEqual({
+      $ref: "#/components/schemas/SourceCheckRunRequest"
+    });
     expect(schemaIds()).toContain("ConsumerReadModelApiResponse");
     expect(schemaIds()).toContain("ReasoningWalkthroughApiResponse");
     expect(schemaIds()).toContain("SourceCheckRunsApiResponse");
     expect(schemaIds()).toContain("ResearchRunStatusApiResponse");
+    expect(schemaIds()).toContain("SourceCheckRunRequest");
+    expect(schemaIds()).toContain("SourceCheckRunApiResponse");
     expect(schemaIds()).toContain("ResearchRunApiResponse");
     expect(schemaIds()).toContain("CompanySupplyChainReportApiResponse");
     expect(schemaIds()).toContain("AiProviderStatusApiResponse");

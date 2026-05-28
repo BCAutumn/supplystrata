@@ -17,6 +17,12 @@ export function createApiBackedWriteExecutors(handlers: ApiOperationHandlers): P
         body: researchSessionBody(request),
         now: context.now
       }),
+    run_source_check: async (request, context) =>
+      callApiWriteOperation(handlers, "runSourceChecks", {
+        path_params: {},
+        body: sourceCheckRunBody(request),
+        now: context.now
+      }),
     "review.approve": async (request, context) =>
       callApiWriteOperation(handlers, "approveReviewCandidate", {
         path_params: { id: request.review_id },
@@ -37,6 +43,15 @@ function researchSessionBody(request: StartResearchSessionRequest): Record<strin
     ...(request.depth === undefined ? {} : { depth: request.depth }),
     ...(request.source_target_namespace === undefined ? {} : { source_target_namespace: request.source_target_namespace }),
     ...(request.enqueue_source_checks === undefined ? {} : { enqueue_source_checks: request.enqueue_source_checks }),
+    ...(request.reviewer === undefined ? {} : { reviewer: request.reviewer })
+  };
+}
+
+function sourceCheckRunBody(request: RunSourceCheckRequest): Record<string, unknown> {
+  return {
+    ...(request.limit === undefined ? {} : { limit: request.limit }),
+    ...(request.check_target_ids === undefined ? {} : { check_target_ids: request.check_target_ids }),
+    ...(request.source_adapter_ids === undefined ? {} : { source_adapter_ids: request.source_adapter_ids }),
     ...(request.reviewer === undefined ? {} : { reviewer: request.reviewer })
   };
 }

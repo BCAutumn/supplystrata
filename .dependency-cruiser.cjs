@@ -82,6 +82,14 @@ module.exports = {
       to: { path: "^apps/api/src" }
     },
     {
+      name: "apps-mcp-db-runtime-must-enter-through-api-orchestration",
+      severity: "error",
+      from: { path: "^apps/mcp/src" },
+      to: {
+        path: "^packages/(source-workflows|source-monitor|pipeline|review-store|graph-builder|claim-builder|card-builder|research-pack|ai-analysis|llm-helpers)/src"
+      }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },

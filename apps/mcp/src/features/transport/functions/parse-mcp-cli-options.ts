@@ -7,32 +7,37 @@ import {
   type McpHttpBindAddress,
   type McpTransport
 } from "../definitions/mcp-transport.js";
+import { MCP_RUNTIME_DB, MCP_RUNTIME_FIXTURE, type McpRuntimeMode } from "../../runtime/definitions/mcp-runtime.js";
 
 const TRANSPORT_PREFIX = "--transport=";
+const RUNTIME_PREFIX = "--runtime=";
 const PORT_PREFIX = "--port=";
 const BIND_PREFIX = "--bind=";
 
 export function parseMcpCliOptions(args: readonly string[]): McpCliOptions {
   const parsed = parseRawOptions(args);
   const transport = parseTransport(parsed.transport);
+  const runtime = parseRuntime(parsed.runtime);
 
   if (transport === MCP_TRANSPORT_STDIO) {
     if (parsed.port !== undefined) throw new Error("--port is only supported with --transport=http.");
     if (parsed.bind !== undefined) throw new Error("--bind is only supported with --transport=http.");
-    return { transport: MCP_TRANSPORT_STDIO };
+    return { transport: MCP_TRANSPORT_STDIO, runtime };
   }
 
   return {
     transport: MCP_TRANSPORT_HTTP,
+    runtime,
     port: parsePort(parsed.port ?? String(DEFAULT_MCP_HTTP_PORT)),
     bind: parseBind(parsed.bind ?? DEFAULT_MCP_HTTP_BIND)
   };
 }
 
-function parseRawOptions(args: readonly string[]): { transport?: string; port?: string; bind?: string } {
-  const output: { transport?: string; port?: string; bind?: string } = {};
+function parseRawOptions(args: readonly string[]): { transport?: string; runtime?: string; port?: string; bind?: string } {
+  const output: { transport?: string; runtime?: string; port?: string; bind?: string } = {};
   for (const arg of args) {
     if (arg.startsWith(TRANSPORT_PREFIX)) output.transport = arg.slice(TRANSPORT_PREFIX.length);
+    else if (arg.startsWith(RUNTIME_PREFIX)) output.runtime = arg.slice(RUNTIME_PREFIX.length);
     else if (arg.startsWith(PORT_PREFIX)) output.port = arg.slice(PORT_PREFIX.length);
     else if (arg.startsWith(BIND_PREFIX)) output.bind = arg.slice(BIND_PREFIX.length);
     else throw new Error(`Unsupported MCP CLI argument: ${arg}`);
@@ -44,6 +49,12 @@ function parseTransport(value: string | undefined): McpTransport {
   if (value === undefined || value === MCP_TRANSPORT_STDIO) return MCP_TRANSPORT_STDIO;
   if (value === MCP_TRANSPORT_HTTP) return MCP_TRANSPORT_HTTP;
   throw new Error(`Unsupported MCP transport "${value}". Supported transports: ${MCP_TRANSPORT_STDIO}, ${MCP_TRANSPORT_HTTP}.`);
+}
+
+function parseRuntime(value: string | undefined): McpRuntimeMode {
+  if (value === undefined || value === MCP_RUNTIME_FIXTURE) return MCP_RUNTIME_FIXTURE;
+  if (value === MCP_RUNTIME_DB) return MCP_RUNTIME_DB;
+  throw new Error(`Unsupported MCP runtime "${value}". Supported runtimes: ${MCP_RUNTIME_FIXTURE}, ${MCP_RUNTIME_DB}.`);
 }
 
 function parsePort(value: string): number {

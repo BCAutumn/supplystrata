@@ -86,6 +86,13 @@ export function createDbApiOperationHandlers(store: DatabaseStore, env?: Env): A
       if (artifact === null) throw new ApiHttpError(404, `No AI analysis artifact found for company: ${company.entity.entity_id}`);
       return artifact;
     },
+    runSourceChecks: async (input) =>
+      runDueSourceChecks(store, {
+        env: requireRuntimeEnv(env),
+        now: input.now,
+        ...sourceCheckRunRequest(input.body),
+        documentObservationStore: { persistDocumentObservations }
+      }),
     createCompanyResearchRun: async (input) => {
       const request = researchRunRequest(input.body);
       return createResearchRun(store, {
@@ -393,11 +400,36 @@ function researchRunRequest(body: unknown): ResearchRunRequest {
   };
 }
 
+function sourceCheckRunRequest(body: unknown): { limit?: number; check_target_ids?: string[]; source_adapter_ids?: string[] } {
+  if (body === undefined) return {};
+  if (!isRecord(body)) throw new ApiHttpError(400, "Source check run body must be a JSON object");
+  const limit = optionalPositiveIntegerBody(body, "limit");
+  const checkTargetIds = optionalStringArrayBody(body, "check_target_ids");
+  const sourceAdapterIds = optionalStringArrayBody(body, "source_adapter_ids");
+  return {
+    ...(limit === undefined ? {} : { limit }),
+    ...(checkTargetIds === undefined ? {} : { check_target_ids: checkTargetIds }),
+    ...(sourceAdapterIds === undefined ? {} : { source_adapter_ids: sourceAdapterIds })
+  };
+}
+
 function optionalPositiveIntegerBody(body: Record<string, unknown>, name: string): number | undefined {
   const value = body[name];
   if (value === undefined) return undefined;
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw new ApiHttpError(400, `${name} must be a positive integer`);
   return value;
+}
+
+function optionalStringArrayBody(body: Record<string, unknown>, name: string): string[] | undefined {
+  const value = body[name];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new ApiHttpError(400, `${name} must be an array of non-empty strings`);
+  const output: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.trim().length === 0) throw new ApiHttpError(400, `${name} must be an array of non-empty strings`);
+    output.push(item.trim());
+  }
+  return [...new Set(output)].sort();
 }
 
 function optionalStringBody(body: Record<string, unknown>, name: string): string | undefined {

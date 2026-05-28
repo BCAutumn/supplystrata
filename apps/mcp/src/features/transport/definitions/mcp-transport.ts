@@ -1,3 +1,5 @@
+import type { McpRuntimeMode } from "../../runtime/definitions/mcp-runtime.js";
+
 export const MCP_TRANSPORT_STDIO = "stdio";
 export const MCP_TRANSPORT_HTTP = "http";
 export const DEFAULT_MCP_HTTP_PORT = 7474;
@@ -8,10 +10,12 @@ export type McpHttpBindAddress = "127.0.0.1" | "localhost" | "::1" | "0.0.0.0";
 
 export interface McpStdioCliOptions {
   readonly transport: typeof MCP_TRANSPORT_STDIO;
+  readonly runtime: McpRuntimeMode;
 }
 
 export interface McpHttpCliOptions {
   readonly transport: typeof MCP_TRANSPORT_HTTP;
+  readonly runtime: McpRuntimeMode;
   readonly port: number;
   readonly bind: McpHttpBindAddress;
 }

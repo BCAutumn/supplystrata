@@ -3,7 +3,7 @@ import type { ChainViewModel } from "@supplystrata/chain-view";
 import type { AiProviderStatusReport } from "@supplystrata/llm-helpers";
 import type { ConsumerReadModel, ReasoningWalkthrough } from "@supplystrata/research-pack";
 import type { SourceCheckRunStatusReport } from "@supplystrata/source-monitor";
-import type { ResearchRunReuseReason, ResearchRunStatusReport } from "@supplystrata/source-workflows";
+import type { DueSourceCheckRunResult, ResearchRunReuseReason, ResearchRunStatusReport } from "@supplystrata/source-workflows";
 import type {
   CompanyCardModel,
   CompanyObservation,
@@ -73,6 +73,7 @@ export type ChangesApiResponse = ApiReadEnvelope<WorkbenchChangeTimelineItem[]>;
 export type SourcesHealthApiResponse = ApiReadEnvelope<WorkbenchSourceHealth[]>;
 export type SourceCheckRunsApiResponse = ApiReadEnvelope<SourceCheckRunStatusReport>;
 export type ResearchRunStatusApiResponse = ApiReadEnvelope<ResearchRunStatusReport>;
+export type SourceCheckRunApiResponse = ApiWriteEnvelope<DueSourceCheckRunResult>;
 export type ResearchRunApiResponse = ApiWriteEnvelope<ResearchRunStatusReport>;
 export type CompanySupplyChainReportApiResponse = ApiReadThroughResearchEnvelope<CompanySupplyChainReport>;
 export type AiProviderStatusApiResponse = ApiReadEnvelope<AiProviderStatusReport>;

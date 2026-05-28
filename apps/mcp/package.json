@@ -16,6 +16,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
     "@supplystrata/api-orchestration": "workspace:*",
+    "@supplystrata/config": "workspace:*",
+    "@supplystrata/db": "workspace:*",
     "zod": "3.25.76"
   },
   "main": "./dist/index.js",

@@ -54,6 +54,8 @@ export type ApiSchemaId =
   | "SourcesHealthApiResponse"
   | "SourceCheckRunsApiResponse"
   | "ResearchRunStatusApiResponse"
+  | "SourceCheckRunRequest"
+  | "SourceCheckRunApiResponse"
   | "ResearchRunRequest"
   | "ResearchRunApiResponse"
   | "CompanySupplyChainReportApiResponse"
@@ -95,6 +97,7 @@ export type ApiRoutePath =
   | "/changes"
   | "/sources/health"
   | "/runs/source-checks"
+  | "/source-checks/run"
   | "/research-runs/:id"
   | "/ai/provider-status"
   | "/runs/ai-analysis"
@@ -154,14 +157,17 @@ const reviewRoute = (
 });
 
 const workflowRoute = (
-  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id"> & { handler_status?: ApiHandlerStatus }
+  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id"> & {
+    handler_status?: ApiHandlerStatus;
+    request_schema_id?: ApiSchemaId;
+  }
 ): ApiRouteContract => ({
   ...input,
   access: "workflow_write",
   stability: "v0_contract",
   handler_status: input.handler_status ?? "contract_only",
   write_policy: "research_run_mutation_no_fact_edge_write",
-  request_schema_id: "ResearchRunRequest"
+  request_schema_id: input.request_schema_id ?? "ResearchRunRequest"
 });
 
 const readThroughResearchRoute = (
@@ -533,6 +539,24 @@ export const API_ROUTES = [
       notes: "Research run creation may bootstrap listed-company identity and enqueue official source checks; it cannot write fact edges or call AI providers."
     },
     description: "Start a company research run by explicitly allowing entity bootstrap and source-check job creation."
+  }),
+  workflowRoute({
+    method: "POST",
+    path: "/source-checks/run",
+    operation_id: "runSourceChecks",
+    handler_status: "http_adapter_backed",
+    request_schema_id: "SourceCheckRunRequest",
+    parameters: [],
+    response_schema_id: "SourceCheckRunApiResponse",
+    dto_contract: {
+      schema_id: "SourceCheckRunApiResponse",
+      source_package: "@supplystrata/source-workflows",
+      source_type: "DueSourceCheckRunResult",
+      source_kind: "public_dto",
+      notes:
+        "Source-check execution may write local raw-document cache, observation events, and audit ledger entries; it cannot write fact edges or call AI providers."
+    },
+    description: "Run due source checks after explicit confirmation."
   }),
   reviewRoute({
     method: "POST",
