@@ -80,3 +80,6 @@ jobs:
 
       - name: Dependency boundaries
         run: pnpm dep-check
+
+      - name: MCP smoke
+        run: pnpm smoke:mcp

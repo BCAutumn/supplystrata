@@ -43,7 +43,7 @@ gold path 锚定在 AI compute 和 EV battery 两个验证锚点；
 - strength / freshness / risk / alert 都属于派生层。
 - unknown 是一等公民，不能用猜测或 fallback 填掉。
 - 任何写 `edges` / `evidence` / `claims` 的代码路径**不允许 import `@supplystrata/llm-helpers`**（CI 拦截）。
-- agent loop 不内置在核心；MCP write tools 必须标 `requires_user_confirmation`，agent 不能自动批准；外部 agent 探索结果只能作为 candidate 进入 review 路径。
+- agent loop 不内置在核心；MCP write tools 必须经过 server-side pending state + 单次 `confirmation_token`，agent 不能自动批准；外部 agent 探索结果只能作为 candidate 进入 review 路径。
 - Postgres 是本地 cache + audit ledger，不是 truth store；truth 永远在官方源；community-pack 是 read-only baseline。
 
 ## 当前阶段目标
@@ -290,9 +290,10 @@ Read Tools:
   list_source_targets(scope)
   poll_research_run(run_id)
 
-Write Tools (requires_user_confirmation):
+Write Tools (standard MCP annotations + server-side confirmation gate):
   start_research_session(company_query)
   run_source_check(target_id)
+  confirm_research_session(pending_id, confirmation_token)
   review.approve(candidate_id)
   review.reject(candidate_id, reason)
 ```
@@ -301,7 +302,7 @@ Write Tools (requires_user_confirmation):
 
 要求：
 
-- MCP write tools 全部标 `requires_user_confirmation`；agent 不能自动批准。
+- MCP write tools 全部使用标准 MCP annotations；server-side pending gate 拦截未确认写入，agent 不能自动批准。
 - MCP DTO 不泄漏 DB row。
 - SCBOM v0.x schema（实体 / edge / evidence / observation / unknown / change）独立维护在 `scbom-spec` repo（#10），SupplyStrata 是参考实现之一。
 - WorkbenchModel 继续保留离线导出能力，且对齐 SCBOM v0.x。
@@ -322,7 +323,7 @@ Write Tools (requires_user_confirmation):
 [x] 未解析 entity 不再冒泡成 HTTP 500；API 返回 404
 [ ] apps/mcp 抽取出独立包并实现 stdio + HTTP/SSE transport
 [ ] MCP resources / read tools / write tools 全部有 contract tests
-[ ] MCP write tools 全部标 `requires_user_confirmation`（contract audit）
+[ ] MCP write tools 全部显式 `readOnlyHint: false`；事实写入类 tool 标 `destructiveHint: true`；pending/token 行为有 contract audit
 [ ] SCBOM v0.x JSON Schema 在 `scbom-spec` repo 发布
 [ ] workbench-export 输出对齐 SCBOM v0.x schema
 [ ] community-pack 加载流程实现：sha256 校验 + read-only baseline + 本地写覆盖不污染 pack
@@ -394,7 +395,7 @@ Write Tools (requires_user_confirmation):
 文档对齐已完成（2026-05-28）。代码侧建议顺序（与 [decisions.md](../10-decisions/decisions.md) 优先级一致）：
 
 1. **抽取 `@supplystrata/llm-helpers`**：把现有 ai-analysis 中 LLM 调用收敛为 4 个具名 helper；加 dep-check 拦截违规 import；加全局禁用开关。
-2. **抽取 `apps/mcp`**：从 apps/api 提炼 MCP server；resources / read tools / write tools 分别落地；write tools 全部标 `requires_user_confirmation`。
+2. **抽取 `apps/mcp`**：从 apps/api 提炼 MCP server；resources / read tools / write tools 分别落地；write tools 使用标准 MCP annotations，并由 server-side pending state + 单次 `confirmation_token` 做真正确认边界。
 3. **Universal identity bootstrap**：把 SEC-centric `research-entity-bootstrap` 重构为 GLEIF / OpenFIGI / Wikidata + 各国官方目录链路；seed-entities 路径迁出。
 4. **Dynamic profile derive**：把 anchor profile 与运行时 derived profile 分层；derived profile 走 llm-helper，session-scope 不持久化。
 5. **SCBOM v0.x spec**：在独立 repo 发布 JSON Schema；workbench-export 对齐。

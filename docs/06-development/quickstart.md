@@ -94,18 +94,35 @@ pnpm --silent worker --once --limit 5
 
 `apps/worker` 是 opt-in 常驻进程。SupplyStrata 不假设 7x24 部署（[decisions.md](../10-decisions/decisions.md) #8）。
 
-## 7. MCP server（v0.x 目标）
+## 7. MCP server
 
-`apps/mcp` 落地后将提供唯一对外 surface（详见 [data-flow.md](../02-architecture/data-flow.md) "MCP 接入面"）：
+`apps/mcp` 是 v0.x 的唯一对外 surface（详见 [data-flow.md](../02-architecture/data-flow.md) "MCP 接入面"）。本机 agent / Claude Desktop / Cursor 这类 stdio host 使用：
 
 ```bash
-# 目标命令（未实现）：
-pnpm mcp --transport=stdio          # 给 Cursor / Claude Desktop / 本机 agent
-pnpm mcp --transport=http --port=7474   # 给浏览器 / 远程 agent
-pnpm mcp --pack=supplystrata-pack-2026.Q2.parquet   # community-pack warm start
+pnpm --silent mcp --transport=stdio
 ```
 
-当前 v0.x 仍通过 `apps/api` REST 暴露契约（迁移期保留，DTO 复用）；MCP 抽取完成后此节会扩展为完整示例。
+通过 pnpm 启动 stdio 时要加 `--silent`，避免包管理器日志污染 MCP 协议流。浏览器调试或受控远程 agent 使用 HTTP endpoint：
+
+```bash
+pnpm mcp --transport=http --port=7474
+```
+
+HTTP 默认只绑定 `127.0.0.1`，endpoint 是 `/mcp`。只有确认网络边界后才显式开放：
+
+```bash
+pnpm mcp --transport=http --port=7474 --bind=0.0.0.0
+```
+
+`--bind=0.0.0.0` 会暴露本机 MCP surface；v0.x 不内置远程鉴权层，远程访问必须放在受控网络、隧道或反向代理后。
+
+快速验证 MCP 协议和工具 shape：
+
+```bash
+pnpm smoke:mcp
+```
+
+该 smoke 会启动 stdio MCP fixture server，按 `resolve_company → list_source_targets → run_source_check → poll_research_run → traverse_chain` 调用链验证输出 shape，并验证 write tool 必须先返回 `requires_confirmation`、再用单次 `confirmation_token` 执行。实际数据仍来自本地 cache + audit ledger；REST API 只作为迁移期兼容路径保留。
 
 ## 发布前体检
 
@@ -114,7 +131,7 @@ pnpm release:check            # 默认：不要求 Docker
 pnpm release:check --with-db  # 含本地 DB cache / GraphStore 体检
 ```
 
-跑：ignore rules、secret scan、type-check、unit、integration、fixture e2e、lint、dependency boundary、无数据库 `smoke:local`。
+跑：ignore rules、secret scan、type-check、unit、integration、fixture e2e、lint、dependency boundary、无数据库 `smoke:local`、MCP smoke。
 
 ## 常见失败
 

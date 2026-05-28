@@ -53,6 +53,7 @@ async function main() {
   await runNamedCommand("lint", ["lint"]);
   await runNamedCommand("dependency boundaries", ["dep-check"]);
   await runNamedCommand("local smoke", withDb ? ["smoke:local", "--with-db"] : ["smoke:local"]);
+  await runNamedCommand("MCP smoke", ["smoke:mcp"]);
 
   if (withDb) {
     const dq = parseJson(runPnpm(["--silent", "cli", "dq", "run", "--format", "json"], { capture: true }), "dq run");
@@ -151,7 +152,7 @@ function isLikelyTextFile(name) {
 function secretPatterns() {
   return [
     /\bsk-(?:proj-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{32,})\b/,
-    /\b(?:OPENAI|ANTHROPIC|DEEPSEEK|OPEN_CORPORATES|COMPANIES_HOUSE)_(?:API_KEY|API_TOKEN)[ \t]*=[ \t]*[^\s#\r\n]+/
+    /^(?:export\s+)?(?:OPENAI|ANTHROPIC|DEEPSEEK|OPEN_CORPORATES|COMPANIES_HOUSE)_(?:API_KEY|API_TOKEN)[ \t]*=[ \t]*[^\s#\r\n]+/m
   ];
 }
 

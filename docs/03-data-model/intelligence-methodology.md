@@ -64,7 +64,7 @@ agent 自己负责理解、搜索补充、综合、写报告；
 外部 agent 通过 MCP 接入；MCP 暴露两类工具：
 
 - **read tools / resources**：自由调用，返回当前 cache + audit 状态。
-- **write tools**（`run_source_check`、`start_research_session`、`review.approve`、`review.reject` 等）：标 `requires_user_confirmation`，agent 不能自动批准；任何写入仍走 evidence-gated promote (#13)，agent 不能绕过事实写入不变式。
+- **write tools**（`run_source_check`、`start_research_session`、`review.approve`、`review.reject` 等）：使用标准 MCP annotations，并由 server-side pending state + 单次 `confirmation_token` 做真正确认边界；agent 不能自动批准；任何写入仍走 evidence-gated promote (#13)，agent 不能绕过事实写入不变式。
 
 SupplyStrata 不提供任何 MCP write tool 让 agent 直接提交 evidence / fact / 爬虫结果；agent 探索结果只能作为 candidate 进入 review 路径。
 
@@ -88,18 +88,18 @@ SupplyStrata 不提供任何 MCP write tool 让 agent 直接提交 evidence / fa
 
 每一层只能生成自己被允许生成的对象：
 
-| 阶段                                   | 可以生成什么                                                     | 不能生成什么                                 |
-| -------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------- |
-| identity bootstrap                     | entity identity、alias、identifier、source provenance            | 供应链关系、风险结论                         |
-| dynamic profile derive                 | plan-context (expected components + source targets)              | 持久化 profile；fact / observation / unknown |
-| source plan / checks                   | source target、source health、run status、retry/backoff          | "已证明供应商关系"                           |
-| parsing / extraction                   | chunks、observations、relation candidates、semantic change       | approved fact                                |
-| evidence-gated promote (auto)          | edges + evidence + change_records（仅 rule + 官方 + L≥4 或双源） | LLM 单源；弱源；有冲突                       |
-| review (opt-in)                        | review decision、accepted/rejected candidate                     | 没有证据的行业常识补全                       |
-| built-in profile (anchor)              | 验收锚点、expected source、readiness/backlog context             | 全球行业覆盖、动态业务画像                   |
-| LLM helper                             | 4 个具名 candidate（见 LLM Helper 边界一节）                     | truth-store 写入；多步循环；agent 行为       |
-| MCP read                               | 当前 cache + audit 状态                                          | 触发新 LLM；隐式 source check                |
-| MCP write (requires_user_confirmation) | 入队 source check / 创建研究 run / approve review                | 直接写事实；绕过 evidence-gated promote      |
+| 阶段                                 | 可以生成什么                                                     | 不能生成什么                                 |
+| ------------------------------------ | ---------------------------------------------------------------- | -------------------------------------------- |
+| identity bootstrap                   | entity identity、alias、identifier、source provenance            | 供应链关系、风险结论                         |
+| dynamic profile derive               | plan-context (expected components + source targets)              | 持久化 profile；fact / observation / unknown |
+| source plan / checks                 | source target、source health、run status、retry/backoff          | "已证明供应商关系"                           |
+| parsing / extraction                 | chunks、observations、relation candidates、semantic change       | approved fact                                |
+| evidence-gated promote (auto)        | edges + evidence + change_records（仅 rule + 官方 + L≥4 或双源） | LLM 单源；弱源；有冲突                       |
+| review (opt-in)                      | review decision、accepted/rejected candidate                     | 没有证据的行业常识补全                       |
+| built-in profile (anchor)            | 验收锚点、expected source、readiness/backlog context             | 全球行业覆盖、动态业务画像                   |
+| LLM helper                           | 4 个具名 candidate（见 LLM Helper 边界一节）                     | truth-store 写入；多步循环；agent 行为       |
+| MCP read                             | 当前 cache + audit 状态                                          | 触发新 LLM；隐式 source check                |
+| MCP write (server-side confirmation) | 入队 source check / 创建研究 run / approve review                | 直接写事实；绕过 evidence-gated promote      |
 
 ### 当前 Profile 能力
 
@@ -130,7 +130,7 @@ SupplyStrata 不提供任何 MCP write tool 让 agent 直接提交 evidence / fa
 ```text
 allowed agent inputs  = MCP resources (scbom / evidence / unknowns / changes / source-health)
                       + MCP read tools (resolve_company / traverse_chain / read_evidence_for_edge)
-                      + MCP write tools (requires_user_confirmation)
+                      + MCP write tools (server-side confirmation)
 
 allowed agent outputs = agent 自己的报告、解释、跨源综合（不写回 SupplyStrata）
                       + 通过 MCP write tool 入队 source-check / 创建研究 run
@@ -145,7 +145,7 @@ SupplyStrata 不发现"真实世界发生了什么"。真实世界由官方源 +
 
 1. **任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import `@supplystrata/llm-helpers`**。LLM 永远不直接写事实。
 2. **LLM helper 必须返回 candidate**（不能返回 final fact）；任何 candidate 进入事实层都要经过 evidence-gated promote。
-3. **agent loop 不允许直接写库**；MCP write tools 必须标 `requires_user_confirmation`，agent 不能自动批准。
+3. **agent loop 不允许直接写库**；MCP write tools 必须经过 server-side pending state + 单次 `confirmation_token`，agent 不能自动批准。
 4. **community-pack 是 read-only baseline**；本地写入覆盖 pack 字段但不污染 pack；pack 升级时本地新写入保留。
 5. **terminal state** (`deprecated` / `superseded` / `rejected` / `resolved` / `dead`) **不能被普通 upsert 复活**；必须走显式 lifecycle workflow 并写 change record。
 6. **observation / lead / source health / risk metric / AI 输出永不写 fact edge**。它们只能进入派生层或 review 队列。

@@ -50,7 +50,7 @@
 
 - 核心代码**不内置 agent loop**；`@supplystrata/agent` 是独立 npm 包，optional dependency。
 - 核心 LLM 调用**只能经过 `@supplystrata/llm-helpers`**，全局可禁用；任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import 该包。
-- 外部 agent（Cursor / Claude Desktop / 自建）通过 MCP 接入；MCP write tools 必须标 `requires_user_confirmation`，agent 不能自动批准。
+- 外部 agent（Cursor / Claude Desktop / 自建）通过 MCP 接入；MCP write tools 必须经过 server-side pending state + 单次 `confirmation_token`，agent 不能自动批准。
 - 详见 [decisions.md](../10-decisions/decisions.md) #3、#7、#9。
 
 执行约束：

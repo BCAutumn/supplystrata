@@ -94,14 +94,14 @@
 
 ## 关键不变式
 
-| 不变式                                                                                        | 在哪一步生效 | 违反后果                      |
-| --------------------------------------------------------------------------------------------- | ------------ | ----------------------------- |
-| 任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import `llm-helpers`                  | [7][8]       | 事实层被 LLM 污染，方法学失效 |
-| LLM 调用必须返回 candidate（不能返回 final fact）                                             | [2][3][4][7] | 同上                          |
-| agent loop 不允许写库；MCP write tool 必须标 `requires_user_confirmation`                     | [9]          | 外部 agent 可绕过方法学       |
-| observation / lead / source health 永不写 fact edge                                           | [8]          | 把变化信号误读成关系事实      |
-| community-pack 是 read-only baseline；本地写覆盖 pack 字段但不污染 pack                       | [warm-start] | pack 升级时本地工作丢失       |
-| terminal state (`deprecated` / `superseded` / `rejected` / `resolved`) 不能被普通 upsert 复活 | [8]          | 审计断裂                      |
+| 不变式                                                                                            | 在哪一步生效 | 违反后果                      |
+| ------------------------------------------------------------------------------------------------- | ------------ | ----------------------------- |
+| 任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import `llm-helpers`                      | [7][8]       | 事实层被 LLM 污染，方法学失效 |
+| LLM 调用必须返回 candidate（不能返回 final fact）                                                 | [2][3][4][7] | 同上                          |
+| agent loop 不允许写库；MCP write tool 必须经过 server-side pending gate + 单次 confirmation token | [9]          | 外部 agent 可绕过方法学       |
+| observation / lead / source health 永不写 fact edge                                               | [8]          | 把变化信号误读成关系事实      |
+| community-pack 是 read-only baseline；本地写覆盖 pack 字段但不污染 pack                           | [warm-start] | pack 升级时本地工作丢失       |
+| terminal state (`deprecated` / `superseded` / `rejected` / `resolved`) 不能被普通 upsert 复活     | [8]          | 审计断裂                      |
 
 参见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md) "Fact 写入不变式"和 [decisions.md](../10-decisions/decisions.md) #3、#9、#13、#14。
 

@@ -119,8 +119,8 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
     expect(facilityAlias.rows[0]?.count).toBe("1");
     expect(evidence.rows[0]?.count).toBe("2");
     expect(evidenceRows.rows).toEqual([
-      { cite_text: "Integration Supplier Penang Malaysia", cite_start_char: 7, cite_end_char: 44 },
-      { cite_text: "Integration Supplier Penang Malaysia", cite_start_char: 7, cite_end_char: 44 }
+      { cite_text: "Integration Supplier Penang Malaysia", cite_start_char: 7, cite_end_char: 43 },
+      { cite_text: "Integration Supplier Penang Malaysia", cite_start_char: 7, cite_end_char: 43 }
     ]);
     expect(Number.parseInt(changes.rows[0]?.count ?? "0", 10)).toBeGreaterThanOrEqual(3);
   });

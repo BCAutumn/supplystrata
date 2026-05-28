@@ -171,6 +171,7 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 - 2026-05-28 — **DQ11** (Phase B): MCP TypeScript SDK 采用 npm registry 可解析的官方 `@modelcontextprotocol/sdk@1.29.0`，不使用计划早稿中的 `@modelcontextprotocol/sdk-typescript` 包名。
 - 2026-05-28 — **DQ12** (Phase B): B3 read surface 先复用现有 `api-orchestration` DTO；`changes/entity/{id}` 暂时映射全局 `listChanges`，`list_source_targets` 暂时映射 `listSourceHealth`。真正 entity-scoped changes / source-target DTO 属于后续 API contract 扩展，不混入 B3。
 - 2026-05-28 — **DQ13** (Phase B): B5 HTTP/SSE 使用 SDK 当前 `StreamableHTTPServerTransport`，endpoint 固定 `/mcp`；该 transport 自带 SSE stream 支持，不接已废弃的 `SSEServerTransport`。默认绑定 `127.0.0.1`，远程访问必须显式 `--bind=0.0.0.0`。
+- 2026-05-28 — **DQ14** (Phase B): B6 smoke 采用 spawned stdio fixture server 验证 MCP protocol/tool shape，不把 DB runtime 或 source-workflow executor 偷塞进 B6。`run_source_check` smoke 验证 pending + confirmation token 语义；真实 DB-backed source execution 留给后续 source workflow 接入 PR。
 
 ---
 

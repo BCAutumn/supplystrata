@@ -16,6 +16,7 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e",
     "smoke:local": "node scripts/smoke-local.mjs",
+    "smoke:mcp": "node scripts/smoke-mcp.mjs",
     "smoke:research": "pnpm db:migrate && pnpm cli admin seed && pnpm cli examples nvidia ingest --graph-sync defer && pnpm cli claims build --format json && pnpm cli workbench export --company nvidia --depth 3 --out reports/nvidia-workbench.json",
     "smoke:network": "node scripts/smoke-local.mjs --with-network",
     "research-preview": "pnpm build && node scripts/serve-research-preview.mjs",

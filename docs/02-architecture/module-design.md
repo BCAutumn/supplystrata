@@ -21,7 +21,7 @@
 supplystrata/
 ├── apps/
 │   ├── cli/                 # 薄命令入口：参数解析、env/logger/db 装配、调用 use-case
-│   ├── mcp/                 # 【新增，目标】MCP server：tools / resources / prompts；唯一对外 surface
+│   ├── mcp/                 # MCP server：tools / resources / prompts；唯一对外 surface
 │   ├── worker/              # source-check 常驻 worker；复用 source-workflows
 │   ├── web-demo/            # 【新增，目标】薄 demo（~100 行）拼接 @supplystrata/web 组件
 │   └── api/                 # 【迁移中】Gate 8 REST 契约 + DTO；逐步迁出到 mcp + scbom-spec；v1.x 前可保留
@@ -137,7 +137,7 @@ Layer 4: 参考客户端（独立 release cadence，optional）
 - `graph-builder` 只能通过 `graph-store` port 做图投影；事实写入以 Postgres cache + audit ledger 为准（不再叫 truth store；#2）。
 - `workbench-export` 和 `research-pack` 是输出/研究编排层；默认只读，只有显式 prepare/refresh flag 才能调用受控派生维护 use-case。
 - `api-orchestration` 是 REST/MCP 共享的 contract + handler 编排层；不得启动 server、绑定端口、读写 HTTP header，HTTP transport 留在 `apps/api`。
-- `apps/mcp` 是 v0.x 唯一对外 surface；暴露 tools / resources / prompts，write tools 必须标 `requires_user_confirmation`。它只做 app-level 装配，不承载业务规则。
+- `apps/mcp` 是 v0.x 唯一对外 surface；暴露 tools / resources / prompts。write tools 只使用 MCP spec 标准 annotations；真正安全边界是 server-side pending state + 单次 `confirmation_token`。它只做 app-level 装配，不承载业务规则。
 - `apps/api`（旧 REST）在 v0.x 内逐步迁入 `apps/mcp`；contract test、DTO 来源、schema registry 复用。v1.x 评估是否补 REST shim。
 - `apps/cli` / `apps/worker` / `apps/web-demo` / `agent` / `web` 都是 Layer 4 客户端，可独立装/卸；删掉它们核心仍完整可用。
 - `agent` 永远不被任何核心 / Layer 1-3 package 依赖；核心不知道它存在。
@@ -248,13 +248,13 @@ NormalizedDocument
 
 `apps/mcp` 暴露三类 surface：
 
-| 类别        | 例子                                                                                                                        | 写入约束                                                                                     |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Resources   | `supplystrata://scbom/company/{lei}`、`evidence/edge/{id}`、`unknowns/company/{id}`、`changes/entity/{id}`、`source-health` | 只读；返回当前 cache + audit 状态                                                            |
-| Read Tools  | `resolve_company`、`poll_research_run`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets`  | 只读；可触发 LLM helper 但不入库                                                             |
-| Write Tools | `start_research_session`、`run_source_check`、`review.approve`、`review.reject`                                             | 必须标 `requires_user_confirmation`；agent 不能自动批准；任何写入仍走 evidence-gated promote |
+| 类别        | 例子                                                                                                                       | 写入约束                                                                                           |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Resources   | `supplystrata://entity/{id}`、`evidence/edge/{id}`、`unknowns/company/{id}`、`changes/entity/{id}`、`source-health`        | 只读；返回当前 cache + audit 状态                                                                  |
+| Read Tools  | `resolve_company`、`poll_research_run`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets` | 只读；可触发 LLM helper 但不入库                                                                   |
+| Write Tools | `start_research_session`、`run_source_check`、`confirm_research_session`、`review.approve`、`review.reject`                | 标准 MCP risk annotations + server-side confirmation gate；任何事实写入仍走 evidence-gated promote |
 
-旧 `apps/api` 的 REST endpoint（`GET /companies/:id/supply-chain-report`、`POST /companies/:id/research-runs`、`GET /research-runs/:id` 等）逐步迁入对应 MCP tool / resource；DTO 复用，不重新设计。完整 MCP 契约见 `apps/mcp/README.md`（落地时建）。
+旧 `apps/api` 的 REST endpoint（`GET /companies/:id/supply-chain-report`、`POST /companies/:id/research-runs`、`GET /research-runs/:id` 等）逐步迁入对应 MCP tool / resource；DTO 复用，不重新设计。完整 MCP 契约见 `apps/mcp/README.md`。
 
 外部 agent 通过 MCP 消费 SupplyStrata 时的允许 / 禁止边界详见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md) 的 "MCP Handoff" 一节。
 
@@ -336,7 +336,7 @@ NormalizedDocument
 - **Fact 写入不变式**（[intelligence-methodology.md](../03-data-model/intelligence-methodology.md) 6 条）是否被 CI 拦截。
 - `llm-helpers` import 边界：任何写 `edges`/`evidence`/`claims` 的 package 不允许 import `@supplystrata/llm-helpers`（dep-check）。
 - `agent` package 不被任何核心 / Layer 1-3 package 依赖（dep-check）。
-- MCP write tools 是否全部标 `requires_user_confirmation`（contract test）。
+- MCP write tools 是否全部显式 `readOnlyHint: false`；事实写入类 tool 是否标 `destructiveHint: true`，且不带 token 只能返回 `requires_confirmation`（contract test）。
 - source target / source job 是否有 lease、retry、policy 状态保护。
 - review/disposition 是否不会自动生成 fact edge。
 - evidence-gated auto-promote 是否严格满足 `extractor=rule AND source=官方 AND L≥4` 或双源 corroboration 条件（unit + integration）。
