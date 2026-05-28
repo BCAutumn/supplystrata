@@ -13,18 +13,7 @@ import {
 } from "@supplystrata/core";
 import { dbTxClientBrand, type DbTxClient } from "@supplystrata/db/write";
 import type { DbClient } from "@supplystrata/db/read";
-import { sql as migration0012ObservationTypeContractSql } from "../../packages/db/src/migration-sql/0012_observation_type_contract.js";
-import { sql as migration0013EdgeIntelligenceContextSql } from "../../packages/db/src/migration-sql/0013_edge_intelligence_context.js";
-import { sql as migration0014RiskViewsSql } from "../../packages/db/src/migration-sql/0014_risk_views.js";
-import { sql as migration0015AlertCandidatesSql } from "../../packages/db/src/migration-sql/0015_alert_candidates.js";
-import { sql as migration0018EdgeCalibrationSql } from "../../packages/db/src/migration-sql/0018_edge_calibration.js";
-import { sql as migration0019RiskMetricKindContractSql } from "../../packages/db/src/migration-sql/0019_risk_metric_kind_contract.js";
-import { sql as migration0020WeightedNodeKnockoutMetricSql } from "../../packages/db/src/migration-sql/0020_weighted_node_knockout_metric.js";
-import { sql as migration0021FinancialMetricObservationTypeSql } from "../../packages/db/src/migration-sql/0021_financial_metric_observation_type.js";
-import { sql as migration0022FinancialPeerMetricKindSql } from "../../packages/db/src/migration-sql/0022_financial_peer_metric_kind.js";
-import { sql as migration0026ClaimHumanEditGuardSql } from "../../packages/db/src/migration-sql/0026_claim_human_edit_guard.js";
-import { sql as migration0027ObservationCalibrationSql } from "../../packages/db/src/migration-sql/0027_observation_calibration.js";
-import { sql as migration0028RankingCalibrationSql } from "../../packages/db/src/migration-sql/0028_ranking_calibration.js";
+import { sql as currentSchemaBaselineSql } from "../../packages/db/src/migration-sql/0001_current_schema_baseline.js";
 import {
   deprecateEdge,
   claimDueGraphProjectionJobs,
@@ -210,59 +199,55 @@ class AlertStatusDbClient extends RecordingDbClient {
 describe("db intelligence-network repositories", () => {
   it("keeps DB observation type constraint synchronized with core observation types", () => {
     for (const observationType of OBSERVATION_TYPES) {
-      expect(migration0012ObservationTypeContractSql).toContain(`'${observationType}'`);
-      expect(migration0021FinancialMetricObservationTypeSql).toContain(`'${observationType}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${observationType}'`);
     }
   });
 
   it("keeps DB edge intelligence constraints synchronized with core methodology types", () => {
     for (const strengthKind of EDGE_STRENGTH_KINDS) {
-      expect(migration0013EdgeIntelligenceContextSql).toContain(`'${strengthKind}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${strengthKind}'`);
     }
     for (const decayModel of EDGE_FRESHNESS_DECAY_MODELS) {
-      expect(migration0013EdgeIntelligenceContextSql).toContain(`'${decayModel}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${decayModel}'`);
     }
   });
 
   it("keeps DB risk metric constraints synchronized with core methodology types", () => {
     for (const metricKind of RISK_METRIC_KINDS) {
-      expect(migration0014RiskViewsSql).toContain(`'${metricKind}'`);
-      expect(migration0019RiskMetricKindContractSql).toContain(`'${metricKind}'`);
-      expect(migration0020WeightedNodeKnockoutMetricSql).toContain(`'${metricKind}'`);
-      expect(migration0022FinancialPeerMetricKindSql).toContain(`'${metricKind}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${metricKind}'`);
     }
   });
 
   it("keeps DB alert constraints synchronized with core alert kinds", () => {
     for (const alertKind of ALERT_KINDS) {
-      expect(migration0015AlertCandidatesSql).toContain(`'${alertKind}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${alertKind}'`);
     }
   });
 
   it("keeps DB calibration constraints synchronized with core calibration labels", () => {
     for (const label of EDGE_CALIBRATION_LABELS) {
-      expect(migration0018EdgeCalibrationSql).toContain(`'${label}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${label}'`);
     }
     for (const category of EDGE_CALIBRATION_ERROR_CATEGORIES) {
-      expect(migration0018EdgeCalibrationSql).toContain(`'${category}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${category}'`);
     }
   });
 
   it("keeps DB observation calibration constraints synchronized with core observation labels", () => {
     for (const label of OBSERVATION_CALIBRATION_LABELS) {
-      expect(migration0027ObservationCalibrationSql).toContain(`'${label}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${label}'`);
     }
   });
 
   it("keeps DB ranking calibration constraints synchronized with core ranking labels", () => {
     for (const label of RANKING_CALIBRATION_LABELS) {
-      expect(migration0028RankingCalibrationSql).toContain(`'${label}'`);
+      expect(currentSchemaBaselineSql).toContain(`'${label}'`);
     }
   });
 
   it("tracks human edited claims for derived refresh guards", () => {
-    expect(migration0026ClaimHumanEditGuardSql).toContain("ADD COLUMN IF NOT EXISTS last_human_edit_at");
-    expect(migration0026ClaimHumanEditGuardSql).toContain("ADD COLUMN IF NOT EXISTS last_human_editor");
+    expect(currentSchemaBaselineSql).toContain("last_human_edit_at TIMESTAMPTZ");
+    expect(currentSchemaBaselineSql).toContain("last_human_editor TEXT");
   });
 
   it("inserts claims and links evidence/unknowns without business inference", async () => {
