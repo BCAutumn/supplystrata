@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCompanySupplyChainResearchSummary, type CompanySupplyChainReport } from "@supplystrata/api";
+import { buildCompanySupplyChainResearchSummary, type CompanySupplyChainReport } from "@supplystrata/api-orchestration";
 
 describe("company supply-chain report research summary", () => {
   it("marks reviewed fact coverage as facts_ready", () => {

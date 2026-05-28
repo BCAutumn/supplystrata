@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { API_CONTRACT_VERSION, API_ROUTES, auditApiContract, buildApiOpenApiDocument, schemaIds, toOpenApiPath } from "@supplystrata/api";
+import { API_CONTRACT_VERSION, API_ROUTES, auditApiContract, buildApiOpenApiDocument, schemaIds, toOpenApiPath } from "@supplystrata/api-orchestration";
 
 describe("api contract", () => {
   it("pins the Gate 8 contract version and required route surface", () => {

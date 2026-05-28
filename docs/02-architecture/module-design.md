@@ -66,6 +66,7 @@ supplystrata/
 │   ├── workbench-export/    # 稳定 Workbench JSON DTO；逐步对齐 SCBOM v0.x
 │   ├── research-pack/       # 研究包、Gate 1 readiness/backlog/run ledger/report artifact
 │   ├── ai-analysis/         # 【拆分计划】provider config + audit run 留核心；agent 行为迁出到 @supplystrata/agent
+│   ├── api-orchestration/   # REST/MCP 共用 route contract、DTO、operation handlers；不持有 HTTP transport
 │   ├── agent/               # reference agent 占位；调本机 MCP；optional dep；核心不得依赖
 │   ├── web/                 # 【新增，目标】framework-agnostic 可嵌入可视化：Web Components + Canvas/SVG
 │   ├── data-quality/
@@ -113,7 +114,7 @@ Layer 2.5: 事实写入 + 派生维护
     ↑
 Layer 3: 编排 + 输出 + 接入面
   chain-view-builder + card-builder + workbench-export + research-pack + data-quality
-  ai-analysis (provider config + audit)
+  ai-analysis (provider config + audit) + api-orchestration
   apps/mcp ← 唯一对外 surface
     ↑
 Layer 4: 参考客户端（独立 release cadence，optional）
@@ -135,6 +136,7 @@ Layer 4: 参考客户端（独立 release cadence，optional）
 - `pipeline` 是 normalized document engine；它不直接依赖具体源，也不做 source policy 调度。
 - `graph-builder` 只能通过 `graph-store` port 做图投影；事实写入以 Postgres cache + audit ledger 为准（不再叫 truth store；#2）。
 - `workbench-export` 和 `research-pack` 是输出/研究编排层；默认只读，只有显式 prepare/refresh flag 才能调用受控派生维护 use-case。
+- `api-orchestration` 是 REST/MCP 共享的 contract + handler 编排层；不得启动 server、绑定端口、读写 HTTP header，HTTP transport 留在 `apps/api`。
 - `apps/mcp` 是 v0.x 唯一对外 surface；暴露 tools / resources / prompts，write tools 必须标 `requires_user_confirmation`。它只做 app-level 装配，不承载业务规则。
 - `apps/api`（旧 REST）在 v0.x 内逐步迁入 `apps/mcp`；contract test、DTO 来源、schema registry 复用。v1.x 评估是否补 REST shim。
 - `apps/cli` / `apps/worker` / `apps/web-demo` / `agent` / `web` 都是 Layer 4 客户端，可独立装/卸；删掉它们核心仍完整可用。
@@ -224,6 +226,7 @@ NormalizedDocument
 | `workbench-export`                            | Workbench JSON（v0.x 内对齐 SCBOM v0.x schema）                                 | 稳定 machine-readable contract         |
 | `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、read model / walkthrough           | 研究编排和审计账本                     |
 | `ai-analysis`                                 | provider config / `ai_analysis_runs` audit；agent 行为迁出后只留 audit + config | LLM 调用审计；行为收敛到 `llm-helpers` |
+| `api-orchestration`                           | REST/MCP 共用 API contract、DTO envelope、operation handler 装配                | 不含 HTTP server / response 写入       |
 | `apps/mcp`                                    | MCP tools / resources / prompts 契约、薄装配层                                  | 唯一对外 surface；版本化 MCP 契约      |
 | `apps/api`（迁移中）                          | 旧 REST contract；逐步迁入 `apps/mcp`，v1.x 再评估 REST shim                    | 过渡期保留                             |
 | `agent`                                       | 参考 agent 进程；用户带 LLM provider，调本机 MCP                                | optional；不被核心依赖                 |

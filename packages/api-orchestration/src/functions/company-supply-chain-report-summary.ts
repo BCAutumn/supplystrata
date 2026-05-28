@@ -1,8 +1,4 @@
-import type {
-  CompanySupplyChainReport,
-  CompanySupplyChainReportReadiness,
-  CompanySupplyChainResearchSummary
-} from "../../api-contract/definitions/api-dtos.js";
+import type { CompanySupplyChainReport, CompanySupplyChainReportReadiness, CompanySupplyChainResearchSummary } from "../api-contract/definitions/api-dtos.js";
 
 export function buildCompanySupplyChainResearchSummary(input: {
   company_query: string;

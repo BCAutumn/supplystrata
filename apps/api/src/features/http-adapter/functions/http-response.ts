@@ -1,5 +1,4 @@
-import { API_CONTRACT_VERSION, API_SCHEMA_VERSION, type ApiRouteContract } from "../../api-contract/definitions/api-contract.js";
-import { buildApiOpenApiDocument } from "../../api-contract/functions/openapi.js";
+import { API_CONTRACT_VERSION, API_SCHEMA_VERSION, buildApiOpenApiDocument, type ApiRouteContract } from "@supplystrata/api-orchestration";
 import type { ApiHttpResponse } from "../definitions/http-adapter.js";
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" } as const;

@@ -25,8 +25,8 @@ import {
 import type { ComponentObservation, CompanyObservation } from "@supplystrata/render";
 import { changeTimelineItemToDto, claimToDto, type WorkbenchSourceHealth } from "@supplystrata/workbench-export";
 import type { AiAnalysisArtifact } from "@supplystrata/ai-analysis";
-import type { CompanySupplyChainReport, ResearchRunRequest, ReviewDecisionResult } from "../../api-contract/definitions/api-dtos.js";
-import { ApiHttpError, type ApiOperationHandlerInput, type ApiOperationHandlers } from "../definitions/http-adapter.js";
+import type { CompanySupplyChainReport, ResearchRunRequest, ReviewDecisionResult } from "../api-contract/definitions/api-dtos.js";
+import { ApiHttpError, type ApiOperationHandlerInput, type ApiOperationHandlers } from "../definitions/api-operation.js";
 import { buildCompanySupplyChainResearchSummary } from "../functions/company-supply-chain-report-summary.js";
 import { loadLatestAiAnalysisArtifactFile } from "./ai-analysis-artifact-files.js";
 

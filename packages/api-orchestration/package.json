@@ -1,0 +1,32 @@
+{
+  "name": "@supplystrata/api-orchestration",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@supplystrata/ai-analysis": "workspace:*",
+    "@supplystrata/card-builder": "workspace:*",
+    "@supplystrata/chain-view": "workspace:*",
+    "@supplystrata/config": "workspace:*",
+    "@supplystrata/db": "workspace:*",
+    "@supplystrata/llm-helpers": "workspace:*",
+    "@supplystrata/pipeline": "workspace:*",
+    "@supplystrata/render": "workspace:*",
+    "@supplystrata/research-pack": "workspace:*",
+    "@supplystrata/review-store": "workspace:*",
+    "@supplystrata/source-monitor": "workspace:*",
+    "@supplystrata/source-workflows": "workspace:*",
+    "@supplystrata/workbench-export": "workspace:*"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
+}

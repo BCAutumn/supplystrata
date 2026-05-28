@@ -11,20 +11,10 @@
     }
   },
   "dependencies": {
-    "@supplystrata/ai-analysis": "workspace:*",
-    "@supplystrata/card-builder": "workspace:*",
-    "@supplystrata/chain-view": "workspace:*",
+    "@supplystrata/api-orchestration": "workspace:*",
     "@supplystrata/config": "workspace:*",
     "@supplystrata/db": "workspace:*",
-    "@supplystrata/llm-helpers": "workspace:*",
-    "@supplystrata/observability": "workspace:*",
-    "@supplystrata/pipeline": "workspace:*",
-    "@supplystrata/render": "workspace:*",
-    "@supplystrata/research-pack": "workspace:*",
-    "@supplystrata/review-store": "workspace:*",
-    "@supplystrata/source-monitor": "workspace:*",
-    "@supplystrata/source-workflows": "workspace:*",
-    "@supplystrata/workbench-export": "workspace:*"
+    "@supplystrata/observability": "workspace:*"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

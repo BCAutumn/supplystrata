@@ -1,7 +1,7 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import type { ApiOperationHandlers } from "@supplystrata/api-orchestration";
 import type { SupplyStrataLogger } from "@supplystrata/observability";
 import { messageFromUnknown, noopLogger } from "@supplystrata/observability";
-import type { ApiOperationHandlers } from "../definitions/http-adapter.js";
 import { handleApiHttpRequest } from "./http-adapter.js";
 
 export interface ApiNodeServerOptions {

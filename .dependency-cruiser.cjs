@@ -76,6 +76,12 @@ module.exports = {
       to: { path: "^packages/agent/src" }
     },
     {
+      name: "apps-mcp-must-not-depend-on-apps-api",
+      severity: "error",
+      from: { path: "^apps/mcp/src" },
+      to: { path: "^apps/api/src" }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },

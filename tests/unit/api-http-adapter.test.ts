@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ApiOperationHandlers } from "@supplystrata/api";
+import type { ApiOperationHandlers } from "@supplystrata/api-orchestration";
 import { handleApiHttpRequest } from "@supplystrata/api";
 import { EntityResolutionError } from "@supplystrata/db/read";
 

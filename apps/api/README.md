@@ -1,18 +1,12 @@
 # @supplystrata/api
 
-`apps/api` is the Gate 8 contract and thin HTTP adapter boundary for future HTTP, desktop, and agent consumers.
+`apps/api` is the thin Node HTTP adapter for the reusable `@supplystrata/api-orchestration` contract and handler boundary.
 
 Current scope:
 
-- Versioned route registry in `features/api-contract/definitions`.
-- Public DTO source mapping to `render`, `chain-view`, `workbench-export`, `research-pack`, and `ai-analysis`.
-- OpenAPI 3.1 document generation from the same route registry.
-- Contract audit helpers that keep DB rows out of the API surface.
 - Minimal Node HTTP adapter that wraps implemented handlers in the same versioned envelopes.
-- Source-check run/status read model for host-app progress and monitoring surfaces.
-- Explicit company research-run creation and durable run/status reads for external agent orchestration.
-- Read-through company supply-chain report queries that can trigger network-backed research while exposing run/status state.
-- Internal AI provider status, analysis run/status, company AI analysis plan, and latest AI analysis artifact read models.
+- HTTP request parsing, response serialization, server lifecycle, and port binding.
+- Delegation to `@supplystrata/api-orchestration` for route contracts, OpenAPI, public DTOs, and database-backed operation handlers.
 
 The HTTP adapter is intentionally thin: it starts a Node server, opens the configured Postgres store, and delegates to existing public DTO builders, source workflow use-cases, source monitor use-cases, and AI analysis contracts. The database is not the company coverage boundary; it is the evidence ledger, run/status ledger, history baseline, and change-detection memory. `GET /companies/:id/supply-chain-report` is a read-through research surface: it may bootstrap a listed-company identity, enqueue source-check jobs, and by default run due source checks inline when data is missing or stale, then returns the current report context plus observable run state. Callers can pass `source_checks=queued` to leave source checks for the worker. Research-run creation remains the explicit mutation boundary for callers that want direct run control; neither path can write fact edges or call AI providers. Review routes are declared with `review_queue_mutation_only_no_fact_edge_write`; applying fact edges remains a separate reviewed workflow.
 All v0 contract routes are now marked `http_adapter_backed` in OpenAPI. The consumer read-model and reasoning walkthrough handlers build a read-only research pack without enabling claim build, intelligence refresh, component-risk refresh, or unknown materialization write steps.
