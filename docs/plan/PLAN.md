@@ -167,6 +167,7 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 - 2026-05-28 — **DQ8** (Phase B 启动)：orchestration 抽取到 `packages/api-orchestration`（apps/api 和 apps/mcp 共用），不走 cross-app dep，也不立即下沉到 domain package。理由：两个 surface 对等消费同一组 use-case；apps 反向依赖被 dep-check 禁；下沉到 domain package 方向对但属于单独的架构治理轮次，不应耦合在 Phase B 主目标里。**已采纳，B1 解锁**。
 - 2026-05-28 — **DQ9** (Phase B): `requires_user_confirmation` 的最终 gate 在 server 端（pending state + 显式 confirm），不依赖 client honor annotation。Annotation 仍写，但只是给客户端的 hint，不是安全边界。
 - 2026-05-28 — **DQ10** (Phase B): MCP TypeScript SDK 采用 npm registry 可解析的官方 `@modelcontextprotocol/sdk@1.29.0`，不使用计划早稿中的 `@modelcontextprotocol/sdk-typescript` 包名。
+- 2026-05-28 — **DQ11** (Phase B): B3 read surface 先复用现有 `api-orchestration` DTO；`changes/entity/{id}` 暂时映射全局 `listChanges`，`list_source_targets` 暂时映射 `listSourceHealth`。真正 entity-scoped changes / source-target DTO 属于后续 API contract 扩展，不混入 B3。
 
 ---
 
