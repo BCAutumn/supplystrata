@@ -6,6 +6,7 @@
     "supplystrata": "./dist/main.js"
   },
   "dependencies": {
+    "@supplystrata/ai-analysis": "workspace:*",
     "@supplystrata/card-builder": "workspace:*",
     "@supplystrata/claim-builder": "workspace:*",
     "@supplystrata/config": "workspace:*",

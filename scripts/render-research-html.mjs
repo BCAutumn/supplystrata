@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildSimulatedAiAnalysis, renderAiAnalystSection, renderAiComparison } from "./research-html-ai.mjs";
+import { renderComparison, renderEvidenceLayerLegend } from "./research-html-sections.mjs";
 
 const [packDir, outputPath, previousPackDir] = process.argv.slice(2);
 if (packDir === undefined || outputPath === undefined) {
@@ -27,12 +29,28 @@ async function loadPack(dir) {
     coverage: await readJson(dir, "source-target-coverage.json"),
     propagation: await readJson(dir, "propagation-readiness.json"),
     questions: await readJson(dir, "question-readiness.json"),
-    quality: await readJson(dir, "quality.json")
+    quality: (await readJsonOptional(dir, "quality.json")) ?? emptyQuality(),
+    consumer: await readJsonOptional(dir, "consumer-read-model.json"),
+    reasoning: await readJsonOptional(dir, "reasoning-walkthrough.json"),
+    ai: await readJsonOptional(dir, "ai-analysis.json")
   };
+}
+
+function emptyQuality() {
+  return { schema_version: "1.0.0", counts: { error: 0, warn: 0, info: 0 }, issues: [] };
 }
 
 async function readJson(dir, file) {
   return JSON.parse(await readFile(join(dir, file), "utf8"));
+}
+
+async function readJsonOptional(dir, file) {
+  try {
+    return await readJson(dir, file);
+  } catch (error) {
+    if (error !== null && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 function renderHtml(pack, previous) {
@@ -45,6 +63,7 @@ function renderHtml(pack, previous) {
   const leads = pack.expansion.component_dependency_leads ?? [];
   const edges = pack.readiness.edges ?? [];
   const qualityIssues = pack.quality.issues ?? [];
+  const ai = pack.ai ?? buildSimulatedAiAnalysis(pack);
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -141,6 +160,39 @@ function renderHtml(pack, previous) {
     .section { margin-top: 16px; }
     .callout { background: var(--soft-blue); border-color: #c8dcff; }
     .callout strong { display: block; margin-bottom: 6px; }
+    .ai-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 16px;
+      align-items: stretch;
+      background: #111827;
+      color: #f8fafc;
+      border-color: #1f2937;
+    }
+    .ai-panel h2, .ai-panel h3 { color: #f8fafc; }
+    .ai-panel .muted { color: #cbd5e1; }
+    .ai-card {
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px;
+      background: #182235;
+    }
+    .ai-card + .ai-card { margin-top: 10px; }
+    .ai-card strong { display: block; margin-bottom: 5px; }
+    .ai-list { display: grid; gap: 10px; }
+    .ai-list li { margin-bottom: 7px; line-height: 1.45; }
+    .ai-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #243149;
+      border: 1px solid #3d4c65;
+      color: #dbeafe;
+      font-size: 12px;
+      margin: 0 6px 6px 0;
+    }
     .list { display: grid; gap: 10px; }
     .item {
       border: 1px solid #e4ebf4;
@@ -219,7 +271,7 @@ function renderHtml(pack, previous) {
     .edge.fact { stroke: var(--green); stroke-width: 2.2; }
     .edge.lead { stroke-dasharray: 6 5; }
     @media (max-width: 1100px) {
-      .hero, .two, .three { grid-template-columns: 1fr; }
+      .hero, .two, .three, .ai-panel { grid-template-columns: 1fr; }
       .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .layer-grid { grid-template-columns: 1fr; }
       .trace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -250,6 +302,8 @@ function renderHtml(pack, previous) {
         <p>这份报告没有让模型编事实边。Observation、lead、source-path 只作为研究输入；L4/L5 fact edge 仍必须来自可追溯 evidence 和 review/disposition。</p>
       </div>
     </section>
+
+    ${renderAiAnalystSection(ai, pack, previous)}
 
     <section class="panel section">
       <h2>Evidence Layer Legend</h2>
@@ -363,6 +417,7 @@ function renderHtml(pack, previous) {
     <section class="panel section">
       <h2>和上一版相比</h2>
       ${renderComparison(pack, previous)}
+      ${renderAiComparison(ai, previous)}
     </section>
   </main>
 </body>
@@ -396,50 +451,6 @@ function renderMonitoringBatch(batch) {
       <span class="pill">observations ${escapeHtml(String(batch.state_counts?.targets_with_observations ?? 0))}</span>
     </div>
   </div>`;
-}
-
-function renderEvidenceLayerLegend() {
-  const layers = [
-    {
-      level: "L5",
-      kind: "fact",
-      title: "Regulatory direct disclosure",
-      body: "监管文件直接明文披露的公司关系；默认进入 fact graph。"
-    },
-    {
-      level: "L4",
-      kind: "fact",
-      title: "Official disclosure / supplier list",
-      body: "官方供应商名单、公司官方报告或严格官方交叉验证；默认进入 fact graph。"
-    },
-    {
-      level: "L3",
-      kind: "context",
-      title: "Repeated customs / reviewed inference",
-      body: "海关/BOL 反复出现或多源一致推断；默认进入 review queue，不直接画成事实边。"
-    },
-    {
-      level: "L2",
-      kind: "context",
-      title: "Trend evidence",
-      body: "贸易流、价格、新闻和行业报告组成的趋势证据；进入 observation / propagation context。"
-    },
-    {
-      level: "L1",
-      kind: "lead",
-      title: "Single lead",
-      body: "单条新闻、论坛、招聘或爆料；只进入 hypothesis / lead，不进入事实图谱。"
-    }
-  ];
-  return layers
-    .map(
-      (layer) => `<div class="layer-card ${layer.kind}">
-        <span class="layer-level">${escapeHtml(layer.level)}</span>
-        <strong>${escapeHtml(layer.title)}</strong>
-        <p>${escapeHtml(layer.body)}</p>
-      </div>`
-    )
-    .join("");
 }
 
 function renderFrontierSvg(edges, leads) {
@@ -610,27 +621,6 @@ function renderAction(action) {
   </div>`;
 }
 
-function renderComparison(pack, previous) {
-  if (previous === null) return `<p class="muted">没有提供上一版 research-pack；当前 HTML 只展示本次结果。</p>`;
-  const rows = [
-    ["target nodes", "official_disclosure_target_nodes"],
-    ["expected source links", "official_disclosure_expected_source_links"],
-    ["covered source links", "official_disclosure_expected_source_links_with_coverage"],
-    ["runnable suggested targets", "runnable_suggested_targets"],
-    ["component dependency leads", "supply_chain_expansion_component_dependency_leads"],
-    ["fact-capable leads", "supply_chain_expansion_leads_with_fact_capable_source_path"],
-    ["Gate 1 overall progress", "official_disclosure_gate1_overall_progress", true]
-  ];
-  return `<table><thead><tr><th>Metric</th><th>Previous</th><th>Current</th><th>Delta</th></tr></thead><tbody>${rows
-    .map(([label, key, percent]) => {
-      const oldValue = previous.manifest.stats[key] ?? 0;
-      const newValue = pack.manifest.stats[key] ?? 0;
-      const delta = newValue - oldValue;
-      return `<tr><td>${escapeHtml(label)}</td><td>${formatValue(oldValue, percent)}</td><td>${formatValue(newValue, percent)}</td><td class="${delta >= 0 ? "spark" : "down"}">${delta >= 0 ? "+" : ""}${formatValue(delta, percent)}</td></tr>`;
-    })
-    .join("")}</tbody></table>`;
-}
-
 function metric(value, label, sub) {
   return `<div class="panel metric"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}${sub === "" ? "" : `<br>${escapeHtml(sub)}`}</span></div>`;
 }
@@ -644,11 +634,6 @@ function diff(previous, key, current) {
   const oldValue = previous.manifest.stats[key] ?? 0;
   const delta = current - oldValue;
   return `${delta >= 0 ? "+" : ""}${delta} vs previous`;
-}
-
-function formatValue(value, percent) {
-  if (percent === true) return pct(value);
-  return escapeHtml(String(value));
 }
 
 function pct(value) {

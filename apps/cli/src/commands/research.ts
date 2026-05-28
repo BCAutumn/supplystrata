@@ -1,5 +1,13 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { Command } from "commander";
+import {
+  buildAiProviderStatus,
+  buildLocalAiAnalysisArtifactFromUnknown,
+  buildProviderAiAnalysisArtifactFromUnknown,
+  validateAiAnalysisArtifact
+} from "@supplystrata/ai-analysis";
+import { loadEnv, type Env } from "@supplystrata/config";
 import {
   buildResearchPack,
   buildResearchPackFromWorkbench,
@@ -10,6 +18,7 @@ import {
   type ResearchPackInput,
   type ResearchTargetProfileOption
 } from "@supplystrata/research-pack";
+import { ensureResearchCompanyEntity } from "@supplystrata/source-workflows";
 import { parseWorkbenchModel } from "@supplystrata/workbench-export/schema";
 import { parseCommaSeparated, parseLimit, parseSince, parseTradeDirections, withDatabase, writeJson } from "../cli-utils.js";
 import { explicitOrCurrentIsoTimestamp } from "../cli-clock.js";
@@ -89,7 +98,9 @@ export function registerResearchCommands(program: Command): void {
       }) => {
         await withDatabase(async (store) => {
           const generatedAt = explicitOrCurrentIsoTimestamp(options.generatedAt);
-          const pack = await buildResearchPack(store, await researchPackInputFromOptions({ ...options, generatedAt }));
+          const env = loadEnv();
+          const company = await resolveResearchCompanyInput(store, { query: options.company, env, generatedAt });
+          const pack = await buildResearchPack(store, await researchPackInputFromOptions({ ...options, company, generatedAt }));
           const written = await writeResearchPack(options.out, pack);
           writeJson({
             ok: true,
@@ -175,6 +186,98 @@ export function registerResearchCommands(program: Command): void {
         });
       }
     );
+
+  research
+    .command("ai-analyze")
+    .requiredOption("--pack <dir>", "existing research-pack directory containing consumer-read-model.json and reasoning-walkthrough.json")
+    .option("--previous-pack <dir>", "optional previous research-pack directory used for quality-lift comparison")
+    .option("--generated-at <iso>", "explicit ISO timestamp for reproducible AI analysis artifact")
+    .option("--out <file>", "output ai-analysis artifact path; defaults to <pack>/ai-analysis.json")
+    .option("--simulate", "force local simulated output even when provider config is ready")
+    .description("write a read-only AI analysis artifact; calls an OpenAI-compatible provider when configured")
+    .action(async (options: { pack: string; previousPack?: string; generatedAt?: string; out?: string; simulate?: boolean }) => {
+      const env = loadEnv();
+      const generatedAt = explicitOrCurrentIsoTimestamp(options.generatedAt);
+      const provider = buildAiProviderStatus(
+        {
+          LLM_PROVIDER: env.LLM_PROVIDER,
+          ...(env.LLM_API_KEY === undefined ? {} : { LLM_API_KEY: env.LLM_API_KEY }),
+          ...(env.LLM_BASE_URL === undefined ? {} : { LLM_BASE_URL: env.LLM_BASE_URL }),
+          ...(env.LLM_MODEL === undefined ? {} : { LLM_MODEL: env.LLM_MODEL }),
+          ...(env.OPENAI_API_KEY === undefined ? {} : { OPENAI_API_KEY: env.OPENAI_API_KEY }),
+          ...(env.ANTHROPIC_API_KEY === undefined ? {} : { ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
+          ...(env.DEEPSEEK_API_KEY === undefined ? {} : { DEEPSEEK_API_KEY: env.DEEPSEEK_API_KEY })
+        },
+        generatedAt
+      );
+      const manifest = await readJsonFile(join(options.pack, "manifest.json"));
+      const consumerReadModel = await readJsonFile(join(options.pack, "consumer-read-model.json"));
+      const reasoningWalkthrough = await readJsonFile(join(options.pack, "reasoning-walkthrough.json"));
+      const previousManifest = options.previousPack === undefined ? undefined : await readJsonFile(join(options.previousPack, "manifest.json"));
+      const baseArtifactInput = {
+        generated_at: generatedAt,
+        provider,
+        manifest,
+        consumer_read_model: consumerReadModel,
+        reasoning_walkthrough: reasoningWalkthrough,
+        ...(previousManifest === undefined ? {} : { previous_manifest: previousManifest })
+      };
+      const artifact =
+        options.simulate === true || provider.status !== "ready"
+          ? buildLocalAiAnalysisArtifactFromUnknown(baseArtifactInput)
+          : await buildProviderAiAnalysisArtifactFromUnknown({
+              ...baseArtifactInput,
+              api_key: requireAiProviderApiKey(env, provider.provider),
+              ...(env.LLM_BASE_URL === undefined ? {} : { base_url: env.LLM_BASE_URL })
+            });
+      const validation = validateAiAnalysisArtifact({
+        artifact,
+        allowed_refs: artifact.model_metadata.input_refs
+      });
+      if (!validation.ok) {
+        throw new Error(`AI analysis artifact failed guardrail validation: ${validation.errors.join("; ")}`);
+      }
+      const out = options.out ?? join(options.pack, "ai-analysis.json");
+      await mkdir(dirname(out), { recursive: true });
+      await writeFile(out, `${JSON.stringify(validation.artifact, null, 2)}\n`, "utf8");
+      writeJson({
+        ok: true,
+        out,
+        schema_version: validation.artifact.schema_version,
+        status: validation.artifact.status,
+        mode: validation.artifact.mode,
+        provider: validation.artifact.provider,
+        model: validation.artifact.model,
+        simulated: validation.artifact.model_metadata.simulated,
+        provider_request_id: validation.artifact.model_metadata.provider_request_id,
+        policy: validation.artifact.policy
+      });
+    });
+}
+
+async function readJsonFile(path: string): Promise<unknown> {
+  return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function resolveResearchCompanyInput(
+  store: Parameters<typeof ensureResearchCompanyEntity>[0],
+  input: { query: string; env: Env; generatedAt: string }
+): Promise<string> {
+  const result = await ensureResearchCompanyEntity(store, {
+    query: input.query,
+    env: input.env,
+    now: input.generatedAt,
+    reviewer: "cli.research.run"
+  });
+  if (result.entity_id !== undefined) return result.entity_id;
+  throw new Error(`Cannot open research for ${input.query}: ${result.reason ?? result.status}`);
+}
+
+function requireAiProviderApiKey(env: Env, provider: "none" | "openai" | "anthropic" | "deepseek" | "custom"): string {
+  const key =
+    provider === "openai" ? (env.LLM_API_KEY ?? env.OPENAI_API_KEY) : provider === "deepseek" ? (env.LLM_API_KEY ?? env.DEEPSEEK_API_KEY) : env.LLM_API_KEY;
+  if (key === undefined || key.trim().length === 0) throw new Error(`Missing API key for AI provider ${provider}.`);
+  return key;
 }
 
 async function researchPackInputFromOptions(options: {
