@@ -21,4 +21,33 @@ export { registerReadTools } from "./features/read-surface/orchestration/registe
 export { MCP_TRANSPORT_STDIO, type StdioCliOptions } from "./features/stdio/definitions/stdio-cli.js";
 export { parseStdioCliOptions } from "./features/stdio/functions/parse-stdio-cli-options.js";
 export { runStdioMcpServer } from "./features/stdio/orchestration/run-stdio-server.js";
+export {
+  MCP_FACT_WRITING_TOOL_NAMES,
+  MCP_WRITE_TOOL_NAMES,
+  type ConfirmResearchSessionRequest,
+  type McpFactWritingToolName,
+  type McpPendingActionToolName,
+  type McpWriteExecutionContext,
+  type McpWriteExecutors,
+  type McpWriteSurfaceRuntime,
+  type McpWriteToolName,
+  type McpWriteToolResult,
+  type McpWriteToolStatus,
+  type PendingWriteAction,
+  type PendingWriteRecord,
+  type PendingWriteStore,
+  type ReviewDecisionWriteRequest,
+  type RunSourceCheckRequest,
+  type StartResearchSessionRequest
+} from "./features/write-surface/definitions/write-surface.js";
+export { createApiBackedWriteExecutors } from "./features/write-surface/functions/api-backed-write-executors.js";
+export { createInMemoryPendingWriteStore } from "./features/write-surface/functions/pending-write-store.js";
+export {
+  executedResult,
+  invalidTokenResult,
+  MCP_WRITE_TOOL_OUTPUT_SCHEMA,
+  requiresConfirmationResult,
+  writeToolText
+} from "./features/write-surface/functions/write-tool-result.js";
+export { registerWriteTools } from "./features/write-surface/orchestration/register-write-tools.js";
 export { createSupplyStrataMcpServer } from "./orchestration/create-mcp-server.js";

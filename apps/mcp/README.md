@@ -17,14 +17,22 @@
 
 所有 read tools 都通过注入的 `@supplystrata/api-orchestration` handlers 返回既有 API envelope。`apps/mcp` 不直接读取数据库，也不直接调用 `llm-helpers`。
 
-### Planned write tools
+### Write tools
 
 - `start_research_session`
 - `run_source_check`
+- `confirm_research_session`
 - `review.approve`
 - `review.reject`
 
-这些 write tools 必须经过 B4 的 `requires_user_confirmation` contract 和 server-side pending gate 后才能暴露。
+Write tools 只使用 MCP spec 标准 annotation 字段：
+
+- 启动型工具：`readOnlyHint: false`、`destructiveHint: false`
+- 事实/终态写工具：`readOnlyHint: false`、`destructiveHint: true`
+
+Annotation 只给 host 做 UX risk hint；真正护栏在 server-side pending gate。第一次调用写工具只返回 `requires_confirmation`、`pending_id`、`confirmation_token` 和 `summary_of_action`，不会写 truth/cache、不会入 source-check 队列、不会发 LLM 请求。显式确认后才执行；token 单次有效，过期或不匹配返回 `invalid_token`。
+
+`start_research_session` 通过 `confirm_research_session` 确认；`run_source_check`、`review.approve`、`review.reject` 在同名 tool 中携带 `pending_id` + `confirmation_token` 确认。review 写入通过注入的 `api-orchestration` handler 进入现有 review-store 边界，并在 reason 中加 `via=mcp-tool` 来源。
 
 ## Resource URI grammar
 

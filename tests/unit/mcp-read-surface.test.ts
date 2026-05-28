@@ -25,7 +25,7 @@ describe("mcp read surface", () => {
       await client.connect(clientTransport);
 
       const tools = await client.listTools();
-      expect(tools.tools.map((tool) => tool.name).sort()).toEqual(["ping", ...MCP_READ_TOOL_NAMES].sort());
+      expect(tools.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(["ping", ...MCP_READ_TOOL_NAMES]));
       for (const toolName of MCP_READ_TOOL_NAMES) {
         const tool = tools.tools.find((candidate) => candidate.name === toolName);
         expect(tool?.annotations?.readOnlyHint).toBe(true);
