@@ -99,6 +99,10 @@ describe("research-pack basics", () => {
     expect(selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: ["COMP-PCB"] }).profile?.profile_id).toBe(
       "ai-compute-memory.v0"
     );
+    expect(selectResearchTargetProfile({ company_id: "ENT-TESLA", component_ids: [] }).profile?.profile_id).toBe("ev-battery-energy.v0");
+    expect(selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: ["COMP-BATTERY-CELL"] }).profile?.profile_id).toBe(
+      "ev-battery-energy.v0"
+    );
   });
 
   it("returns cloned built-in target profiles so callers cannot mutate registry state", () => {

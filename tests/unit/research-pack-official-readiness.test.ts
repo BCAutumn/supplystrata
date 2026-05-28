@@ -424,9 +424,27 @@ describe("research-pack official disclosure readiness", () => {
   it("keeps built-in research target profiles deterministic and reviewable", () => {
     const profiles = listBuiltInResearchTargetProfiles();
     const profile = getBuiltInResearchTargetProfile("ai-compute-memory.v0");
+    const evProfile = getBuiltInResearchTargetProfile("ev-battery-energy.v0");
 
-    expect(profiles.map((item) => item.profile_id)).toEqual(["ai-compute-memory.v0"]);
+    expect(profiles.map((item) => item.profile_id)).toEqual(["ai-compute-memory.v0", "ev-battery-energy.v0"]);
     expect(profile.target_nodes).toHaveLength(39);
+    expect(evProfile.target_nodes).toHaveLength(24);
+    expect(evProfile.target_nodes.find((node) => node.node_id === "ENT-TESLA")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
+    );
+    expect(evProfile.target_nodes.find((node) => node.node_id === "COMP-BATTERY-CELL")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar", "company-ir"] })
+    );
+    expect(evProfile.target_nodes.find((node) => node.node_id === "COMP-LITHIUM-REFINING")).toEqual(
+      expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar", "company-ir", "usgs-mcs", "iea-critical-minerals"] })
+    );
+    const teslaSecTargets = evProfile.target_nodes.find((node) => node.node_id === "ENT-TESLA")?.expected_source_targets ?? [];
+    expect(teslaSecTargets.find((target) => target.target_kind === "sec-company-filings")?.target_config).toEqual({
+      cik: "0001318605",
+      entity_id: "ENT-TESLA",
+      form_types: ["10-K", "10-Q", "20-F", "8-K"],
+      limit: 3
+    });
     expect(profile.target_nodes.find((node) => node.node_id === "ENT-NVIDIA")).toEqual(
       expect.objectContaining({ priority: "P0", expected_source_ids: ["sec-edgar"] })
     );

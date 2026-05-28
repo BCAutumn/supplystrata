@@ -28,7 +28,7 @@
 - 不把内置 profile 当成产品边界；profile 是 gold path / validation anchor，不是让研究只能围绕 NVIDIA 或 AI compute 跑。
 - 不把同组件相邻官方事实自动并入当前研究公司的可见链路；它们只是递归研究候选。
 - 不把相邻事实的 company rank 解释成概率结论；rank 只用于生成下一轮研究目标，且必须抑制披露中心节点、品牌方和高频 source-subject 偏差。ranking label 只进入 calibration 样本池，不会自动改 research target、fact edge 或 unknown。
-- 不把 AI compute propagation layer 的 `official_target_runnable`、`observation_ready` 或 `lead_only` 解释成事实覆盖；这些状态只能驱动 source target、unknown/backlog 或人工审查动作。
+- 不把 AI compute 或 EV/battery profile 的 `official_target_runnable`、`observation_ready`、`lead_only`、`ready/partial/blocked` 解释成事实覆盖；这些状态只能驱动 source target、unknown/backlog 或人工审查动作。
 - 不输出未经 schema 化的最终产业判断；开放式推理留给前端研究流程和安全 AI。
 
 ## 主要入口

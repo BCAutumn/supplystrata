@@ -1,4 +1,5 @@
 import { AI_COMPUTE_MEMORY_PROFILE } from "./research-target-profile-ai-compute-memory.js";
+import { EV_BATTERY_ENERGY_PROFILE } from "./research-target-profile-ev-battery-energy.js";
 import type {
   ResearchTargetProfile,
   ResearchTargetProfileId,
@@ -6,7 +7,7 @@ import type {
   ResearchTargetProfileSelection
 } from "./research-target-profile-definitions.js";
 
-const BUILT_IN_RESEARCH_TARGET_PROFILES = [AI_COMPUTE_MEMORY_PROFILE] as const satisfies readonly ResearchTargetProfile[];
+const BUILT_IN_RESEARCH_TARGET_PROFILES = [AI_COMPUTE_MEMORY_PROFILE, EV_BATTERY_ENERGY_PROFILE] as const satisfies readonly ResearchTargetProfile[];
 
 export function listBuiltInResearchTargetProfiles(): ResearchTargetProfile[] {
   return BUILT_IN_RESEARCH_TARGET_PROFILES.map(cloneResearchTargetProfile);

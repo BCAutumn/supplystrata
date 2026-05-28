@@ -1,15 +1,11 @@
-import type {
-  AiComputePropagationLayerId,
-  AiComputePropagationLayerStatus,
-  AiComputePropagationPolicy
-} from "./ai-compute-propagation-readiness-definitions.js";
+import type { AiComputePropagationPolicy } from "./ai-compute-propagation-readiness-definitions.js";
 
 export interface ReasoningWalkthrough {
   schema_version: "1.0.0";
   walkthrough_id: "gate8_lite_reasoning_walkthrough.v0";
   generated_at: string;
   company_id: string;
-  matrix_id: "ai_compute_propagation.v0";
+  matrix_id: "ai_compute_propagation.v0" | "profile_propagation.v0";
   policy: AiComputePropagationPolicy;
   summary: {
     layers: number;
@@ -24,9 +20,9 @@ export interface ReasoningWalkthrough {
 }
 
 export interface ReasoningWalkthroughLayer {
-  layer_id: AiComputePropagationLayerId;
+  layer_id: string;
   title: string;
-  status: AiComputePropagationLayerStatus;
+  status: string;
   question: string;
   known_facts: ReasoningRefGroup;
   explicit_unknowns: ReasoningRefGroup;
@@ -67,6 +63,6 @@ export interface ReasoningNextAction {
 }
 
 export interface ReasoningCannotConcludeItem {
-  layer_id: AiComputePropagationLayerId;
+  layer_id: string;
   reason: string;
 }

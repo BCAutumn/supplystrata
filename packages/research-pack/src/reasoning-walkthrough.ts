@@ -1,7 +1,7 @@
 import type { AiComputePropagationLayer } from "./ai-compute-propagation-readiness-definitions.js";
 import type { ReasoningCannotConcludeItem, ReasoningWalkthrough, ReasoningWalkthroughLayer } from "./reasoning-walkthrough-definitions.js";
 import type { ResearchPackManifest } from "./definitions.js";
-import type { PropagationReadinessReport } from "./propagation-readiness.js";
+import type { PropagationReadinessItem, PropagationReadinessReport } from "./propagation-readiness.js";
 
 export interface ReasoningWalkthroughInput {
   manifest: ResearchPackManifest;
@@ -9,15 +9,16 @@ export interface ReasoningWalkthroughInput {
 }
 
 export function buildReasoningWalkthrough(pack: ReasoningWalkthroughInput): ReasoningWalkthrough {
+  const usesAiComputeMatrix = pack.manifest.research_target_profile?.profile_id === "ai-compute-memory.v0";
   const matrix = pack.propagation_readiness.ai_compute_matrix;
-  const layers = matrix.layers.map(toWalkthroughLayer);
+  const layers = usesAiComputeMatrix ? matrix.layers.map(toWalkthroughLayer) : pack.propagation_readiness.items.map(toProfileWalkthroughLayer);
   const cannotConclude = layers.flatMap((layer) => layer.cannot_conclude.map((reason) => ({ layer_id: layer.layer_id, reason })));
   return {
     schema_version: "1.0.0",
     walkthrough_id: "gate8_lite_reasoning_walkthrough.v0",
     generated_at: pack.manifest.generated_at,
     company_id: pack.manifest.selected_company_id,
-    matrix_id: matrix.matrix_id,
+    matrix_id: usesAiComputeMatrix ? matrix.matrix_id : "profile_propagation.v0",
     policy: matrix.policy,
     summary: {
       layers: layers.length,
@@ -29,6 +30,52 @@ export function buildReasoningWalkthrough(pack: ReasoningWalkthroughInput): Reas
     },
     layers,
     cannot_conclude: cannotConclude
+  };
+}
+
+function toProfileWalkthroughLayer(item: PropagationReadinessItem): ReasoningWalkthroughLayer {
+  return {
+    layer_id: item.context_id,
+    title: item.title,
+    status: item.status,
+    question: item.question,
+    known_facts: {
+      count: item.frontier_refs.length,
+      refs: [...item.frontier_refs],
+      interpretation:
+        item.frontier_refs.length === 0
+          ? "No reviewed L4/L5 frontier fact is visible for this profile context."
+          : "These refs are reviewed frontier facts visible to the current research pack."
+    },
+    explicit_unknowns: {
+      count: item.missing_requirements.length,
+      refs: item.missing_requirements.map((_, index) => `${item.context_id}:missing:${index + 1}`),
+      interpretation: "Missing requirements mark research gaps; they are not negative evidence."
+    },
+    constrained_evidence: {
+      observation_refs: [...item.observation_series_refs],
+      lead_refs: [...item.component_dependency_refs, ...item.material_or_process_refs],
+      source_target_refs: [...item.source_plan_refs],
+      official_evidence_gaps: item.missing_requirements.map((requirement, index) => ({
+        gap_kind: "profile_context_gap",
+        target_kind: "layer",
+        target_id: item.context_id,
+        label: `Requirement ${index + 1}`,
+        recommended_action: requirement
+      }))
+    },
+    next_actions: [
+      {
+        queue_item_id: `${item.context_id}:next-action`,
+        priority: item.status === "blocked" ? "P0" : "P1",
+        action: "review_profile_context",
+        title: item.action,
+        reason: item.rationale,
+        source_target_refs: [...item.source_plan_refs],
+        unknown_refs: item.missing_requirements.map((_, index) => `${item.context_id}:missing:${index + 1}`)
+      }
+    ],
+    cannot_conclude: cannotConcludeForProfileItem(item)
   };
 }
 
@@ -94,6 +141,23 @@ function cannotConcludeForLayer(layer: AiComputePropagationLayer): string[] {
     reasons.push(`Prohibited truth-store writes: ${layer.prohibited_truth_store_writes.join(", ")}.`);
   }
   return reasons.length === 0 ? ["No unsupported conclusion is required for this layer; keep outputs tied to listed refs."] : reasons;
+}
+
+function cannotConcludeForProfileItem(item: PropagationReadinessItem): string[] {
+  const reasons: string[] = [];
+  if (item.frontier_refs.length === 0) {
+    reasons.push("Cannot claim a company-level supply-chain relationship for this context without a reviewed L4/L5 fact edge.");
+  }
+  if (item.observation_series_refs.length > 0) {
+    reasons.push("Observation signals can support context or alerts, but cannot be converted into fact edges without reviewed evidence.");
+  }
+  if (item.component_dependency_refs.length > 0 || item.material_or_process_refs.length > 0) {
+    reasons.push("Component, material, and process leads identify research direction only; they are not supplier facts.");
+  }
+  if (item.missing_requirements.length > 0) {
+    reasons.push("Open profile requirements must remain backlog or unknowns until official evidence is reviewed.");
+  }
+  return reasons.length === 0 ? ["No unsupported conclusion is required for this context; keep outputs tied to listed refs."] : reasons;
 }
 
 function uniqueSorted(values: readonly string[]): string[] {

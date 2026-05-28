@@ -1,6 +1,6 @@
 import type { OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
 
-export const RESEARCH_TARGET_PROFILE_IDS = ["ai-compute-memory.v0"] as const;
+export const RESEARCH_TARGET_PROFILE_IDS = ["ai-compute-memory.v0", "ev-battery-energy.v0"] as const;
 
 export type ResearchTargetProfileId = (typeof RESEARCH_TARGET_PROFILE_IDS)[number];
 export type ResearchTargetProfileVersion = "0.1.0";

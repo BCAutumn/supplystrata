@@ -30,7 +30,7 @@ export function secTargetCompany(
           form_types: ["10-K", "10-Q", "20-F", "8-K"],
           limit: 3
         },
-        reason: `${name} has a curated SEC CIK in seeds/entities.csv; monitor official filings as Gate 1 source coverage.`
+        reason: `${name} has an audited SEC CIK in the research target profile; monitor official filings as Gate 1 source coverage.`
       },
       {
         source_id: "sec-edgar",
@@ -41,7 +41,7 @@ export function secTargetCompany(
           metrics: [...SEC_COMPANY_FACT_OBSERVATION_METRICS],
           max_periods: 12
         },
-        reason: `${name} has a curated SEC CIK in seeds/entities.csv; monitor SEC company facts as observation-only financial signals for Gate 1.`
+        reason: `${name} has an audited SEC CIK in the research target profile; monitor SEC company facts as observation-only financial signals for Gate 1.`
       }
     ]
   };

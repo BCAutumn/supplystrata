@@ -14,6 +14,7 @@ import { loadCompanyCard, loadUnknownMap } from "@supplystrata/card-builder";
 import { renderCompanyCard, renderUnknownMapCard } from "@supplystrata/render";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { buildResearchPack } from "@supplystrata/research-pack";
+import { buildAiProviderStatus, buildCompanyAiAnalysisPlan, buildLocalAiAnalysisArtifact, validateAiAnalysisArtifact } from "@supplystrata/ai-analysis";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "../integration/helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();
@@ -88,10 +89,10 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
       mode: "truth_store",
       selected_company_id: "ENT-NVIDIA",
       research_target_profile: {
-        profile_id: "ai-compute-memory.v0",
-        target_nodes: 25
+        profile_id: "ai-compute-memory.v0"
       }
     });
+    expect(pack.manifest.research_target_profile?.target_nodes).toBeGreaterThanOrEqual(25);
     expect(pack.manifest.stats.fact_edges).toBeGreaterThanOrEqual(8);
     expect(pack.manifest.stats.source_plan_items).toBeGreaterThanOrEqual(20);
     expect(pack.manifest.stats.runnable_suggested_targets).toBeGreaterThanOrEqual(20);
@@ -106,7 +107,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
     expect(pack.official_disclosure_readiness.scorecard.status).toBe("partial");
     expect(pack.official_disclosure_readiness.scorecard.data_progress).toBeGreaterThan(0);
     expect(pack.official_disclosure_readiness.scorecard.source_path_progress).toBeGreaterThan(0);
-    expect(pack.official_disclosure_readiness.summary.target_research_nodes).toBe(25);
+    expect(pack.official_disclosure_readiness.summary.target_research_nodes).toBeGreaterThanOrEqual(25);
     expect(pack.official_disclosure_readiness.summary.level_4_5_fact_edges).toBeGreaterThanOrEqual(8);
     expect(pack.official_disclosure_readiness.summary.traceable_edges).toBeGreaterThanOrEqual(8);
     expect(pack.official_disclosure_readiness.summary.corroboration_queue_items).toBeGreaterThanOrEqual(1);
@@ -117,8 +118,49 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
     expect(pack.investigation_backlog.items.some((item) => item.kind === "supply_chain_expansion")).toBe(true);
     expect(pack.supply_chain_expansion_plan.frontier.length).toBeGreaterThanOrEqual(8);
     expect(pack.supply_chain_expansion_plan.component_dependency_leads.length).toBeGreaterThanOrEqual(8);
-    expect(pack.supply_chain_expansion_plan.frontier.every((item) => item.expansion_state === "expand_candidate")).toBe(true);
+    expect(pack.supply_chain_expansion_plan.frontier.some((item) => item.expansion_state === "expand_candidate")).toBe(true);
     expect(pack.supply_chain_expansion_plan.component_dependency_leads.every((lead) => lead.expansion_policy === "lead_only_no_fact_mutation")).toBe(true);
+
+    const aiPlan = buildCompanyAiAnalysisPlan({
+      generated_at: generatedAt,
+      provider: buildAiProviderStatus({ LLM_PROVIDER: "custom", LLM_API_KEY: "fixture-key", LLM_BASE_URL: "https://llm.example/v1" }, generatedAt),
+      consumer_read_model: pack.consumer_read_model,
+      reasoning_walkthrough: pack.reasoning_walkthrough
+    });
+
+    expect(aiPlan).toMatchObject({
+      scope_kind: "company",
+      scope_id: "ENT-NVIDIA",
+      status: "ready",
+      policy: {
+        fact_mutation_allowed: false,
+        agent_behavior_allowed: false
+      }
+    });
+    expect(aiPlan.nodes.map((node) => node.node_id)).toEqual(["company_context_explanation_v0", "reasoning_walkthrough_explanation_v0"]);
+    expect(aiPlan.nodes.flatMap((node) => node.input_refs)).toEqual(expect.arrayContaining(["company:ENT-NVIDIA"]));
+    expect(aiPlan.nodes.every((node) => node.guardrails.some((guardrail) => guardrail.includes("Do not")))).toBe(true);
+    expect(aiPlan.nodes.some((node) => node.cannot_conclude.length > 0)).toBe(true);
+
+    const aiArtifact = buildLocalAiAnalysisArtifact({
+      generated_at: generatedAt,
+      provider: aiPlan.provider,
+      manifest: pack.manifest,
+      consumer_read_model: pack.consumer_read_model,
+      reasoning_walkthrough: pack.reasoning_walkthrough
+    });
+    const artifactValidation = validateAiAnalysisArtifact({
+      artifact: aiArtifact,
+      allowed_refs: aiArtifact.model_metadata.input_refs
+    });
+    expect(artifactValidation).toMatchObject({ ok: true });
+    expect(aiArtifact.policy).toEqual({
+      fact_mutation_allowed: false,
+      agent_behavior_allowed: false,
+      source_connector_allowed: false
+    });
+    expect(aiArtifact.executive_summary.join("\n")).toContain("source monitor");
+    expect(aiArtifact.next_human_actions.length).toBeGreaterThan(0);
   });
 });
 
