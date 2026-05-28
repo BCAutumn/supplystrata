@@ -158,7 +158,7 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 ## 决策日志（day-to-day；与 `docs/10-decisions/decisions.md` 区分：那里是宪法）
 
 - 2026-05-28 — **DQ1**: llm-helpers 复用 ai-analysis 的 `provider-config` + `provider-openai-compatible`；加 `LlmProvider` interface 留 plugin 槽
-- 2026-05-28 — **DQ2**: MCP 用官方 `@modelcontextprotocol/sdk-typescript`；Phase B 只做 stdio，HTTP/SSE 放 Phase B 后段
+- 2026-05-28 — **DQ2**: MCP 用官方 `@modelcontextprotocol/sdk@1.29.0`；Phase B 先做 stdio，HTTP/SSE 放 Phase B 后段
 - 2026-05-28 — **DQ3**: `gleif` / `openfigi` / `wikidata` 各自独立 `packages/sources/` 包
 - 2026-05-28 — **DQ4**: `research_session` 由 `packages/source-workflows` 管理；MCP 仅透传 session_id
 - 2026-05-28 — **DQ5**: `scbom-spec` 独立 repo (`supplystrata/scbom-spec`)
@@ -170,6 +170,7 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 - 2026-05-28 — **DQ10** (Phase B, B4 启动前): MCP annotation 严格使用 spec 标准字段集（`readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`）；不发明 spec 外字段（如曾被错命名为 `requires_user_confirmation` 的概念）。写事实层的 tool（review.approve / review.reject）标 `destructiveHint: true`；启动型 write tool（start_research_session / run_source_check）标 `destructiveHint: false` 但 `readOnlyHint: false`。"用户必须确认"语义由 DQ9 的 server-side pending gate 实现，不放 annotation 里。修正之前 PLAN 文字错误（commander 笔误，致歉）。
 - 2026-05-28 — **DQ11** (Phase B): MCP TypeScript SDK 采用 npm registry 可解析的官方 `@modelcontextprotocol/sdk@1.29.0`，不使用计划早稿中的 `@modelcontextprotocol/sdk-typescript` 包名。
 - 2026-05-28 — **DQ12** (Phase B): B3 read surface 先复用现有 `api-orchestration` DTO；`changes/entity/{id}` 暂时映射全局 `listChanges`，`list_source_targets` 暂时映射 `listSourceHealth`。真正 entity-scoped changes / source-target DTO 属于后续 API contract 扩展，不混入 B3。
+- 2026-05-28 — **DQ13** (Phase B): B5 HTTP/SSE 使用 SDK 当前 `StreamableHTTPServerTransport`，endpoint 固定 `/mcp`；该 transport 自带 SSE stream 支持，不接已废弃的 `SSEServerTransport`。默认绑定 `127.0.0.1`，远程访问必须显式 `--bind=0.0.0.0`。
 
 ---
 

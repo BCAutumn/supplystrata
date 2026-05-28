@@ -18,9 +18,27 @@ export { callMcpApiReadOperation, type McpApiReadOperationInput } from "./featur
 export { apiEnvelopeStructuredContent, apiEnvelopeText, MCP_API_ENVELOPE_OUTPUT_SCHEMA } from "./features/read-surface/functions/mcp-content.js";
 export { registerReadResources } from "./features/read-surface/orchestration/register-read-resources.js";
 export { registerReadTools } from "./features/read-surface/orchestration/register-read-tools.js";
-export { MCP_TRANSPORT_STDIO, type StdioCliOptions } from "./features/stdio/definitions/stdio-cli.js";
-export { parseStdioCliOptions } from "./features/stdio/functions/parse-stdio-cli-options.js";
+export {
+  MCP_HTTP_ENDPOINT_PATH,
+  type CreateMcpHttpNodeServerOptions,
+  type McpHttpNodeServer
+} from "./features/http-transport/definitions/mcp-http-transport.js";
+export { writeMcpHttpOptionsResponse, writePlainHttpResponse } from "./features/http-transport/functions/http-response.js";
+export { createMcpHttpNodeServer } from "./features/http-transport/orchestration/create-mcp-http-node-server.js";
+export { runHttpMcpServer } from "./features/http-transport/orchestration/run-http-server.js";
 export { runStdioMcpServer } from "./features/stdio/orchestration/run-stdio-server.js";
+export {
+  DEFAULT_MCP_HTTP_BIND,
+  DEFAULT_MCP_HTTP_PORT,
+  MCP_TRANSPORT_HTTP,
+  MCP_TRANSPORT_STDIO,
+  type McpCliOptions,
+  type McpHttpBindAddress,
+  type McpHttpCliOptions,
+  type McpStdioCliOptions,
+  type McpTransport
+} from "./features/transport/definitions/mcp-transport.js";
+export { parseMcpCliOptions } from "./features/transport/functions/parse-mcp-cli-options.js";
 export {
   MCP_FACT_WRITING_TOOL_NAMES,
   MCP_WRITE_TOOL_NAMES,

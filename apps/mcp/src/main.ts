@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-import { parseStdioCliOptions, runStdioMcpServer } from "./index.js";
+import { MCP_TRANSPORT_HTTP, MCP_TRANSPORT_STDIO, parseMcpCliOptions, runHttpMcpServer, runStdioMcpServer } from "./index.js";
 
 try {
-  const options = parseStdioCliOptions(process.argv.slice(2));
+  const options = parseMcpCliOptions(process.argv.slice(2));
 
   switch (options.transport) {
-    case "stdio":
+    case MCP_TRANSPORT_STDIO:
       await runStdioMcpServer();
+      break;
+    case MCP_TRANSPORT_HTTP:
+      await runHttpMcpServer(options);
       break;
   }
 } catch (error) {

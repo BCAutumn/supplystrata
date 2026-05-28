@@ -1,6 +1,6 @@
 # @supplystrata/mcp
 
-`apps/mcp` 是 SupplyStrata v0.x 的对外 MCP surface。它负责 transport、tool/resource 注册和协议级 contract，不承载 HTTP 细节，也不反向依赖 `apps/api`。
+`apps/mcp` 是 SupplyStrata v0.x 的对外 MCP surface。它负责 transport、tool/resource 注册和协议级 contract，不承载业务规则，也不反向依赖 `apps/api`。
 
 ## 当前 surface
 
@@ -51,6 +51,23 @@ B 阶段的 resource URI 使用 `supplystrata://{resource}/{id}` 形式，`resou
 
 ```sh
 pnpm --silent mcp --transport=stdio
+pnpm mcp --transport=http --port=7474
 ```
 
 `stdio` 的 stdout 是 MCP 协议通道；通过 pnpm 启动时使用 `--silent` 可以避免包管理器横幅污染协议流。构建后的 `supplystrata-mcp --transport=stdio` 不需要这个参数。
+
+HTTP transport 默认绑定 `127.0.0.1`，endpoint 是 `/mcp`：
+
+```sh
+pnpm mcp --transport=http --port=7474 --bind=127.0.0.1
+```
+
+当前实现使用 SDK 的 Streamable HTTP transport；该 transport 自带 SSE stream 支持，不接已废弃的独立 SSE transport。HTTP 模式只用于本机 agent、浏览器调试或明确受控的远程调用。
+
+远程访问必须显式绑定全部网卡：
+
+```sh
+pnpm mcp --transport=http --port=7474 --bind=0.0.0.0
+```
+
+⚠️ `--bind=0.0.0.0` 会把本机 MCP surface 暴露给局域网或外部网络。SupplyStrata v0.x 仍按 local-first 假设运行；如需远程访问，必须由调用方自行放在受控网络、隧道或反向代理之后，并承担访问控制责任。默认不设置宽泛 CORS；`OPTIONS` 只返回 MCP endpoint 需要的方法和 header。
