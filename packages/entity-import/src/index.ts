@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { createId, normalizeAlias } from "@supplystrata/core";
 import type { DatabaseStore, DbClient, DbTxClient } from "@supplystrata/db/write";
+import type { EntitySourceCandidate } from "@supplystrata/entity-source";
 import {
+  buildEntitySourceReviewCandidate,
   supplierListFacilityDisplayName,
   supplierListFacilityEntityId,
   type EntitySourceReviewCandidate,
@@ -26,16 +28,49 @@ export async function applyEntitySourceReviewCandidate(
   candidate: EntitySourceReviewCandidate,
   reviewer: string
 ): Promise<EntityImportResult> {
-  const conflict = await findIdentifierConflict(client, candidate);
-  if (conflict !== undefined && conflict !== candidate.payload.proposed_entity_id) {
+  return importEntitySourceCandidate(client, {
+    candidate,
+    reviewer,
+    change_type: "entity_source_import",
+    change_context: { review_id: candidate.review_id }
+  });
+}
+
+export async function ensureEntitySourceCandidateEntity(
+  client: DbTxClient,
+  input: { surface: string; candidate: EntitySourceCandidate; reviewer: string }
+): Promise<EntityImportResult> {
+  const candidate = buildEntitySourceReviewCandidate({ surface: input.surface, candidate: input.candidate });
+  return importEntitySourceCandidate(client, {
+    candidate,
+    reviewer: input.reviewer,
+    change_type: "entity_source_bootstrap",
+    change_context: {
+      bootstrap_surface: candidate.payload.surface,
+      bootstrap_policy: "single_authoritative_identity_candidate"
+    }
+  });
+}
+
+async function importEntitySourceCandidate(
+  client: DbTxClient,
+  input: {
+    candidate: EntitySourceReviewCandidate;
+    reviewer: string;
+    change_type: "entity_source_import" | "entity_source_bootstrap";
+    change_context: Record<string, string>;
+  }
+): Promise<EntityImportResult> {
+  const conflict = await findIdentifierConflict(client, input.candidate);
+  if (conflict !== undefined && conflict !== input.candidate.payload.proposed_entity_id) {
     return { status: "blocked", reason: `identifier already belongs to ${conflict}` };
   }
 
-  const aliasConflict = await findAliasConflict(client, candidate.payload.proposed_aliases, candidate.payload.proposed_entity_id);
+  const aliasConflict = await findAliasConflict(client, input.candidate.payload.proposed_aliases, input.candidate.payload.proposed_entity_id);
   if (aliasConflict !== undefined) return { status: "blocked", reason: `alias already belongs to ${aliasConflict.entity_id}: ${aliasConflict.alias}` };
 
-  const entityId = candidate.payload.proposed_entity_id;
-  const source = candidate.payload.candidate;
+  const entityId = input.candidate.payload.proposed_entity_id;
+  const source = input.candidate.payload.candidate;
   const primaryCountry = countryFromJurisdiction(source.jurisdiction_code);
   const attrs = {
     entity_source: source.source_adapter_id,
@@ -46,6 +81,7 @@ export async function applyEntitySourceReviewCandidate(
     incorporation_date: source.incorporation_date ?? null
   };
   const hqLocation = source.registered_address === undefined ? null : { address: source.registered_address };
+  const industry: string[] = [];
 
   await client.query(
     `INSERT INTO entity_master (
@@ -62,17 +98,25 @@ export async function applyEntitySourceReviewCandidate(
        evidence_for_existence = COALESCE(entity_master.evidence_for_existence, EXCLUDED.evidence_for_existence),
        attrs = entity_master.attrs || EXCLUDED.attrs,
        updated_at = now()`,
-    [entityId, source.name, source.name, source.identifiers, primaryCountry, hqLocation, [] as string[], candidate.evidence.source_url, attrs]
+    [entityId, source.name, source.name, source.identifiers, primaryCountry, hqLocation, industry, input.candidate.evidence.source_url, attrs]
   );
 
   let aliasesInserted = 0;
   let aliasesSkipped = 0;
-  for (const alias of candidate.payload.proposed_aliases) {
+  for (const alias of input.candidate.payload.proposed_aliases) {
     const result = await client.query(
       `INSERT INTO entity_alias (alias_id, entity_id, alias, alias_norm, language, alias_kind, source_type, added_by, status)
        VALUES ($1,$2,$3,$4,'en',$5,$6,$7,'active')
        ON CONFLICT (entity_id, alias_norm, language) DO NOTHING`,
-      [aliasId(entityId, alias), entityId, alias, normalizeAlias(alias), alias === source.name ? "official" : "informal", source.source_adapter_id, reviewer]
+      [
+        aliasId(entityId, alias),
+        entityId,
+        alias,
+        normalizeAlias(alias),
+        alias === source.name ? "official" : "informal",
+        source.source_adapter_id,
+        input.reviewer
+      ]
     );
     if (result.rowCount === 1) aliasesInserted += 1;
     else aliasesSkipped += 1;
@@ -82,22 +126,23 @@ export async function applyEntitySourceReviewCandidate(
     `UPDATE pending_entities
      SET status = 'resolved', resolved_entity_id = $2, reviewer = $3, reviewed_at = now()
      WHERE lower(surface) = lower($1) AND status = 'pending'`,
-    [candidate.payload.surface, entityId, reviewer]
+    [input.candidate.payload.surface, entityId, input.reviewer]
   );
   const changeId = createId("CHG");
   await client.query(
     `INSERT INTO change_records (change_id, scope_kind, scope_id, change_type, before, after, evidence_ids, caused_by)
-     VALUES ($1,'entity',$2,'entity_source_import',NULL,$3,'{}',$4)`,
+     VALUES ($1,'entity',$2,$3,NULL,$4,'{}',$5)`,
     [
       changeId,
       entityId,
+      input.change_type,
       {
-        review_id: candidate.review_id,
+        ...input.change_context,
         source_adapter_id: source.source_adapter_id,
         external_id: source.external_id,
         aliases_inserted: aliasesInserted
       },
-      reviewer
+      input.reviewer
     ]
   );
 

@@ -117,7 +117,7 @@ function refreshFixture(
       company_entity_id: "ENT-TESLA",
       depth: 3,
       status: overrides.runStatus ?? "succeeded",
-      bootstrap_status: "bootstrapped",
+      bootstrap_status: "resolved",
       source_target_namespace: "research-rr-test",
       source_check_target_ids: [
         "research:research-rr-test:sec-edgar:sec-company-filings:ent-tesla",

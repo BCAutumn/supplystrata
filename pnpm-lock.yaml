@@ -367,6 +367,9 @@ importers:
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../db
+      '@supplystrata/entity-source':
+        specifier: workspace:*
+        version: link:../entity-source
       '@supplystrata/review-candidates':
         specifier: workspace:*
         version: link:../review-candidates
@@ -778,6 +781,9 @@ importers:
       '@supplystrata/evidence-scorer':
         specifier: workspace:*
         version: link:../evidence-scorer
+      '@supplystrata/llm-helpers':
+        specifier: workspace:*
+        version: link:../llm-helpers
       '@supplystrata/observability':
         specifier: workspace:*
         version: link:../observability

@@ -20,9 +20,10 @@ export { createOfacSanctionsAdapterContext, matchOfacSanctionsEntries, ofacSanct
 export type { OfacSanctionsEntry, OfacSanctionsInput, OfacSanctionsMatch } from "./ofac-sanctions-checks.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
 export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
-export { ensureResearchCompanyEntity } from "./research-entity-bootstrap.js";
+export { buildUniversalIdentityLookupQueries, ensureResearchCompanyEntity, normalizeResearchEntityQuery } from "./research-entity-bootstrap.js";
 export type {
   ResearchCompanyEntityBootstrapInput,
+  ResearchCompanyEntityBootstrapRuntime,
   ResearchCompanyEntityBootstrapResult,
   ResearchCompanyEntityBootstrapStatus
 } from "./research-entity-bootstrap.js";

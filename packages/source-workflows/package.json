@@ -18,6 +18,7 @@
     "@supplystrata/entity-source": "workspace:*",
     "@supplystrata/entity-resolver": "workspace:*",
     "@supplystrata/evidence-scorer": "workspace:*",
+    "@supplystrata/llm-helpers": "workspace:*",
     "@supplystrata/observation-extractor": "workspace:*",
     "@supplystrata/observation-store": "workspace:*",
     "@supplystrata/observability": "workspace:*",

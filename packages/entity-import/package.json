@@ -12,6 +12,7 @@
   "dependencies": {
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
+    "@supplystrata/entity-source": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*"
   },
   "main": "./dist/index.js",
