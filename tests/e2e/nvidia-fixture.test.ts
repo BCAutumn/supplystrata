@@ -15,7 +15,7 @@ import { renderCompanyCard, renderUnknownMapCard } from "@supplystrata/render";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { buildResearchPack } from "@supplystrata/research-pack";
 import { buildCompanyAiAnalysisPlan, validateAiAnalysisArtifact } from "@supplystrata/ai-analysis";
-import { buildAiProviderStatus, buildLocalAiAnalysisArtifact } from "@supplystrata/llm-helpers";
+import { buildAiProviderStatus, buildLocalAiAnalysisArtifactCandidate } from "@supplystrata/llm-helpers";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "../integration/helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();
@@ -143,7 +143,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
     expect(aiPlan.nodes.every((node) => node.guardrails.some((guardrail) => guardrail.includes("Do not")))).toBe(true);
     expect(aiPlan.nodes.some((node) => node.cannot_conclude.length > 0)).toBe(true);
 
-    const aiArtifact = buildLocalAiAnalysisArtifact({
+    const aiArtifact = buildLocalAiAnalysisArtifactCandidate({
       generated_at: generatedAt,
       provider: aiPlan.provider,
       manifest: pack.manifest,

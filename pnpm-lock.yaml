@@ -443,11 +443,7 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/llm-helpers:
-    dependencies:
-      '@supplystrata/ai-analysis':
-        specifier: workspace:*
-        version: link:../ai-analysis
+  packages/llm-helpers: {}
 
   packages/object-store:
     dependencies:

@@ -44,12 +44,12 @@ agent 自己负责理解、搜索补充、综合、写报告；
 
 核心代码里所有 LLM 调用必须经过 `@supplystrata/llm-helpers`。该包导出 4 个有限用法：
 
-| Helper                          | 用途                                                    | 输入                                              | 输出                                                  | 不允许                                              |
-| ------------------------------- | ------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
-| `disambiguate_entity`           | 多候选实体消歧                                          | surface + nearby_text + candidate list            | candidate ranking with confidence + reason            | 直接写 entity_master；多步循环                       |
-| `derive_dynamic_profile`        | 从公开简介派生 plan-context profile                      | company description / SIC code / 10-K Item 1      | expected upstream components + source targets (plan)  | 持久化 profile；写 fact / observation / unknown      |
-| `suggest_source_targets`        | 建议下一步该跑哪些 source target                         | current source coverage + unknown context         | candidate source targets (plan, with rationale)       | 执行 source check；自动 sync target                  |
-| `summarize_with_citations`      | 在已有 evidence 上做带引用的摘要                          | evidence_id list + question                        | summary text + required citation refs                  | 凭空生成 cite；引用未在输入中出现的 evidence_id     |
+| Helper                     | 用途                                | 输入                                         | 输出                                                 | 不允许                                          |
+| -------------------------- | ----------------------------------- | -------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| `disambiguate_entity`      | 多候选实体消歧                      | surface + nearby_text + candidate list       | candidate ranking with confidence + reason           | 直接写 entity_master；多步循环                  |
+| `derive_dynamic_profile`   | 从公开简介派生 plan-context profile | company description / SIC code / 10-K Item 1 | expected upstream components + source targets (plan) | 持久化 profile；写 fact / observation / unknown |
+| `suggest_source_targets`   | 建议下一步该跑哪些 source target    | current source coverage + unknown context    | candidate source targets (plan, with rationale)      | 执行 source check；自动 sync target             |
+| `summarize_with_citations` | 在已有 evidence 上做带引用的摘要    | evidence_id list + question                  | summary text + required citation refs                | 凭空生成 cite；引用未在输入中出现的 evidence_id |
 
 硬约束（违反必须 CI 拦截）：
 
@@ -88,18 +88,18 @@ SupplyStrata 不提供任何 MCP write tool 让 agent 直接提交 evidence / fa
 
 每一层只能生成自己被允许生成的对象：
 
-| 阶段                                  | 可以生成什么                                                   | 不能生成什么                                       |
-| ------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------- |
-| identity bootstrap                    | entity identity、alias、identifier、source provenance           | 供应链关系、风险结论                                |
-| dynamic profile derive                | plan-context (expected components + source targets)            | 持久化 profile；fact / observation / unknown        |
-| source plan / checks                  | source target、source health、run status、retry/backoff          | "已证明供应商关系"                                  |
-| parsing / extraction                  | chunks、observations、relation candidates、semantic change       | approved fact                                       |
-| evidence-gated promote (auto)         | edges + evidence + change_records（仅 rule + 官方 + L≥4 或双源） | LLM 单源；弱源；有冲突                              |
-| review (opt-in)                       | review decision、accepted/rejected candidate                    | 没有证据的行业常识补全                              |
-| built-in profile (anchor)             | 验收锚点、expected source、readiness/backlog context             | 全球行业覆盖、动态业务画像                          |
-| LLM helper                            | 4 个具名 candidate（见 LLM Helper 边界一节）                     | truth-store 写入；多步循环；agent 行为              |
-| MCP read                              | 当前 cache + audit 状态                                          | 触发新 LLM；隐式 source check                       |
-| MCP write (requires_user_confirmation) | 入队 source check / 创建研究 run / approve review               | 直接写事实；绕过 evidence-gated promote             |
+| 阶段                                   | 可以生成什么                                                     | 不能生成什么                                 |
+| -------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------- |
+| identity bootstrap                     | entity identity、alias、identifier、source provenance            | 供应链关系、风险结论                         |
+| dynamic profile derive                 | plan-context (expected components + source targets)              | 持久化 profile；fact / observation / unknown |
+| source plan / checks                   | source target、source health、run status、retry/backoff          | "已证明供应商关系"                           |
+| parsing / extraction                   | chunks、observations、relation candidates、semantic change       | approved fact                                |
+| evidence-gated promote (auto)          | edges + evidence + change_records（仅 rule + 官方 + L≥4 或双源） | LLM 单源；弱源；有冲突                       |
+| review (opt-in)                        | review decision、accepted/rejected candidate                     | 没有证据的行业常识补全                       |
+| built-in profile (anchor)              | 验收锚点、expected source、readiness/backlog context             | 全球行业覆盖、动态业务画像                   |
+| LLM helper                             | 4 个具名 candidate（见 LLM Helper 边界一节）                     | truth-store 写入；多步循环；agent 行为       |
+| MCP read                               | 当前 cache + audit 状态                                          | 触发新 LLM；隐式 source check                |
+| MCP write (requires_user_confirmation) | 入队 source check / 创建研究 run / approve review                | 直接写事实；绕过 evidence-gated promote      |
 
 ### 当前 Profile 能力
 
@@ -440,23 +440,23 @@ Risk view 是派生层，回答：
 
 本文只定义方法学。当前主要实现位置如下，细节以 package README、单测和源码为准：
 
-| 方法学能力                          | 主要实现边界                                              |
-| ----------------------------------- | --------------------------------------------------------- |
-| universal identity bootstrap        | `source-workflows`（GLEIF / OpenFIGI / Wikidata / 各国目录） |
-| dynamic profile derive              | `llm-helpers.derive_dynamic_profile` + `research-pack`     |
-| LLM helper (4 用法)                 | `@supplystrata/llm-helpers`（新；唯一 LLM 调用入口）        |
-| fact edge 写入                      | `graph-builder`、`pipeline`、`review-store`               |
-| evidence-gated auto-promote         | `pipeline`、`evidence-scorer`、`graph-builder`             |
-| claim fusion                        | `claim-builder`                                           |
-| strength/freshness/risk/calibration | `evidence-maintenance`                                    |
-| observation 写入                    | `observation-store`、`source-workflows`、`pipeline`        |
-| source target/monitor               | `source-plan`、`source-management`、`source-monitor`       |
-| workbench/research output           | `workbench-export`、`research-pack`                       |
-| SCBOM 开放交换格式                  | `scbom-spec`（独立 repo）+ `workbench-export` 参考实现       |
+| 方法学能力                          | 主要实现边界                                                                            |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| universal identity bootstrap        | `source-workflows`（GLEIF / OpenFIGI / Wikidata / 各国目录）                            |
+| dynamic profile derive              | `llm-helpers.derive_dynamic_profile` + `research-pack`                                  |
+| LLM helper (4 用法)                 | `@supplystrata/llm-helpers`（新；唯一 LLM 调用入口）                                    |
+| fact edge 写入                      | `graph-builder`、`pipeline`、`review-store`                                             |
+| evidence-gated auto-promote         | `pipeline`、`evidence-scorer`、`graph-builder`                                          |
+| claim fusion                        | `claim-builder`                                                                         |
+| strength/freshness/risk/calibration | `evidence-maintenance`                                                                  |
+| observation 写入                    | `observation-store`、`source-workflows`、`pipeline`                                     |
+| source target/monitor               | `source-plan`、`source-management`、`source-monitor`                                    |
+| workbench/research output           | `workbench-export`、`research-pack`                                                     |
+| SCBOM 开放交换格式                  | `scbom-spec`（独立 repo）+ `workbench-export` 参考实现                                  |
 | community-pack 分发                 | release pipeline + Layer 1 加载（详见 [data-flow.md](../02-architecture/data-flow.md)） |
-| MCP 接入面（唯一对外 surface）       | `@supplystrata/mcp`（新；替代旧 `apps/api` REST 路径）       |
-| 参考 agent（独立 optional 包）        | `@supplystrata/agent`（新；不被核心依赖）                   |
-| 参考可视化（可嵌入）                  | `@supplystrata/web`（新；Web Components + Canvas/SVG）       |
+| MCP 接入面（唯一对外 surface）      | `@supplystrata/mcp`（新；替代旧 `apps/api` REST 路径）                                  |
+| 参考 agent（独立 optional 包）      | `@supplystrata/agent`（新；不被核心依赖）                                               |
+| 参考可视化（可嵌入）                | `@supplystrata/web`（新；Web Components + Canvas/SVG）                                  |
 
 ## 完成口径
 

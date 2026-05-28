@@ -202,7 +202,7 @@ export async function getResearchRunStatus(client: DbClient, input: { run_id: st
           generated_at: input.generated_at,
           limit: Math.max(100, row.source_check_target_ids.length * 5),
           check_target_ids: row.source_check_target_ids
-      });
+        });
   const storedCompletedAt = toNullableIso(row.completed_at);
   const lifecycle = deriveResearchRunLifecycle({
     stored_status: row.status,

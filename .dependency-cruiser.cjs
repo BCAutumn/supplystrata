@@ -64,6 +64,12 @@ module.exports = {
       to: { path: "^packages/llm-helpers/src" }
     },
     {
+      name: "llm-helpers-must-not-depend-on-ai-analysis-domain",
+      severity: "error",
+      from: { path: "^packages/llm-helpers/src" },
+      to: { path: "^packages/ai-analysis/src" }
+    },
+    {
       name: "workspace-packages-must-not-depend-on-reference-agent",
       severity: "error",
       from: { path: "^packages/(?!agent/).*?/src" },

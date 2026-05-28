@@ -29,11 +29,7 @@ function deriveResearchRunStatus(storedStatus: ResearchRunStatus, sourceCheckSta
   return storedStatus;
 }
 
-function deriveCompletedAt(
-  storedCompletedAt: string | null,
-  status: ResearchRunStatus,
-  sourceCheckStatus: SourceCheckRunStatusReport
-): string | null {
+function deriveCompletedAt(storedCompletedAt: string | null, status: ResearchRunStatus, sourceCheckStatus: SourceCheckRunStatusReport): string | null {
   if (storedCompletedAt !== null) return storedCompletedAt;
   if (status === "succeeded") return latestSourceCheckCompletedAt(sourceCheckStatus);
   if (status === "failed" && hasTerminalDeadFailure(sourceCheckStatus)) return latestSourceCheckCompletedAt(sourceCheckStatus);

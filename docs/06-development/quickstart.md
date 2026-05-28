@@ -118,12 +118,12 @@ pnpm release:check --with-db  # 含本地 DB cache / GraphStore 体检
 
 ## 常见失败
 
-| 现象                                              | 处理                                                                                  |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `ECONNREFUSED localhost:5432`                     | Postgres 没起来；与解析 / 抽取逻辑无关；先 `docker compose up postgres` 或调 `.env`。 |
-| `graph check` 不同步                              | 先 `pnpm cli graph rebuild`；仍不同步看 Neo4j 是否启动完成。                          |
-| `smoke:research` SEC 抓取失败                      | SEC 临时限流或网络问题；先跑 `smoke:local` 缩小范围。                                  |
-| GLEIF / OpenCorporates / Companies House 没结果   | GLEIF 不需要 key；其它必须配 API key；缺 key 时命令应明确报认证缺失，不退化爬网页。   |
+| 现象                                              | 处理                                                                                        |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `ECONNREFUSED localhost:5432`                     | Postgres 没起来；与解析 / 抽取逻辑无关；先 `docker compose up postgres` 或调 `.env`。       |
+| `graph check` 不同步                              | 先 `pnpm cli graph rebuild`；仍不同步看 Neo4j 是否启动完成。                                |
+| `smoke:research` SEC 抓取失败                     | SEC 临时限流或网络问题；先跑 `smoke:local` 缩小范围。                                       |
+| GLEIF / OpenCorporates / Companies House 没结果   | GLEIF 不需要 key；其它必须配 API key；缺 key 时命令应明确报认证缺失，不退化爬网页。         |
 | research-pack 显示 `observations_only` 但 facts=0 | 这是数据深度问题，不是架构问题；见 [data-flow.md](../02-architecture/data-flow.md) 附录 B。 |
 
 ## 进一步阅读

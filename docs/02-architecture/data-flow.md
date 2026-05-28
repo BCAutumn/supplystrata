@@ -94,14 +94,14 @@
 
 ## 关键不变式
 
-| 不变式 | 在哪一步生效 | 违反后果 |
-|--------|--------------|----------|
-| 任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import `llm-helpers` | [7][8] | 事实层被 LLM 污染，方法学失效 |
-| LLM 调用必须返回 candidate（不能返回 final fact） | [2][3][4][7] | 同上 |
-| agent loop 不允许写库；MCP write tool 必须标 `requires_user_confirmation` | [9] | 外部 agent 可绕过方法学 |
-| observation / lead / source health 永不写 fact edge | [8] | 把变化信号误读成关系事实 |
-| community-pack 是 read-only baseline；本地写覆盖 pack 字段但不污染 pack | [warm-start] | pack 升级时本地工作丢失 |
-| terminal state (`deprecated` / `superseded` / `rejected` / `resolved`) 不能被普通 upsert 复活 | [8] | 审计断裂 |
+| 不变式                                                                                        | 在哪一步生效 | 违反后果                      |
+| --------------------------------------------------------------------------------------------- | ------------ | ----------------------------- |
+| 任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import `llm-helpers`                  | [7][8]       | 事实层被 LLM 污染，方法学失效 |
+| LLM 调用必须返回 candidate（不能返回 final fact）                                             | [2][3][4][7] | 同上                          |
+| agent loop 不允许写库；MCP write tool 必须标 `requires_user_confirmation`                     | [9]          | 外部 agent 可绕过方法学       |
+| observation / lead / source health 永不写 fact edge                                           | [8]          | 把变化信号误读成关系事实      |
+| community-pack 是 read-only baseline；本地写覆盖 pack 字段但不污染 pack                       | [warm-start] | pack 升级时本地工作丢失       |
+| terminal state (`deprecated` / `superseded` / `rejected` / `resolved`) 不能被普通 upsert 复活 | [8]          | 审计断裂                      |
 
 参见 [intelligence-methodology.md](../03-data-model/intelligence-methodology.md) "Fact 写入不变式"和 [decisions.md](../10-decisions/decisions.md) #3、#9、#13、#14。
 
@@ -109,14 +109,14 @@
 
 `supply-chain-report` 的 `report_quality`：
 
-| 状态 | 含义 |
-|------|------|
-| `facts_ready` | 有 reviewed L4/L5 fact edge，可引用 |
-| `review_needed` | 找到官方文本候选，需要 agent 或用户决定写入 |
-| `observations_only` | 有官方文件或财务指标，但还没有 reviewed supplier graph |
-| `source_checks_pending` | source check 在 worker 队列里 |
-| `source_checks_failed` | source check 失败；看 failure_kind，不能当"没有供应链关系" |
-| `no_coverage` | 当前实例无可用覆盖；agent 必须独立说明信息来源 |
+| 状态                    | 含义                                                       |
+| ----------------------- | ---------------------------------------------------------- |
+| `facts_ready`           | 有 reviewed L4/L5 fact edge，可引用                        |
+| `review_needed`         | 找到官方文本候选，需要 agent 或用户决定写入                |
+| `observations_only`     | 有官方文件或财务指标，但还没有 reviewed supplier graph     |
+| `source_checks_pending` | source check 在 worker 队列里                              |
+| `source_checks_failed`  | source check 失败；看 failure_kind，不能当"没有供应链关系" |
+| `no_coverage`           | 当前实例无可用覆盖；agent 必须独立说明信息来源             |
 
 `source check failure_kind`：`unreachable` / `blocked` / `missing_credentials` / `target_config_invalid` / `rate_limited` / `adapter_error`。每一种都对应一组 `next_actions`，不混合归类成"失败"。
 
@@ -133,7 +133,7 @@
   研究任意公司时：
     - pack 已覆盖 → 第 [9] 步直接出结果
     - pack 未覆盖 → 走完整 [1]-[9]，本地写入
-    
+
 后续启动：
   本地 cache 已有 → 直接用
   pack 升级（新季度发布）→ 与本地 cache 合并，本地写入保留
@@ -146,18 +146,18 @@
 
 ## 失败模式
 
-| 失败点                          | 处理                                                                                    |
-| ------------------------------- | --------------------------------------------------------------------------------------- |
-| identity bootstrap 全部失败     | 返回 `unresolved` 或 `ambiguous`；不写 entity，不走后续步骤                              |
-| dynamic profile derive LLM 失败 | 退回到 generic profile（仅按国家 + SIC code 路由 source target），不阻断流程             |
-| source HTTP 失败                | source-check job 写 failed + failure_kind；按 policy backoff 重试；超 max_attempts 进 dead |
-| 文档已存在（同 sha256）         | 跳过 fetch；但仍重新跑 parse + extract（用最新规则）                                     |
-| 解析器抛错                      | 文档标 `parse_failed`，入失败队列；不阻塞其它文档                                        |
-| EntityResolver `ambiguous`      | 抽取器跳过该 mention；mention 进 review queue                                           |
-| LLM helper 超时 / cost 超限     | 候选 status = `deferred`；下次跑                                                         |
-| MCP tool 调用被用户拒绝         | 不执行；返回 `user_denied`，agent 应明示用户决定                                          |
-| community-pack 校验失败 (sha256) | 拒绝加载；走纯本地 cache 模式；显式告警                                                  |
-| Neo4j 写失败                    | Postgres 已写，Neo4j 重试；可通过 `rebuild()` 全量重建                                   |
+| 失败点                           | 处理                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| identity bootstrap 全部失败      | 返回 `unresolved` 或 `ambiguous`；不写 entity，不走后续步骤                                |
+| dynamic profile derive LLM 失败  | 退回到 generic profile（仅按国家 + SIC code 路由 source target），不阻断流程               |
+| source HTTP 失败                 | source-check job 写 failed + failure_kind；按 policy backoff 重试；超 max_attempts 进 dead |
+| 文档已存在（同 sha256）          | 跳过 fetch；但仍重新跑 parse + extract（用最新规则）                                       |
+| 解析器抛错                       | 文档标 `parse_failed`，入失败队列；不阻塞其它文档                                          |
+| EntityResolver `ambiguous`       | 抽取器跳过该 mention；mention 进 review queue                                              |
+| LLM helper 超时 / cost 超限      | 候选 status = `deferred`；下次跑                                                           |
+| MCP tool 调用被用户拒绝          | 不执行；返回 `user_denied`，agent 应明示用户决定                                           |
+| community-pack 校验失败 (sha256) | 拒绝加载；走纯本地 cache 模式；显式告警                                                    |
+| Neo4j 写失败                     | Postgres 已写，Neo4j 重试；可通过 `rebuild()` 全量重建                                     |
 
 ## 不允许的反模式
 

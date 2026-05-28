@@ -6,14 +6,14 @@
 
 ## 存储边界
 
-| 存储                | 角色                                   | 规则                                                                                              |
-| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 官方源（外部）       | **truth**                              | 真相永远在 SEC / DART / EDINET / TWSE / HKEX / Companies House / GLEIF / OpenFIGI / Wikidata / 公司 IR；本地任何存储都是它的派生 |
-| PostgreSQL          | **本地 cache + audit ledger**          | 缓存证据、关系、observation、unknown、change、job 与审计；不是事实唯一来源；可从官方源 + community-pack 重建        |
-| GraphStore / Neo4j  | materialized graph view                | 只保存当前态图查询所需字段；可从 Postgres 重建                                                       |
-| ObjectStore / local | raw bytes / normalized files           | 保存原始 HTML / PDF / JSON / CSV 等抓取结果，做内容寻址（sha256）                                  |
-| community-pack      | **read-only warm baseline**            | 维护团队周期发布的预跑数据集；本地写入覆盖 pack 字段，但不污染 pack；详见 `decisions.md` #14         |
-| Workbench / SCBOM   | read contract                          | 稳定消费 DTO / 开放交换格式；不是存储 schema                                                       |
+| 存储                | 角色                          | 规则                                                                                                                             |
+| ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 官方源（外部）      | **truth**                     | 真相永远在 SEC / DART / EDINET / TWSE / HKEX / Companies House / GLEIF / OpenFIGI / Wikidata / 公司 IR；本地任何存储都是它的派生 |
+| PostgreSQL          | **本地 cache + audit ledger** | 缓存证据、关系、observation、unknown、change、job 与审计；不是事实唯一来源；可从官方源 + community-pack 重建                     |
+| GraphStore / Neo4j  | materialized graph view       | 只保存当前态图查询所需字段；可从 Postgres 重建                                                                                   |
+| ObjectStore / local | raw bytes / normalized files  | 保存原始 HTML / PDF / JSON / CSV 等抓取结果，做内容寻址（sha256）                                                                |
+| community-pack      | **read-only warm baseline**   | 维护团队周期发布的预跑数据集；本地写入覆盖 pack 字段，但不污染 pack；详见 `decisions.md` #14                                     |
+| Workbench / SCBOM   | read contract                 | 稳定消费 DTO / 开放交换格式；不是存储 schema                                                                                     |
 
 参见 [decisions.md](../10-decisions/decisions.md) #2 和 #8。
 

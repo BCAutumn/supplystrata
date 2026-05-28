@@ -1,15 +1,15 @@
 import {
-  AI_ANALYSIS_SCHEMA_VERSION,
-  type AiAnalysisArtifact,
+  LLM_HELPERS_SCHEMA_VERSION,
+  type AiAnalysisArtifactCandidate,
   type AiAnalysisConsumerInput,
   type AiAnalysisOfficialEvidenceGapInput,
   type AiAnalysisReasoningInput,
   type AiAnalysisResearchPackManifestInput,
   type BuildLocalAiAnalysisArtifactFromUnknownInput,
   type BuildLocalAiAnalysisArtifactInput
-} from "@supplystrata/ai-analysis";
+} from "./definitions.js";
 
-export function buildLocalAiAnalysisArtifact(input: BuildLocalAiAnalysisArtifactInput): AiAnalysisArtifact {
+export function buildLocalAiAnalysisArtifactCandidate(input: BuildLocalAiAnalysisArtifactInput): AiAnalysisArtifactCandidate {
   const stats = input.manifest.stats;
   const sourceMonitoring = input.consumer_read_model.source_monitoring;
   const cannotConclude = input.reasoning_walkthrough.cannot_conclude;
@@ -23,7 +23,7 @@ export function buildLocalAiAnalysisArtifact(input: BuildLocalAiAnalysisArtifact
   }));
 
   return {
-    schema_version: AI_ANALYSIS_SCHEMA_VERSION,
+    schema_version: LLM_HELPERS_SCHEMA_VERSION,
     generated_at: input.generated_at,
     mode: "simulated_local_ai_v0",
     scope_id: input.manifest.selected_company_id,
@@ -93,8 +93,8 @@ export function buildLocalAiAnalysisArtifact(input: BuildLocalAiAnalysisArtifact
   };
 }
 
-export function buildLocalAiAnalysisArtifactFromUnknown(input: BuildLocalAiAnalysisArtifactFromUnknownInput): AiAnalysisArtifact {
-  return buildLocalAiAnalysisArtifact(parseLocalAiAnalysisArtifactInput(input));
+export function buildLocalAiAnalysisArtifactCandidateFromUnknown(input: BuildLocalAiAnalysisArtifactFromUnknownInput): AiAnalysisArtifactCandidate {
+  return buildLocalAiAnalysisArtifactCandidate(parseLocalAiAnalysisArtifactInput(input));
 }
 
 export function parseLocalAiAnalysisArtifactInput(input: BuildLocalAiAnalysisArtifactFromUnknownInput): BuildLocalAiAnalysisArtifactInput {

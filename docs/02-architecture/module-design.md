@@ -30,7 +30,7 @@ supplystrata/
 │   ├── config/              # app 边界显式读取环境和凭据配置
 │   ├── observability/       # logger port；库默认不应隐式读 env
 │   ├── db/                  # 本地 cache + audit ledger（旧称 truth-store）；migration、read/write repository
-│   ├── llm-helpers/         # 【新增】LLM 调用唯一入口：4 用法 (disambiguate/derive_profile/suggest_target/summarize_with_cite)；可全局禁用
+│   ├── llm-helpers/         # LLM 调用唯一入口：4 用法 (disambiguate/derive_profile/suggest_target/summarize_with_cite)；可全局禁用
 │   ├── source-registry/     # 权威数据源目录和 source metadata
 │   ├── source-adapter-spec/ # SourceAdapter / AdapterContext 契约
 │   ├── source-adapter-runtime/
@@ -66,7 +66,7 @@ supplystrata/
 │   ├── workbench-export/    # 稳定 Workbench JSON DTO；逐步对齐 SCBOM v0.x
 │   ├── research-pack/       # 研究包、Gate 1 readiness/backlog/run ledger/report artifact
 │   ├── ai-analysis/         # 【拆分计划】provider config + audit run 留核心；agent 行为迁出到 @supplystrata/agent
-│   ├── agent/               # 【新增，目标】reference agent（GPT-Researcher 形态），调本机 MCP；optional dep
+│   ├── agent/               # reference agent 占位；调本机 MCP；optional dep；核心不得依赖
 │   ├── web/                 # 【新增，目标】framework-agnostic 可嵌入可视化：Web Components + Canvas/SVG
 │   ├── data-quality/
 │   ├── render/
@@ -87,7 +87,7 @@ supplystrata/
 说明：
 
 - `packages/sources/asml-ir`、`samsung-ir`、`skhynix-ir`、`tsmc-ir` 已不再是 workspace package；如本地残留 `dist/` 文件，只是历史构建产物。
-- `ai-analysis` 当前承担 provider config + AI artifact 写入双重职责。新形态下：provider config / `ai_analysis_runs` audit / cite-summarize helper 留在核心（迁入 `llm-helpers`）；"作为 agent 跑分析"行为迁出到 `@supplystrata/agent`。
+- `ai-analysis` 当前只保留 artifact schema 校验、analysis plan 和 `ai_analysis_runs` audit；provider config / LLM provider adapter / cite-summarize helper 已迁入 `llm-helpers`；"作为 agent 跑分析"行为迁出到 `@supplystrata/agent`。
 - `seed-entities` 在 [source-registry.md](../04-data-sources/source-registry.md) 已标 `deprecated`；生产代码不允许新增依赖该路径。
 - `reports/` 是本地输出目录，不属于代码模块；可清理、可重建。
 - `releases/` 是 community-pack 发布产物目录（按 `pack-YYYY.QN.parquet` 命名），分发通过 GitHub Release / 公开对象存储。
@@ -217,18 +217,18 @@ NormalizedDocument
 
 输出层分三类：
 
-| Package                                       | 输出                                                                                        | 责任                                     |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| `chain-view`                                  | 纯 ChainView DTO                                                                            | 不查库                                   |
-| `chain-view-builder`、`card-builder`          | card / chain DTO                                                                            | 从 `DbClient` 组装稳定 DTO               |
-| `workbench-export`                            | Workbench JSON（v0.x 内对齐 SCBOM v0.x schema）                                              | 稳定 machine-readable contract           |
-| `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、read model / walkthrough                       | 研究编排和审计账本                       |
-| `ai-analysis`                                 | provider config / `ai_analysis_runs` audit；agent 行为迁出后只留 audit + config             | LLM 调用审计；行为收敛到 `llm-helpers`     |
-| `apps/mcp`                                    | MCP tools / resources / prompts 契约、薄装配层                                                | 唯一对外 surface；版本化 MCP 契约         |
-| `apps/api`（迁移中）                            | 旧 REST contract；逐步迁入 `apps/mcp`，v1.x 再评估 REST shim                                  | 过渡期保留                                |
-| `agent`                                       | 参考 agent 进程；用户带 LLM provider，调本机 MCP                                              | optional；不被核心依赖                    |
-| `web`                                         | Web Components：`<supplystrata-supply-chain-graph>` 等；canvas/SVG 渲染                       | 可嵌入；调本机或远程 MCP HTTP             |
-| `render` / `scripts/render-research-html.mjs` | Markdown / HTML / JSON 可读输出                                                              | 不查库、不写库                            |
+| Package                                       | 输出                                                                            | 责任                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------- |
+| `chain-view`                                  | 纯 ChainView DTO                                                                | 不查库                                 |
+| `chain-view-builder`、`card-builder`          | card / chain DTO                                                                | 从 `DbClient` 组装稳定 DTO             |
+| `workbench-export`                            | Workbench JSON（v0.x 内对齐 SCBOM v0.x schema）                                 | 稳定 machine-readable contract         |
+| `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、read model / walkthrough           | 研究编排和审计账本                     |
+| `ai-analysis`                                 | provider config / `ai_analysis_runs` audit；agent 行为迁出后只留 audit + config | LLM 调用审计；行为收敛到 `llm-helpers` |
+| `apps/mcp`                                    | MCP tools / resources / prompts 契约、薄装配层                                  | 唯一对外 surface；版本化 MCP 契约      |
+| `apps/api`（迁移中）                          | 旧 REST contract；逐步迁入 `apps/mcp`，v1.x 再评估 REST shim                    | 过渡期保留                             |
+| `agent`                                       | 参考 agent 进程；用户带 LLM provider，调本机 MCP                                | optional；不被核心依赖                 |
+| `web`                                         | Web Components：`<supplystrata-supply-chain-graph>` 等；canvas/SVG 渲染         | 可嵌入；调本机或远程 MCP HTTP          |
+| `render` / `scripts/render-research-html.mjs` | Markdown / HTML / JSON 可读输出                                                 | 不查库、不写库                         |
 
 `research-pack` 是当前 Gate 1 主工作台。它应回答：
 
@@ -245,11 +245,11 @@ NormalizedDocument
 
 `apps/mcp` 暴露三类 surface：
 
-| 类别       | 例子                                                                                                                                                                                          | 写入约束                                                                                          |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Resources  | `supplystrata://scbom/company/{lei}`、`evidence/edge/{id}`、`unknowns/company/{id}`、`changes/entity/{id}`、`source-health`                                                                    | 只读；返回当前 cache + audit 状态                                                                  |
-| Read Tools | `resolve_company`、`poll_research_run`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets`                                                                       | 只读；可触发 LLM helper 但不入库                                                                    |
-| Write Tools | `start_research_session`、`run_source_check`、`review.approve`、`review.reject`                                                                                                                  | 必须标 `requires_user_confirmation`；agent 不能自动批准；任何写入仍走 evidence-gated promote        |
+| 类别        | 例子                                                                                                                        | 写入约束                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Resources   | `supplystrata://scbom/company/{lei}`、`evidence/edge/{id}`、`unknowns/company/{id}`、`changes/entity/{id}`、`source-health` | 只读；返回当前 cache + audit 状态                                                            |
+| Read Tools  | `resolve_company`、`poll_research_run`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets`  | 只读；可触发 LLM helper 但不入库                                                             |
+| Write Tools | `start_research_session`、`run_source_check`、`review.approve`、`review.reject`                                             | 必须标 `requires_user_confirmation`；agent 不能自动批准；任何写入仍走 evidence-gated promote |
 
 旧 `apps/api` 的 REST endpoint（`GET /companies/:id/supply-chain-report`、`POST /companies/:id/research-runs`、`GET /research-runs/:id` 等）逐步迁入对应 MCP tool / resource；DTO 复用，不重新设计。完整 MCP 契约见 `apps/mcp/README.md`（落地时建）。
 

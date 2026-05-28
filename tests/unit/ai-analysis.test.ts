@@ -5,8 +5,8 @@ import type { ConsumerReadModel, ReasoningWalkthrough } from "@supplystrata/rese
 import { buildCompanyAiAnalysisPlan, listAiAnalysisRuns, recordAiAnalysisRun, validateAiAnalysisArtifact } from "@supplystrata/ai-analysis";
 import {
   buildAiProviderStatus,
-  buildLocalAiAnalysisArtifact,
-  buildProviderAiAnalysisArtifactFromUnknown,
+  buildLocalAiAnalysisArtifactCandidate,
+  buildProviderAiAnalysisArtifactCandidateFromUnknown,
   collectAllowedAiAnalysisRefs
 } from "@supplystrata/llm-helpers";
 
@@ -125,7 +125,7 @@ describe("ai analysis", () => {
       reasoning_walkthrough: reasoningWalkthroughFixture()
     };
     const plan = buildCompanyAiAnalysisPlan(input);
-    const artifact = buildLocalAiAnalysisArtifact(input);
+    const artifact = buildLocalAiAnalysisArtifactCandidate(input);
     const client = new AiAnalysisRunInsertDbClient();
 
     const run = await recordAiAnalysisRun(client, {
@@ -159,7 +159,7 @@ describe("ai analysis", () => {
       reasoning_walkthrough: reasoningWalkthroughFixture()
     };
 
-    const artifact = buildLocalAiAnalysisArtifact(input);
+    const artifact = buildLocalAiAnalysisArtifactCandidate(input);
     const validation = validateAiAnalysisArtifact({
       artifact,
       allowed_refs: collectAllowedAiAnalysisRefs(input)
@@ -194,7 +194,7 @@ describe("ai analysis", () => {
       reasoning_walkthrough: reasoningWalkthroughFixture()
     };
     const artifact = {
-      ...buildLocalAiAnalysisArtifact(input),
+      ...buildLocalAiAnalysisArtifactCandidate(input),
       policy: {
         fact_mutation_allowed: true,
         agent_behavior_allowed: false,
@@ -220,7 +220,7 @@ describe("ai analysis", () => {
       { LLM_PROVIDER: "deepseek", LLM_API_KEY: "key", LLM_BASE_URL: "https://api.deepseek.com", LLM_MODEL: "deepseek-v4-flash" },
       "2026-05-27T00:00:00.000Z"
     );
-    const local = buildLocalAiAnalysisArtifact({
+    const local = buildLocalAiAnalysisArtifactCandidate({
       generated_at: "2026-05-27T00:00:00.000Z",
       provider,
       manifest: manifestFixture(),
@@ -258,7 +258,7 @@ describe("ai analysis", () => {
       );
     });
 
-    const artifact = await buildProviderAiAnalysisArtifactFromUnknown({
+    const artifact = await buildProviderAiAnalysisArtifactCandidateFromUnknown({
       generated_at: "2026-05-27T00:00:00.000Z",
       provider,
       api_key: "key",

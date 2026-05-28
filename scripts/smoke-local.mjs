@@ -68,7 +68,7 @@ runPnpm(["db:migrate"]);
 runPnpm(["cli", "admin", "seed"]);
 
 if (withNetwork) {
-  runPnpm(["cli", "pipeline", "nvidia"]);
+  runPnpm(["cli", "examples", "nvidia", "ingest"]);
 }
 
 runPnpm(["cli", "graph", "rebuild"]);

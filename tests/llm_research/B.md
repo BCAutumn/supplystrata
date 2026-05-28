@@ -4,14 +4,14 @@
 
 **关键环节和公司**
 
-| 环节 | 关键公司/对象 | 判断 |
-|---|---|---|
-| 电池电芯 | Panasonic、CATL | Tesla 2025 10-K 明确称当前依赖 Panasonic 和 CATL 等供应商提供锂电池电芯；这是最强证据之一。 |
-| 储能 LFP 电芯 | LG Energy Solution | Reuters 报道称美国政府确认 Tesla 与 LGES 的 43 亿美元 LFP 电芯项目，计划 2027 年在密歇根供应 Megapack 3；强线索，但 SupplyStrata 未审成 fact edge。 |
-| 电池材料 | 锂、镍、铜、铝、钢；Tesla 德州锂精炼 | Tesla 10-K 明确列出原材料暴露，并称德州内部锂精炼厂 2026 年 1 月开始运营。 |
-| 镍 | Talon Metals | Talon 官方披露与 Tesla 有 Tamarack 镍精矿供应协议，但条件包括项目商业化生产，不能视为已稳定供货。 |
-| 石墨负极材料 | Syrah Resources | Syrah/Tesla graphite offtake 存在，但 2025-2026 年有“alleged default/qualification”延期问题，当前更像风险点。 |
-| AI / 半导体 | Samsung Electronics | 公开报道称 Tesla 与 Samsung 有 AI6 芯片制造协议；Tesla 10-Q 也强调半导体供应链垂直整合，但具体量产、节点、良率不能下结论。 |
+| 环节          | 关键公司/对象                        | 判断                                                                                                                                                |
+| ------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 电池电芯      | Panasonic、CATL                      | Tesla 2025 10-K 明确称当前依赖 Panasonic 和 CATL 等供应商提供锂电池电芯；这是最强证据之一。                                                         |
+| 储能 LFP 电芯 | LG Energy Solution                   | Reuters 报道称美国政府确认 Tesla 与 LGES 的 43 亿美元 LFP 电芯项目，计划 2027 年在密歇根供应 Megapack 3；强线索，但 SupplyStrata 未审成 fact edge。 |
+| 电池材料      | 锂、镍、铜、铝、钢；Tesla 德州锂精炼 | Tesla 10-K 明确列出原材料暴露，并称德州内部锂精炼厂 2026 年 1 月开始运营。                                                                          |
+| 镍            | Talon Metals                         | Talon 官方披露与 Tesla 有 Tamarack 镍精矿供应协议，但条件包括项目商业化生产，不能视为已稳定供货。                                                   |
+| 石墨负极材料  | Syrah Resources                      | Syrah/Tesla graphite offtake 存在，但 2025-2026 年有“alleged default/qualification”延期问题，当前更像风险点。                                       |
+| AI / 半导体   | Samsung Electronics                  | 公开报道称 Tesla 与 Samsung 有 AI6 芯片制造协议；Tesla 10-Q 也强调半导体供应链垂直整合，但具体量产、节点、良率不能下结论。                          |
 
 **证据比较强的判断**
 

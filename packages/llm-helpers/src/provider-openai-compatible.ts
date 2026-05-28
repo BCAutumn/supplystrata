@@ -1,19 +1,23 @@
 import { createHash } from "node:crypto";
 import {
-  validateAiAnalysisArtifact,
-  type AiAnalysisArtifact,
+  type AiAnalysisArtifactCandidate,
   type AiAnalysisProvider,
   type AiProviderStatusReport,
-  type BuildProviderAiAnalysisArtifactFromUnknownInput
-} from "@supplystrata/ai-analysis";
-import { buildLocalAiAnalysisArtifactFromUnknown } from "./local-simulated-analysis.js";
+  type BuildProviderAiAnalysisArtifactFromUnknownInput,
+  type LlmProvider,
+  type LlmProviderJsonRequest,
+  type LlmProviderJsonResponse
+} from "./definitions.js";
+import { buildLocalAiAnalysisArtifactCandidateFromUnknown } from "./local-simulated-analysis.js";
 
 const DEFAULT_OPENAI_COMPATIBLE_BASE_URLS: Record<"openai" | "deepseek", string> = {
   openai: "https://api.openai.com/v1",
   deepseek: "https://api.deepseek.com"
 };
 
-export async function buildProviderAiAnalysisArtifactFromUnknown(input: BuildProviderAiAnalysisArtifactFromUnknownInput): Promise<AiAnalysisArtifact> {
+export async function buildProviderAiAnalysisArtifactCandidateFromUnknown(
+  input: BuildProviderAiAnalysisArtifactFromUnknownInput
+): Promise<AiAnalysisArtifactCandidate> {
   if (input.provider.status !== "ready") {
     throw new Error(`AI provider is not ready: ${input.provider.status_reason}`);
   }
@@ -23,7 +27,7 @@ export async function buildProviderAiAnalysisArtifactFromUnknown(input: BuildPro
   const model = input.provider.model;
   if (model === null || model.trim().length === 0) throw new Error("AI provider model is required for provider mode.");
 
-  const baseline = buildLocalAiAnalysisArtifactFromUnknown(input);
+  const baseline = buildLocalAiAnalysisArtifactCandidateFromUnknown(input);
   const baseUrl = openAiCompatibleBaseUrl(input.provider.provider, input.base_url);
   const payload = openAiCompatiblePayload({
     model,
@@ -46,19 +50,44 @@ export async function buildProviderAiAnalysisArtifactFromUnknown(input: BuildPro
     provider: input.provider,
     provider_request_id: response.id ?? null
   });
-  const validation = validateAiAnalysisArtifact({
-    artifact,
-    allowed_refs: baseline.model_metadata.input_refs
-  });
-  if (!validation.ok) {
-    throw new Error(`AI provider output failed guardrail validation: ${validation.errors.join("; ")}`);
+  return artifact;
+}
+
+export function createOpenAiCompatibleJsonProvider(input: {
+  provider: AiProviderStatusReport;
+  api_key: string;
+  base_url?: string;
+  timeout_ms?: number;
+}): LlmProvider {
+  if (input.provider.status !== "ready") {
+    throw new Error(`LLM provider is not ready: ${input.provider.status_reason}`);
   }
-  return validation.artifact;
+  if (!isOpenAiCompatibleProvider(input.provider.provider)) {
+    throw new Error(`LLM provider ${input.provider.provider} is not supported by the OpenAI-compatible adapter yet.`);
+  }
+  const model = input.provider.model;
+  if (model === null || model.trim().length === 0) throw new Error("LLM provider model is required for provider mode.");
+  const baseUrl = openAiCompatibleBaseUrl(input.provider.provider, input.base_url);
+  return {
+    async completeJson(request: LlmProviderJsonRequest): Promise<LlmProviderJsonResponse> {
+      const response = await postOpenAiCompatibleJson({
+        url: `${baseUrl}/chat/completions`,
+        api_key: input.api_key,
+        timeout_ms: input.timeout_ms ?? 120000,
+        payload: openAiCompatibleHelperPayload({ model, request })
+      });
+      return {
+        provider_request_id: response.id ?? null,
+        model,
+        output: parseJsonObject(firstChoiceContent(response))
+      };
+    }
+  };
 }
 
 function openAiCompatiblePayload(input: {
   model: string;
-  baseline: AiAnalysisArtifact;
+  baseline: AiAnalysisArtifactCandidate;
   manifest: unknown;
   consumer_read_model: unknown;
   reasoning_walkthrough: unknown;
@@ -115,10 +144,10 @@ function openAiCompatiblePayload(input: {
 
 function providerArtifactFromModelOutput(input: {
   parsed: Record<string, unknown>;
-  baseline: AiAnalysisArtifact;
+  baseline: AiAnalysisArtifactCandidate;
   provider: AiProviderStatusReport;
   provider_request_id: string | null;
-}): AiAnalysisArtifact {
+}): AiAnalysisArtifactCandidate {
   return {
     ...input.baseline,
     ...input.parsed,
@@ -142,6 +171,33 @@ function providerArtifactFromModelOutput(input: {
       output_schema_id: "ai_analysis_artifact.v1",
       simulated: false
     }
+  };
+}
+
+function openAiCompatibleHelperPayload(input: { model: string; request: LlmProviderJsonRequest }): OpenAiCompatibleChatRequest {
+  return {
+    model: input.model,
+    temperature: 0.2,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: input.request.prompt.system
+      },
+      {
+        role: "user",
+        content: JSON.stringify(
+          {
+            helper: input.request.helper,
+            prompt_version: input.request.prompt_version,
+            task: input.request.prompt.user,
+            input: input.request.input
+          },
+          null,
+          2
+        )
+      }
+    ]
   };
 }
 
@@ -238,7 +294,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function aiAnalysisPromptSha256(artifact: AiAnalysisArtifact): string {
+export function aiAnalysisPromptSha256(artifact: AiAnalysisArtifactCandidate): string {
   return createHash("sha256").update(JSON.stringify(artifact.model_metadata)).digest("hex");
 }
 

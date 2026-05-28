@@ -52,10 +52,7 @@ describe("research run lifecycle", () => {
   });
 });
 
-function sourceCheckStatus(input: {
-  summary: SourceCheckRunStatusReport["summary"];
-  completedAt: readonly (string | null)[];
-}): SourceCheckRunStatusReport {
+function sourceCheckStatus(input: { summary: SourceCheckRunStatusReport["summary"]; completedAt: readonly (string | null)[] }): SourceCheckRunStatusReport {
   return {
     generated_at: "2026-05-27T00:10:00.000Z",
     summary: input.summary,

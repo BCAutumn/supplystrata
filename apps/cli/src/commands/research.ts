@@ -5,8 +5,8 @@ import { buildCompanyAiAnalysisPlan, recordAiAnalysisRun, validateAiAnalysisArti
 import { loadEnv, type Env } from "@supplystrata/config";
 import {
   buildAiProviderStatus,
-  buildLocalAiAnalysisArtifact,
-  buildProviderAiAnalysisArtifactFromUnknown,
+  buildLocalAiAnalysisArtifactCandidate,
+  buildProviderAiAnalysisArtifactCandidateFromUnknown,
   parseLocalAiAnalysisArtifactInput
 } from "@supplystrata/llm-helpers";
 import {
@@ -226,8 +226,8 @@ export function registerResearchCommands(program: Command): void {
       const parsedArtifactInput = parseLocalAiAnalysisArtifactInput(baseArtifactInput);
       const artifact =
         options.simulate === true || provider.status !== "ready"
-          ? buildLocalAiAnalysisArtifact(parsedArtifactInput)
-          : await buildProviderAiAnalysisArtifactFromUnknown({
+          ? buildLocalAiAnalysisArtifactCandidate(parsedArtifactInput)
+          : await buildProviderAiAnalysisArtifactCandidateFromUnknown({
               ...baseArtifactInput,
               api_key: requireAiProviderApiKey(env, provider.provider),
               ...(env.LLM_BASE_URL === undefined ? {} : { base_url: env.LLM_BASE_URL })
