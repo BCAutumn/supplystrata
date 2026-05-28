@@ -12,6 +12,31 @@ export interface RelationSemanticChangeInput {
   sourceItemId: string;
 }
 
+export interface InitialRelationReviewCandidateInput {
+  normalized: NormalizedDocument;
+  docId: string;
+  sourceItemId: string;
+}
+
+export async function enqueueInitialRelationReviewCandidates(client: DbTxClient, input: InitialRelationReviewCandidateInput): Promise<number> {
+  const snapshots = await extractRelationSnapshots(input.normalized);
+  if (snapshots.length === 0) return 0;
+  // 新公司第一次抓到官方文件时，还没有“上一版文件”可做 diff。
+  // 这里只把官方披露里的关系发现放进 review 队列，仍然不自动写事实图谱。
+  const result = await enqueueReviewCandidates(
+    client,
+    snapshots.map((snapshot) =>
+      buildSemanticChangeReviewCandidate({
+        changeType: changeTypeForRelation(snapshot, "added"),
+        sourceItemId: input.sourceItemId,
+        sourceUrl: input.normalized.source_url,
+        snapshot: relationSnapshotToReviewPayload(snapshot, input.docId, input.normalized.source_adapter_id)
+      })
+    )
+  );
+  return result.inserted;
+}
+
 export async function recordRelationSemanticChanges(client: DbTxClient, input: RelationSemanticChangeInput): Promise<number> {
   const before = relationSnapshotsByKey(await extractRelationSnapshots(input.previous));
   const after = relationSnapshotsByKey(await extractRelationSnapshots(input.next));

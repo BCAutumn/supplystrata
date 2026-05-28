@@ -44,6 +44,22 @@ describe("SEC official supply-chain rule extractor", () => {
     expect(candidates).toHaveLength(0);
   });
 
+  it("extracts automotive battery supplier disclosures from direct purchase language", () => {
+    const candidates = extractFixtureSentence("We purchase lithium-ion battery cells from Panasonic for use in our electric vehicles.", {
+      subjectSurface: "ENT-TESLA"
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      subject_resolve: { surface: "ENT-TESLA" },
+      object_resolve: { surface: "Panasonic" },
+      relation: "BUYS_FROM",
+      component: "battery cell",
+      component_id: "COMP-BATTERY-CELL",
+      component_specificity: "explicit"
+    });
+  });
+
   it("extracts foundry candidates from manufacturing context", () => {
     const candidates = extractFixtureSentence(
       "We utilize foundries such as Taiwan Semiconductor Manufacturing Company Limited and Samsung to manufacture semiconductor wafers."

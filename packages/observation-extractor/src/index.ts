@@ -86,11 +86,11 @@ const DISCLOSURE_OBSERVATION_PATTERNS: readonly DisclosureObservationPattern[] =
   {
     section_kind: "procurement",
     observation_type: "PROCUREMENT_OBSERVATION",
-    title: "Official disclosure mentions purchase obligations or supply commitments",
+    title: "Official disclosure mentions procurement, supply commitments, or supplier-risk context",
     metric_name: "official_procurement_commitment_mention",
     confidence: 0.74,
     patterns: [
-      /\b(?:purchase obligation|purchase obligations|long-term supply agreement|capacity reservation|take-or-pay|supply commitment|supply commitments)\b/i
+      /\b(?:purchase obligation|purchase obligations|long-term supply agreement|capacity reservation|take-or-pay|supply commitment|supply commitments|products contain thousands of parts purchased globally|single-source direct suppliers|third-party manufacturers|component shortages|supply chain costs|raw material costs)\b/i
     ]
   }
 ];

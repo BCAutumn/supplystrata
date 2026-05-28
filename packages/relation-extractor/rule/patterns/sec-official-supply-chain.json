@@ -43,6 +43,18 @@
       "componentId": "COMP-WAFER",
       "specificity": "explicit",
       "patternSources": ["\\b(?:wafer|foundry|foundries|fabrication)\\b"]
+    },
+    {
+      "component": "battery cell",
+      "componentId": "COMP-BATTERY-CELL",
+      "specificity": "explicit",
+      "patternSources": ["\\b(?:battery cells?|lithium[-\\s]?ion batteries|lithium[-\\s]?ion battery cells?)\\b"]
+    },
+    {
+      "component": "electric vehicle component",
+      "componentId": "COMP-EV-COMPONENT",
+      "specificity": "inferred",
+      "patternSources": ["\\b(?:electric vehicles?|evs?|automotive components?|vehicle components?)\\b"]
     }
   ],
   "sharedComponents": {
@@ -83,7 +95,11 @@
     { "surface": "Wistron", "patternSources": ["\\bwistron\\b"] },
     { "surface": "Fabrinet", "patternSources": ["\\bfabrinet\\b"] },
     { "surface": "Quanta", "patternSources": ["\\bquanta\\b"] },
-    { "surface": "Inventec", "patternSources": ["\\binventec\\b"] }
+    { "surface": "Inventec", "patternSources": ["\\binventec\\b"] },
+    { "surface": "Panasonic", "patternSources": ["\\bpanasonic\\b"] },
+    { "surface": "CATL", "patternSources": ["\\b(?:catl|contemporary amperex technology)\\b"] },
+    { "surface": "LG Energy Solution", "patternSources": ["\\b(?:lg energy solution|lg chem)\\b"] },
+    { "surface": "BYD", "patternSources": ["\\bbyd\\b"] }
   ],
   "manufacturingServiceSuppliers": [
     { "surface": "Hon Hai", "patternSources": ["\\b(?:hon hai|foxconn)\\b"], "serviceComponentKey": "manufacturingServices" },

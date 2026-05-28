@@ -39,6 +39,21 @@ describe("pipeline document observations", () => {
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 
+  it("enqueues first-seen official relation discoveries for review without creating fact edges", async () => {
+    const client = new RecordingDbClient();
+    const result = await persistDocumentObservations(
+      client,
+      normalizedDisclosureFixture(
+        "We purchase lithium-ion battery cells from Panasonic for use in our electric vehicles, and this supply remains important to production planning."
+      ),
+      "DOC-TESLA-1"
+    );
+
+    expect(result).toMatchObject({ review_candidates: 1, relation_changes: 1, change_type: "DOCUMENT_NEW" });
+    expect(client.calls.flatMap(reviewCandidateBatchKinds).filter((kind) => kind === "semantic_change")).toHaveLength(1);
+    expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
   it("enqueues official disclosure signals as review-only candidates", async () => {
     const client = new RecordingDbClient();
     const text =

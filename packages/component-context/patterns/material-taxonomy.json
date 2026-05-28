@@ -157,5 +157,109 @@
         "runnable": false
       }
     ]
+  },
+  {
+    "material_id": "MAT-LITHIUM",
+    "name": "Lithium",
+    "aliases": ["lithium", "lithium carbonate", "lithium hydroxide"],
+    "category": "metal",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-LITHIUM",
+          "mineral": "lithium"
+        },
+        "reason": "USGS MCS can provide annual lithium production and reserve context for battery exposure; it cannot prove customer allocation.",
+        "runnable": false
+      },
+      {
+        "source_adapter_id": "worldbank-pink",
+        "target_kind": "commodity-price-observation",
+        "observation_type": "COMMODITY_PRICE_OBSERVATION",
+        "required_period": "month",
+        "target_config_template": {
+          "material_id": "MAT-LITHIUM",
+          "commodity": "lithium"
+        },
+        "reason": "World Bank Pink Sheet can provide lithium price context where available; it cannot prove a purchase relationship.",
+        "runnable": true
+      }
+    ]
+  },
+  {
+    "material_id": "MAT-NICKEL",
+    "name": "Nickel",
+    "aliases": ["nickel", "nickel sulfate", "class 1 nickel"],
+    "category": "metal",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-NICKEL",
+          "mineral": "nickel"
+        },
+        "reason": "USGS MCS can provide annual nickel production context for battery cathode exposure.",
+        "runnable": false
+      },
+      {
+        "source_adapter_id": "worldbank-pink",
+        "target_kind": "commodity-price-observation",
+        "observation_type": "COMMODITY_PRICE_OBSERVATION",
+        "required_period": "month",
+        "target_config_template": {
+          "material_id": "MAT-NICKEL",
+          "commodity": "nickel"
+        },
+        "reason": "World Bank Pink Sheet can provide monthly nickel price context; it cannot prove a supplier relationship.",
+        "runnable": true
+      }
+    ]
+  },
+  {
+    "material_id": "MAT-GRAPHITE",
+    "name": "Battery-grade graphite",
+    "aliases": ["graphite", "natural graphite", "synthetic graphite", "battery-grade graphite"],
+    "category": "mineral",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-GRAPHITE",
+          "mineral": "graphite"
+        },
+        "reason": "USGS MCS can provide annual graphite production context for anode exposure; battery-grade qualification remains separate evidence.",
+        "runnable": false
+      }
+    ]
+  },
+  {
+    "material_id": "MAT-COBALT",
+    "name": "Cobalt",
+    "aliases": ["cobalt", "cobalt sulfate"],
+    "category": "metal",
+    "observation_targets": [
+      {
+        "source_adapter_id": "usgs-mcs",
+        "target_kind": "mineral-supply-observation",
+        "observation_type": "MINERAL_SUPPLY_OBSERVATION",
+        "required_period": "year",
+        "target_config_template": {
+          "material_id": "MAT-COBALT",
+          "mineral": "cobalt"
+        },
+        "reason": "USGS MCS can provide annual cobalt production context for battery cathode exposure and responsible sourcing review.",
+        "runnable": false
+      }
+    ]
   }
 ]

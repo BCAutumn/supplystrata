@@ -46,6 +46,24 @@ describe("observation-extractor", () => {
     expect(extractDisclosureObservations(doc).map((item) => item.observation_type)).not.toContain("CUSTOMER_CONCENTRATION_OBSERVATION");
   });
 
+  it("captures supplier-risk disclosure as procurement observation without asserting a supplier edge", () => {
+    const doc = normalizedFixture(
+      "Our products contain thousands of parts purchased globally from hundreds of suppliers, including single-source direct suppliers, which exposes us to component shortages."
+    );
+
+    const observations = extractDisclosureObservations(doc);
+    const procurement = observations.find((item) => item.observation_type === "PROCUREMENT_OBSERVATION");
+
+    expect(procurement).toMatchObject({
+      scope_kind: "company",
+      scope_id: "ENT-NVIDIA",
+      metric_name: "official_procurement_commitment_mention",
+      metric_unit: "mention"
+    });
+    expect(procurement?.attrs["title"]).toBe("Official disclosure mentions procurement, supply commitments, or supplier-risk context");
+    expect(String(procurement?.provenance["cite_text"])).toContain("single-source direct suppliers");
+  });
+
   it("uses a nearby citation window when web disclosure text is not sentence-delimited", () => {
     const longWebText = [
       "Annual Report Website ".repeat(90),

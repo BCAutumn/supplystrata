@@ -25,3 +25,16 @@ COMP-POWER-SUPPLY,Power supply,hardware>server>power,PSU;power module;power shel
 COMP-COOLING,Cooling,hardware>server>thermal,liquid cooling;thermal module;heat sink
 COMP-OPTICAL-MODULE,Optical module,hardware>networking>optics,optical transceiver;silicon photonics module
 COMP-CLEANROOM,Cleanroom,semiconductor>facilities>cleanroom,clean room;semiconductor cleanroom;cleanroom construction
+COMP-BATTERY-CELL,Battery cell,ev>battery>cell,lithium-ion battery cell;cell;LFP cell;4680 cell
+COMP-BATTERY-PACK,Battery pack,ev>battery>pack,battery module;battery pack;traction battery pack
+COMP-ENERGY-STORAGE-SYSTEM,Energy storage system,energy-storage>system,stationary storage;Megapack;grid battery;ESS
+COMP-EV-COMPONENT,Electric vehicle component,ev>vehicle>component,automotive component;vehicle component;EV component
+COMP-POWER-ELECTRONICS,Power electronics,ev>electronics>power,power module;inverter;converter;onboard charger
+COMP-AUTOMOTIVE-SEMICONDUCTOR,Automotive semiconductor,ev>electronics>semiconductor,automotive chip;vehicle semiconductor;ADAS chip
+COMP-CATHODE-MATERIAL,Cathode active material,ev>battery>material>cathode,cathode active material;CAM;LFP cathode;NCA cathode;NCM cathode
+COMP-ANODE-MATERIAL,Anode material,ev>battery>material>anode,anode active material;graphite anode;synthetic graphite anode
+COMP-LITHIUM-REFINING,Lithium refining,materials>battery>lithium-refining,lithium carbonate;lithium hydroxide;lithium refining
+COMP-NICKEL,Nickel,materials>metals>nickel,nickel sulfate;class 1 nickel;battery nickel
+COMP-GRAPHITE,Battery-grade graphite,materials>battery>graphite,natural graphite;synthetic graphite;battery graphite
+COMP-BATTERY-RECYCLING,Battery recycling,ev>battery>recycling,battery recycling;black mass;closed-loop battery recycling
+COMP-BATTERY-MANUFACTURING-EQUIPMENT,Battery manufacturing equipment,ev>battery>equipment,cell manufacturing equipment;coating equipment;formation equipment

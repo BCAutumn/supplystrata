@@ -410,5 +410,99 @@
         "source_suggestions": ["USGS Mineral Commodity Summaries"]
       }
     ]
+  },
+  {
+    "component_id": "COMP-BATTERY-CELL",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "850760",
+        "description": "Lithium-ion accumulators",
+        "confidence": 0.72,
+        "proxy_only": true,
+        "notes": "Lithium-ion accumulator trade proxy; does not identify cell format, chemistry, buyer, or qualified plant."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-LITHIUM",
+        "name": "Lithium",
+        "role": "cathode and electrolyte input",
+        "confidence": 0.62,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "IEA critical minerals", "battery material supplier filings"]
+      },
+      {
+        "material_id": "MAT-NICKEL",
+        "name": "Nickel",
+        "role": "high-nickel cathode input where chemistry applies",
+        "confidence": 0.42,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "World Bank Pink Sheet", "supplier annual reports"]
+      },
+      {
+        "material_id": "MAT-GRAPHITE",
+        "name": "Battery-grade graphite",
+        "role": "anode input",
+        "confidence": 0.5,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "RMI facility lists", "anode supplier filings"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-CATHODE-MATERIAL",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "284190",
+        "description": "Salts of oxometallic or peroxometallic acids, other",
+        "confidence": 0.22,
+        "proxy_only": true,
+        "notes": "Very broad cathode-material chemistry proxy; official supplier disclosure is required for relationship evidence."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-LITHIUM",
+        "name": "Lithium",
+        "role": "active material input",
+        "confidence": 0.7,
+        "source_suggestions": ["critical mineral observations", "supplier annual reports"]
+      },
+      {
+        "material_id": "MAT-NICKEL",
+        "name": "Nickel",
+        "role": "active material input for nickel-rich chemistries",
+        "confidence": 0.48,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "World Bank Pink Sheet"]
+      },
+      {
+        "material_id": "MAT-COBALT",
+        "name": "Cobalt",
+        "role": "active material input where chemistry applies",
+        "confidence": 0.34,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "responsible sourcing disclosures"]
+      }
+    ]
+  },
+  {
+    "component_id": "COMP-ANODE-MATERIAL",
+    "hs_codes": [
+      {
+        "system": "HS",
+        "code": "380110",
+        "description": "Artificial graphite",
+        "confidence": 0.45,
+        "proxy_only": true,
+        "notes": "Graphite proxy; battery-grade qualification and customer allocation need official evidence."
+      }
+    ],
+    "materials": [
+      {
+        "material_id": "MAT-GRAPHITE",
+        "name": "Battery-grade graphite",
+        "role": "primary anode input",
+        "confidence": 0.74,
+        "source_suggestions": ["USGS Mineral Commodity Summaries", "RMI facility lists", "anode supplier filings"]
+      }
+    ]
   }
 ]

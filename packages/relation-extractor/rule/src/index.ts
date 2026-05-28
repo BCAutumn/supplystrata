@@ -181,6 +181,23 @@ export function extractFromSentence(sentence: string, locator: string, options: 
   for (const counterparty of SUPPLIER_COUNTERPARTY_PATTERNS) {
     if (!matchesAnyCounterparty(sentence, counterparty)) continue;
     const commitmentComponent = classifySupplyCommitmentComponent(sentence);
+    if (isDirectSupplierPurchaseDisclosure(sentence) && commitmentComponent !== undefined) {
+      candidates.push(
+        buildCandidate({
+          subjectSurface,
+          documentType,
+          extractorId,
+          relation: "BUYS_FROM",
+          objectSurface: counterparty.surface,
+          citeText: sentence,
+          locator,
+          ...sourceLocationInput,
+          component: commitmentComponent,
+          confidenceHint: 0.87
+        })
+      );
+      continue;
+    }
     if (isPurchaseObligationDisclosure(sentence)) {
       candidates.push(
         buildCandidate({
@@ -305,6 +322,10 @@ function isPurchaseObligationDisclosure(sentence: string): boolean {
   return /\b(?:purchase obligations?|purchase commitments?|long[-\s]?term supply agreements?|wafer supply agreements?|capacity reservations?|prepayments?|take[-\s]?or[-\s]?pay)\b/i.test(
     sentence
   );
+}
+
+function isDirectSupplierPurchaseDisclosure(sentence: string): boolean {
+  return /\b(?:purchase|purchases|purchased|procure|procures|procured|source|sources|sourced|obtain|obtains|obtained|buy|buys|bought)\b/i.test(sentence);
 }
 
 function isSingleSourceSupplierDisclosure(sentence: string): boolean {
