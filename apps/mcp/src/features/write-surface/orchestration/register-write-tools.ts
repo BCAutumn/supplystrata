@@ -1,7 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { McpPendingActionToolName, McpWriteSurfaceRuntime, McpWriteToolResult, PendingWriteAction } from "../definitions/write-surface.js";
+import type {
+  McpPendingActionToolName,
+  McpWriteSurfaceRuntime,
+  McpWriteToolResult,
+  PendingWriteAction,
+  ReviewDecisionWriteRequest
+} from "../definitions/write-surface.js";
 import { executedResult, invalidTokenResult, MCP_WRITE_TOOL_OUTPUT_SCHEMA, requiresConfirmationResult, writeToolText } from "../functions/write-tool-result.js";
 
 const stringInput = (description: string) => z.string().trim().min(1).describe(description);
@@ -106,11 +112,7 @@ export function registerWriteTools(server: McpServer, runtime: McpWriteSurfaceRu
     },
     async ({ pending_id, confirmation_token, ...request }) =>
       pending_id === undefined && confirmation_token === undefined
-        ? pendingWriteToolResult(runtime, {
-            tool_name: "review.approve",
-            request,
-            summary_of_action: `Approve review candidate ${request.review_id}.`
-          })
+        ? pendingReviewDecisionToolResult(runtime, "review.approve", request)
         : executePendingWriteTool(runtime, "review.approve", pending_id, confirmation_token)
   );
 
@@ -130,20 +132,16 @@ export function registerWriteTools(server: McpServer, runtime: McpWriteSurfaceRu
     },
     async ({ pending_id, confirmation_token, ...request }) =>
       pending_id === undefined && confirmation_token === undefined
-        ? pendingWriteToolResult(runtime, {
-            tool_name: "review.reject",
-            request,
-            summary_of_action: `Reject review candidate ${request.review_id}.`
-          })
+        ? pendingReviewDecisionToolResult(runtime, "review.reject", request)
         : executePendingWriteTool(runtime, "review.reject", pending_id, confirmation_token)
   );
 }
 
 function reviewDecisionInputSchema() {
   return {
-    review_id: stringInput("Review candidate id."),
-    reviewer: stringInput("Stable reviewer or host-app actor id."),
-    reason: stringInput("Human-readable decision rationale."),
+    review_id: stringInput("Review candidate id. Required on the first call; omitted when confirming an existing pending write.").optional(),
+    reviewer: stringInput("Stable reviewer or host-app actor id. Required on the first call; omitted when confirming an existing pending write.").optional(),
+    reason: stringInput("Human-readable decision rationale. Required on the first call; omitted when confirming an existing pending write.").optional(),
     pending_id: pendingIdInput.optional(),
     confirmation_token: confirmationTokenInput.optional()
   };
@@ -153,6 +151,26 @@ async function pendingWriteToolResult(runtime: McpWriteSurfaceRuntime, action: P
   const now = runtime.now();
   const record = runtime.pendingWrites.create(action, now);
   return writeResult(requiresConfirmationResult(record));
+}
+
+async function pendingReviewDecisionToolResult(
+  runtime: McpWriteSurfaceRuntime,
+  toolName: "review.approve" | "review.reject",
+  input: { review_id?: string | undefined; reviewer?: string | undefined; reason?: string | undefined }
+) {
+  const request = reviewDecisionRequest(input);
+  if (toolName === "review.approve") {
+    return pendingWriteToolResult(runtime, {
+      tool_name: "review.approve",
+      request,
+      summary_of_action: `Approve review candidate ${request.review_id}.`
+    });
+  }
+  return pendingWriteToolResult(runtime, {
+    tool_name: "review.reject",
+    request,
+    summary_of_action: `Reject review candidate ${request.review_id}.`
+  });
 }
 
 async function executePendingWriteTool(
@@ -234,6 +252,28 @@ function runSourceCheckRequest(input: {
     ...(input.check_target_ids === undefined ? {} : { check_target_ids: input.check_target_ids }),
     ...(input.source_adapter_ids === undefined ? {} : { source_adapter_ids: input.source_adapter_ids }),
     ...(input.reviewer === undefined ? {} : { reviewer: input.reviewer })
+  };
+}
+
+function reviewDecisionRequest(input: {
+  review_id?: string | undefined;
+  reviewer?: string | undefined;
+  reason?: string | undefined;
+}): ReviewDecisionWriteRequest {
+  const reviewId = input.review_id;
+  const reviewer = input.reviewer;
+  const reason = input.reason;
+  if (reviewId === undefined || reviewer === undefined || reason === undefined) {
+    const missingFields: string[] = [];
+    if (reviewId === undefined) missingFields.push("review_id");
+    if (reviewer === undefined) missingFields.push("reviewer");
+    if (reason === undefined) missingFields.push("reason");
+    throw new Error(`MCP review decision requires ${missingFields.join(", ")} before confirmation.`);
+  }
+  return {
+    review_id: reviewId,
+    reviewer,
+    reason
   };
 }
 

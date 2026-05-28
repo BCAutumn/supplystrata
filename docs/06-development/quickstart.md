@@ -120,9 +120,10 @@ pnpm mcp --transport=http --port=7474 --bind=0.0.0.0
 
 ```bash
 pnpm smoke:mcp
+pnpm smoke:mcp:http
 ```
 
-该 smoke 会启动 stdio MCP fixture server，按 `resolve_company → list_source_targets → run_source_check → poll_research_run → traverse_chain` 调用链验证输出 shape，并验证 write tool 必须先返回 `requires_confirmation`、再用单次 `confirmation_token` 执行。实际数据仍来自本地 cache + audit ledger；REST API 只作为迁移期兼容路径保留。
+`smoke:mcp` 会启动 stdio MCP fixture server，枚举全部 tools，调用 read/write tools、全部 read resources，并验证 write tool 必须先返回 `requires_confirmation`、再用单次 `confirmation_token` 执行；同时覆盖无效 token 与 token 重用。`smoke:mcp:http` 用 SDK Streamable HTTP client 连接 `/mcp`，验证 HTTP transport 的真实调用路径。DB-backed runtime 用 `pnpm smoke:mcp:db` 单独验证，需要可达 Postgres。REST API 只作为迁移期兼容路径保留。
 
 ## 发布前体检
 

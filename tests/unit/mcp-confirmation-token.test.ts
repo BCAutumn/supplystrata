@@ -127,9 +127,6 @@ describe("mcp confirmation tokens", () => {
 
       const pending = await callStructured(client, "review.approve", { review_id: "REV-1", reviewer: "tester", reason: "checked" });
       const confirmed = await callStructured(client, "review.approve", {
-        review_id: "REV-1",
-        reviewer: "tester",
-        reason: "checked",
         pending_id: pendingString(pending, "pending_id"),
         confirmation_token: pendingString(pending, "confirmation_token")
       });

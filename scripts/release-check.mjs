@@ -53,7 +53,8 @@ async function main() {
   await runNamedCommand("lint", ["lint"]);
   await runNamedCommand("dependency boundaries", ["dep-check"]);
   await runNamedCommand("local smoke", withDb ? ["smoke:local", "--with-db"] : ["smoke:local"]);
-  await runNamedCommand("MCP smoke", ["smoke:mcp"]);
+  await runNamedCommand("MCP stdio smoke", ["smoke:mcp"]);
+  await runNamedCommand("MCP HTTP smoke", ["smoke:mcp:http"]);
 
   if (withDb) {
     const dq = parseJson(runPnpm(["--silent", "cli", "dq", "run", "--format", "json"], { capture: true }), "dq run");

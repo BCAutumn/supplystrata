@@ -14,6 +14,26 @@ export function createFixtureApiOperationHandlers(): ApiOperationHandlers {
           aliases: ["NVIDIA", "NVDA"]
         }
       }),
+    getEvidence: async (input) =>
+      fixtureReadData(input, {
+        evidence_id: input.path_params["id"],
+        edge_id: "EDGE-NVIDIA-TSMC",
+        citation: {
+          source_id: "sec-edgar",
+          url: "https://www.sec.gov/Archives/edgar/data/1045810/example.htm"
+        }
+      }),
+    listUnknowns: async (input) =>
+      fixtureReadData(input, {
+        scope: input.path_params["scope"],
+        unknowns: [
+          {
+            unknown_id: "UNK-NVIDIA-SUPPLIER-DEPTH",
+            status: "open",
+            reason: "Fixture keeps unresolved supplier depth explicit."
+          }
+        ]
+      }),
     listSourceHealth: async (input) =>
       fixtureReadData(input, {
         source_targets: [
@@ -21,6 +41,16 @@ export function createFixtureApiOperationHandlers(): ApiOperationHandlers {
             check_target_id: "target-sec-edgar-nvidia",
             source_adapter_id: "sec-edgar",
             status: "synced"
+          }
+        ]
+      }),
+    listChanges: async (input) =>
+      fixtureReadData(input, {
+        changes: [
+          {
+            change_id: "CHANGE-NVIDIA-FIXTURE",
+            changed_at: input.now,
+            summary: "Fixture audit event for MCP resource smoke."
           }
         ]
       }),
@@ -35,6 +65,16 @@ export function createFixtureApiOperationHandlers(): ApiOperationHandlers {
         scope: input.path_params["scope"],
         nodes: [{ id: "ENT-NVIDIA" }, { id: "ENT-TSMC" }],
         edges: [{ edge_id: "EDGE-NVIDIA-TSMC", source: "ENT-NVIDIA", target: "ENT-TSMC", relation: "USES_FOUNDRY" }]
+      }),
+    getCompanyReasoningWalkthrough: async (input) =>
+      fixtureReadData(input, {
+        company_id: input.path_params["id"],
+        steps: [
+          {
+            step_id: "fixture-step-1",
+            conclusion: "Fixture reasoning walkthrough is deterministic and read-only."
+          }
+        ]
       })
   };
 }

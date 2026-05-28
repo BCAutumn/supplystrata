@@ -61,6 +61,7 @@ pnpm mcp --transport=http --runtime=fixture --port=7474
 ```sh
 pnpm --silent mcp --transport=stdio --runtime=db
 pnpm smoke:mcp
+pnpm smoke:mcp:http
 pnpm smoke:mcp:db
 ```
 

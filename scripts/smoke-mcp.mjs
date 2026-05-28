@@ -40,13 +40,50 @@ try {
 async function runSmoke() {
   await client.connect(transport);
 
+  const tools = await client.listTools();
+  assertToolNames(tools, [
+    "ping",
+    "resolve_company",
+    "read_evidence_for_edge",
+    "traverse_chain",
+    "list_unknowns",
+    "list_source_targets",
+    "poll_research_run",
+    "start_research_session",
+    "confirm_research_session",
+    "run_source_check",
+    "review.approve",
+    "review.reject"
+  ]);
+
+  const ping = await callStructuredTool("ping", {});
+  assertPath(ping, ["ok"], true);
+
   const resolved = await callStructuredTool("resolve_company", { query: "NVIDIA" });
   assertPath(resolved, ["data", "operation_id"], "getCompanyCard");
   assertPath(resolved, ["data", "entity", "entity_id"], "ENT-NVIDIA");
 
+  const evidence = await callStructuredTool("read_evidence_for_edge", { edge_id: "EV-EDGE-1" });
+  assertPath(evidence, ["data", "operation_id"], "getEvidence");
+
+  const unknowns = await callStructuredTool("list_unknowns", { scope: "company:ENT-NVIDIA" });
+  assertPath(unknowns, ["data", "operation_id"], "listUnknowns");
+  assertArrayPath(unknowns, ["data", "unknowns"]);
+
   const sourceTargets = await callStructuredTool("list_source_targets", { scope: "company:ENT-NVIDIA" });
   assertPath(sourceTargets, ["data", "operation_id"], "listSourceHealth");
   assertArrayPath(sourceTargets, ["data", "source_targets"]);
+
+  const pendingResearch = await callStructuredTool("start_research_session", { company: "NVIDIA", depth: 2, reviewer: "smoke:mcp" });
+  assertPath(pendingResearch, ["status"], "requires_confirmation");
+  const confirmedResearch = await callStructuredTool("confirm_research_session", {
+    pending_id: readStringPath(pendingResearch, ["pending_id"]),
+    confirmation_token: readStringPath(pendingResearch, ["confirmation_token"])
+  });
+  assertPath(confirmedResearch, ["status"], "executed");
+
+  const invalidSourceCheck = await callStructuredTool("run_source_check", { pending_id: "missing", confirmation_token: "wrong" });
+  assertPath(invalidSourceCheck, ["status"], "invalid_token");
 
   const pendingSourceCheck = await callStructuredTool("run_source_check", { check_target_ids: ["target-sec-edgar-nvidia"] });
   assertPath(pendingSourceCheck, ["status"], "requires_confirmation");
@@ -60,6 +97,28 @@ async function runSmoke() {
   assertPath(confirmedSourceCheck, ["status"], "executed");
   assertPath(confirmedSourceCheck, ["data", "checked_targets"], 1);
 
+  const reusedSourceCheckToken = await callStructuredTool("run_source_check", {
+    pending_id: pendingId,
+    confirmation_token: confirmationToken
+  });
+  assertPath(reusedSourceCheckToken, ["status"], "invalid_token");
+
+  const pendingApproval = await callStructuredTool("review.approve", { review_id: "REV-1", reviewer: "smoke:mcp", reason: "evidence checked" });
+  assertPath(pendingApproval, ["status"], "requires_confirmation");
+  const confirmedApproval = await callStructuredTool("review.approve", {
+    pending_id: readStringPath(pendingApproval, ["pending_id"]),
+    confirmation_token: readStringPath(pendingApproval, ["confirmation_token"])
+  });
+  assertPath(confirmedApproval, ["status"], "executed");
+
+  const pendingRejection = await callStructuredTool("review.reject", { review_id: "REV-2", reviewer: "smoke:mcp", reason: "bad evidence" });
+  assertPath(pendingRejection, ["status"], "requires_confirmation");
+  const confirmedRejection = await callStructuredTool("review.reject", {
+    pending_id: readStringPath(pendingRejection, ["pending_id"]),
+    confirmation_token: readStringPath(pendingRejection, ["confirmation_token"])
+  });
+  assertPath(confirmedRejection, ["status"], "executed");
+
   const runStatus = await callStructuredTool("poll_research_run", { run_id: "RUN-NVIDIA-SMOKE" });
   assertPath(runStatus, ["data", "operation_id"], "getResearchRunStatus");
   assertPath(runStatus, ["data", "run_id"], "RUN-NVIDIA-SMOKE");
@@ -69,13 +128,21 @@ async function runSmoke() {
   assertArrayPath(chain, ["data", "nodes"]);
   assertArrayPath(chain, ["data", "edges"]);
 
+  await assertResourceOperation("supplystrata://entity/ENT-NVIDIA", "getCompanyCard");
+  await assertResourceOperation("supplystrata://evidence/edge/EV-EDGE-1", "getEvidence");
+  await assertResourceOperation("supplystrata://unknowns/company/ENT-NVIDIA", "listUnknowns");
+  await assertResourceOperation("supplystrata://changes/entity/ENT-NVIDIA", "listChanges");
+  await assertResourceOperation("supplystrata://source-health", "listSourceHealth");
+  await assertResourceOperation("supplystrata://reasoning-walkthrough/ENT-NVIDIA", "getCompanyReasoningWalkthrough");
+
   await closeQuietly();
   process.stdout.write(
     `${JSON.stringify(
       {
         ok: true,
         transport: "stdio",
-        checked: ["resolve_company", "list_source_targets", "run_source_check", "poll_research_run", "traverse_chain"],
+        checked: tools.tools.map((tool) => tool.name).sort(),
+        resources_checked: 6,
         write_gate: "requires_confirmation_then_single_confirmation_token"
       },
       null,
@@ -89,6 +156,21 @@ async function callStructuredTool(name, args) {
   if (result.isError === true) throw new Error(`${name} returned MCP error: ${toolErrorText(result)}`);
   if (!isRecord(result.structuredContent)) throw new Error(`${name} did not return structuredContent.`);
   return result.structuredContent;
+}
+
+async function assertResourceOperation(uri, operationId) {
+  const result = await client.readResource({ uri });
+  const firstContent = result.contents[0];
+  if (!isRecord(firstContent) || typeof firstContent.text !== "string") throw new Error(`Expected ${uri} to return JSON text content.`);
+  const parsed = JSON.parse(firstContent.text);
+  assertPath(parsed, ["data", "operation_id"], operationId);
+}
+
+function assertToolNames(tools, expectedNames) {
+  const names = tools.tools.map((tool) => tool.name);
+  for (const expectedName of expectedNames) {
+    if (!names.includes(expectedName)) throw new Error(`MCP server did not list expected tool: ${expectedName}`);
+  }
 }
 
 function toolErrorText(result) {
