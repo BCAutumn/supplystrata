@@ -59,7 +59,7 @@ export function runtimeModes(input: Pick<RuntimeProfileInput, "workbench_path" |
       docker_required: false,
       summary: "完整持久化研究链路；需要 SQL truth store。内置 adapter 是 Postgres，但服务可以来自本机、远程或宿主 app。",
       command: "pnpm --silent cli research run --company <query> --out reports/research-pack",
-      requires: ["POSTGRES_URL reachable", "migrated schema", "seeded entities/components"]
+      requires: ["POSTGRES_URL reachable", "current schema baseline applied", "seeded components or dynamic listed-company bootstrap"]
     },
     {
       id: "graph_projection",

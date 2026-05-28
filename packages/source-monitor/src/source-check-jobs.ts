@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { DbClient, DbTxClient } from "@supplystrata/db/write";
 import { normalizeSourceCheckTargetSelection } from "./source-check-target-selection.js";
-import type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow } from "./db-rows.js";
+import type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow, SourceCheckRunStatusRow } from "./db-rows.js";
 import type { SourceCheckTargetSelection } from "./types.js";
+import type { SourceCheckJobStatus } from "./types.js";
 
 const DEFAULT_SOURCE_CHECK_JOB_LEASE_MINUTES = 15;
 
@@ -14,6 +15,42 @@ export interface SourceCheckJobEnqueueResult {
 
 export interface SourceCheckJobEnqueueAndClaimResult extends SourceCheckJobEnqueueResult {
   claimed_jobs: SourceCheckJobRow[];
+}
+
+export interface SourceCheckRunStatusItem {
+  job_id: string;
+  status: SourceCheckJobStatus;
+  attempts: number;
+  max_attempts: number;
+  last_error: string | null;
+  next_attempt_at: string;
+  claimed_at: string | null;
+  lease_expires_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  check_target_id: string;
+  source_adapter_id: string;
+  target_kind: string;
+  subject_entity_id: string | null;
+  target_enabled: boolean;
+  policy_enabled: boolean;
+  next_check_at: string | null;
+}
+
+export interface SourceCheckRunStatusSummary {
+  total: number;
+  pending: number;
+  in_progress: number;
+  failed: number;
+  succeeded: number;
+  dead: number;
+}
+
+export interface SourceCheckRunStatusReport {
+  generated_at: string;
+  summary: SourceCheckRunStatusSummary;
+  jobs: SourceCheckRunStatusItem[];
 }
 
 export async function enqueueAndClaimDueSourceCheckJobs(
@@ -133,6 +170,45 @@ export async function claimDueSourceCheckJobs(
   return result.rows;
 }
 
+export async function listSourceCheckRunStatus(
+  client: DbClient,
+  input: { generated_at: string; limit?: number; statuses?: readonly SourceCheckJobStatus[] } & SourceCheckTargetSelection
+): Promise<SourceCheckRunStatusReport> {
+  const filter = normalizeSourceCheckTargetSelection(input);
+  const result = await client.query<SourceCheckRunStatusRow>(
+    `SELECT j.job_id, j.status, j.attempts, j.max_attempts, j.last_error,
+            j.next_attempt_at, j.claimed_at, j.lease_expires_at, j.completed_at, j.created_at, j.updated_at,
+            t.check_target_id, t.source_adapter_id, t.target_kind, t.subject_entity_id,
+            t.enabled AS target_enabled, p.enabled AS policy_enabled,
+            COALESCE(t.next_check_at, p.next_check_at) AS next_check_at
+     FROM source_check_jobs j
+     JOIN source_check_targets t ON t.check_target_id = j.check_target_id
+     JOIN source_policies p ON p.source_adapter_id = t.source_adapter_id
+     WHERE ($2::text[] IS NULL OR t.check_target_id = ANY($2::text[]))
+       AND ($3::text[] IS NULL OR t.source_adapter_id = ANY($3::text[]))
+       AND ($4::text[] IS NULL OR j.status = ANY($4::text[]))
+     ORDER BY
+       CASE j.status
+         WHEN 'in_progress' THEN 0
+         WHEN 'failed' THEN 1
+         WHEN 'dead' THEN 2
+         WHEN 'pending' THEN 3
+         ELSE 4
+       END,
+       j.updated_at DESC,
+       j.created_at DESC,
+       j.job_id
+     LIMIT $1`,
+    [input.limit ?? 100, filter.check_target_ids, filter.source_adapter_ids, input.statuses ?? null]
+  );
+  const jobs = result.rows.map(sourceCheckRunStatusItemFromRow);
+  return {
+    generated_at: input.generated_at,
+    summary: summarizeSourceCheckRunStatus(jobs),
+    jobs
+  };
+}
+
 export async function markSourceCheckJobSucceeded(client: DbClient, input: { job_id: string }): Promise<void> {
   await client.query(
     `UPDATE source_check_jobs
@@ -143,6 +219,35 @@ export async function markSourceCheckJobSucceeded(client: DbClient, input: { job
      WHERE job_id = $1`,
     [input.job_id]
   );
+}
+
+function sourceCheckRunStatusItemFromRow(row: SourceCheckRunStatusRow): SourceCheckRunStatusItem {
+  return {
+    job_id: row.job_id,
+    status: row.status,
+    attempts: row.attempts,
+    max_attempts: row.max_attempts,
+    last_error: row.last_error,
+    next_attempt_at: row.next_attempt_at.toISOString(),
+    claimed_at: row.claimed_at === null ? null : row.claimed_at.toISOString(),
+    lease_expires_at: row.lease_expires_at === null ? null : row.lease_expires_at.toISOString(),
+    completed_at: row.completed_at === null ? null : row.completed_at.toISOString(),
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+    check_target_id: row.check_target_id,
+    source_adapter_id: row.source_adapter_id,
+    target_kind: row.target_kind,
+    subject_entity_id: row.subject_entity_id,
+    target_enabled: row.target_enabled,
+    policy_enabled: row.policy_enabled,
+    next_check_at: row.next_check_at === null ? null : row.next_check_at.toISOString()
+  };
+}
+
+function summarizeSourceCheckRunStatus(jobs: readonly SourceCheckRunStatusItem[]): SourceCheckRunStatusSummary {
+  const summary: SourceCheckRunStatusSummary = { total: jobs.length, pending: 0, in_progress: 0, failed: 0, succeeded: 0, dead: 0 };
+  for (const job of jobs) summary[job.status] += 1;
+  return summary;
 }
 
 export async function markSourceCheckJobFailed(client: DbClient, input: { job_id: string; error_message: string }): Promise<SourceCheckJobStateRow> {

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "cli": "NODE_OPTIONS=--conditions=development tsx apps/cli/src/main.ts",
+    "api": "NODE_OPTIONS=--conditions=development tsx apps/api/src/main.ts",
     "db:migrate": "NODE_OPTIONS=--conditions=development tsx apps/cli/src/main.ts db migrate",
     "worker": "NODE_OPTIONS=--conditions=development tsx apps/worker/src/main.ts",
     "test": "pnpm test:unit",

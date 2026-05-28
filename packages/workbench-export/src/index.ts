@@ -20,6 +20,7 @@ import { RELATION_TYPES, type EvidenceLevel, type RelationType } from "@supplyst
 export { buildWorkbenchAttentionQueue } from "./attention-queue.js";
 import { buildWorkbenchAttentionQueue } from "./attention-queue.js";
 import { claimToDto, mergeWorkbenchClaims } from "./claim-dto.js";
+export { claimToDto } from "./claim-dto.js";
 import type { ClaimDbRow, UnknownDbRow } from "./db-rows.js";
 import type { ChangeTimelineDtoSource } from "./dto-source-records.js";
 export type {
@@ -269,7 +270,7 @@ async function listUnknownsByIds(client: DbClient, unknownIds: readonly string[]
   return result.rows;
 }
 
-function changeTimelineItemToDto(item: ChangeTimelineDtoSource): WorkbenchChangeTimelineItem {
+export function changeTimelineItemToDto(item: ChangeTimelineDtoSource): WorkbenchChangeTimelineItem {
   return {
     event_id: item.event_id,
     event_family: item.event_family,

@@ -88,6 +88,27 @@ export interface SourceCheckJobStateRow extends pg.QueryResultRow {
   completed_at: Date | null;
 }
 
+export interface SourceCheckRunStatusRow extends pg.QueryResultRow {
+  job_id: string;
+  status: SourceCheckJobStatus;
+  attempts: number;
+  max_attempts: number;
+  last_error: string | null;
+  next_attempt_at: Date;
+  claimed_at: Date | null;
+  lease_expires_at: Date | null;
+  completed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  check_target_id: string;
+  source_adapter_id: string;
+  target_kind: string;
+  subject_entity_id: string | null;
+  target_enabled: boolean;
+  policy_enabled: boolean;
+  next_check_at: Date | null;
+}
+
 export interface SourceItemRow extends pg.QueryResultRow {
   source_item_id: string;
   latest_doc_id: string | null;

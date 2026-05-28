@@ -60,21 +60,51 @@ importers:
 
   apps/api:
     dependencies:
+      '@supplystrata/ai-analysis':
+        specifier: workspace:*
+        version: link:../../packages/ai-analysis
+      '@supplystrata/card-builder':
+        specifier: workspace:*
+        version: link:../../packages/card-builder
       '@supplystrata/chain-view':
         specifier: workspace:*
         version: link:../../packages/chain-view
+      '@supplystrata/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@supplystrata/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@supplystrata/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
       '@supplystrata/render':
         specifier: workspace:*
         version: link:../../packages/render
       '@supplystrata/research-pack':
         specifier: workspace:*
         version: link:../../packages/research-pack
+      '@supplystrata/review-store':
+        specifier: workspace:*
+        version: link:../../packages/review-store
+      '@supplystrata/source-monitor':
+        specifier: workspace:*
+        version: link:../../packages/source-monitor
+      '@supplystrata/source-workflows':
+        specifier: workspace:*
+        version: link:../../packages/source-workflows
       '@supplystrata/workbench-export':
         specifier: workspace:*
         version: link:../../packages/workbench-export
 
   apps/cli:
     dependencies:
+      '@supplystrata/ai-analysis':
+        specifier: workspace:*
+        version: link:../../packages/ai-analysis
       '@supplystrata/card-builder':
         specifier: workspace:*
         version: link:../../packages/card-builder
@@ -177,6 +207,18 @@ importers:
       '@supplystrata/source-workflows':
         specifier: workspace:*
         version: link:../../packages/source-workflows
+
+  packages/ai-analysis:
+    dependencies:
+      '@supplystrata/db':
+        specifier: workspace:*
+        version: link:../db
+      '@supplystrata/research-pack':
+        specifier: workspace:*
+        version: link:../research-pack
+      pg:
+        specifier: ~8.13.1
+        version: 8.13.3
 
   packages/card-builder:
     dependencies:
@@ -687,6 +729,9 @@ importers:
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../db
+      '@supplystrata/entity-import':
+        specifier: workspace:*
+        version: link:../entity-import
       '@supplystrata/entity-resolver':
         specifier: workspace:*
         version: link:../entity-resolver

@@ -15,6 +15,7 @@ export {
   claimDueSourceCheckJobs,
   enqueueAndClaimDueSourceCheckJobs,
   enqueueDueSourceCheckJobs,
+  listSourceCheckRunStatus,
   markSourceCheckJobFailed,
   markSourceCheckJobSucceeded
 } from "./source-check-jobs.js";
@@ -28,6 +29,7 @@ export type {
   SourceTargetFailureKind
 } from "./coverage.js";
 export type { DueSourceCheckRow, SourceCheckJobRow, SourceCheckJobStateRow, SourceHealthRow, SourcePolicyRow } from "./db-rows.js";
+export type { SourceCheckRunStatusItem, SourceCheckRunStatusReport, SourceCheckRunStatusSummary } from "./source-check-jobs.js";
 export type {
   DocumentObservationInput,
   DocumentObservationResult,

@@ -11,6 +11,7 @@ import {
   enqueueDueSourceCheckJobs,
   ensureSourceCheckTarget,
   listDueSourceChecks,
+  listSourceCheckRunStatus,
   listSourceHealthRows,
   listSourceTargetCoverage,
   markSourceCheckJobFailed,
@@ -319,6 +320,34 @@ describe("source monitor", () => {
     expect(client.calls.some((call) => call.sql.includes("status = CASE WHEN attempts + 1 >= max_attempts"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("backoff_base_minutes * (attempts + 1) * (attempts + 1)"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
+  });
+
+  it("lists source check run status without leaking persistence rows", async () => {
+    const client = new SourceCheckJobDbClient();
+
+    const report = await listSourceCheckRunStatus(client, {
+      generated_at: "2026-05-27T00:00:00.000Z",
+      limit: 5,
+      statuses: ["in_progress"],
+      source_adapter_ids: ["sec-edgar"],
+      check_target_ids: ["sec-edgar:nvidia"]
+    });
+
+    expect(report).toMatchObject({
+      generated_at: "2026-05-27T00:00:00.000Z",
+      summary: { total: 1, pending: 0, in_progress: 1, failed: 0, succeeded: 0, dead: 0 },
+      jobs: [
+        {
+          job_id: "SCJ-TEST",
+          status: "in_progress",
+          check_target_id: "sec-edgar:nvidia",
+          source_adapter_id: "sec-edgar",
+          next_attempt_at: "2026-05-19T00:00:00.000Z"
+        }
+      ]
+    });
+    expect(client.calls.some((call) => call.sql.includes("FROM source_check_jobs j"))).toBe(true);
+    expect(client.calls.some((call) => call.sql.includes("j.status = ANY"))).toBe(true);
   });
 
   it("preserves runtime next_check_at unless source policy config explicitly sets it", async () => {
@@ -713,6 +742,9 @@ function rowsForSourceCheckJobStatement<T extends pg.QueryResultRow>(statement: 
       }
     ] as unknown as T[];
   }
+  if (statement.includes("FROM source_check_jobs j") && statement.includes("j.status = ANY")) {
+    return [sourceCheckJobRunStatusRow()] as unknown as T[];
+  }
   return [];
 }
 
@@ -752,10 +784,35 @@ function sourceCheckJobRow(): pg.QueryResultRow {
     backoff_base_minutes: 3,
     backoff_max_minutes: 120,
     last_error: null,
+    next_attempt_at: new Date("2026-05-19T00:00:00.000Z"),
     claimed_at: new Date("2026-05-19T00:00:00.000Z"),
+    lease_expires_at: new Date("2026-05-19T00:15:00.000Z"),
     completed_at: null,
     created_at: new Date("2026-05-19T00:00:00.000Z"),
     updated_at: new Date("2026-05-19T00:00:00.000Z")
+  };
+}
+
+function sourceCheckJobRunStatusRow(): pg.QueryResultRow {
+  return {
+    job_id: "SCJ-TEST",
+    status: "in_progress",
+    attempts: 0,
+    max_attempts: 5,
+    last_error: null,
+    next_attempt_at: new Date("2026-05-19T00:00:00.000Z"),
+    claimed_at: new Date("2026-05-19T00:00:00.000Z"),
+    lease_expires_at: new Date("2026-05-19T00:15:00.000Z"),
+    completed_at: null,
+    created_at: new Date("2026-05-19T00:00:00.000Z"),
+    updated_at: new Date("2026-05-19T00:00:00.000Z"),
+    check_target_id: "sec-edgar:nvidia",
+    source_adapter_id: "sec-edgar",
+    target_kind: "sec-company-filings",
+    subject_entity_id: "ENT-NVIDIA",
+    target_enabled: true,
+    policy_enabled: true,
+    next_check_at: new Date("2026-05-19T00:00:00.000Z")
   };
 }
 
