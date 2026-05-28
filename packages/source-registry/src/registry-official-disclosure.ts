@@ -161,5 +161,21 @@ export const OFFICIAL_DISCLOSURE_SOURCES = [
     official_url: "https://mops.twse.com.tw/",
     tos_url: "https://mops.twse.com.tw/",
     notes: "台湾公开资讯观测站；当前先接电子文件查询目录 monitor，优先服务 Hon Hai / Quanta 等 AI server ODM 节点。PDF 正文解析与关系抽取留后续。"
+  },
+  {
+    id: "hkex-news",
+    tier: "P1",
+    name: "HKEXnews",
+    category: "official_disclosure",
+    evidence_level_cap: 5,
+    publisher_type: "regulator",
+    relation_authority: "self_disclosure",
+    automation: "semi_auto",
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
+    requires_key: false,
+    official_url: "https://www.hkexnews.hk/",
+    tos_url: "https://www.hkexnews.hk/",
+    notes: "香港 HKEXnews；当前先接 title search 公告目录 metadata monitor，PDF 正文解析与关系抽取留后续。"
   }
 ] as const satisfies readonly SourceRegistryEntry[];

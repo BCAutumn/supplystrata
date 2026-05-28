@@ -20,6 +20,7 @@ describe("source registry", () => {
     expect(ids.has("dart-kr")).toBe(true);
     expect(ids.has("edinet")).toBe(true);
     expect(ids.has("twse-mops")).toBe(true);
+    expect(ids.has("hkex-news")).toBe(true);
     expect(ids.has("osh")).toBe(true);
     expect(ids.has("un-comtrade")).toBe(true);
     expect(ids.has("census-trade")).toBe(true);
@@ -32,9 +33,9 @@ describe("source registry", () => {
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 38,
+      total: 39,
       implemented: 2,
-      preview: 18,
+      preview: 19,
       planned: 1,
       scoped: 16,
       manualOnly: 1,
@@ -104,6 +105,11 @@ describe("source registry", () => {
       max_evidence_level: 5
     });
     expect(sourceAuthorityFor({ source_adapter_id: "twse-mops", document_type: "company_registry" })).toMatchObject({
+      publisher_type: "regulator",
+      relation_authority: "self_disclosure",
+      max_evidence_level: 5
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "hkex-news", document_type: "company_registry" })).toMatchObject({
       publisher_type: "regulator",
       relation_authority: "self_disclosure",
       max_evidence_level: 5

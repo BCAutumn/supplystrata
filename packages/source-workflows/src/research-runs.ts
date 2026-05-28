@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Env } from "@supplystrata/config";
 import type { DbClient, DatabaseStore } from "@supplystrata/db/write";
-import { enqueueDueSourceCheckJobs, listSourceCheckRunStatus, syncSourcePolicyConfig, type SourceCheckRunStatusReport } from "@supplystrata/source-monitor";
+import {
+  enqueueDueSourceCheckJobs,
+  listSourceCheckRunStatus,
+  syncSourcePolicyConfig,
+  type SourceCheckTargetInput,
+  type SourceCheckRunStatusReport,
+  type SourcePolicyInput
+} from "@supplystrata/source-monitor";
+import { routeCountryOfficialDirectoryTargets } from "./country-router.js";
 import { ensureResearchCompanyEntity, type ResearchCompanyEntityBootstrapResult } from "./research-entity-bootstrap.js";
 import { deriveResearchRunLifecycle } from "./research-run-lifecycle.js";
 
@@ -75,6 +83,7 @@ export function isResearchRunNotFoundError(error: unknown): error is ResearchRun
 interface EntityIdentityRow {
   entity_id: string;
   display_name: string;
+  primary_country: string | null;
   identifiers: Record<string, unknown>;
 }
 
@@ -122,24 +131,20 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
   }
 
   const identity = await loadEntityIdentity(store.read, bootstrap.entity_id);
-  const targetIds = secResearchTargetIds(identity, namespace);
-  const missingCik = cikFromIdentifiers(identity.identifiers) === undefined;
+  const routing = routeCountryOfficialDirectoryTargets({
+    identity,
+    namespace,
+    now: input.requested_at
+  });
+  const targetIds = routing.check_targets.map((target) => target.check_target_id);
+  const hasTargets = targetIds.length > 0;
   await store.transaction(async (client) => {
-    if (!missingCik) {
+    if (hasTargets) {
       await syncSourcePolicyConfig(client, {
         config: {
           schema_version: "1.0.0",
-          policies: [
-            {
-              source_adapter_id: "sec-edgar",
-              enabled: true,
-              check_cadence_minutes: 24 * 60,
-              priority: 10,
-              next_check_at: input.requested_at,
-              notes: "Enabled by API research run for official disclosure discovery."
-            }
-          ],
-          check_targets: secResearchTargets(identity, namespace, input.requested_at)
+          policies: sourcePoliciesForTargets(routing.check_targets, input.requested_at),
+          check_targets: routing.check_targets
         },
         configSource: `research-run:${runId}`
       });
@@ -152,12 +157,12 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
       company: input.company,
       entityId: identity.entity_id,
       depth,
-      status: missingCik ? "cannot_conclude" : "queued_source_checks",
+      status: hasTargets ? "queued_source_checks" : "cannot_conclude",
       bootstrapStatus: bootstrap.status,
       namespace,
-      targetIds: missingCik ? [] : targetIds,
-      errorMessage: missingCik ? "Resolved company has no SEC CIK; this research-run v0 can only auto-queue SEC listed-company sources." : null,
-      completedAt: missingCik ? input.requested_at : null
+      targetIds: hasTargets ? targetIds : [],
+      errorMessage: hasTargets ? null : routing.routes.map((route) => route.reason).join("; "),
+      completedAt: hasTargets ? null : input.requested_at
     });
   });
 
@@ -312,7 +317,7 @@ async function loadResearchRun(client: DbClient, runId: string): Promise<Researc
 
 async function loadEntityIdentity(client: DbClient, entityId: string): Promise<EntityIdentityRow> {
   const result = await client.query<EntityIdentityRow>(
-    `SELECT entity_id, display_name, identifiers
+    `SELECT entity_id, display_name, primary_country, identifiers
      FROM entity_master
      WHERE entity_id = $1 AND status = 'active'`,
     [entityId]
@@ -322,55 +327,22 @@ async function loadEntityIdentity(client: DbClient, entityId: string): Promise<E
   return row;
 }
 
-function secResearchTargets(
-  identity: EntityIdentityRow,
-  namespace: string,
-  now: string
-): Parameters<typeof syncSourcePolicyConfig>[1]["config"]["check_targets"] {
-  const cik = cikFromIdentifiers(identity.identifiers);
-  if (cik === undefined) return [];
-  return [
-    {
-      check_target_id: secResearchTargetId(namespace, "sec-company-filings", identity.entity_id),
-      source_adapter_id: "sec-edgar",
-      target_kind: "sec-company-filings",
-      subject_entity_id: identity.entity_id,
+function sourcePoliciesForTargets(targets: readonly SourceCheckTargetInput[], now: string): SourcePolicyInput[] {
+  const seen = new Set<string>();
+  const policies: SourcePolicyInput[] = [];
+  for (const target of targets) {
+    if (seen.has(target.source_adapter_id)) continue;
+    seen.add(target.source_adapter_id);
+    policies.push({
+      source_adapter_id: target.source_adapter_id,
       enabled: true,
+      check_cadence_minutes: 24 * 60,
       priority: 10,
       next_check_at: now,
-      target_config: {
-        cik,
-        entity_id: identity.entity_id,
-        form_types: ["10-K", "20-F", "10-Q", "8-K"],
-        limit: 3
-      },
-      notes: `Official SEC filings target for API research run on ${identity.display_name}.`
-    },
-    {
-      check_target_id: secResearchTargetId(namespace, "sec-company-facts", identity.entity_id),
-      source_adapter_id: "sec-edgar",
-      target_kind: "sec-company-facts",
-      subject_entity_id: identity.entity_id,
-      enabled: true,
-      priority: 20,
-      next_check_at: now,
-      target_config: {
-        cik,
-        entity_id: identity.entity_id,
-        max_periods: 8
-      },
-      notes: `Official SEC companyfacts target for API research run on ${identity.display_name}.`
-    }
-  ];
-}
-
-function secResearchTargetIds(identity: EntityIdentityRow, namespace: string): string[] {
-  if (cikFromIdentifiers(identity.identifiers) === undefined) return [];
-  return [secResearchTargetId(namespace, "sec-company-filings", identity.entity_id), secResearchTargetId(namespace, "sec-company-facts", identity.entity_id)];
-}
-
-function secResearchTargetId(namespace: string, targetKind: "sec-company-filings" | "sec-company-facts", entityId: string): string {
-  return `research:${namespace}:sec-edgar:${targetKind}:${entityId.toLowerCase()}`;
+      notes: "Enabled by API research run for official disclosure discovery."
+    });
+  }
+  return policies;
 }
 
 function isActiveResearchRunStatus(status: ResearchRunStatus): boolean {
@@ -386,11 +358,6 @@ function nextActions(row: ResearchRunRow, sourceCheckStatus: SourceCheckRunStatu
   if (sourceCheckStatus.summary.failed > 0 || sourceCheckStatus.summary.dead > 0)
     return ["Inspect GET /runs/source-checks for source errors, credentials, or target config issues."];
   return ["Read company consumer model, reasoning walkthrough, unknowns, and latest AI analysis after artifacts are generated."];
-}
-
-function cikFromIdentifiers(identifiers: Record<string, unknown>): string | undefined {
-  const value = identifiers["cik"];
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function normalizeDepth(value: number | undefined): number {

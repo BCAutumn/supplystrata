@@ -12,6 +12,12 @@ import { censusTradeInputFromConfig, censusTradeSourceCheckConnector } from "./c
 import { createDartKrAdapterContext, dartKrAdapter, dartKrCompanyFilingsInputFromConfig, dartKrCompanyFilingsSourceCheckConnector } from "./dart-kr-checks.js";
 import { createEdinetAdapterContext, edinetAdapter, edinetDailyFilingsInputFromConfig, edinetDailyFilingsSourceCheckConnector } from "./edinet-checks.js";
 import {
+  createHkexNewsAdapterContext,
+  hkexNewsAdapter,
+  hkexNewsTitleSearchInputFromConfig,
+  hkexNewsTitleSearchSourceCheckConnector
+} from "./hkex-news-checks.js";
+import {
   asmlIrAdapter,
   companyIrExplicitUrlAdapter,
   createOfficialIrAdapterContext,
@@ -101,6 +107,12 @@ export const SOURCE_CHECK_CATALOG = [
     adapter: twseMopsAdapter,
     inputFromConfig: twseMopsElectronicDocumentsInputFromConfig,
     createContext: (runtime) => createTwseMopsAdapterContext(runtime.adapterContextInput)
+  }),
+  sourceCheckCatalogEntry({
+    connector: hkexNewsTitleSearchSourceCheckConnector,
+    adapter: hkexNewsAdapter,
+    inputFromConfig: hkexNewsTitleSearchInputFromConfig,
+    createContext: (runtime) => createHkexNewsAdapterContext(runtime.adapterContextInput)
   }),
   sourceCheckCatalogEntry({
     connector: secEdgarSourceCheckConnector,

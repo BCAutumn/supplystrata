@@ -16,6 +16,16 @@ export {
   twseMopsAdapter
 } from "./twse-mops-checks.js";
 export type { TwseMopsDocumentKind, TwseMopsElectronicDocumentEntry, TwseMopsElectronicDocumentsInput } from "./twse-mops-checks.js";
+export { buildHkexNewsTitleSearchUrl, createHkexNewsAdapterContext, extractHkexNewsAnnouncementEntries, hkexNewsAdapter } from "./hkex-news-checks.js";
+export type { HkexNewsAnnouncementEntry, HkexNewsTitleSearchInput } from "./hkex-news-checks.js";
+export { routeCountryOfficialDirectoryTargets } from "./country-router.js";
+export type {
+  CompanyOfficialDirectoryIdentity,
+  CountryOfficialDirectoryRoutingInput,
+  CountryOfficialDirectoryRoutingResult,
+  OfficialDirectoryRoute,
+  OfficialDirectoryRouteStatus
+} from "./country-router.js";
 export { createOfacSanctionsAdapterContext, matchOfacSanctionsEntries, ofacSanctionsAdapter, parseOfacSdnEntries } from "./ofac-sanctions-checks.js";
 export type { OfacSanctionsEntry, OfacSanctionsInput, OfacSanctionsMatch } from "./ofac-sanctions-checks.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";

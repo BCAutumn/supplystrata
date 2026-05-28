@@ -28,6 +28,7 @@ describe("source check registry", () => {
         "edinet/daily-filings",
         "micron-ir/official-html-disclosure",
         "twse-mops/electronic-documents",
+        "hkex-news/title-search",
         "census-trade/trade-flow-observation",
         "osh/facility-search",
         "worldbank-pink/commodity-price-observation",
@@ -75,6 +76,11 @@ describe("source check registry", () => {
           source_adapter_id: "twse-mops",
           target_kind: "electronic-documents",
           key: "twse-mops/electronic-documents"
+        }),
+        expect.objectContaining({
+          source_adapter_id: "hkex-news",
+          target_kind: "title-search",
+          key: "hkex-news/title-search"
         }),
         expect.objectContaining({
           source_adapter_id: "ofac-sanctions",
