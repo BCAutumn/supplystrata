@@ -1,4 +1,4 @@
-import type { ApiReviewWritePolicy, ApiReadPolicy } from "./api-dtos.js";
+import type { ApiReadPolicy, ApiReadThroughResearchPolicy, ApiReviewWritePolicy, ApiWorkflowWritePolicy } from "./api-dtos.js";
 
 export const API_CONTRACT_VERSION = "0.1.0" as const;
 export const API_SCHEMA_VERSION = "1.0.0" as const;
@@ -6,8 +6,8 @@ export const API_OPENAPI_VERSION = "3.1.0" as const;
 
 export type ApiRouteMethod = "GET" | "POST";
 export type ApiRouteStability = "v0_contract";
-export type ApiHandlerStatus = "contract_only";
-export type ApiRouteAccess = "read" | "review_write";
+export type ApiHandlerStatus = "contract_only" | "http_adapter_backed";
+export type ApiRouteAccess = "read" | "review_write" | "workflow_write" | "read_through_research";
 
 export interface ApiRouteParameter {
   name: string;
@@ -32,10 +32,12 @@ export interface ApiDtoContract {
 }
 
 export type ApiDtoSourcePackage =
+  | "@supplystrata/ai-analysis"
   | "@supplystrata/render"
   | "@supplystrata/chain-view"
   | "@supplystrata/workbench-export"
   | "@supplystrata/research-pack"
+  | "@supplystrata/source-workflows"
   | "@supplystrata/api"
   | "@supplystrata/db";
 
@@ -49,6 +51,15 @@ export type ApiSchemaId =
   | "RiskViewApiResponse"
   | "ChangesApiResponse"
   | "SourcesHealthApiResponse"
+  | "SourceCheckRunsApiResponse"
+  | "ResearchRunStatusApiResponse"
+  | "ResearchRunRequest"
+  | "ResearchRunApiResponse"
+  | "CompanySupplyChainReportApiResponse"
+  | "AiProviderStatusApiResponse"
+  | "AiAnalysisRunsApiResponse"
+  | "CompanyAiAnalysisPlanApiResponse"
+  | "CompanyAiAnalysisLatestApiResponse"
   | "UnknownMapApiResponse"
   | "ConsumerReadModelApiResponse"
   | "ReasoningWalkthroughApiResponse"
@@ -63,7 +74,8 @@ export interface ApiRouteContract {
   stability: ApiRouteStability;
   handler_status: ApiHandlerStatus;
   read_policy?: ApiReadPolicy;
-  write_policy?: ApiReviewWritePolicy;
+  read_through_policy?: ApiReadThroughResearchPolicy;
+  write_policy?: ApiReviewWritePolicy | ApiWorkflowWritePolicy;
   parameters: readonly ApiRouteParameter[];
   request_schema_id?: ApiSchemaId;
   response_schema_id: ApiSchemaId;
@@ -81,9 +93,17 @@ export type ApiRoutePath =
   | "/risk-views/:scope"
   | "/changes"
   | "/sources/health"
+  | "/runs/source-checks"
+  | "/research-runs/:id"
+  | "/ai/provider-status"
+  | "/runs/ai-analysis"
   | "/unknowns/:scope"
+  | "/companies/:id/supply-chain-report"
   | "/companies/:id/consumer-read-model"
   | "/companies/:id/reasoning-walkthrough"
+  | "/companies/:id/ai-analysis-plan"
+  | "/companies/:id/ai-analysis/latest"
+  | "/companies/:id/research-runs"
   | "/review/:id/approve"
   | "/review/:id/reject";
 
@@ -103,21 +123,54 @@ const limitQueryParam = (defaultValue: number): ApiRouteParameter => ({
   description: "Optional maximum number of records returned by the read endpoint."
 });
 
-const readRoute = (input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "read_policy">): ApiRouteContract => ({
+const depthQueryParam = (defaultValue: number): ApiRouteParameter => ({
+  name: "depth",
+  in: "query",
+  required: false,
+  schema: { type: "integer", minimum: 1, default: defaultValue },
+  description: "Optional maximum chain/research traversal depth."
+});
+
+const readRoute = (
+  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "read_policy"> & { handler_status?: ApiHandlerStatus }
+): ApiRouteContract => ({
   ...input,
   access: "read",
   stability: "v0_contract",
-  handler_status: "contract_only",
+  handler_status: input.handler_status ?? "contract_only",
   read_policy: "read_only_no_truth_store_mutation"
 });
 
-const reviewRoute = (input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id">): ApiRouteContract => ({
+const reviewRoute = (
+  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id"> & { handler_status?: ApiHandlerStatus }
+): ApiRouteContract => ({
   ...input,
   access: "review_write",
   stability: "v0_contract",
-  handler_status: "contract_only",
+  handler_status: input.handler_status ?? "contract_only",
   write_policy: "review_queue_mutation_only_no_fact_edge_write",
   request_schema_id: "ReviewDecisionRequest"
+});
+
+const workflowRoute = (
+  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id"> & { handler_status?: ApiHandlerStatus }
+): ApiRouteContract => ({
+  ...input,
+  access: "workflow_write",
+  stability: "v0_contract",
+  handler_status: input.handler_status ?? "contract_only",
+  write_policy: "research_run_mutation_no_fact_edge_write",
+  request_schema_id: "ResearchRunRequest"
+});
+
+const readThroughResearchRoute = (
+  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "read_through_policy"> & { handler_status?: ApiHandlerStatus }
+): ApiRouteContract => ({
+  ...input,
+  access: "read_through_research",
+  stability: "v0_contract",
+  handler_status: input.handler_status ?? "contract_only",
+  read_through_policy: "read_through_research_may_network_no_fact_edge_write"
 });
 
 export const API_ROUTES = [
@@ -125,6 +178,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/companies/:id/card",
     operation_id: "getCompanyCard",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("id", "Company entity id or resolver-backed company query.")],
     response_schema_id: "CompanyCardApiResponse",
     dto_contract: {
@@ -140,6 +194,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/components/:id/card",
     operation_id: "getComponentCard",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("id", "Component id, name, or alias.")],
     response_schema_id: "ComponentCardApiResponse",
     dto_contract: {
@@ -155,10 +210,8 @@ export const API_ROUTES = [
     method: "GET",
     path: "/chains/:scope",
     operation_id: "getChain",
-    parameters: [
-      idPathParam("scope", "Company, component, or future chain scope."),
-      { name: "depth", in: "query", required: false, schema: { type: "integer", minimum: 1, default: 3 }, description: "Maximum traversal depth." }
-    ],
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("scope", "Company, component, or future chain scope."), depthQueryParam(3)],
     response_schema_id: "ChainApiResponse",
     dto_contract: {
       schema_id: "ChainApiResponse",
@@ -173,6 +226,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/claims/:id",
     operation_id: "getClaim",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("id", "Claim id.")],
     response_schema_id: "ClaimApiResponse",
     dto_contract: {
@@ -188,6 +242,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/evidence/:id",
     operation_id: "getEvidence",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("id", "Evidence id.")],
     response_schema_id: "EvidenceApiResponse",
     dto_contract: {
@@ -203,6 +258,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/observations/:scope",
     operation_id: "listObservations",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("scope", "Company, component, edge, or policy scope."), limitQueryParam(100)],
     response_schema_id: "ObservationsApiResponse",
     dto_contract: {
@@ -218,6 +274,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/risk-views/:scope",
     operation_id: "getRiskView",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("scope", "Component or future risk view scope.")],
     response_schema_id: "RiskViewApiResponse",
     dto_contract: {
@@ -233,6 +290,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/changes",
     operation_id: "listChanges",
+    handler_status: "http_adapter_backed",
     parameters: [
       limitQueryParam(100),
       { name: "since", in: "query", required: false, schema: { type: "string" }, description: "Optional ISO timestamp lower bound." }
@@ -251,6 +309,7 @@ export const API_ROUTES = [
     method: "GET",
     path: "/sources/health",
     operation_id: "listSourceHealth",
+    handler_status: "http_adapter_backed",
     parameters: [],
     response_schema_id: "SourcesHealthApiResponse",
     dto_contract: {
@@ -264,8 +323,84 @@ export const API_ROUTES = [
   }),
   readRoute({
     method: "GET",
+    path: "/runs/source-checks",
+    operation_id: "listSourceCheckRuns",
+    handler_status: "http_adapter_backed",
+    parameters: [
+      limitQueryParam(100),
+      { name: "status", in: "query", required: false, schema: { type: "string" }, description: "Optional comma-separated source check job statuses." },
+      { name: "source_adapter_id", in: "query", required: false, schema: { type: "string" }, description: "Optional comma-separated source adapter ids." },
+      { name: "check_target_id", in: "query", required: false, schema: { type: "string" }, description: "Optional comma-separated source check target ids." }
+    ],
+    response_schema_id: "SourceCheckRunsApiResponse",
+    dto_contract: {
+      schema_id: "SourceCheckRunsApiResponse",
+      source_package: "@supplystrata/api",
+      source_type: "SourceCheckRunStatusReport",
+      source_kind: "api_envelope",
+      notes: "Run/status API exposes source_check_jobs through a stable DTO; it does not leak source-check persistence rows."
+    },
+    description: "Return source-check job run status for source monitor and host-app progress views."
+  }),
+  readRoute({
+    method: "GET",
+    path: "/research-runs/:id",
+    operation_id: "getResearchRunStatus",
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Research run id returned by POST /companies/:id/research-runs.")],
+    response_schema_id: "ResearchRunStatusApiResponse",
+    dto_contract: {
+      schema_id: "ResearchRunStatusApiResponse",
+      source_package: "@supplystrata/source-workflows",
+      source_type: "ResearchRunStatusReport",
+      source_kind: "public_dto",
+      notes: "Research run status exposes bootstrap, source target ids, source-check progress, and next actions without leaking persistence rows."
+    },
+    description: "Return durable status for an API-triggered company research run."
+  }),
+  readRoute({
+    method: "GET",
+    path: "/ai/provider-status",
+    operation_id: "getAiProviderStatus",
+    handler_status: "http_adapter_backed",
+    parameters: [],
+    response_schema_id: "AiProviderStatusApiResponse",
+    dto_contract: {
+      schema_id: "AiProviderStatusApiResponse",
+      source_package: "@supplystrata/ai-analysis",
+      source_type: "AiProviderStatusReport",
+      source_kind: "public_dto",
+      notes: "Provider status is sanitized: it exposes readiness, configured env keys, and no secret values."
+    },
+    description: "Return sanitized internal AI provider configuration status."
+  }),
+  readRoute({
+    method: "GET",
+    path: "/runs/ai-analysis",
+    operation_id: "listAiAnalysisRuns",
+    handler_status: "http_adapter_backed",
+    parameters: [
+      limitQueryParam(100),
+      { name: "status", in: "query", required: false, schema: { type: "string" }, description: "Optional comma-separated AI analysis run statuses." },
+      { name: "node_id", in: "query", required: false, schema: { type: "string" }, description: "Optional comma-separated AI analysis node ids." },
+      { name: "scope_kind", in: "query", required: false, schema: { type: "string" }, description: "Optional AI analysis scope kind." },
+      { name: "scope_id", in: "query", required: false, schema: { type: "string" }, description: "Optional AI analysis scope id." }
+    ],
+    response_schema_id: "AiAnalysisRunsApiResponse",
+    dto_contract: {
+      schema_id: "AiAnalysisRunsApiResponse",
+      source_package: "@supplystrata/ai-analysis",
+      source_type: "AiAnalysisRunStatusReport",
+      source_kind: "public_dto",
+      notes: "Run/status API exposes AI behavior state, input refs, guardrails, and cannot-conclude reasons without leaking provider secrets."
+    },
+    description: "Return auditable internal AI analysis run status for host-app progress and inspection views."
+  }),
+  readRoute({
+    method: "GET",
     path: "/unknowns/:scope",
     operation_id: "listUnknowns",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("scope", "Company, component, edge, claim, or policy scope.")],
     response_schema_id: "UnknownMapApiResponse",
     dto_contract: {
@@ -277,11 +412,53 @@ export const API_ROUTES = [
     },
     description: "Return explicit unknowns for a research scope."
   }),
+  readThroughResearchRoute({
+    method: "GET",
+    path: "/companies/:id/supply-chain-report",
+    operation_id: "getCompanySupplyChainReport",
+    handler_status: "http_adapter_backed",
+    parameters: [
+      idPathParam("id", "Company query, ticker, alias, or entity id."),
+      depthQueryParam(3),
+      {
+        name: "refresh",
+        in: "query",
+        required: false,
+        schema: { type: "string", default: "auto" },
+        description: "Use auto to reuse active/fresh research runs or force to create a new network-backed run."
+      },
+      {
+        name: "max_age_minutes",
+        in: "query",
+        required: false,
+        schema: { type: "integer", minimum: 0, default: 1440 },
+        description: "Maximum age for reusing a completed research run in auto refresh mode."
+      },
+      {
+        name: "source_checks",
+        in: "query",
+        required: false,
+        schema: { type: "string", default: "inline" },
+        description: "Use inline to run due source checks during this request or queued to leave them for the worker."
+      }
+    ],
+    response_schema_id: "CompanySupplyChainReportApiResponse",
+    dto_contract: {
+      schema_id: "CompanySupplyChainReportApiResponse",
+      source_package: "@supplystrata/api",
+      source_type: "CompanySupplyChainReport",
+      source_kind: "api_envelope",
+      notes:
+        "Read-through company report may trigger listed-company bootstrap and source-check jobs; it returns current DTOs plus observable research run state."
+    },
+    description: "Return a company supply-chain report while triggering or reusing a visible network-backed research run when data is missing or stale."
+  }),
   readRoute({
     method: "GET",
     path: "/companies/:id/consumer-read-model",
     operation_id: "getCompanyConsumerReadModel",
-    parameters: [idPathParam("id", "Company entity id or resolver-backed company query.")],
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Company entity id or resolver-backed company query."), depthQueryParam(3)],
     response_schema_id: "ConsumerReadModelApiResponse",
     dto_contract: {
       schema_id: "ConsumerReadModelApiResponse",
@@ -296,7 +473,8 @@ export const API_ROUTES = [
     method: "GET",
     path: "/companies/:id/reasoning-walkthrough",
     operation_id: "getCompanyReasoningWalkthrough",
-    parameters: [idPathParam("id", "Company entity id or resolver-backed company query.")],
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Company entity id or resolver-backed company query."), depthQueryParam(3)],
     response_schema_id: "ReasoningWalkthroughApiResponse",
     dto_contract: {
       schema_id: "ReasoningWalkthroughApiResponse",
@@ -307,10 +485,59 @@ export const API_ROUTES = [
     },
     description: "Return structured known facts, unknowns, constrained evidence, and next actions."
   }),
+  readRoute({
+    method: "GET",
+    path: "/companies/:id/ai-analysis-plan",
+    operation_id: "getCompanyAiAnalysisPlan",
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Company entity id or resolver-backed company query."), depthQueryParam(3)],
+    response_schema_id: "CompanyAiAnalysisPlanApiResponse",
+    dto_contract: {
+      schema_id: "CompanyAiAnalysisPlanApiResponse",
+      source_package: "@supplystrata/ai-analysis",
+      source_type: "AiAnalysisPlan",
+      source_kind: "public_dto",
+      notes: "Plan lists AI handoff nodes, deterministic input contracts, guardrails, and cannot-conclude rules; it does not invoke a model."
+    },
+    description: "Return the planned internal AI analysis nodes for a company without running autonomous agent behavior."
+  }),
+  readRoute({
+    method: "GET",
+    path: "/companies/:id/ai-analysis/latest",
+    operation_id: "getCompanyAiAnalysisLatest",
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Company entity id or resolver-backed company query.")],
+    response_schema_id: "CompanyAiAnalysisLatestApiResponse",
+    dto_contract: {
+      schema_id: "CompanyAiAnalysisLatestApiResponse",
+      source_package: "@supplystrata/ai-analysis",
+      source_type: "AiAnalysisArtifact",
+      source_kind: "public_dto",
+      notes: "Latest AI analysis returns a previously generated artifact; the read endpoint does not invoke a provider or write the truth store."
+    },
+    description: "Return the latest read-only AI analysis artifact for a company."
+  }),
+  workflowRoute({
+    method: "POST",
+    path: "/companies/:id/research-runs",
+    operation_id: "createCompanyResearchRun",
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Company query, ticker, alias, or entity id.")],
+    response_schema_id: "ResearchRunApiResponse",
+    dto_contract: {
+      schema_id: "ResearchRunApiResponse",
+      source_package: "@supplystrata/source-workflows",
+      source_type: "ResearchRunStatusReport",
+      source_kind: "public_dto",
+      notes: "Research run creation may bootstrap listed-company identity and enqueue official source checks; it cannot write fact edges or call AI providers."
+    },
+    description: "Start a company research run by explicitly allowing entity bootstrap and source-check job creation."
+  }),
   reviewRoute({
     method: "POST",
     path: "/review/:id/approve",
     operation_id: "approveReviewCandidate",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("id", "Review candidate id.")],
     response_schema_id: "ReviewDecisionApiResponse",
     dto_contract: {
@@ -326,6 +553,7 @@ export const API_ROUTES = [
     method: "POST",
     path: "/review/:id/reject",
     operation_id: "rejectReviewCandidate",
+    handler_status: "http_adapter_backed",
     parameters: [idPathParam("id", "Review candidate id.")],
     response_schema_id: "ReviewDecisionApiResponse",
     dto_contract: {
@@ -338,3 +566,5 @@ export const API_ROUTES = [
     description: "Reject a review candidate with reviewer and reason."
   })
 ] as const satisfies readonly ApiRouteContract[];
+
+export type ApiOperationId = (typeof API_ROUTES)[number]["operation_id"];

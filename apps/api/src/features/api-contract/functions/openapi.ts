@@ -51,6 +51,7 @@ export interface ApiOpenApiOperation {
     stability: ApiRouteContract["stability"];
     handler_status: ApiRouteContract["handler_status"];
     read_policy?: ApiRouteContract["read_policy"];
+    read_through_policy?: ApiRouteContract["read_through_policy"];
     write_policy?: ApiRouteContract["write_policy"];
     dto_source_package: ApiRouteContract["dto_contract"]["source_package"];
     dto_source_type: string;
@@ -115,6 +116,7 @@ function toOpenApiOperation(route: ApiRouteContract): ApiOpenApiOperation {
       stability: route.stability,
       handler_status: route.handler_status,
       read_policy: route.read_policy,
+      read_through_policy: route.read_through_policy,
       write_policy: route.write_policy,
       dto_source_package: route.dto_contract.source_package,
       dto_source_type: route.dto_contract.source_type

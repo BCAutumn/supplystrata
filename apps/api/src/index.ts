@@ -3,3 +3,8 @@ export type * from "./features/api-contract/definitions/api-dtos.js";
 export * from "./features/api-contract/definitions/schema-registry.js";
 export * from "./features/api-contract/functions/contract-audit.js";
 export * from "./features/api-contract/functions/openapi.js";
+export * from "./features/http-adapter/definitions/http-adapter.js";
+export * from "./features/http-adapter/functions/company-supply-chain-report-summary.js";
+export * from "./features/http-adapter/orchestration/db-operation-handlers.js";
+export * from "./features/http-adapter/orchestration/http-adapter.js";
+export * from "./features/http-adapter/orchestration/node-server.js";
