@@ -22,6 +22,7 @@
       "@supplystrata/ai-analysis": ["packages/ai-analysis/src/index.ts"],
       "@supplystrata/api": ["apps/api/src/index.ts"],
       "@supplystrata/api-orchestration": ["packages/api-orchestration/src/index.ts"],
+      "@supplystrata/mcp": ["apps/mcp/src/index.ts"],
       "@supplystrata/config": ["packages/config/src/index.ts"],
       "@supplystrata/card-builder": ["packages/card-builder/src/index.ts"],
       "@supplystrata/claim-builder": ["packages/claim-builder/src/index.ts"],
