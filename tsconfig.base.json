@@ -74,7 +74,9 @@
       "@supplystrata/sources-apple-suppliers": ["packages/sources/apple-suppliers/src/index.ts"],
       "@supplystrata/sources-census-trade": ["packages/sources/census-trade/src/index.ts"],
       "@supplystrata/sources-companies-house": ["packages/sources/companies-house/src/index.ts"],
+      "@supplystrata/sources-gleif": ["packages/sources/gleif/src/index.ts"],
       "@supplystrata/sources-osh": ["packages/sources/osh/src/index.ts"],
+      "@supplystrata/sources-openfigi": ["packages/sources/openfigi/src/index.ts"],
       "@supplystrata/sources-opencorporates": ["packages/sources/opencorporates/src/index.ts"],
       "@supplystrata/sources-sec-edgar": ["packages/sources/sec-edgar/src/index.ts"],
       "@supplystrata/sources-worldbank-pink": ["packages/sources/worldbank-pink/src/index.ts"]

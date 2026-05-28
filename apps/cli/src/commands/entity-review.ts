@@ -51,7 +51,7 @@ function registerEntityCommands(program: Command): void {
   entity
     .command("lookup")
     .argument("<query>", "company name to search in external entity sources")
-    .option("--source <source>", "all, gleif, opencorporates, or companies-house", "all")
+    .option("--source <source>", "all, gleif, openfigi, opencorporates, or companies-house", "all")
     .option("--jurisdiction <code>", "OpenCorporates jurisdiction code, such as gb or us_de")
     .option("--limit <count>", "max results per source", "5")
     .option("--format <format>", "markdown or json", "markdown")
@@ -106,7 +106,7 @@ function registerEntityCommands(program: Command): void {
   entityPending
     .command("lookup")
     .argument("<pendingId>", "pending entity id")
-    .option("--source <source>", "all, gleif, opencorporates, or companies-house", "all")
+    .option("--source <source>", "all, gleif, openfigi, opencorporates, or companies-house", "all")
     .option("--jurisdiction <code>", "OpenCorporates jurisdiction code, such as gb or us_mn")
     .option("--limit <count>", "max results per source", "5")
     .option("--format <format>", "markdown or json", "markdown")
@@ -445,7 +445,7 @@ function registerReviewCommands(program: Command): void {
   reviewEnqueue
     .command("entity-source")
     .argument("<query>", "company name to search in external entity sources")
-    .option("--source <source>", "all, gleif, opencorporates, or companies-house", "all")
+    .option("--source <source>", "all, gleif, openfigi, opencorporates, or companies-house", "all")
     .option("--jurisdiction <code>", "OpenCorporates jurisdiction code, such as gb or us_mn")
     .option("--limit <count>", "max results per source", "5")
     .description("enqueue external entity source candidates for review/import")
@@ -466,7 +466,7 @@ function registerReviewCommands(program: Command): void {
     });
   reviewEnqueue
     .command("gate1-supplier-entity-backlog")
-    .option("--source <source>", "gleif, opencorporates, companies-house, or all", "gleif")
+    .option("--source <source>", "gleif, openfigi, opencorporates, companies-house, or all", "gleif")
     .option("--scan-limit <count>", "max pending supplier-list candidates to scan", "500")
     .option("--supplier-limit <count>", "max unresolved suppliers to enqueue", "10")
     .option("--candidate-limit <count>", "max external candidates per supplier/source", "3")

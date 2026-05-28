@@ -59,11 +59,27 @@ export const ENTITY_AND_FACILITY_SOURCES = [
     relation_authority: "registry_fact",
     automation: "allowed",
     status: "preview",
-    implemented_package: "@supplystrata/source-workflows",
+    implemented_package: "@supplystrata/sources-gleif",
     requires_key: false,
     official_url: "https://www.gleif.org/en/lei-data/gleif-api",
     tos_url: "https://www.gleif.org/en/lei-data/lei-data-terms-of-use",
     notes: "全球 LEI 官方记录；作为跨 SEC / DART / EDINET / TWSE / HKEX 的实体标识锚点，lookup 只输出候选，不自动合并实体。"
+  },
+  {
+    id: "openfigi",
+    tier: "P0",
+    name: "Bloomberg OpenFIGI",
+    category: "entity_resolution",
+    evidence_level_cap: 4,
+    publisher_type: "commercial_registry",
+    relation_authority: "registry_fact",
+    automation: "allowed",
+    status: "preview",
+    implemented_package: "@supplystrata/sources-openfigi",
+    requires_key: false,
+    official_url: "https://www.openfigi.com/api",
+    tos_url: "https://www.openfigi.com/api/documentation",
+    notes: "全球金融工具标识；只作为 listed-company identity bootstrap 候选，不自动写入实体事实或供应链关系。"
   },
   {
     id: "seed-entities",

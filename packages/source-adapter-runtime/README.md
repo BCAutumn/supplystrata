@@ -20,6 +20,7 @@
 ## 主要入口
 
 - `createRateLimitedSourceAdapter(adapter, limiter)`：给 adapter 加限速。
+- `fetchBytesWithTimeout(url, options)`：统一 GET/POST 抓取、超时、可选 retry/backoff 和错误归一。
 - `defineHtmlSnapshotAdapter(definition)`：定义 HTML snapshot adapter。
 - `createFsSnapshotStore(baseDir)`：创建本地 snapshot store。
 - `createAdapterContext(input)`：构造 adapter context。

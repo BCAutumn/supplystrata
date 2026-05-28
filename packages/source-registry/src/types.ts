@@ -19,6 +19,8 @@ export type PublisherType =
   | "regulator"
   | "company_official"
   | "government_registry"
+  | "commercial_registry"
+  | "collaborative_registry"
   | "official_supplier_list"
   | "macro_statistical_agency"
   | "news"

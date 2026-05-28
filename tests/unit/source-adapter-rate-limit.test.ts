@@ -211,6 +211,26 @@ describe("source adapter rate limiter", () => {
     expect(new TextDecoder().decode(bytes)).toBe("ok");
   });
 
+  it("passes explicit POST method and body through the shared fetch helper", async () => {
+    const calls: RequestInit[] = [];
+    vi.stubGlobal("fetch", async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push(init ?? {});
+      return new Response("ok", { status: 200 });
+    });
+
+    await fetchBytesWithTimeout("https://example.com/post", {
+      userAgent: "SupplyStrata test contact@example.com",
+      timeoutMs: 1000,
+      sourceLabel: "POST source",
+      method: "POST",
+      body: '{"query":"LVMH"}',
+      headers: { "Content-Type": "application/json" }
+    });
+
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.body).toBe('{"query":"LVMH"}');
+  });
+
   it("builds credential transport values from explicit adapter context", () => {
     const ctx = adapterContext({
       COMPANIES_HOUSE_API_KEY: " house-key ",

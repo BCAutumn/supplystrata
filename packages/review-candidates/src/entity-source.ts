@@ -68,8 +68,9 @@ function proposedEntityId(candidate: EntitySourceCandidate): string {
   return `ENT-${source}-${readable}-${digest}`;
 }
 
-function entitySourceIdPrefix(sourceAdapterId: EntitySourceCandidate["source_adapter_id"]): "CH" | "GLEIF" | "OC" {
+function entitySourceIdPrefix(sourceAdapterId: EntitySourceCandidate["source_adapter_id"]): "CH" | "GLEIF" | "OC" | "OFIGI" {
   if (sourceAdapterId === "companies-house") return "CH";
   if (sourceAdapterId === "gleif") return "GLEIF";
+  if (sourceAdapterId === "openfigi") return "OFIGI";
   return "OC";
 }

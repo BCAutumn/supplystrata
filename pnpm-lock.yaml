@@ -823,9 +823,15 @@ importers:
       '@supplystrata/sources-companies-house':
         specifier: workspace:*
         version: link:../sources/companies-house
+      '@supplystrata/sources-gleif':
+        specifier: workspace:*
+        version: link:../sources/gleif
       '@supplystrata/sources-opencorporates':
         specifier: workspace:*
         version: link:../sources/opencorporates
+      '@supplystrata/sources-openfigi':
+        specifier: workspace:*
+        version: link:../sources/openfigi
       '@supplystrata/sources-osh':
         specifier: workspace:*
         version: link:../sources/osh
@@ -887,11 +893,41 @@ importers:
         specifier: workspace:*
         version: link:../../source-normalizers
 
+  packages/sources/gleif:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@supplystrata/entity-source':
+        specifier: workspace:*
+        version: link:../../entity-source
+      '@supplystrata/source-adapter-runtime':
+        specifier: workspace:*
+        version: link:../../source-adapter-runtime
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
+
   packages/sources/opencorporates:
     dependencies:
       '@supplystrata/config':
         specifier: workspace:*
         version: link:../../config
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@supplystrata/entity-source':
+        specifier: workspace:*
+        version: link:../../entity-source
+      '@supplystrata/source-adapter-runtime':
+        specifier: workspace:*
+        version: link:../../source-adapter-runtime
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
+
+  packages/sources/openfigi:
+    dependencies:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core

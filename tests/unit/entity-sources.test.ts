@@ -1,14 +1,11 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
 import type { RawDocument } from "@supplystrata/core";
-import {
-  buildEntityResolutionLookupQueries,
-  buildGleifLeiSearchUrl,
-  extractGleifLeiCandidates,
-  normalizeEntityResolutionQueries
-} from "@supplystrata/source-workflows";
+import { buildEntityResolutionLookupQueries, normalizeEntityResolutionQueries } from "@supplystrata/source-workflows";
+import { buildGleifLeiSearchUrl, extractGleifLeiCandidates } from "@supplystrata/sources-gleif";
 import { findSecCompanyDirectoryCandidates, normalizeCompanyDirectoryQuery, parseSecCompanyDirectoryPayload } from "@supplystrata/sources-sec-edgar";
 import { buildCompaniesHouseSearchUrl, extractCompaniesHouseCandidates } from "@supplystrata/sources-companies-house";
+import { buildOpenFigiSearchBody, buildOpenFigiSearchUrl, extractOpenFigiCandidates } from "@supplystrata/sources-openfigi";
 import { buildOpenCorporatesSearchUrl, extractOpenCorporatesCandidates } from "@supplystrata/sources-opencorporates";
 
 describe("entity source adapters", () => {
@@ -169,6 +166,62 @@ describe("entity source adapters", () => {
     ]);
   });
 
+  it("builds OpenFIGI search requests and normalizes listed security candidates", () => {
+    expect(buildOpenFigiSearchUrl()).toBe("https://api.openfigi.com/v3/search");
+    expect(buildOpenFigiSearchBody({ query: " Taiwan Semiconductor Manufacturing Company ", exchangeCode: "tw" })).toEqual({
+      query: "Taiwan Semiconductor Manufacturing Company",
+      exchCode: "TW"
+    });
+
+    const candidates = extractOpenFigiCandidates(
+      rawJson("openfigi", {
+        data: [
+          {
+            figi: "BBG000BD8ZK0",
+            compositeFIGI: "BBG000BD8ZK0",
+            shareClassFIGI: "BBG001S5N8V8",
+            ticker: "TSM",
+            exchCode: "US",
+            name: "TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD",
+            marketSector: "Equity",
+            securityType: "Common Stock",
+            securityType2: "Common Stock",
+            securityDescription: "TSM US"
+          }
+        ]
+      })
+    );
+
+    expect(candidates).toMatchObject([
+      {
+        source_adapter_id: "openfigi",
+        external_id: "BBG000BD8ZK0",
+        name: "TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD",
+        company_type: "Common Stock",
+        identifiers: {
+          figi: "BBG000BD8ZK0",
+          openfigi_figi: "BBG000BD8ZK0",
+          openfigi_composite_figi: "BBG000BD8ZK0",
+          openfigi_share_class_figi: "BBG001S5N8V8",
+          ticker: "TSM",
+          exchange_code: "US"
+        },
+        alternative_names: ["TSM US", "TSM"]
+      }
+    ]);
+    expect(candidates[0]?.provenance_note).toContain("ticker=TSM");
+  });
+
+  it("returns no OpenFIGI candidates for empty result payloads", () => {
+    expect(extractOpenFigiCandidates(rawJson("openfigi", {}))).toEqual([]);
+    expect(extractOpenFigiCandidates(rawJson("openfigi", { data: [] }))).toEqual([]);
+  });
+
+  it("rejects malformed GLEIF and OpenFIGI payloads instead of guessing", () => {
+    expect(() => extractGleifLeiCandidates(rawJson("gleif", { data: [{ attributes: {} }] }))).toThrow("GLEIF");
+    expect(() => extractOpenFigiCandidates(rawJson("openfigi", { data: [{ ticker: "LVMH" }] }))).toThrow("OpenFIGI");
+  });
+
   it("builds Companies House search URLs and normalizes company candidates", () => {
     expect(buildCompaniesHouseSearchUrl({ query: "ARM HOLDINGS", limit: 1 })).toBe(
       "https://api.company-information.service.gov.uk/search/companies?q=ARM+HOLDINGS&items_per_page=1"
@@ -207,7 +260,7 @@ describe("entity source adapters", () => {
   });
 });
 
-function rawJson(sourceAdapterId: "gleif" | "opencorporates" | "companies-house", value: unknown): RawDocument<Uint8Array> {
+function rawJson(sourceAdapterId: "gleif" | "openfigi" | "opencorporates" | "companies-house", value: unknown): RawDocument<Uint8Array> {
   const bytes = new Uint8Array(Buffer.from(JSON.stringify(value), "utf8"));
   return {
     doc_id: "DOC-test",

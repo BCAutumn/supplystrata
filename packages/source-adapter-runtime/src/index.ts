@@ -20,6 +20,8 @@ export interface FetchBytesOptions {
   timeoutMs: number;
   sourceLabel: string;
   headers?: Record<string, string>;
+  method?: "GET" | "POST";
+  body?: string | Uint8Array;
   attempts?: number;
   retryDelayMs?: number;
 }
@@ -255,7 +257,9 @@ export async function fetchBytesWithTimeout(url: string, options: FetchBytesOpti
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const response = await fetch(url, {
+        method: options.method ?? "GET",
         headers: { "User-Agent": options.userAgent, ...options.headers },
+        ...(options.body === undefined ? {} : { body: options.body }),
         signal: AbortSignal.timeout(options.timeoutMs)
       });
       if (!response.ok) {

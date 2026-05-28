@@ -12,6 +12,7 @@ describe("source registry", () => {
     expect(ids.has("asml-ir")).toBe(true);
     expect(ids.has("apple-suppliers")).toBe(true);
     expect(ids.has("gleif")).toBe(true);
+    expect(ids.has("openfigi")).toBe(true);
     expect(ids.has("opencorporates")).toBe(true);
     expect(ids.has("companies-house")).toBe(true);
     expect(ids.has("seed-entities")).toBe(true);
@@ -30,9 +31,9 @@ describe("source registry", () => {
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 36,
+      total: 37,
       implemented: 2,
-      preview: 16,
+      preview: 17,
       planned: 1,
       scoped: 16,
       manualOnly: 1,
@@ -78,6 +79,11 @@ describe("source registry", () => {
     });
     expect(sourceAuthorityFor({ source_adapter_id: "gleif", document_type: "company_registry" })).toMatchObject({
       publisher_type: "government_registry",
+      relation_authority: "registry_fact",
+      max_evidence_level: 4
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "openfigi", document_type: "company_registry" })).toMatchObject({
+      publisher_type: "commercial_registry",
       relation_authority: "registry_fact",
       max_evidence_level: 4
     });

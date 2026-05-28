@@ -1,6 +1,6 @@
 import { normalizeAlias } from "@supplystrata/core";
 
-export type EntitySourceAdapterId = "gleif" | "opencorporates" | "companies-house";
+export type EntitySourceAdapterId = "gleif" | "openfigi" | "opencorporates" | "companies-house";
 
 export interface EntitySourceIdentifierSet {
   lei?: string;
@@ -13,6 +13,12 @@ export interface EntitySourceIdentifierSet {
   jurisdiction_code?: string;
   registration_authority_id?: string;
   registration_authority_entity_id?: string;
+  figi?: string;
+  openfigi_figi?: string;
+  openfigi_composite_figi?: string;
+  openfigi_share_class_figi?: string;
+  ticker?: string;
+  exchange_code?: string;
 }
 
 export interface EntitySourceCandidate {

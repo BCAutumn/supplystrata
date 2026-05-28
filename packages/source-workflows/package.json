@@ -33,7 +33,9 @@
     "@supplystrata/sources-apple-suppliers": "workspace:*",
     "@supplystrata/sources-census-trade": "workspace:*",
     "@supplystrata/sources-companies-house": "workspace:*",
+    "@supplystrata/sources-gleif": "workspace:*",
     "@supplystrata/sources-osh": "workspace:*",
+    "@supplystrata/sources-openfigi": "workspace:*",
     "@supplystrata/sources-opencorporates": "workspace:*",
     "@supplystrata/sources-sec-edgar": "workspace:*",
     "@supplystrata/sources-worldbank-pink": "workspace:*"

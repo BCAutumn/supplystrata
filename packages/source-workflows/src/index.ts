@@ -49,8 +49,6 @@ export type {
   EntityResolutionBacklogReviewItem,
   EntityResolutionBacklogReviewSummary
 } from "./entity-resolution-backlog.js";
-export { buildGleifLeiSearchUrl, extractGleifLeiCandidates, gleifLeiAdapter, lookupGleifLeiRecords } from "./gleif-entity-source.js";
-export type { GleifLeiSearchInput } from "./gleif-entity-source.js";
 export {
   NVIDIA_SEC_10K_EXAMPLE_PROFILE,
   previewAppleSuppliers,

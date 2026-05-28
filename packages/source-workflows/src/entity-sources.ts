@@ -3,11 +3,12 @@ import type { EntitySourceLookupResult } from "@supplystrata/entity-source";
 import { buildEntitySourceReviewCandidate } from "@supplystrata/review-candidates";
 import { enqueueReviewCandidatesTransactionally } from "@supplystrata/review-store";
 import type { CreateAdapterContextInput } from "@supplystrata/source-adapter-runtime";
+import { createGleifLeiAdapterContext, lookupGleifLeiRecords, type GleifLeiSearchInput } from "@supplystrata/sources-gleif";
+import { createOpenFigiAdapterContext, lookupOpenFigiInstruments, type OpenFigiSearchInput } from "@supplystrata/sources-openfigi";
 import { createCompaniesHouseAdapterContext, lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
 import { createOpenCorporatesAdapterContext, lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
-import { createGleifLeiAdapterContext, lookupGleifLeiRecords, type GleifLeiSearchInput } from "./gleif-entity-source.js";
 
-export type EntityLookupSource = "all" | "gleif" | "opencorporates" | "companies-house";
+export type EntityLookupSource = "all" | "gleif" | "openfigi" | "opencorporates" | "companies-house";
 
 export interface EntityLookupInput {
   query: string;
@@ -37,12 +38,15 @@ export interface EntityLookupRuntime {
 export async function lookupEntitySourceCandidates(input: EntityLookupInput, runtime: EntityLookupRuntime): Promise<EntityLookupSummary> {
   const query = input.query.trim();
   if (query.length === 0) throw new Error("Entity lookup query must not be empty");
-  const sources: Exclude<EntityLookupSource, "all">[] = input.source === "all" ? ["gleif", "opencorporates", "companies-house"] : [input.source];
+  const sources: Exclude<EntityLookupSource, "all">[] = input.source === "all" ? ["gleif", "openfigi", "opencorporates", "companies-house"] : [input.source];
   const results: EntitySourceLookupResult[] = [];
 
   for (const source of sources) {
     if (source === "gleif") {
       results.push(await lookupGleifSource({ query, limit: input.limit }, runtime));
+    }
+    if (source === "openfigi") {
+      results.push(await lookupOpenFigiSource({ query, limit: input.limit }, runtime));
     }
     if (source === "opencorporates") {
       results.push(
@@ -97,6 +101,23 @@ async function lookupGleifSource(input: GleifLeiSearchInput, runtime: EntityLook
   } catch (error) {
     return {
       source_adapter_id: "gleif",
+      candidates: [],
+      error_message: errorMessage(error)
+    };
+  }
+}
+
+async function lookupOpenFigiSource(input: OpenFigiSearchInput, runtime: EntityLookupRuntime): Promise<EntitySourceLookupResult> {
+  try {
+    const result = await lookupOpenFigiInstruments(input, createOpenFigiAdapterContext(runtime.adapterContextInput));
+    return {
+      source_adapter_id: "openfigi",
+      source_url: result.raw.url,
+      candidates: result.candidates
+    };
+  } catch (error) {
+    return {
+      source_adapter_id: "openfigi",
       candidates: [],
       error_message: errorMessage(error)
     };
