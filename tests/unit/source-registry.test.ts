@@ -13,6 +13,7 @@ describe("source registry", () => {
     expect(ids.has("apple-suppliers")).toBe(true);
     expect(ids.has("gleif")).toBe(true);
     expect(ids.has("openfigi")).toBe(true);
+    expect(ids.has("wikidata")).toBe(true);
     expect(ids.has("opencorporates")).toBe(true);
     expect(ids.has("companies-house")).toBe(true);
     expect(ids.has("seed-entities")).toBe(true);
@@ -31,9 +32,9 @@ describe("source registry", () => {
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 37,
+      total: 38,
       implemented: 2,
-      preview: 17,
+      preview: 18,
       planned: 1,
       scoped: 16,
       manualOnly: 1,
@@ -86,6 +87,11 @@ describe("source registry", () => {
       publisher_type: "commercial_registry",
       relation_authority: "registry_fact",
       max_evidence_level: 4
+    });
+    expect(sourceAuthorityFor({ source_adapter_id: "wikidata", document_type: "company_registry" })).toMatchObject({
+      publisher_type: "collaborative_registry",
+      relation_authority: "registry_fact",
+      max_evidence_level: 3
     });
     expect(sourceAuthorityFor({ source_adapter_id: "dart-kr", document_type: "company_registry" })).toMatchObject({
       publisher_type: "regulator",

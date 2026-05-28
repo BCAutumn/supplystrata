@@ -82,6 +82,22 @@ export const ENTITY_AND_FACILITY_SOURCES = [
     notes: "全球金融工具标识；只作为 listed-company identity bootstrap 候选，不自动写入实体事实或供应链关系。"
   },
   {
+    id: "wikidata",
+    tier: "P1",
+    name: "Wikidata SPARQL / EntityData",
+    category: "entity_resolution",
+    evidence_level_cap: 3,
+    publisher_type: "collaborative_registry",
+    relation_authority: "registry_fact",
+    automation: "allowed",
+    status: "preview",
+    implemented_package: "@supplystrata/sources-wikidata",
+    requires_key: false,
+    official_url: "https://www.wikidata.org/wiki/Wikidata:Data_access",
+    tos_url: "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+    notes: "Collaborative identity graph；仅用于实体消歧、公开简介和跨标识符链接，不自动写事实边，证据上限固定为 3。"
+  },
+  {
     id: "seed-entities",
     tier: "P0",
     name: "Curated Seed Entities",

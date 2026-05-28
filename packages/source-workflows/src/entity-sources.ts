@@ -7,8 +7,9 @@ import { createGleifLeiAdapterContext, lookupGleifLeiRecords, type GleifLeiSearc
 import { createOpenFigiAdapterContext, lookupOpenFigiInstruments, type OpenFigiSearchInput } from "@supplystrata/sources-openfigi";
 import { createCompaniesHouseAdapterContext, lookupCompaniesHouseCompanies, type CompaniesHouseSearchInput } from "@supplystrata/sources-companies-house";
 import { createOpenCorporatesAdapterContext, lookupOpenCorporatesCompanies, type OpenCorporatesSearchInput } from "@supplystrata/sources-opencorporates";
+import { createWikidataAdapterContext, lookupWikidataEntities, type WikidataSearchInput } from "@supplystrata/sources-wikidata";
 
-export type EntityLookupSource = "all" | "gleif" | "openfigi" | "opencorporates" | "companies-house";
+export type EntityLookupSource = "all" | "gleif" | "openfigi" | "wikidata" | "opencorporates" | "companies-house";
 
 export interface EntityLookupInput {
   query: string;
@@ -38,7 +39,8 @@ export interface EntityLookupRuntime {
 export async function lookupEntitySourceCandidates(input: EntityLookupInput, runtime: EntityLookupRuntime): Promise<EntityLookupSummary> {
   const query = input.query.trim();
   if (query.length === 0) throw new Error("Entity lookup query must not be empty");
-  const sources: Exclude<EntityLookupSource, "all">[] = input.source === "all" ? ["gleif", "openfigi", "opencorporates", "companies-house"] : [input.source];
+  const sources: Exclude<EntityLookupSource, "all">[] =
+    input.source === "all" ? ["gleif", "openfigi", "wikidata", "opencorporates", "companies-house"] : [input.source];
   const results: EntitySourceLookupResult[] = [];
 
   for (const source of sources) {
@@ -47,6 +49,9 @@ export async function lookupEntitySourceCandidates(input: EntityLookupInput, run
     }
     if (source === "openfigi") {
       results.push(await lookupOpenFigiSource({ query, limit: input.limit }, runtime));
+    }
+    if (source === "wikidata") {
+      results.push(await lookupWikidataSource({ query, limit: input.limit }, runtime));
     }
     if (source === "opencorporates") {
       results.push(
@@ -101,6 +106,23 @@ async function lookupGleifSource(input: GleifLeiSearchInput, runtime: EntityLook
   } catch (error) {
     return {
       source_adapter_id: "gleif",
+      candidates: [],
+      error_message: errorMessage(error)
+    };
+  }
+}
+
+async function lookupWikidataSource(input: WikidataSearchInput, runtime: EntityLookupRuntime): Promise<EntitySourceLookupResult> {
+  try {
+    const result = await lookupWikidataEntities(input, createWikidataAdapterContext(runtime.adapterContextInput));
+    return {
+      source_adapter_id: "wikidata",
+      source_url: result.raw.url,
+      candidates: result.candidates
+    };
+  } catch (error) {
+    return {
+      source_adapter_id: "wikidata",
       candidates: [],
       error_message: errorMessage(error)
     };

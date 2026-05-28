@@ -4,15 +4,17 @@ import type { FetchTask } from "@supplystrata/core";
 import type { AdapterContext, SourceSnapshotStore } from "@supplystrata/source-adapter-runtime";
 import { gleifLeiAdapter } from "@supplystrata/sources-gleif";
 import { openFigiAdapter } from "@supplystrata/sources-openfigi";
+import { wikidataAdapter } from "@supplystrata/sources-wikidata";
 
 describe("identity source adapters", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("declares conservative rate limits for GLEIF and OpenFIGI", () => {
+  it("declares conservative rate limits for GLEIF, OpenFIGI, and Wikidata", () => {
     expect(gleifLeiAdapter.rate_limit).toEqual({ requests: 5, per_seconds: 1 });
     expect(openFigiAdapter.rate_limit).toEqual({ requests: 25, per_seconds: 60 });
+    expect(wikidataAdapter.rate_limit).toEqual({ requests: 1, per_seconds: 1 });
   });
 
   it("persists GLEIF raw snapshots into the audit cache", async () => {
@@ -54,6 +56,21 @@ describe("identity source adapters", () => {
     const task = await firstTask(gleifLeiAdapter.plan({ query: "TSMC", limit: 1 }, ctx));
 
     await expect(gleifLeiAdapter.fetch(task, ctx)).rejects.toThrow("429 Too Many Requests");
+  });
+
+  it("persists Wikidata SPARQL raw snapshots with query metadata", async () => {
+    vi.stubGlobal("fetch", async () => jsonResponse({ results: { bindings: [] } }));
+    const writes: { key: string; body: Uint8Array }[] = [];
+    const ctx = adapterContext(writes);
+    const task = await firstTask(wikidataAdapter.plan({ query: "AstraZeneca", limit: 1 }, ctx));
+
+    const raw = await wikidataAdapter.fetch(task, ctx);
+
+    expect(raw.source_adapter_id).toBe("wikidata");
+    expect(raw.storage_key).toMatch(/^entity-resolution\/wikidata\/[a-f0-9]{64}\.json$/);
+    expect(raw.metadata["wikidata_request_kind"]).toBe("search");
+    expect(raw.metadata["query"]).toBe("AstraZeneca");
+    expect(writes).toHaveLength(1);
   });
 });
 

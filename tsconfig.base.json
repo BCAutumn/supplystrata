@@ -79,6 +79,7 @@
       "@supplystrata/sources-openfigi": ["packages/sources/openfigi/src/index.ts"],
       "@supplystrata/sources-opencorporates": ["packages/sources/opencorporates/src/index.ts"],
       "@supplystrata/sources-sec-edgar": ["packages/sources/sec-edgar/src/index.ts"],
+      "@supplystrata/sources-wikidata": ["packages/sources/wikidata/src/index.ts"],
       "@supplystrata/sources-worldbank-pink": ["packages/sources/worldbank-pink/src/index.ts"]
     }
   }

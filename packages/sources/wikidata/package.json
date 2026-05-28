@@ -1,0 +1,23 @@
+{
+  "name": "@supplystrata/sources-wikidata",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@supplystrata/core": "workspace:*",
+    "@supplystrata/entity-source": "workspace:*",
+    "@supplystrata/source-normalizers": "workspace:*",
+    "@supplystrata/source-adapter-runtime": "workspace:*"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ]
+}

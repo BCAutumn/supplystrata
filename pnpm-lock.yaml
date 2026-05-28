@@ -838,6 +838,9 @@ importers:
       '@supplystrata/sources-sec-edgar':
         specifier: workspace:*
         version: link:../sources/sec-edgar
+      '@supplystrata/sources-wikidata':
+        specifier: workspace:*
+        version: link:../sources/wikidata
       '@supplystrata/sources-worldbank-pink':
         specifier: workspace:*
         version: link:../sources/worldbank-pink
@@ -964,6 +967,21 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../../core
+      '@supplystrata/source-adapter-runtime':
+        specifier: workspace:*
+        version: link:../../source-adapter-runtime
+      '@supplystrata/source-normalizers':
+        specifier: workspace:*
+        version: link:../../source-normalizers
+
+  packages/sources/wikidata:
+    dependencies:
+      '@supplystrata/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@supplystrata/entity-source':
+        specifier: workspace:*
+        version: link:../../entity-source
       '@supplystrata/source-adapter-runtime':
         specifier: workspace:*
         version: link:../../source-adapter-runtime

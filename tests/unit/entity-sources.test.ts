@@ -7,6 +7,13 @@ import { findSecCompanyDirectoryCandidates, normalizeCompanyDirectoryQuery, pars
 import { buildCompaniesHouseSearchUrl, extractCompaniesHouseCandidates } from "@supplystrata/sources-companies-house";
 import { buildOpenFigiSearchBody, buildOpenFigiSearchUrl, extractOpenFigiCandidates } from "@supplystrata/sources-openfigi";
 import { buildOpenCorporatesSearchUrl, extractOpenCorporatesCandidates } from "@supplystrata/sources-opencorporates";
+import {
+  buildWikidataCompanySearchSparql,
+  buildWikidataEntityDataUrl,
+  buildWikidataSparqlSearchUrl,
+  extractWikidataCandidates,
+  extractWikidataEntityDataProfile
+} from "@supplystrata/sources-wikidata";
 
 describe("entity source adapters", () => {
   it("normalizes entity resolution backlog queries before enqueueing review candidates", () => {
@@ -217,9 +224,107 @@ describe("entity source adapters", () => {
     expect(extractOpenFigiCandidates(rawJson("openfigi", { data: [] }))).toEqual([]);
   });
 
-  it("rejects malformed GLEIF and OpenFIGI payloads instead of guessing", () => {
+  it("builds Wikidata SPARQL requests and normalizes collaborative identity candidates", () => {
+    const sparql = buildWikidataCompanySearchSparql({ query: "LVMH", limit: 3 });
+    expect(sparql).toContain('mwapi:search "LVMH"');
+    expect(sparql).toContain("wdt:P1278 ?lei");
+    expect(buildWikidataSparqlSearchUrl({ query: "LVMH", limit: 3 })).toContain("https://query.wikidata.org/sparql?query=");
+
+    const candidates = extractWikidataCandidates(
+      rawJson("wikidata", {
+        results: {
+          bindings: [
+            wikidataBinding({
+              item: "http://www.wikidata.org/entity/Q504998",
+              itemLabel: "LVMH",
+              itemDescription: "French multinational luxury goods conglomerate",
+              officialWebsite: "https://www.lvmh.com/",
+              lei: "969500FP1Q07I98R6P10",
+              isin: "FR0000121014",
+              ticker: "MC",
+              countryLabel: "France",
+              industryLabel: "luxury goods"
+            }),
+            wikidataBinding({
+              item: "http://www.wikidata.org/entity/Q504998",
+              itemLabel: "LVMH",
+              cik: "824046",
+              industryLabel: "fashion"
+            })
+          ]
+        }
+      })
+    );
+
+    expect(candidates).toMatchObject([
+      {
+        source_adapter_id: "wikidata",
+        external_id: "Q504998",
+        name: "LVMH",
+        company_type: "luxury goods",
+        identifiers: {
+          wikidata_qid: "Q504998",
+          lei: "969500FP1Q07I98R6P10",
+          gleif_lei: "969500FP1Q07I98R6P10",
+          isin: "FR0000121014",
+          cik: "824046",
+          ticker: "MC",
+          official_website: "https://www.lvmh.com/"
+        },
+        alternative_names: ["French multinational luxury goods conglomerate", "https://www.lvmh.com/", "France", "luxury goods", "fashion"]
+      }
+    ]);
+    expect(candidates[0]?.provenance_note).toContain("Wikidata collaborative entity Q504998");
+  });
+
+  it("extracts Wikidata EntityData profiles for profile hints and cross-identifiers", () => {
+    expect(buildWikidataEntityDataUrl("q504998")).toBe("https://www.wikidata.org/wiki/Special:EntityData/Q504998.json");
+
+    const profile = extractWikidataEntityDataProfile(
+      rawJson("wikidata", {
+        entities: {
+          Q504998: {
+            labels: { en: { language: "en", value: "LVMH" } },
+            descriptions: { en: { language: "en", value: "French luxury goods conglomerate" } },
+            aliases: { en: [{ language: "en", value: "Moet Hennessy Louis Vuitton" }] },
+            claims: {
+              P856: [wikidataStringClaim("https://www.lvmh.com/")],
+              P1278: [wikidataStringClaim("969500FP1Q07I98R6P10")],
+              P946: [wikidataStringClaim("FR0000121014")],
+              P5531: [wikidataStringClaim("824046")],
+              P249: [wikidataStringClaim("MC")],
+              P452: [wikidataEntityClaim("Q219577")],
+              P17: [wikidataEntityClaim("Q142")]
+            }
+          }
+        }
+      })
+    );
+
+    expect(profile).toEqual({
+      qid: "Q504998",
+      label: "LVMH",
+      description: "French luxury goods conglomerate",
+      aliases: ["Moet Hennessy Louis Vuitton"],
+      official_websites: ["https://www.lvmh.com/"],
+      identifiers: {
+        wikidata_qid: "Q504998",
+        lei: "969500FP1Q07I98R6P10",
+        isin: "FR0000121014",
+        cik: "824046",
+        ticker: "MC"
+      },
+      industry_qids: ["Q219577"],
+      country_qids: ["Q142"]
+    });
+  });
+
+  it("rejects malformed GLEIF, OpenFIGI, and Wikidata payloads instead of guessing", () => {
     expect(() => extractGleifLeiCandidates(rawJson("gleif", { data: [{ attributes: {} }] }))).toThrow("GLEIF");
     expect(() => extractOpenFigiCandidates(rawJson("openfigi", { data: [{ ticker: "LVMH" }] }))).toThrow("OpenFIGI");
+    expect(() => extractWikidataCandidates(rawJson("wikidata", { results: { bindings: [{ itemLabel: { type: "literal", value: "LVMH" } }] } }))).toThrow(
+      "Wikidata"
+    );
   });
 
   it("builds Companies House search URLs and normalizes company candidates", () => {
@@ -260,7 +365,7 @@ describe("entity source adapters", () => {
   });
 });
 
-function rawJson(sourceAdapterId: "gleif" | "openfigi" | "opencorporates" | "companies-house", value: unknown): RawDocument<Uint8Array> {
+function rawJson(sourceAdapterId: "gleif" | "openfigi" | "wikidata" | "opencorporates" | "companies-house", value: unknown): RawDocument<Uint8Array> {
   const bytes = new Uint8Array(Buffer.from(JSON.stringify(value), "utf8"));
   return {
     doc_id: "DOC-test",
@@ -271,5 +376,30 @@ function rawJson(sourceAdapterId: "gleif" | "openfigi" | "opencorporates" | "com
     storage_key: "fixture.json",
     body: bytes,
     metadata: {}
+  };
+}
+
+function wikidataBinding(values: Record<string, string>): Record<string, { type: string; value: string }> {
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { type: key === "item" ? "uri" : "literal", value }]));
+}
+
+function wikidataStringClaim(value: string): Record<string, unknown> {
+  return {
+    mainsnak: {
+      datavalue: { value }
+    }
+  };
+}
+
+function wikidataEntityClaim(qid: string): Record<string, unknown> {
+  return {
+    mainsnak: {
+      datavalue: {
+        value: {
+          "entity-type": "item",
+          "numeric-id": Number.parseInt(qid.slice(1), 10)
+        }
+      }
+    }
   };
 }
