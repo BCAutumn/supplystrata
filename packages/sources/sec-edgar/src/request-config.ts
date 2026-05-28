@@ -1,0 +1,5 @@
+export const SEC_SUBMISSIONS_TIMEOUT_MS = 30_000;
+export const SEC_FILING_TIMEOUT_MS = 30_000;
+export const SEC_COMPANY_FACTS_TIMEOUT_MS = 30_000;
+export const SEC_FETCH_ATTEMPTS = 3;
+export const SEC_FETCH_RETRY_DELAY_MS = 500;

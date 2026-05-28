@@ -73,7 +73,15 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
   );
   const items: DueSourceCheckRunItem[] = [];
   for (const job of jobBatch.claimed_jobs) {
-    items.push(await runDueSourceCheckJob(store, job, { env: input.env, checkedAt: input.now, logger, adapterContextInput }));
+    items.push(
+      await runDueSourceCheckJob(store, job, {
+        env: input.env,
+        checkedAt: input.now,
+        logger,
+        adapterContextInput,
+        ...(input.documentObservationStore === undefined ? {} : { documentObservationStore: input.documentObservationStore })
+      })
+    );
   }
   return {
     due_targets: jobBatch.due_targets,

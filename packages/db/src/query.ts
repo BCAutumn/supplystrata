@@ -119,6 +119,21 @@ export interface UnknownItemRow extends pg.QueryResultRow {
   status: string;
 }
 
+export class EntityResolutionError extends Error {
+  readonly code = "ENTITY_NOT_FOUND";
+  readonly input: string;
+
+  constructor(input: string) {
+    super(`Entity not found: ${input}`);
+    this.name = "EntityResolutionError";
+    this.input = input;
+  }
+}
+
+export function isEntityResolutionError(error: unknown): error is EntityResolutionError {
+  return error instanceof EntityResolutionError;
+}
+
 export async function listUnknownItems(client: DbClient, scopeId: string): Promise<UnknownItemRow[]> {
   const result = await client.query<UnknownItemRow>(
     `SELECT unknown_id, scope_kind, scope_id, question, why_unknown, blocking_data_sources, proxies, status
@@ -131,10 +146,9 @@ export async function listUnknownItems(client: DbClient, scopeId: string): Promi
 }
 
 export async function resolveEntityId(client: DbClient, input: string): Promise<string> {
-  const normalized = normalizeAlias(input);
   const entityId = await tryResolveEntityId(client, input);
   if (entityId !== undefined) return entityId;
-  throw new Error(`Cannot resolve entity: ${input}`);
+  throw new EntityResolutionError(input);
 }
 
 export async function tryResolveEntityId(client: DbClient, input: string): Promise<string | undefined> {
@@ -146,9 +160,47 @@ export async function tryResolveEntityId(client: DbClient, input: string): Promi
     [normalized]
   );
   if (entityResult.rows[0] !== undefined) return entityResult.rows[0].entity_id;
+  const identifier = await tryResolveEntityIdByIdentifier(client, input);
+  if (identifier !== undefined) return identifier;
   const aliasResult = await client.query<{ entity_id: string } & pg.QueryResultRow>("SELECT entity_id FROM entity_alias WHERE alias_norm = $1 LIMIT 1", [
     normalized
   ]);
   const alias = aliasResult.rows[0];
   return alias?.entity_id;
+}
+
+async function tryResolveEntityIdByIdentifier(client: DbClient, input: string): Promise<string | undefined> {
+  const ticker = normalizedTickerInput(input);
+  const cik = normalizedCikInput(input);
+  if (ticker === undefined && cik === undefined) return undefined;
+  const result = await client.query<{ entity_id: string } & pg.QueryResultRow>(
+    `SELECT entity_id
+     FROM entity_master
+     WHERE status = 'active'
+       AND (
+         ($1::text IS NOT NULL AND identifiers->>'cik' = $1)
+         OR ($2::text IS NOT NULL AND identifiers->>'sec_ticker' = $2)
+         OR ($2::text IS NOT NULL AND EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements_text(identifiers->'ticker') ticker(value)
+           WHERE lower(ticker.value) = lower($2)
+              OR lower(split_part(ticker.value, ':', 1)) = lower($2)
+         ))
+       )
+     LIMIT 2`,
+    [cik ?? null, ticker ?? null]
+  );
+  return result.rows.length === 1 ? result.rows[0]?.entity_id : undefined;
+}
+
+function normalizedTickerInput(input: string): string | undefined {
+  const trimmed = input.trim();
+  if (!/^[A-Za-z][A-Za-z0-9.-]{0,9}(:[A-Za-z]{2})?$/.test(trimmed)) return undefined;
+  return trimmed.split(":")[0]?.toUpperCase();
+}
+
+function normalizedCikInput(input: string): string | undefined {
+  const digits = input.replace(/\D/g, "");
+  if (digits.length === 0 || digits.length > 10) return undefined;
+  return digits.padStart(10, "0");
 }

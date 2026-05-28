@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type pg from "pg";
+import { mkdtemp } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { envSchema } from "@supplystrata/config";
 import {
   listRegisteredSourceCheckConnectorCapabilities,
@@ -8,6 +11,10 @@ import {
   runManualSourceCheck
 } from "@supplystrata/source-workflows";
 import { dbTxClientBrand, type DatabaseStore, type DbTxClient } from "@supplystrata/db/write";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("source check registry", () => {
   it("publishes registered source check connector ids", () => {
@@ -108,6 +115,64 @@ describe("source check registry", () => {
     });
     expect(store.transactionCount).toBe(1);
   });
+
+  it("runs due source checks through the injected document observation pipeline", async () => {
+    const store = new DueSourceCheckDatabaseStore();
+    const objectStoreBase = await mkdtemp(join(tmpdir(), "supplystrata-source-check-"));
+    vi.stubGlobal("fetch", async (url: string | URL | Request) => {
+      const href = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+      if (href.includes("data.sec.gov/submissions")) {
+        return new Response(
+          JSON.stringify({
+            filings: {
+              recent: {
+                accessionNumber: ["0001318605-26-000001"],
+                primaryDocument: ["tsla-20251231.htm"],
+                form: ["10-K"],
+                filingDate: ["2026-02-01"]
+              }
+            }
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response("<html><body>We purchase lithium-ion battery cells from Panasonic for use in our electric vehicles.</body></html>", {
+        status: 200,
+        headers: { "Content-Type": "text/html" }
+      });
+    });
+
+    const result = await runDueSourceChecks(store, {
+      env: envSchema.parse({ OBJECT_STORE_FS_BASE: objectStoreBase }),
+      limit: 1,
+      now: "2026-05-19T00:00:00.000Z",
+      documentObservationStore: {
+        async persistDocumentObservations(_client, normalized, docId) {
+          store.observedDocIds.push(docId);
+          store.observedPrimaryEntityIds.push(normalized.primary_entity_id ?? null);
+          return {
+            change_type: "DOCUMENT_NEW",
+            source_item_id: "SRCITEM-PIPELINE",
+            event_id: "SEV-PIPELINE",
+            stored_observations: 2,
+            review_candidates: 3,
+            semantic_changes: 4,
+            relation_changes: 5
+          };
+        }
+      }
+    });
+
+    expect(store.observedPrimaryEntityIds).toEqual(["ENT-TESLA"]);
+    expect(store.observedDocIds).toEqual(["DOC-SAVED"]);
+    expect(result.items[0]?.summaries[0]).toMatchObject({
+      doc_id: "DOC-SAVED",
+      observations: 2,
+      review_candidates: 3,
+      semantic_changes: 4,
+      relation_changes: 5
+    });
+  });
 });
 
 class NoopDatabaseStore implements DatabaseStore {
@@ -117,7 +182,7 @@ class NoopDatabaseStore implements DatabaseStore {
     query: <T extends pg.QueryResultRow>() => this.query<T>()
   };
 
-  async query<T extends pg.QueryResultRow>(): Promise<pg.QueryResult<T>> {
+  async query<T extends pg.QueryResultRow>(_sql = "", _params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     return { command: "NOOP", rowCount: 0, oid: 0, fields: [], rows: [] };
   }
 
@@ -132,7 +197,94 @@ class NoopDatabaseStore implements DatabaseStore {
 class NoopTxClient implements DbTxClient {
   readonly [dbTxClientBrand] = true;
 
-  async query<T extends pg.QueryResultRow>(): Promise<pg.QueryResult<T>> {
+  async query<T extends pg.QueryResultRow>(_sql = "", _params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     return { command: "NOOP", rowCount: 0, oid: 0, fields: [], rows: [] };
   }
+}
+
+class DueSourceCheckDatabaseStore implements DatabaseStore {
+  readonly adapter_id = "due-source-check-fixture";
+  readonly observedDocIds: string[] = [];
+  readonly observedPrimaryEntityIds: Array<string | null> = [];
+  readonly read = {
+    query: <T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []) => this.query<T>(sql, params)
+  };
+
+  async query<T extends pg.QueryResultRow>(_sql = "", _params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    return { command: "NOOP", rowCount: 0, oid: 0, fields: [], rows: [] };
+  }
+
+  async transaction<T>(fn: (client: DbTxClient) => Promise<T>): Promise<T> {
+    return fn(new DueSourceCheckTxClient());
+  }
+
+  async close(): Promise<void> {}
+}
+
+class DueSourceCheckTxClient implements DbTxClient {
+  readonly [dbTxClientBrand] = true;
+
+  async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    const rows = dueSourceCheckRows<T>(sql, params);
+    return {
+      command: "MOCK",
+      rowCount: rows.length,
+      oid: 0,
+      fields: [],
+      rows
+    };
+  }
+}
+
+function dueSourceCheckRows<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[]): T[] {
+  if (sql.includes("FROM source_check_targets") && sql.includes("FOR UPDATE SKIP LOCKED") && !sql.includes("WITH due AS")) {
+    return [dueSourceTargetRow()] as unknown as T[];
+  }
+  if (sql.includes("INSERT INTO source_check_jobs")) {
+    return [{}] as T[];
+  }
+  if (sql.includes("FROM source_check_jobs") && sql.includes("RETURNING jobs.job_id")) {
+    return [{ ...dueSourceTargetRow(), job_id: "SCJ-TESLA", job_status: "in_progress", attempts: 0, max_attempts: 3 }] as unknown as T[];
+  }
+  if (sql.includes("INSERT INTO documents")) {
+    return [{ doc_id: "DOC-SAVED" }] as unknown as T[];
+  }
+  if (sql.includes("INSERT INTO document_chunks")) {
+    return [{}] as T[];
+  }
+  if (sql.includes("UPDATE source_check_jobs") && params[0] === "SCJ-TESLA") {
+    return [{}] as T[];
+  }
+  return [];
+}
+
+function dueSourceTargetRow(): Record<string, unknown> {
+  return {
+    check_target_id: "research:test:sec-edgar:sec-company-filings:ent-tesla",
+    source_adapter_id: "sec-edgar",
+    target_kind: "sec-company-filings",
+    subject_entity_id: "ENT-TESLA",
+    target_config: {
+      cik: "0001318605",
+      entity_id: "ENT-TESLA",
+      form_types: ["10-K"],
+      limit: 1
+    },
+    target_enabled: true,
+    target_priority: 10,
+    target_config_source: "test",
+    target_notes: null,
+    policy_enabled: true,
+    check_cadence_minutes: 1440,
+    jitter_minutes: 0,
+    effective_check_cadence_minutes: 1440,
+    effective_jitter_minutes: 0,
+    effective_max_attempts: 3,
+    effective_backoff_base_minutes: 1,
+    effective_backoff_max_minutes: 30,
+    policy_priority: 10,
+    policy_config_source: "test",
+    next_check_at: new Date("2026-05-19T00:00:00.000Z"),
+    policy_notes: null
+  };
 }

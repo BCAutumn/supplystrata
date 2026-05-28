@@ -6,6 +6,7 @@ import {
   credentialQueryParamUrl,
   createRateLimitedSourceAdapter,
   defineHtmlSnapshotAdapter,
+  fetchBytesWithTimeout,
   fetchOrLoadCachedSnapshot,
   requireAdapterCredential,
   SourceRateLimiter,
@@ -188,6 +189,26 @@ describe("source adapter rate limiter", () => {
     expect(new TextDecoder().decode(snapshot.bytes)).toBe("cached pdf bytes");
     expect(snapshot.source_fetch_status).toBe("fallback");
     expect(snapshot.source_fetch_error).toContain("403 Forbidden");
+  });
+
+  it("retries transient network fetch failures when the adapter opts in", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", async () => {
+      calls += 1;
+      if (calls === 1) throw new TypeError("fetch failed");
+      return new Response("ok", { status: 200 });
+    });
+
+    const bytes = await fetchBytesWithTimeout("https://example.com/retry", {
+      userAgent: "SupplyStrata test contact@example.com",
+      timeoutMs: 1000,
+      sourceLabel: "Retry source",
+      attempts: 2,
+      retryDelayMs: 0
+    });
+
+    expect(calls).toBe(2);
+    expect(new TextDecoder().decode(bytes)).toBe("ok");
   });
 
   it("builds credential transport values from explicit adapter context", () => {

@@ -52,6 +52,37 @@ describe("SEC EDGAR adapter helpers", () => {
     expect(currentReportTasks.map((task) => task.hint?.period)).toEqual(["2026-05-10", "2026-04-20"]);
   });
 
+  it("respects requested form priority so annual reports are not displaced by recent 8-K filings", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(
+          JSON.stringify({
+            filings: {
+              recent: {
+                accessionNumber: ["0001318605-26-000003", "0001318605-26-000002", "0001318605-26-000001"],
+                primaryDocument: ["tsla-8k.htm", "tsla-10q.htm", "tsla-10k.htm"],
+                form: ["8-K", "10-Q", "10-K"],
+                filingDate: ["2026-04-22", "2026-04-21", "2026-01-29"]
+              }
+            }
+          }),
+          { status: 200 }
+        )
+    );
+
+    const tasks = [];
+    for await (const task of secEdgarAdapter.plan(
+      { cik: "1318605", entityId: "ENT-TESLA", formTypes: ["10-K", "20-F", "10-Q", "8-K"], limit: 2 },
+      adapterContext()
+    )) {
+      tasks.push(task);
+    }
+
+    expect(tasks.map((task) => task.hint?.document_type)).toEqual(["10-K", "10-Q"]);
+    expect(tasks.map((task) => task.hint?.period)).toEqual(["2026-01-29", "2026-04-21"]);
+  });
+
   it("normalizes SEC raw documents using the metadata document type", async () => {
     const raw = {
       doc_id: "DOC-SEC-8K",

@@ -8,6 +8,7 @@ import {
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeTextDocument } from "@supplystrata/source-normalizers";
 import { normalizeCik } from "./cik.js";
+import { SEC_COMPANY_FACTS_TIMEOUT_MS, SEC_FETCH_ATTEMPTS, SEC_FETCH_RETRY_DELAY_MS } from "./request-config.js";
 
 export interface SecCompanyFactsInput {
   cik: string;
@@ -116,7 +117,13 @@ const secCompanyFactsAdapterBase: SourceAdapter<SecCompanyFactsInput, Uint8Array
     yield companyFactsTask(cik10, input.entityId, ctx.now().toISOString().slice(0, 10));
   },
   async fetch(task, ctx) {
-    const bytes = await fetchBytesWithTimeout(task.url, { userAgent: ctx.userAgent, timeoutMs: 12_000, sourceLabel: "SEC company facts" });
+    const bytes = await fetchBytesWithTimeout(task.url, {
+      userAgent: ctx.userAgent,
+      timeoutMs: SEC_COMPANY_FACTS_TIMEOUT_MS,
+      sourceLabel: "SEC company facts",
+      attempts: SEC_FETCH_ATTEMPTS,
+      retryDelayMs: SEC_FETCH_RETRY_DELAY_MS
+    });
     return persistRawDocumentSnapshot({
       ctx,
       sourceAdapterId: "sec-edgar",

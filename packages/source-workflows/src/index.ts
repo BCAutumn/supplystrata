@@ -20,6 +20,25 @@ export { createOfacSanctionsAdapterContext, matchOfacSanctionsEntries, ofacSanct
 export type { OfacSanctionsEntry, OfacSanctionsInput, OfacSanctionsMatch } from "./ofac-sanctions-checks.js";
 export { enqueueEntitySourceReviewCandidates, lookupEntitySourceCandidates } from "./entity-sources.js";
 export type { EntityLookupInput, EntityLookupSource, EntityLookupSummary, EntityReviewEnqueueSummary } from "./entity-sources.js";
+export { ensureResearchCompanyEntity } from "./research-entity-bootstrap.js";
+export type {
+  ResearchCompanyEntityBootstrapInput,
+  ResearchCompanyEntityBootstrapResult,
+  ResearchCompanyEntityBootstrapStatus
+} from "./research-entity-bootstrap.js";
+export { createResearchRun, ensureCompanyResearchRun, getResearchRunStatus, isResearchRunNotFoundError, ResearchRunNotFoundError } from "./research-runs.js";
+export { deriveResearchRunLifecycle } from "./research-run-lifecycle.js";
+export type {
+  CreateResearchRunInput,
+  EnsureCompanyResearchRunInput,
+  EnsureCompanyResearchRunResult,
+  ResearchRunRefreshMode,
+  ResearchRunReuseReason,
+  ResearchRunStatus,
+  ResearchRunStatusItem,
+  ResearchRunStatusReport
+} from "./research-runs.js";
+export type { ResearchRunLifecycleInput, ResearchRunLifecycleSnapshot } from "./research-run-lifecycle.js";
 export {
   buildEntityResolutionLookupQueries,
   enqueueEntityResolutionBacklogReviewCandidates,

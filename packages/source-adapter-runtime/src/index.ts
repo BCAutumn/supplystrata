@@ -20,6 +20,8 @@ export interface FetchBytesOptions {
   timeoutMs: number;
   sourceLabel: string;
   headers?: Record<string, string>;
+  attempts?: number;
+  retryDelayMs?: number;
 }
 
 export interface HtmlSnapshotAdapterDefinition<TFetchInput> {
@@ -247,19 +249,78 @@ export async function persistRawDocumentSnapshot(input: PersistRawDocumentSnapsh
 
 // 统一处理公开网页/API 抓取的超时与状态码错误，避免各 adapter 自己散落网络细节。
 export async function fetchBytesWithTimeout(url: string, options: FetchBytesOptions): Promise<Uint8Array> {
-  try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": options.userAgent, ...options.headers },
-      signal: AbortSignal.timeout(options.timeoutMs)
-    });
-    if (!response.ok) throw new Error(`${options.sourceLabel} fetch failed: ${response.status} ${response.statusText}`);
-    return new Uint8Array(await response.arrayBuffer());
-  } catch (error) {
-    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
-      throw new Error(`${options.sourceLabel} fetch timed out after ${options.timeoutMs}ms`);
+  const attempts = normalizedAttempts(options.attempts);
+  const retryDelayMs = options.retryDelayMs ?? 0;
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": options.userAgent, ...options.headers },
+        signal: AbortSignal.timeout(options.timeoutMs)
+      });
+      if (!response.ok) {
+        const statusError = new FetchStatusError(`${options.sourceLabel} fetch failed: ${response.status} ${response.statusText}`, response.status);
+        if (!isRetryableFetchError(statusError) || attempt === attempts) throw statusError;
+        lastError = statusError;
+      } else {
+        return new Uint8Array(await response.arrayBuffer());
+      }
+    } catch (error) {
+      const normalized = normalizeFetchError(error, options);
+      if (!isRetryableFetchError(error) || attempt === attempts) throw normalized;
+      lastError = normalized;
     }
-    throw error;
+    if (retryDelayMs > 0) await defaultSleepMs(retryDelayMs);
   }
+  throw lastError ?? new Error(`${options.sourceLabel} fetch failed`);
+}
+
+class FetchStatusError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function normalizedAttempts(value: number | undefined): number {
+  if (value === undefined) return 1;
+  if (!Number.isInteger(value) || value < 1) throw new Error(`fetch attempts must be a positive integer: ${value}`);
+  return value;
+}
+
+function normalizeFetchError(error: unknown, options: FetchBytesOptions): Error {
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return new Error(`${options.sourceLabel} fetch timed out after ${options.timeoutMs}ms`);
+  }
+  if (error instanceof FetchStatusError) return error;
+  if (error instanceof Error) {
+    const code = nodeErrorCode(error.cause);
+    const codeSuffix = code === undefined ? "" : ` (${code})`;
+    return new Error(`${options.sourceLabel} fetch failed: ${error.message}${codeSuffix}`);
+  }
+  if (typeof error === "string") return new Error(`${options.sourceLabel} fetch failed: ${error}`);
+  return new Error(`${options.sourceLabel} fetch failed: unknown error`);
+}
+
+function isRetryableFetchError(error: unknown): boolean {
+  if (error instanceof FetchStatusError) return error.status === 429 || error.status >= 500;
+  if (error instanceof Error) {
+    if (error.name === "AbortError" || error.name === "TimeoutError") return true;
+    const code = nodeErrorCode(error.cause);
+    if (code !== undefined) return ["ECONNRESET", "ECONNREFUSED", "EAI_AGAIN", "ETIMEDOUT"].includes(code);
+    return error.message === "fetch failed";
+  }
+  return false;
+}
+
+function nodeErrorCode(value: unknown): string | undefined {
+  if (typeof value === "object" && value !== null && "code" in value) {
+    const code = (value as { code: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return undefined;
 }
 
 function defaultSleepMs(milliseconds: number): Promise<void> {

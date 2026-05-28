@@ -7,6 +7,7 @@ import {
   extractGleifLeiCandidates,
   normalizeEntityResolutionQueries
 } from "@supplystrata/source-workflows";
+import { findSecCompanyDirectoryCandidates, normalizeCompanyDirectoryQuery, parseSecCompanyDirectoryPayload } from "@supplystrata/sources-sec-edgar";
 import { buildCompaniesHouseSearchUrl, extractCompaniesHouseCandidates } from "@supplystrata/sources-companies-house";
 import { buildOpenCorporatesSearchUrl, extractOpenCorporatesCandidates } from "@supplystrata/sources-opencorporates";
 
@@ -21,6 +22,23 @@ describe("entity source adapters", () => {
   it("adds controlled legal suffix lookup variants without dropping the original supplier surface", () => {
     expect(buildEntityResolutionLookupQueries("Skyworks Solutions Incorporated")).toEqual(["Skyworks Solutions Incorporated", "Skyworks Solutions Inc."]);
     expect(buildEntityResolutionLookupQueries("Alps Alpine Company Limited")).toEqual(["Alps Alpine Company Limited", "Alps Alpine Co., Ltd."]);
+  });
+
+  it("normalizes SEC listed-company directory records for research bootstrap", () => {
+    const records = parseSecCompanyDirectoryPayload({
+      "0": { cik_str: 1318605, ticker: "TSLA", title: "Tesla, Inc." },
+      "1": { cik_str: 1045810, ticker: "NVDA", title: "NVIDIA CORP" }
+    });
+
+    expect(records.find((record) => record.ticker === "TSLA")).toMatchObject({
+      cik: "0001318605",
+      title: "Tesla, Inc.",
+      display_name: "Tesla",
+      entity_id: "ENT-TESLA"
+    });
+    expect(normalizeCompanyDirectoryQuery("ENT-TESLA")).toBe("TESLA");
+    expect(findSecCompanyDirectoryCandidates(records, { query: "ENT-TESLA" })).toMatchObject([{ ticker: "TSLA" }]);
+    expect(findSecCompanyDirectoryCandidates(records, { query: "TSLA" })).toMatchObject([{ entity_id: "ENT-TESLA" }]);
   });
 
   it("builds GLEIF LEI search URLs and normalizes global legal entity identifiers", () => {

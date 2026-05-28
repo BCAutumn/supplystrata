@@ -10,8 +10,18 @@ import {
 } from "@supplystrata/source-adapter-runtime";
 import { normalizeHtmlDocument } from "@supplystrata/source-normalizers";
 import { normalizeCik } from "./cik.js";
+import { SEC_FETCH_ATTEMPTS, SEC_FETCH_RETRY_DELAY_MS, SEC_FILING_TIMEOUT_MS, SEC_SUBMISSIONS_TIMEOUT_MS } from "./request-config.js";
 
 export { normalizeCik } from "./cik.js";
+export {
+  findSecCompanyDirectoryCandidates,
+  lookupSecCompanyDirectory,
+  normalizeCompanyDirectoryQuery,
+  parseSecCompanyDirectoryPayload,
+  type SecCompanyDirectoryLookupInput,
+  type SecCompanyDirectoryLookupResult,
+  type SecCompanyDirectoryRecord
+} from "./company-directory.js";
 export {
   companyFactsTask,
   parseSecCompanyFactObservations,
@@ -53,32 +63,35 @@ const secEdgarAdapterBase: SourceAdapter<SecEdgarInput, Uint8Array> = {
     const cik10 = normalizeCik(input.cik);
     const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik10}.json`;
     const payloadJson: unknown = JSON.parse(
-      new TextDecoder().decode(await fetchBytesWithTimeout(submissionsUrl, { userAgent: ctx.userAgent, timeoutMs: 12_000, sourceLabel: "SEC submissions" }))
+      new TextDecoder().decode(
+        await fetchBytesWithTimeout(submissionsUrl, {
+          userAgent: ctx.userAgent,
+          timeoutMs: SEC_SUBMISSIONS_TIMEOUT_MS,
+          sourceLabel: "SEC submissions",
+          attempts: SEC_FETCH_ATTEMPTS,
+          retryDelayMs: SEC_FETCH_RETRY_DELAY_MS
+        })
+      )
     );
     const payload = parseSubmissionPayload(payloadJson);
     const recent = payload.filings.recent;
     const maxTasks = Math.max(1, input.limit ?? 1);
     let yielded = 0;
-    for (const [index, form] of recent.form.entries()) {
-      if (!isSecEdgarFormType(form) || !input.formTypes.includes(form)) continue;
-      const accession = requireString(recent.accessionNumber[index], "accessionNumber");
-      const primaryDocument = requireString(recent.primaryDocument[index], "primaryDocument");
-      const filingDate = requireString(recent.filingDate[index], "filingDate");
-      const accessionNoDashes = accession.replace(/-/g, "");
-      const cikNoLeadingZeros = String(Number(cik10));
-      yield {
-        task_id: `sec-edgar-${cik10}-${accession}`,
-        url: `https://www.sec.gov/Archives/edgar/data/${cikNoLeadingZeros}/${accessionNoDashes}/${primaryDocument}`,
-        expected_format: "html",
-        hint: { entity_id: input.entityId, document_type: form, period: filingDate }
-      };
+    for (const task of prioritizedFilingTasks(recent, input.formTypes, { cik10, entityId: input.entityId })) {
+      yield task;
       yielded += 1;
       if (yielded >= maxTasks) return;
     }
     if (yielded === 0) throw new Error(`No requested SEC filing found for CIK ${input.cik}`);
   },
   async fetch(task, ctx) {
-    const bytes = await fetchBytesWithTimeout(task.url, { userAgent: ctx.userAgent, timeoutMs: 20_000, sourceLabel: "SEC filing" });
+    const bytes = await fetchBytesWithTimeout(task.url, {
+      userAgent: ctx.userAgent,
+      timeoutMs: SEC_FILING_TIMEOUT_MS,
+      sourceLabel: "SEC filing",
+      attempts: SEC_FETCH_ATTEMPTS,
+      retryDelayMs: SEC_FETCH_RETRY_DELAY_MS
+    });
     const entityPart = task.hint?.entity_id ?? "unknown";
     const period = taskPeriod(task);
     return persistRawDocumentSnapshot({
@@ -136,6 +149,37 @@ function parseSubmissionPayload(value: unknown): SecSubmissionPayload {
         filingDate: readStringArray(recent, "filingDate")
       }
     }
+  };
+}
+
+function prioritizedFilingTasks(recent: SecRecentFilings, formTypes: readonly SecEdgarFormType[], input: { cik10: string; entityId: string }): FetchTask[] {
+  const tasks: FetchTask[] = [];
+  const seenAccessions = new Set<string>();
+  for (const requestedForm of formTypes) {
+    for (const [index, form] of recent.form.entries()) {
+      if (form !== requestedForm || !isSecEdgarFormType(form)) continue;
+      const accession = requireString(recent.accessionNumber[index], "accessionNumber");
+      if (seenAccessions.has(accession)) continue;
+      seenAccessions.add(accession);
+      tasks.push(filingTaskFromRecentIndex(recent, index, form, { cik10: input.cik10, entityId: input.entityId }));
+    }
+  }
+  return tasks;
+}
+
+function filingTaskFromRecentIndex(recent: SecRecentFilings, index: number, form: SecEdgarFormType, input: { cik10: string; entityId: string }): FetchTask {
+  const accession = requireString(recent.accessionNumber[index], "accessionNumber");
+  const primaryDocument = requireString(recent.primaryDocument[index], "primaryDocument");
+  const filingDate = requireString(recent.filingDate[index], "filingDate");
+  const accessionNoDashes = accession.replace(/-/g, "");
+  const cikNoLeadingZeros = String(Number(input.cik10));
+  // 研究型 source target 会按 10-K/20-F、10-Q、8-K 的业务优先级传入 formTypes；
+  // adapter 必须尊重该优先级，否则最新 8-K 会挤掉年度报告，导致供应链风险披露缺失。
+  return {
+    task_id: `sec-edgar-${input.cik10}-${accession}`,
+    url: `https://www.sec.gov/Archives/edgar/data/${cikNoLeadingZeros}/${accessionNoDashes}/${primaryDocument}`,
+    expected_format: "html",
+    hint: { entity_id: input.entityId, document_type: form, period: filingDate }
   };
 }
 

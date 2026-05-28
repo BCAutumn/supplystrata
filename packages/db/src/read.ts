@@ -40,6 +40,8 @@ export {
   listUnknownItems,
   resolveEntityId,
   tryResolveEntityId,
+  isEntityResolutionError,
+  EntityResolutionError,
   type EdgeRow,
   type EvidenceDetailRow,
   type UnknownItemRow

@@ -8,6 +8,7 @@ import {
   type SupplierListReviewCandidate
 } from "@supplystrata/review-candidates";
 import type { CountRow, EntityIdRow } from "./db-rows.js";
+export { ensureSecListedCompanyEntity, type SecListedCompanyCandidate, type SecListedCompanyImportResult } from "./sec-listed-company.js";
 
 // 只有全局唯一标识符能参与冲突判断；jurisdiction_code / company_number 单独使用会把不同公司误判成同一实体。
 const GLOBALLY_UNIQUE_ENTITY_IDENTIFIER_KEYS = new Set(["lei", "gleif_lei", "bic", "spglobal_id", "open_corporates_id", "companies_house_number"]);

@@ -14,6 +14,7 @@
     "@supplystrata/component-context": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/db": "workspace:*",
+    "@supplystrata/entity-import": "workspace:*",
     "@supplystrata/entity-source": "workspace:*",
     "@supplystrata/entity-resolver": "workspace:*",
     "@supplystrata/evidence-scorer": "workspace:*",
