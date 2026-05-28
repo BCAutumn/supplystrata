@@ -35,17 +35,19 @@ interface ComponentCsvRow {
   aliases: string;
 }
 
-export async function seedFromCsv(store: DatabaseStore, rootDir: string): Promise<{ entities: number; aliases: number; components: number }> {
+const DEV_ENTITY_FIXTURE_DIR = "tests/fixtures/dev-entities";
+
+export async function importDevFixturesFromCsv(store: DatabaseStore, rootDir: string): Promise<{ entities: number; aliases: number; components: number }> {
   return store.transaction(async (client) => {
-    // seed 会写大量 deterministic id；事务级锁让并行测试 worker 串行执行同一批基础数据。
-    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('supplystrata:seed', 0))");
-    return seedFromCsvLocked(client, rootDir);
+    // dev fixture 会写大量 deterministic id；事务级锁让并行测试 worker 串行执行同一批基础数据。
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('supplystrata:dev-fixtures', 0))");
+    return importDevFixturesFromCsvLocked(client, rootDir);
   });
 }
 
-async function seedFromCsvLocked(client: DbClient, rootDir: string): Promise<{ entities: number; aliases: number; components: number }> {
-  const entities = await readCsv<EntityCsvRow>(resolve(rootDir, "seeds/entities.csv"));
-  const aliases = await readCsv<AliasCsvRow>(resolve(rootDir, "seeds/aliases.csv"));
+async function importDevFixturesFromCsvLocked(client: DbClient, rootDir: string): Promise<{ entities: number; aliases: number; components: number }> {
+  const entities = await readCsv<EntityCsvRow>(resolve(rootDir, DEV_ENTITY_FIXTURE_DIR, "entities.csv"));
+  const aliases = await readCsv<AliasCsvRow>(resolve(rootDir, DEV_ENTITY_FIXTURE_DIR, "aliases.csv"));
   const components = await readCsv<ComponentCsvRow>(resolve(rootDir, "seeds/components.csv"));
   let autoAliases = 0;
 

@@ -72,7 +72,7 @@ const NVIDIA_RESEARCH_EXAMPLE_OFFICIAL_DISCLOSURES = {
 export async function previewSecEdgarSupplyChain(input: SecEdgarInput, runtime: SourceWorkflowRuntime): Promise<SupplyChainPreview> {
   const { raw, normalized, documentType, sourceDate } = await fetchAndParseSecEdgar(input, { adapterContextInput: runtime.adapterContextInput });
   const scorer = new DeterministicEvidenceScorer();
-  const resolver = await SeedEntityResolver.fromCsv(runtime.seedRootDir);
+  const resolver = await SeedEntityResolver.fromDevFixtures(runtime.seedRootDir);
   const candidates: SupplyChainPreviewCandidate[] = [];
 
   for (const extractor of ruleExtractors) {

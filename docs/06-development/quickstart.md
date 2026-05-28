@@ -56,7 +56,7 @@ docker compose up -d postgres neo4j   # 可选；或改 .env 指向已有服务
 pnpm smoke:local
 ```
 
-`smoke:local` 会跑：migration → 静态 seed → 图谱 rebuild → graph check。这个模式不访问外网。
+`smoke:local` 会跑：migration → dev fixture import → 图谱 rebuild → graph check。这个模式不访问外网；dev fixture 只用于本地/CI，不代表产品默认公司覆盖范围。
 
 ## 4. 联网 Smoke（含 SEC EDGAR）
 
@@ -64,7 +64,7 @@ pnpm smoke:local
 pnpm smoke:research
 ```
 
-会跑：migration → seed → `examples nvidia ingest` → claims build → workbench export。通过后说明当前环境能从 SEC EDGAR 抓 NVIDIA 10-K、解析、抽取关系、评分、落 Postgres cache、输出 workbench JSON。
+会跑：migration → dev fixture import → `examples nvidia ingest` → claims build → workbench export。通过后说明当前环境能从 SEC EDGAR 抓 NVIDIA 10-K、解析、抽取关系、评分、落 Postgres cache、输出 workbench JSON。
 
 ## 5. 跑一份完整研究包
 

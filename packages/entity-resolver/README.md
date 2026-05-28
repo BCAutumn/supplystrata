@@ -19,7 +19,7 @@
 ## 主要入口
 
 - `DbEntityResolver`：基于 truth store 的实体解析。
-- `SeedEntityResolver.fromCsv(rootDir)`：基于 seed CSV 的实体解析。
+- `SeedEntityResolver.fromDevFixtures(rootDir)`：基于 `tests/fixtures/dev-entities/` 的实体解析，仅用于测试和本地 preview。
 - `resolve(input, context)`：统一解析接口。
 
 ## 边界约定

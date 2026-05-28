@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { migrate, seedFromCsv } from "@supplystrata/db/admin";
+import { importDevFixturesFromCsv, migrate } from "@supplystrata/db/admin";
 import { backfillEvidenceTraceTransactionally, repairSupplierListEvidenceCitationsTransactionally } from "@supplystrata/evidence-maintenance";
 import { parseLimit, withDatabase, writeJson } from "../cli-utils.js";
 
@@ -34,11 +34,11 @@ export function registerDbAndAdminCommands(program: Command): void {
 
   const admin = program.command("admin").description("admin commands");
   admin
-    .command("seed")
-    .description("load seed CSV files")
+    .command("import-dev-fixtures")
+    .description("load dev-only entity fixtures and component seeds")
     .action(async () => {
       await withDatabase(async (pool) => {
-        const result = await seedFromCsv(pool, process.cwd());
+        const result = await importDevFixturesFromCsv(pool, process.cwd());
         writeJson({ ok: true, ...result });
       });
     });

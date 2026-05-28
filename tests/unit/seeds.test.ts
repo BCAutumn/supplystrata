@@ -17,7 +17,7 @@ interface ComponentSeedRow {
 
 describe("seed files", () => {
   it("contain the required MVP core and bridge entity counts", async () => {
-    const rows = await readSeed<EntitySeedRow>("seeds/entities.csv");
+    const rows = await readSeed<EntitySeedRow>("tests/fixtures/dev-entities/entities.csv");
     const ids = new Set(rows.map((row) => row.entity_id));
     expect(ids.has("ENT-NVIDIA")).toBe(true);
     expect(ids.has("ENT-SAMSUNG-FOUNDRY")).toBe(true);

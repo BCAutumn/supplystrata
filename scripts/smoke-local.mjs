@@ -65,7 +65,7 @@ if (!withDb) {
 
 // DB smoke 验证本地 truth store + GraphStore 链路；联网 smoke 额外抓 SEC 并生成 NVIDIA 研究输出。
 runPnpm(["db:migrate"]);
-runPnpm(["cli", "admin", "seed"]);
+runPnpm(["cli", "admin", "import-dev-fixtures"]);
 
 if (withNetwork) {
   runPnpm(["cli", "examples", "nvidia", "ingest"]);

@@ -34,11 +34,12 @@ describe("source registry", () => {
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
       total: 39,
-      implemented: 2,
+      implemented: 1,
       preview: 19,
       planned: 1,
       scoped: 16,
       manualOnly: 1,
+      removed: 1,
       requiresKey: 10
     });
   });

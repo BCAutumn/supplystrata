@@ -3,7 +3,7 @@ import { SeedEntityResolver } from "@supplystrata/entity-resolver";
 
 describe("SeedEntityResolver", () => {
   it("resolves seeded aliases without Postgres", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const tsmc = await resolver.resolve({ surface: "Taiwan Semiconductor Manufacturing Company Limited" });
     const threeM = await resolver.resolve({ surface: "3M" });
     const nvda = await resolver.resolve({ surface: "NVDA" });
@@ -13,7 +13,7 @@ describe("SeedEntityResolver", () => {
   });
 
   it("uses nearby text to split Samsung business units", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const foundry = await resolver.resolve({ surface: "Samsung", context: { nearby_text: "produce our semiconductor wafers at foundries" } });
     const memory = await resolver.resolve({ surface: "Samsung", context: { nearby_text: "purchase memory and HBM" } });
     const isolated = await resolver.resolve({ surface: "Samsung" });
@@ -26,7 +26,7 @@ describe("SeedEntityResolver", () => {
   });
 
   it("keeps Foxconn family subsidiaries explainable by context", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const parent = await resolver.resolve({ surface: "Foxconn" });
     const fii = await resolver.resolve({ surface: "Foxconn", context: { nearby_text: "Foxconn Industrial Internet and FII server manufacturing capacity" } });
     const fih = await resolver.resolve({ surface: "FIH", context: { nearby_text: "mobile handset assembly" } });
@@ -38,7 +38,7 @@ describe("SeedEntityResolver", () => {
   });
 
   it("resolves supplier-list legal-name variants for curated Gate 1 entities", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const cases = [
       ["Hon Hai Precision Industry Company Limited (Foxconn)", "ENT-FOXCONN"],
       ["Broadcom Limited", "ENT-BROADCOM"],
@@ -73,7 +73,7 @@ describe("SeedEntityResolver", () => {
   });
 
   it("resolves TSMC subsidiaries only when context names them", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const parent = await resolver.resolve({ surface: "TSMC" });
     const arizona = await resolver.resolve({ surface: "TSMC", context: { nearby_text: "Arizona fab expansion" } });
     const jasm = await resolver.resolve({ surface: "TSMC", context: { nearby_text: "JASM Kumamoto fab" } });
@@ -83,7 +83,7 @@ describe("SeedEntityResolver", () => {
   });
 
   it("never auto-resolves fuzzy alias candidates", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const micron = await resolver.resolve({ surface: "Micron Technolog" });
     const short = await resolver.resolve({ surface: "Mic" });
     expect(micron).toMatchObject({ status: "ambiguous", needs_human_review: true });

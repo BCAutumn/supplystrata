@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type EntityRecord, type RawDocument } from "@supplystrata/core";
-import { migrate, seedFromCsv, type DatabaseStore } from "@supplystrata/db/admin";
+import { importDevFixturesFromCsv, migrate, type DatabaseStore } from "@supplystrata/db/admin";
 import type { DbClient } from "@supplystrata/db/write";
 import { GraphBuilder } from "@supplystrata/graph-builder";
 import type { GraphEdgeInput, GraphStore } from "@supplystrata/graph-store";
@@ -26,7 +26,7 @@ describe.skipIf(!hasDatabase)("NVIDIA fixture e2e", () => {
 
   beforeAll(async () => {
     await migrate(pool);
-    await seedFromCsv(pool, process.cwd());
+    await importDevFixturesFromCsv(pool, process.cwd());
     await pool.transaction(cleanupFixtureRows);
   });
 

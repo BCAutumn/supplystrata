@@ -77,8 +77,8 @@ supplystrata/
 ├── docs/
 ├── tests/
 │   └── fixtures/
-│       └── dev-entities/    # 【新增，目标】原 seeds/entities.csv + seeds/aliases.csv 迁入；仅 CI 用
-├── seeds/                   # 【废弃，目标】仅保留过渡占位；entity 走 registry bootstrap (#11)
+│       └── dev-entities/    # 原 seeds/entities.csv + seeds/aliases.csv；仅 CI / 本地开发用
+├── seeds/                   # 仅保留 components.csv；公司 entity 走 registry bootstrap (#11)
 ├── scbom-spec/              # 【新增，独立 repo，目标】SCBOM 开放交换格式 JSON Schema + 规范文档
 ├── data/                    # 本地原始/缓存数据，gitignored
 ├── reports/                 # 本地生成报告，gitignored
@@ -89,7 +89,7 @@ supplystrata/
 
 - `packages/sources/asml-ir`、`samsung-ir`、`skhynix-ir`、`tsmc-ir` 已不再是 workspace package；如本地残留 `dist/` 文件，只是历史构建产物。
 - `ai-analysis` 当前只保留 artifact schema 校验、analysis plan 和 `ai_analysis_runs` audit；provider config / LLM provider adapter / cite-summarize helper 已迁入 `llm-helpers`；"作为 agent 跑分析"行为迁出到 `@supplystrata/agent`。
-- `seed-entities` 在 [source-registry.md](../04-data-sources/source-registry.md) 已标 `deprecated`；生产代码不允许新增依赖该路径。
+- `seed-entities` 在 [source-registry.md](../04-data-sources/source-registry.md) 已标 `removed`；公司 entity fixture 只允许在测试、本地开发导入和 preview 路径使用。
 - `reports/` 是本地输出目录，不属于代码模块；可清理、可重建。
 - `releases/` 是 community-pack 发布产物目录（按 `pack-YYYY.QN.parquet` 命名），分发通过 GitHub Release / 公开对象存储。
 

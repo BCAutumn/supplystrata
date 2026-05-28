@@ -1,7 +1,7 @@
 import type { DocumentType, EvidenceLevel } from "@supplystrata/core";
 
 export type SourceTier = "P0" | "P1" | "P2" | "manual";
-export type SourceStatus = "implemented" | "preview" | "planned" | "scoped" | "manual_only" | "rejected";
+export type SourceStatus = "implemented" | "preview" | "planned" | "scoped" | "manual_only" | "removed" | "rejected";
 export type AutomationPolicy = "allowed" | "semi_auto" | "manual_only";
 export type SourceCategory =
   | "official_disclosure"

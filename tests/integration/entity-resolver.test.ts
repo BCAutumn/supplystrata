@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrate, seedFromCsv, type DatabaseStore } from "@supplystrata/db/admin";
+import { importDevFixturesFromCsv, migrate, type DatabaseStore } from "@supplystrata/db/admin";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 
@@ -10,7 +10,7 @@ describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
 
   beforeAll(async () => {
     await migrate(pool);
-    await seedFromCsv(pool, process.cwd());
+    await importDevFixturesFromCsv(pool, process.cwd());
   });
 
   afterAll(async () => {

@@ -90,6 +90,12 @@ module.exports = {
       }
     },
     {
+      name: "production-code-must-not-import-test-fixtures",
+      severity: "error",
+      from: { path: "^(apps|packages|scripts)/" },
+      to: { path: "^tests/fixtures/" }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },

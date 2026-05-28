@@ -13,6 +13,8 @@ export interface EntityResolver {
   resolve(input: ResolveInput, context?: ResolveContext): Promise<ResolveResult>;
 }
 
+const DEV_ENTITY_FIXTURE_DIR = "tests/fixtures/dev-entities";
+
 interface AliasMatchRow {
   entity_id: string;
   canonical_name: string;
@@ -167,9 +169,9 @@ export class SeedEntityResolver implements EntityResolver {
     this.#matchesById = matchesById;
   }
 
-  static async fromCsv(rootDir: string): Promise<SeedEntityResolver> {
-    const entities = await readCsv<SeedEntityRow>(resolve(rootDir, "seeds/entities.csv"));
-    const aliases = await readCsv<SeedAliasRow>(resolve(rootDir, "seeds/aliases.csv"));
+  static async fromDevFixtures(rootDir: string): Promise<SeedEntityResolver> {
+    const entities = await readCsv<SeedEntityRow>(resolve(rootDir, DEV_ENTITY_FIXTURE_DIR, "entities.csv"));
+    const aliases = await readCsv<SeedAliasRow>(resolve(rootDir, DEV_ENTITY_FIXTURE_DIR, "aliases.csv"));
     const displayNameById = new Map<string, string>();
     const aliasesByNorm = new Map<string, SeedAliasMatch[]>();
     const matchesById = new Map<string, SeedAliasMatch>();

@@ -106,12 +106,11 @@ export const ENTITY_AND_FACILITY_SOURCES = [
     publisher_type: "manual",
     relation_authority: "registry_fact",
     automation: "manual_only",
-    status: "implemented",
-    implemented_package: "@supplystrata/db",
+    status: "removed",
     requires_key: false,
-    official_url: "file://seeds/entities.csv",
-    tos_url: "manual://curated-seeds",
-    notes: "项目内维护的核心公司和高频供应商事实标识；只用于实体解析，不作为关系证据。"
+    official_url: "file://tests/fixtures/dev-entities/entities.csv",
+    tos_url: "manual://dev-fixtures",
+    notes: "已移出生产覆盖路径；仅保留为 tests/fixtures/dev-entities/ 下的 CI 与本地开发 fixture，不作为产品默认实体来源。"
   },
   {
     id: "rmi-facilities",

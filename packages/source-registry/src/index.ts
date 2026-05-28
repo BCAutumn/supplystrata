@@ -59,6 +59,7 @@ export function sourceStatusSummary(): {
   planned: number;
   scoped: number;
   manualOnly: number;
+  removed: number;
   requiresKey: number;
 } {
   const sources = listSources();
@@ -69,6 +70,7 @@ export function sourceStatusSummary(): {
     planned: sources.filter((source) => source.status === "planned").length,
     scoped: sources.filter((source) => source.status === "scoped").length,
     manualOnly: sources.filter((source) => source.status === "manual_only").length,
+    removed: sources.filter((source) => source.status === "removed").length,
     requiresKey: sources.filter((source) => source.requires_key).length
   };
 }

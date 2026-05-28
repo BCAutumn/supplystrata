@@ -28,7 +28,7 @@ interface GoldenCase {
 
 describe("SeedEntityResolver golden set", () => {
   it("resolves a seed-derived golden set above the Phase 2 floor", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const cases = await buildGoldenCases();
 
     expect(cases.length).toBeGreaterThanOrEqual(200);
@@ -45,7 +45,7 @@ describe("SeedEntityResolver golden set", () => {
   });
 
   it("keeps high-risk ambiguous and fuzzy cases out of auto-resolved graph writes", async () => {
-    const resolver = await SeedEntityResolver.fromCsv(process.cwd());
+    const resolver = await SeedEntityResolver.fromDevFixtures(process.cwd());
     const samsung = await resolver.resolve({ surface: "Samsung" });
     const samsungMemory = await resolver.resolve({
       surface: "Samsung",
@@ -90,8 +90,8 @@ describe("SeedEntityResolver golden set", () => {
 });
 
 async function buildGoldenCases(): Promise<GoldenCase[]> {
-  const entities = await readCsv<EntityGoldenRow>("seeds/entities.csv");
-  const aliases = await readCsv<AliasGoldenRow>("seeds/aliases.csv");
+  const entities = await readCsv<EntityGoldenRow>("tests/fixtures/dev-entities/entities.csv");
+  const aliases = await readCsv<AliasGoldenRow>("tests/fixtures/dev-entities/aliases.csv");
   const entitiesById = new Map(entities.map((row) => [row.entity_id, row]));
   const uniqueTickers = uniqueTickerSet(entities.filter((row) => row.status === "active"));
   const cases: GoldenCase[] = [];

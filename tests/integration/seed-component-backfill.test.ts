@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { migrate, seedFromCsv } from "@supplystrata/db/admin";
+import { importDevFixturesFromCsv, migrate } from "@supplystrata/db/admin";
 import type { DbClient } from "@supplystrata/db/write";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 
@@ -11,7 +11,7 @@ describe.skipIf(!hasDatabase)("component seed backfill", () => {
 
   beforeAll(async () => {
     await migrate(pool);
-    await seedFromCsv(pool, process.cwd());
+    await importDevFixturesFromCsv(pool, process.cwd());
     await pool.transaction(cleanupRows);
   });
 
@@ -26,7 +26,7 @@ describe.skipIf(!hasDatabase)("component seed backfill", () => {
 
   it("demotes legacy HBM edges when the primary evidence only says memory", async () => {
     await pool.transaction(insertLegacyHbmEdge);
-    await seedFromCsv(pool, process.cwd());
+    await importDevFixturesFromCsv(pool, process.cwd());
 
     const result = await pool.read.query<{ component: string | null; component_id: string | null; component_specificity: string | null } & pg.QueryResultRow>(
       "SELECT component, component_id, component_specificity FROM edges WHERE edge_id = 'EDGE-ITEST-LEGACY-HBM'"
@@ -47,7 +47,7 @@ describe.skipIf(!hasDatabase)("component seed backfill", () => {
        VALUES ('EDGE-ITEST-MEMORY-TARGET','ENT-ITEST-COMPONENT-BUYER','ENT-ITEST-COMPONENT-SUPPLIER','BUYS_FROM','memory','COMP-MEMORY','unspecified',5,0.93,false,'current')`
       )
     );
-    await seedFromCsv(pool, process.cwd());
+    await importDevFixturesFromCsv(pool, process.cwd());
 
     const result = await pool.read.query<{ validity: string; superseded_by_edge_id: string | null } & pg.QueryResultRow>(
       "SELECT validity, superseded_by_edge_id FROM edges WHERE edge_id = 'EDGE-ITEST-LEGACY-HBM'"
