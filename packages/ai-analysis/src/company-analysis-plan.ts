@@ -48,7 +48,11 @@ function companyContextNode(input: CompanyAiAnalysisPlanInput): Omit<AiAnalysisN
 
 function reasoningWalkthroughNode(input: CompanyAiAnalysisPlanInput): Omit<AiAnalysisNodePlan, "status"> {
   const blockedLayers = input.reasoning_walkthrough.layers.filter(
-    (layer) => layer.status === "blocked_source" || layer.explicit_unknowns.count > 0 || layer.constrained_evidence.official_evidence_gaps.length > 0
+    (layer) =>
+      layer.status === "blocked_source" ||
+      (layer.explicit_unknowns?.count ?? 0) > 0 ||
+      (layer.constrained_evidence?.official_evidence_gaps?.length ?? 0) > 0 ||
+      (layer.constrained_evidence?.source_target_refs?.length ?? 0) > 0
   );
   return {
     node_id: "reasoning_walkthrough_explanation_v0",
@@ -57,7 +61,7 @@ function reasoningWalkthroughNode(input: CompanyAiAnalysisPlanInput): Omit<AiAna
     input_refs: [
       `company:${input.reasoning_walkthrough.company_id}`,
       ...blockedLayers.map((layer) => `reasoning_layer:${layer.layer_id}`),
-      ...blockedLayers.flatMap((layer) => layer.constrained_evidence.source_target_refs.slice(0, 4))
+      ...blockedLayers.flatMap((layer) => (layer.constrained_evidence?.source_target_refs ?? []).slice(0, 4))
     ],
     guardrails: [
       "Explain only the listed reasoning layers and refs.",
@@ -65,7 +69,7 @@ function reasoningWalkthroughNode(input: CompanyAiAnalysisPlanInput): Omit<AiAna
       "Do not recommend autonomous web search or crawling.",
       "Do not write back to the truth store."
     ],
-    cannot_conclude: blockedLayers.flatMap((layer) => layer.cannot_conclude.map((reason) => `${layer.layer_id}: ${reason}`)).slice(0, 16),
+    cannot_conclude: blockedLayers.flatMap((layer) => (layer.cannot_conclude ?? []).map((reason) => `${layer.layer_id}: ${reason}`)).slice(0, 16),
     expected_output_sections: ["layer_statuses", "evidence_boundaries", "blocked_inputs", "cannot_conclude", "review_ready_next_steps"]
   };
 }

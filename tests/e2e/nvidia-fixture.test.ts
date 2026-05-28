@@ -14,7 +14,8 @@ import { loadCompanyCard, loadUnknownMap } from "@supplystrata/card-builder";
 import { renderCompanyCard, renderUnknownMapCard } from "@supplystrata/render";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { buildResearchPack } from "@supplystrata/research-pack";
-import { buildAiProviderStatus, buildCompanyAiAnalysisPlan, buildLocalAiAnalysisArtifact, validateAiAnalysisArtifact } from "@supplystrata/ai-analysis";
+import { buildCompanyAiAnalysisPlan, validateAiAnalysisArtifact } from "@supplystrata/ai-analysis";
+import { buildAiProviderStatus, buildLocalAiAnalysisArtifact } from "@supplystrata/llm-helpers";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "../integration/helpers.js";
 
 const hasDatabase = await canConnectToIntegrationDatabase();
@@ -205,9 +206,21 @@ async function cleanupFixtureRows(client: DbClient): Promise<void> {
     await promoteBestPrimaryEvidenceExcludingFixture(client, edgeId);
   }
   await cleanupFixtureSourceMonitoringRows(client);
+  await cleanupFixtureReviewRows(client);
+  await client.query("DELETE FROM extraction_rejections WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
   await client.query("DELETE FROM evidence WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
   await client.query("DELETE FROM document_chunks WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
   await client.query("DELETE FROM documents WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
+}
+
+async function cleanupFixtureReviewRows(client: DbClient): Promise<void> {
+  const reviewRows = await client.query<{ review_id: string }>("SELECT review_id FROM review_candidates WHERE doc_id = 'DOC-E2E-NVIDIA-10K-FIXTURE'");
+  const reviewIds = reviewRows.rows.map((row) => row.review_id);
+  if (reviewIds.length === 0) return;
+
+  await client.query("DELETE FROM claims WHERE review_id = ANY($1::text[])", [reviewIds]);
+  await client.query("DELETE FROM lead_observations WHERE review_id = ANY($1::text[])", [reviewIds]);
+  await client.query("DELETE FROM review_candidates WHERE review_id = ANY($1::text[])", [reviewIds]);
 }
 
 async function cleanupFixtureSourceMonitoringRows(client: DbClient): Promise<void> {

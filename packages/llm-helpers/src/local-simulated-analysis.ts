@@ -2,11 +2,12 @@ import {
   AI_ANALYSIS_SCHEMA_VERSION,
   type AiAnalysisArtifact,
   type AiAnalysisConsumerInput,
+  type AiAnalysisOfficialEvidenceGapInput,
   type AiAnalysisReasoningInput,
   type AiAnalysisResearchPackManifestInput,
   type BuildLocalAiAnalysisArtifactFromUnknownInput,
   type BuildLocalAiAnalysisArtifactInput
-} from "./definitions.js";
+} from "@supplystrata/ai-analysis";
 
 export function buildLocalAiAnalysisArtifact(input: BuildLocalAiAnalysisArtifactInput): AiAnalysisArtifact {
   const stats = input.manifest.stats;
@@ -93,20 +94,24 @@ export function buildLocalAiAnalysisArtifact(input: BuildLocalAiAnalysisArtifact
 }
 
 export function buildLocalAiAnalysisArtifactFromUnknown(input: BuildLocalAiAnalysisArtifactFromUnknownInput): AiAnalysisArtifact {
+  return buildLocalAiAnalysisArtifact(parseLocalAiAnalysisArtifactInput(input));
+}
+
+export function parseLocalAiAnalysisArtifactInput(input: BuildLocalAiAnalysisArtifactFromUnknownInput): BuildLocalAiAnalysisArtifactInput {
   const manifest = parseManifestInput(input.manifest, "manifest");
   const consumer = parseConsumerInput(input.consumer_read_model, "consumer_read_model");
   const reasoning = parseReasoningInput(input.reasoning_walkthrough, "reasoning_walkthrough");
   const previousManifest =
     input.previous_manifest === undefined || input.previous_manifest === null ? undefined : parseManifestInput(input.previous_manifest, "previous_manifest");
 
-  return buildLocalAiAnalysisArtifact({
+  return {
     generated_at: input.generated_at ?? manifest.generated_at,
     provider: input.provider,
     manifest,
     consumer_read_model: consumer,
     reasoning_walkthrough: reasoning,
     ...(previousManifest === undefined ? {} : { previous_manifest: previousManifest })
-  });
+  };
 }
 
 export function collectAllowedAiAnalysisRefs(input: {
@@ -241,11 +246,28 @@ function parseReasoningLayer(value: unknown, label: string): AiAnalysisReasoning
           constrained_evidence: {
             source_target_refs: stringArray(constrainedEvidence["source_target_refs"] ?? [], `${label}.constrained_evidence.source_target_refs`),
             observation_refs: stringArray(constrainedEvidence["observation_refs"] ?? [], `${label}.constrained_evidence.observation_refs`),
-            lead_refs: stringArray(constrainedEvidence["lead_refs"] ?? [], `${label}.constrained_evidence.lead_refs`)
+            lead_refs: stringArray(constrainedEvidence["lead_refs"] ?? [], `${label}.constrained_evidence.lead_refs`),
+            official_evidence_gaps: parseOfficialEvidenceGaps(
+              constrainedEvidence["official_evidence_gaps"] ?? [],
+              `${label}.constrained_evidence.official_evidence_gaps`
+            )
           }
         }),
     cannot_conclude: stringArray(record["cannot_conclude"] ?? [], `${label}.cannot_conclude`)
   };
+}
+
+function parseOfficialEvidenceGaps(value: unknown, label: string): AiAnalysisOfficialEvidenceGapInput[] {
+  return requireArray(value, label).map((item, index) => {
+    const gap = requireRecord(item, `${label}[${index}]`);
+    return {
+      gap_kind: requireString(gap["gap_kind"], `${label}[${index}].gap_kind`),
+      target_kind: requireString(gap["target_kind"], `${label}[${index}].target_kind`),
+      target_id: requireString(gap["target_id"], `${label}[${index}].target_id`),
+      label: requireString(gap["label"], `${label}[${index}].label`),
+      recommended_action: requireString(gap["recommended_action"], `${label}[${index}].recommended_action`)
+    };
+  });
 }
 
 function optionalRefGroup(value: unknown, label: string): { count: number; refs?: string[] } | undefined {

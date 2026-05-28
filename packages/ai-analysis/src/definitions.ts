@@ -1,5 +1,3 @@
-import type { ConsumerReadModel, ReasoningWalkthrough } from "@supplystrata/research-pack";
-
 export const AI_ANALYSIS_SCHEMA_VERSION = "1.0.0" as const;
 
 export type AiAnalysisProvider = "none" | "openai" | "anthropic" | "deepseek" | "custom";
@@ -117,8 +115,8 @@ export interface AiAnalysisRunStatusItem {
 export interface CompanyAiAnalysisPlanInput {
   generated_at: string;
   provider: AiProviderStatusReport;
-  consumer_read_model: ConsumerReadModel;
-  reasoning_walkthrough: ReasoningWalkthrough;
+  consumer_read_model: AiAnalysisConsumerInput;
+  reasoning_walkthrough: AiAnalysisReasoningInput;
 }
 
 export interface AiAnalysisArtifactPolicy {
@@ -240,8 +238,17 @@ export interface AiAnalysisReasoningLayerInput {
     source_target_refs?: string[];
     observation_refs?: string[];
     lead_refs?: string[];
+    official_evidence_gaps?: AiAnalysisOfficialEvidenceGapInput[];
   };
   cannot_conclude?: string[];
+}
+
+export interface AiAnalysisOfficialEvidenceGapInput {
+  gap_kind: string;
+  target_kind: string;
+  target_id: string;
+  label: string;
+  recommended_action: string;
 }
 
 export interface AiAnalysisCannotConcludeInput {

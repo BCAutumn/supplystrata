@@ -1,5 +1,5 @@
 import type { AiAnalysisProvider, AiAnalysisProviderStatus, AiProviderConfigInput, AiProviderStatusReport } from "./definitions.js";
-import { AI_ANALYSIS_SCHEMA_VERSION } from "./definitions.js";
+import { LLM_HELPERS_SCHEMA_VERSION } from "./definitions.js";
 
 const PROVIDER_API_KEY_ENV_KEYS: Record<Exclude<AiAnalysisProvider, "none">, string[]> = {
   openai: ["LLM_API_KEY", "OPENAI_API_KEY"],
@@ -18,7 +18,7 @@ const DEFAULT_MODELS: Record<Exclude<AiAnalysisProvider, "none">, string> = {
 export function buildAiProviderStatus(input: AiProviderConfigInput, generatedAt: string): AiProviderStatusReport {
   if (input.LLM_PROVIDER === "none") {
     return {
-      schema_version: AI_ANALYSIS_SCHEMA_VERSION,
+      schema_version: LLM_HELPERS_SCHEMA_VERSION,
       generated_at: generatedAt,
       provider: "none",
       status: "disabled",
@@ -43,7 +43,7 @@ export function buildAiProviderStatus(input: AiProviderConfigInput, generatedAt:
   const baseUrlConfigured = input.LLM_BASE_URL !== undefined && input.LLM_BASE_URL.trim().length > 0;
   const status = providerStatus(input.LLM_PROVIDER, apiKeyConfigured, baseUrlConfigured);
   return {
-    schema_version: AI_ANALYSIS_SCHEMA_VERSION,
+    schema_version: LLM_HELPERS_SCHEMA_VERSION,
     generated_at: generatedAt,
     provider: input.LLM_PROVIDER,
     status,

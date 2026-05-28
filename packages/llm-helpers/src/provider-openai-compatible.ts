@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
-import type { AiAnalysisArtifact, AiAnalysisProvider, AiProviderStatusReport, BuildProviderAiAnalysisArtifactFromUnknownInput } from "./definitions.js";
+import {
+  validateAiAnalysisArtifact,
+  type AiAnalysisArtifact,
+  type AiAnalysisProvider,
+  type AiProviderStatusReport,
+  type BuildProviderAiAnalysisArtifactFromUnknownInput
+} from "@supplystrata/ai-analysis";
 import { buildLocalAiAnalysisArtifactFromUnknown } from "./local-simulated-analysis.js";
-import { validateAiAnalysisArtifact } from "./artifact-validation.js";
 
 const DEFAULT_OPENAI_COMPATIBLE_BASE_URLS: Record<"openai" | "deepseek", string> = {
   openai: "https://api.openai.com/v1",
@@ -210,7 +215,8 @@ function safeProviderError(text: string): string {
 function openAiCompatibleBaseUrl(provider: AiAnalysisProvider, configured: string | undefined): string {
   const value = configured?.trim();
   if (value !== undefined && value.length > 0) return value.replace(/\/+$/, "");
-  if (provider === "openai" || provider === "deepseek") return DEFAULT_OPENAI_COMPATIBLE_BASE_URLS[provider];
+  if (provider === "openai") return DEFAULT_OPENAI_COMPATIBLE_BASE_URLS.openai;
+  if (provider === "deepseek") return DEFAULT_OPENAI_COMPATIBLE_BASE_URLS.deepseek;
   throw new Error(`LLM_BASE_URL is required for provider ${provider}.`);
 }
 

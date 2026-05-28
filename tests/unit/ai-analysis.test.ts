@@ -2,15 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type pg from "pg";
 import type { DbClient } from "@supplystrata/db/write";
 import type { ConsumerReadModel, ReasoningWalkthrough } from "@supplystrata/research-pack";
+import { buildCompanyAiAnalysisPlan, listAiAnalysisRuns, recordAiAnalysisRun, validateAiAnalysisArtifact } from "@supplystrata/ai-analysis";
 import {
   buildAiProviderStatus,
-  buildCompanyAiAnalysisPlan,
   buildLocalAiAnalysisArtifact,
   buildProviderAiAnalysisArtifactFromUnknown,
-  collectAllowedAiAnalysisRefs,
-  listAiAnalysisRuns,
-  validateAiAnalysisArtifact
-} from "@supplystrata/ai-analysis";
+  collectAllowedAiAnalysisRefs
+} from "@supplystrata/llm-helpers";
 
 describe("ai analysis", () => {
   afterEach(() => {
@@ -115,6 +113,40 @@ describe("ai analysis", () => {
     expect(client.calls[0]?.sql).toContain("FROM ai_analysis_runs");
     expect(client.calls[0]?.sql).toContain("status = ANY");
     expect(client.calls[0]?.sql).toContain("scope_kind =");
+  });
+
+  it("records AI analysis artifact execution into the audit ledger", async () => {
+    const provider = buildAiProviderStatus({ LLM_PROVIDER: "none" }, "2026-05-27T00:00:00.000Z");
+    const input = {
+      generated_at: "2026-05-27T00:00:00.000Z",
+      provider,
+      manifest: manifestFixture(),
+      consumer_read_model: consumerReadModelFixture(),
+      reasoning_walkthrough: reasoningWalkthroughFixture()
+    };
+    const plan = buildCompanyAiAnalysisPlan(input);
+    const artifact = buildLocalAiAnalysisArtifact(input);
+    const client = new AiAnalysisRunInsertDbClient();
+
+    const run = await recordAiAnalysisRun(client, {
+      plan,
+      artifact,
+      recorded_at: "2026-05-27T00:00:03.000Z"
+    });
+
+    expect(run).toMatchObject({
+      node_id: "company_context_explanation_v0",
+      scope_kind: "company",
+      scope_id: "ENT-NVIDIA",
+      status: "cannot_conclude",
+      provider: "none",
+      output_summary: artifact.headline
+    });
+    expect(run.run_id).toMatch(/^AIR-[A-F0-9]{20}$/);
+    expect(client.calls[0]?.sql).toContain("INSERT INTO ai_analysis_runs");
+    expect(client.calls[0]?.sql).toContain("ON CONFLICT (run_id) DO UPDATE");
+    expect(client.calls[0]?.params[8]).toEqual(artifact.model_metadata.input_refs);
+    expect(client.calls[0]?.params[9]).toEqual(plan.nodes[0]?.guardrails);
   });
 
   it("builds a local AI analysis artifact that preserves read-only guardrails", () => {
@@ -292,6 +324,43 @@ class AiAnalysisRunDbClient implements DbClient {
           started_at: new Date("2026-05-27T00:00:01.000Z"),
           completed_at: new Date("2026-05-27T00:00:02.000Z"),
           updated_at: new Date("2026-05-27T00:00:02.000Z")
+        }
+      ] as unknown as T[]
+    };
+  }
+}
+
+class AiAnalysisRunInsertDbClient implements DbClient {
+  readonly calls: QueryCall[] = [];
+
+  async query<T extends pg.QueryResultRow>(statement: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
+    this.calls.push({ sql: statement, params });
+    return {
+      command: "INSERT",
+      rowCount: 1,
+      oid: 0,
+      fields: [],
+      rows: [
+        {
+          run_id: params[0],
+          node_id: params[1],
+          scope_kind: params[2],
+          scope_id: params[3],
+          status: params[4],
+          provider: params[5],
+          model: params[6],
+          provider_request_id: params[7],
+          input_refs: params[8],
+          guardrail_refs: params[9],
+          cannot_conclude: params[10],
+          prompt_sha256: params[11],
+          output_sha256: params[12],
+          output_summary: params[13],
+          error_message: params[14],
+          created_at: new Date("2026-05-27T00:00:03.000Z"),
+          started_at: new Date("2026-05-27T00:00:03.000Z"),
+          completed_at: new Date("2026-05-27T00:00:03.000Z"),
+          updated_at: new Date("2026-05-27T00:00:03.000Z")
         }
       ] as unknown as T[]
     };

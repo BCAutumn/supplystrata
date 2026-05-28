@@ -1,5 +1,6 @@
-import type { AiAnalysisArtifact, AiAnalysisPlan, AiAnalysisRunStatusReport, AiProviderStatusReport } from "@supplystrata/ai-analysis";
+import type { AiAnalysisArtifact, AiAnalysisPlan, AiAnalysisRunStatusReport } from "@supplystrata/ai-analysis";
 import type { ChainViewModel } from "@supplystrata/chain-view";
+import type { AiProviderStatusReport } from "@supplystrata/llm-helpers";
 import type { ConsumerReadModel, ReasoningWalkthrough } from "@supplystrata/research-pack";
 import type { SourceCheckRunStatusReport } from "@supplystrata/source-monitor";
 import type { ResearchRunReuseReason, ResearchRunStatusReport } from "@supplystrata/source-workflows";

@@ -16,6 +16,7 @@
     "@supplystrata/chain-view": "workspace:*",
     "@supplystrata/config": "workspace:*",
     "@supplystrata/db": "workspace:*",
+    "@supplystrata/llm-helpers": "workspace:*",
     "@supplystrata/observability": "workspace:*",
     "@supplystrata/pipeline": "workspace:*",
     "@supplystrata/render": "workspace:*",

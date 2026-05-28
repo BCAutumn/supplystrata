@@ -56,6 +56,20 @@ module.exports = {
       to: { path: "^packages/sources/" }
     },
     {
+      name: "fact-and-derived-writers-must-not-import-llm-helpers",
+      severity: "error",
+      from: {
+        path: "^packages/(pipeline|graph-builder|claim-builder|review-store|evidence-maintenance|observation-store)/src"
+      },
+      to: { path: "^packages/llm-helpers/src" }
+    },
+    {
+      name: "workspace-packages-must-not-depend-on-reference-agent",
+      severity: "error",
+      from: { path: "^packages/(?!agent/).*?/src" },
+      to: { path: "^packages/agent/src" }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },

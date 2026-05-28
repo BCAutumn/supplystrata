@@ -18,6 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@supplystrata/core": ["packages/core/src/index.ts"],
+      "@supplystrata/agent": ["packages/agent/src/index.ts"],
       "@supplystrata/ai-analysis": ["packages/ai-analysis/src/index.ts"],
       "@supplystrata/api": ["apps/api/src/index.ts"],
       "@supplystrata/config": ["packages/config/src/index.ts"],
@@ -40,6 +41,7 @@
       "@supplystrata/graph": ["packages/graph/src/index.ts"],
       "@supplystrata/graph-builder": ["packages/graph-builder/src/index.ts"],
       "@supplystrata/graph-store": ["packages/graph-store/src/index.ts"],
+      "@supplystrata/llm-helpers": ["packages/llm-helpers/src/index.ts"],
       "@supplystrata/object-store": ["packages/object-store/src/index.ts"],
       "@supplystrata/observation-extractor": ["packages/observation-extractor/src/index.ts"],
       "@supplystrata/observation-store": ["packages/observation-store/src/index.ts"],

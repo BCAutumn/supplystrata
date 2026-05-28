@@ -33,6 +33,7 @@ export interface ApiDtoContract {
 
 export type ApiDtoSourcePackage =
   | "@supplystrata/ai-analysis"
+  | "@supplystrata/llm-helpers"
   | "@supplystrata/render"
   | "@supplystrata/chain-view"
   | "@supplystrata/workbench-export"
@@ -367,7 +368,7 @@ export const API_ROUTES = [
     response_schema_id: "AiProviderStatusApiResponse",
     dto_contract: {
       schema_id: "AiProviderStatusApiResponse",
-      source_package: "@supplystrata/ai-analysis",
+      source_package: "@supplystrata/llm-helpers",
       source_type: "AiProviderStatusReport",
       source_kind: "public_dto",
       notes: "Provider status is sanitized: it exposes readiness, configured env keys, and no secret values."

@@ -18,6 +18,7 @@
     "@supplystrata/evidence-maintenance": "workspace:*",
     "@supplystrata/graph": "workspace:*",
     "@supplystrata/graph-builder": "workspace:*",
+    "@supplystrata/llm-helpers": "workspace:*",
     "@supplystrata/observability": "workspace:*",
     "@supplystrata/pipeline": "workspace:*",
     "@supplystrata/render": "workspace:*",

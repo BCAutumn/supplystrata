@@ -1,5 +1,4 @@
 import {
-  buildAiProviderStatus,
   buildCompanyAiAnalysisPlan,
   listAiAnalysisRuns,
   type AiAnalysisNodeId,
@@ -10,6 +9,7 @@ import { loadChainCard, loadCompanyCard, loadComponentCard, loadEvidenceCard, lo
 import type { Env } from "@supplystrata/config";
 import { getClaim, isEntityResolutionError, listChangeTimeline } from "@supplystrata/db/read";
 import type { DatabaseStore, DbClient } from "@supplystrata/db/write";
+import { buildAiProviderStatus } from "@supplystrata/llm-helpers";
 import { persistDocumentObservations } from "@supplystrata/pipeline";
 import { buildResearchPack, type ConsumerReadModel, type ReasoningWalkthrough } from "@supplystrata/research-pack";
 import { decideReviewCandidateTransactionally } from "@supplystrata/review-store";

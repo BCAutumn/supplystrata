@@ -75,6 +75,9 @@ importers:
       '@supplystrata/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@supplystrata/llm-helpers':
+        specifier: workspace:*
+        version: link:../../packages/llm-helpers
       '@supplystrata/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -138,6 +141,9 @@ importers:
       '@supplystrata/graph-builder':
         specifier: workspace:*
         version: link:../../packages/graph-builder
+      '@supplystrata/llm-helpers':
+        specifier: workspace:*
+        version: link:../../packages/llm-helpers
       '@supplystrata/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -207,6 +213,8 @@ importers:
       '@supplystrata/source-workflows':
         specifier: workspace:*
         version: link:../../packages/source-workflows
+
+  packages/agent: {}
 
   packages/ai-analysis:
     dependencies:
@@ -434,6 +442,12 @@ importers:
       '@supplystrata/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/llm-helpers:
+    dependencies:
+      '@supplystrata/ai-analysis':
+        specifier: workspace:*
+        version: link:../ai-analysis
 
   packages/object-store:
     dependencies:

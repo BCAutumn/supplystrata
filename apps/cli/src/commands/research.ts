@@ -1,13 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Command } from "commander";
+import { buildCompanyAiAnalysisPlan, recordAiAnalysisRun, validateAiAnalysisArtifact } from "@supplystrata/ai-analysis";
+import { loadEnv, type Env } from "@supplystrata/config";
 import {
   buildAiProviderStatus,
-  buildLocalAiAnalysisArtifactFromUnknown,
+  buildLocalAiAnalysisArtifact,
   buildProviderAiAnalysisArtifactFromUnknown,
-  validateAiAnalysisArtifact
-} from "@supplystrata/ai-analysis";
-import { loadEnv, type Env } from "@supplystrata/config";
+  parseLocalAiAnalysisArtifactInput
+} from "@supplystrata/llm-helpers";
 import {
   buildResearchPack,
   buildResearchPackFromWorkbench,
@@ -222,9 +223,10 @@ export function registerResearchCommands(program: Command): void {
         reasoning_walkthrough: reasoningWalkthrough,
         ...(previousManifest === undefined ? {} : { previous_manifest: previousManifest })
       };
+      const parsedArtifactInput = parseLocalAiAnalysisArtifactInput(baseArtifactInput);
       const artifact =
         options.simulate === true || provider.status !== "ready"
-          ? buildLocalAiAnalysisArtifactFromUnknown(baseArtifactInput)
+          ? buildLocalAiAnalysisArtifact(parsedArtifactInput)
           : await buildProviderAiAnalysisArtifactFromUnknown({
               ...baseArtifactInput,
               api_key: requireAiProviderApiKey(env, provider.provider),
@@ -237,6 +239,21 @@ export function registerResearchCommands(program: Command): void {
       if (!validation.ok) {
         throw new Error(`AI analysis artifact failed guardrail validation: ${validation.errors.join("; ")}`);
       }
+      const plan = buildCompanyAiAnalysisPlan({
+        generated_at: generatedAt,
+        provider,
+        consumer_read_model: parsedArtifactInput.consumer_read_model,
+        reasoning_walkthrough: parsedArtifactInput.reasoning_walkthrough
+      });
+      const auditRun = await withDatabase((store) =>
+        store.transaction((client) =>
+          recordAiAnalysisRun(client, {
+            plan,
+            artifact: validation.artifact,
+            recorded_at: generatedAt
+          })
+        )
+      );
       const out = options.out ?? join(options.pack, "ai-analysis.json");
       await mkdir(dirname(out), { recursive: true });
       await writeFile(out, `${JSON.stringify(validation.artifact, null, 2)}\n`, "utf8");
@@ -250,7 +267,8 @@ export function registerResearchCommands(program: Command): void {
         model: validation.artifact.model,
         simulated: validation.artifact.model_metadata.simulated,
         provider_request_id: validation.artifact.model_metadata.provider_request_id,
-        policy: validation.artifact.policy
+        policy: validation.artifact.policy,
+        audit_run_id: auditRun.run_id
       });
     });
 }
