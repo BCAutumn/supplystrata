@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { createReadStream, existsSync } from "node:fs";
-import { createServer, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
+import { readScbomCompanyResource, StreamableHttpScbomResourceTransport } from "@supplystrata/web/mcp-http-client";
 
 interface WebCliOptions {
   readonly port: number;
   readonly bind: "127.0.0.1" | "localhost";
   readonly mcpUrl: string;
   readonly companyId: string;
+  readonly scbomDocument?: unknown;
 }
 
 const ROOT = process.cwd();
@@ -29,25 +31,42 @@ export async function runWebViewerCli(argv: readonly string[], io: { stderr: Pic
 
 export function createWebViewerServer(options: WebCliOptions): Server {
   return createServer((request, response) => {
-    const path = new URL(request.url ?? "/", "http://localhost").pathname;
-    if (path === "/") {
-      writeHtml(response, viewerHtml(options));
-      return;
-    }
-    if (path === "/components.iife.js") {
-      writeFile(response, COMPONENT_BUNDLE_PATH, "application/javascript; charset=utf-8");
-      return;
-    }
-    if (path === "/mcp-http-client.js") {
-      writeFile(response, MCP_CLIENT_PATH, "application/javascript; charset=utf-8");
-      return;
-    }
-    writePlain(response, 404, "Not Found");
+    void handleViewerRequest(request, response, options);
   });
 }
 
-function viewerHtml(options: WebCliOptions): string {
+async function handleViewerRequest(request: IncomingMessage, response: ServerResponse, options: WebCliOptions): Promise<void> {
+  const path = new URL(request.url ?? "/", "http://localhost").pathname;
+  if (path === "/") {
+    try {
+      const scbomDocument = options.scbomDocument ?? (await readViewerScbomDocument(options));
+      writeHtml(response, viewerHtml(options, scbomDocument));
+    } catch (error) {
+      writePlain(response, 502, error instanceof Error ? error.message : "SCBOM viewer could not read MCP resource.");
+    }
+    return;
+  }
+  if (path === "/components.iife.js") {
+    writeFile(response, COMPONENT_BUNDLE_PATH, "application/javascript; charset=utf-8");
+    return;
+  }
+  if (path === "/mcp-http-client.js") {
+    writeFile(response, MCP_CLIENT_PATH, "application/javascript; charset=utf-8");
+    return;
+  }
+  writePlain(response, 404, "Not Found");
+}
+
+async function readViewerScbomDocument(options: WebCliOptions): Promise<unknown> {
+  return readScbomCompanyResource({
+    companyId: options.companyId,
+    transport: new StreamableHttpScbomResourceTransport({ endpoint: options.mcpUrl })
+  });
+}
+
+function viewerHtml(options: WebCliOptions, scbomDocument: unknown): string {
   const configJson = JSON.stringify({ mcpUrl: options.mcpUrl, companyId: options.companyId });
+  const documentJson = JSON.stringify(scbomDocument);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -74,12 +93,11 @@ function viewerHtml(options: WebCliOptions): string {
       <scbom-unknown-map></scbom-unknown-map>
     </main>
     <script type="application/json" id="viewer-config">${escapeScriptJson(configJson)}</script>
-    <script type="module">
-      import { readScbomCompanyResource, StreamableHttpScbomResourceTransport } from "/mcp-http-client.js";
+    <script type="application/json" id="scbom-document">${escapeScriptJson(documentJson)}</script>
+    <script>
       const config = JSON.parse(document.getElementById("viewer-config").textContent);
       window.ScbomViewer.registerScbomComponents();
-      const transport = new StreamableHttpScbomResourceTransport({ endpoint: config.mcpUrl });
-      const documentModel = await readScbomCompanyResource({ companyId: config.companyId, transport });
+      const documentModel = JSON.parse(document.getElementById("scbom-document").textContent);
       for (const element of document.querySelectorAll("scbom-evidence-view, scbom-unknown-map, scbom-supply-chain-graph")) {
         element.scbomDocument = documentModel;
       }

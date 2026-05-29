@@ -1,7 +1,9 @@
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
+import { toScbomDocument } from "@supplystrata/workbench-export";
 import { createWebViewerServer } from "../../apps/web/src/main.js";
+import { workbenchScbomFixture } from "../unit/workbench-scbom-fixture.js";
 
 let closeServer: (() => Promise<void>) | undefined;
 
@@ -16,7 +18,8 @@ describe("local SCBOM viewer app", () => {
       port: 0,
       bind: "127.0.0.1",
       companyId: "ENT-NVIDIA",
-      mcpUrl: "http://127.0.0.1:7474/mcp"
+      mcpUrl: "http://127.0.0.1:7474/mcp",
+      scbomDocument: toScbomDocument(workbenchScbomFixture())
     });
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject);
@@ -39,6 +42,9 @@ describe("local SCBOM viewer app", () => {
     const configJson = html.match(/<script type="application\/json" id="viewer-config">(?<json>.*?)<\/script>/u)?.groups?.["json"];
     expect(configJson).toBeDefined();
     expect(JSON.parse(configJson ?? "{}")).toEqual({ companyId: "ENT-NVIDIA", mcpUrl: "http://127.0.0.1:7474/mcp" });
+    const documentJson = html.match(/<script type="application\/json" id="scbom-document">(?<json>.*?)<\/script>/u)?.groups?.["json"];
+    expect(documentJson).toBeDefined();
+    expect(JSON.parse(documentJson ?? "{}")).toMatchObject({ schema_version: "0.0.1" });
   });
 });
 
