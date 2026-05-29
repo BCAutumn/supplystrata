@@ -17,6 +17,7 @@
     "@modelcontextprotocol/sdk": "1.29.0",
     "@supplystrata/api-orchestration": "workspace:*",
     "@supplystrata/config": "workspace:*",
+    "@supplystrata/community-pack": "workspace:*",
     "@supplystrata/db": "workspace:*",
     "zod": "3.25.76"
   },

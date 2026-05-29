@@ -3,7 +3,7 @@ import { createMcpRuntime, MCP_TRANSPORT_HTTP, MCP_TRANSPORT_STDIO, parseMcpCliO
 
 try {
   const options = parseMcpCliOptions(process.argv.slice(2));
-  const runtime = createMcpRuntime(options.runtime);
+  const runtime = createMcpRuntime(options.runtime, options.packPath === undefined ? {} : { packPath: options.packPath });
   registerRuntimeClose(runtime.close);
 
   switch (options.transport) {

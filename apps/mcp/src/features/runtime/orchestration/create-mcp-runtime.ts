@@ -1,17 +1,20 @@
 import { createDbApiOperationHandlers } from "@supplystrata/api-orchestration";
+import type { ApiOperationHandlers } from "@supplystrata/api-orchestration";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
+import { findCommunityPackScbomDocument, loadCommunityPackFromPath, type LoadedCommunityPack } from "@supplystrata/community-pack";
 import { createDatabaseStore } from "@supplystrata/db/write";
 
-import type { McpRuntime, McpRuntimeMode } from "../definitions/mcp-runtime.js";
+import type { McpRuntime, McpRuntimeMode, McpRuntimeOptions } from "../definitions/mcp-runtime.js";
 import { MCP_RUNTIME_DB, MCP_RUNTIME_FIXTURE } from "../definitions/mcp-runtime.js";
 import { createFixtureApiOperationHandlers, createFixtureWriteExecutors, MCP_FIXTURE_NOW } from "../functions/fixture-mcp-runtime.js";
 
-export function createMcpRuntime(mode: McpRuntimeMode): McpRuntime {
+export function createMcpRuntime(mode: McpRuntimeMode, options: McpRuntimeOptions = {}): McpRuntime {
+  const communityPack = options.packPath === undefined ? undefined : loadCommunityPackFromPath(options.packPath);
   if (mode === MCP_RUNTIME_FIXTURE) {
     return {
       mode,
       serverOptions: {
-        handlers: createFixtureApiOperationHandlers(),
+        handlers: withCommunityPackBaseline(createFixtureApiOperationHandlers(), communityPack),
         writeExecutors: createFixtureWriteExecutors(),
         now: () => MCP_FIXTURE_NOW
       },
@@ -25,10 +28,27 @@ export function createMcpRuntime(mode: McpRuntimeMode): McpRuntime {
   return {
     mode: MCP_RUNTIME_DB,
     serverOptions: {
-      handlers: createDbApiOperationHandlers(store, env)
+      handlers: withCommunityPackBaseline(createDbApiOperationHandlers(store, env), communityPack)
     },
     close: async () => {
       await store.close();
+    }
+  };
+}
+
+function withCommunityPackBaseline(handlers: ApiOperationHandlers, communityPack: LoadedCommunityPack | undefined): ApiOperationHandlers {
+  if (communityPack === undefined) return handlers;
+  return {
+    ...handlers,
+    getCompanyScbomDocument: async (input) => {
+      const companyId = input.path_params["id"];
+      if (companyId !== undefined) {
+        const document = findCommunityPackScbomDocument(communityPack, companyId);
+        if (document !== undefined) return document;
+      }
+      const fallback = handlers["getCompanyScbomDocument"];
+      if (fallback === undefined) throw new Error("MCP community-pack overlay requires getCompanyScbomDocument fallback handler.");
+      return fallback(input);
     }
   };
 }

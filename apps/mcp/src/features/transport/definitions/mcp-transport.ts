@@ -11,11 +11,13 @@ export type McpHttpBindAddress = "127.0.0.1" | "localhost" | "::1" | "0.0.0.0";
 export interface McpStdioCliOptions {
   readonly transport: typeof MCP_TRANSPORT_STDIO;
   readonly runtime: McpRuntimeMode;
+  readonly packPath?: string;
 }
 
 export interface McpHttpCliOptions {
   readonly transport: typeof MCP_TRANSPORT_HTTP;
   readonly runtime: McpRuntimeMode;
+  readonly packPath?: string;
   readonly port: number;
   readonly bind: McpHttpBindAddress;
 }

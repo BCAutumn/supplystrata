@@ -192,6 +192,9 @@ importers:
       '@supplystrata/api-orchestration':
         specifier: workspace:*
         version: link:../../packages/api-orchestration
+      '@supplystrata/community-pack':
+        specifier: workspace:*
+        version: link:../../packages/community-pack
       '@supplystrata/config':
         specifier: workspace:*
         version: link:../../packages/config

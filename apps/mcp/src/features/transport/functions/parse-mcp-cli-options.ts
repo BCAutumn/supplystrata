@@ -13,6 +13,7 @@ const TRANSPORT_PREFIX = "--transport=";
 const RUNTIME_PREFIX = "--runtime=";
 const PORT_PREFIX = "--port=";
 const BIND_PREFIX = "--bind=";
+const PACK_PREFIX = "--pack=";
 
 export function parseMcpCliOptions(args: readonly string[]): McpCliOptions {
   const parsed = parseRawOptions(args);
@@ -22,24 +23,26 @@ export function parseMcpCliOptions(args: readonly string[]): McpCliOptions {
   if (transport === MCP_TRANSPORT_STDIO) {
     if (parsed.port !== undefined) throw new Error("--port is only supported with --transport=http.");
     if (parsed.bind !== undefined) throw new Error("--bind is only supported with --transport=http.");
-    return { transport: MCP_TRANSPORT_STDIO, runtime };
+    return { transport: MCP_TRANSPORT_STDIO, runtime, ...(parsed.packPath === undefined ? {} : { packPath: parsed.packPath }) };
   }
 
   return {
     transport: MCP_TRANSPORT_HTTP,
     runtime,
+    ...(parsed.packPath === undefined ? {} : { packPath: parsed.packPath }),
     port: parsePort(parsed.port ?? String(DEFAULT_MCP_HTTP_PORT)),
     bind: parseBind(parsed.bind ?? DEFAULT_MCP_HTTP_BIND)
   };
 }
 
-function parseRawOptions(args: readonly string[]): { transport?: string; runtime?: string; port?: string; bind?: string } {
-  const output: { transport?: string; runtime?: string; port?: string; bind?: string } = {};
+function parseRawOptions(args: readonly string[]): { transport?: string; runtime?: string; port?: string; bind?: string; packPath?: string } {
+  const output: { transport?: string; runtime?: string; port?: string; bind?: string; packPath?: string } = {};
   for (const arg of args) {
     if (arg.startsWith(TRANSPORT_PREFIX)) output.transport = arg.slice(TRANSPORT_PREFIX.length);
     else if (arg.startsWith(RUNTIME_PREFIX)) output.runtime = arg.slice(RUNTIME_PREFIX.length);
     else if (arg.startsWith(PORT_PREFIX)) output.port = arg.slice(PORT_PREFIX.length);
     else if (arg.startsWith(BIND_PREFIX)) output.bind = arg.slice(BIND_PREFIX.length);
+    else if (arg.startsWith(PACK_PREFIX)) output.packPath = arg.slice(PACK_PREFIX.length);
     else throw new Error(`Unsupported MCP CLI argument: ${arg}`);
   }
   return output;

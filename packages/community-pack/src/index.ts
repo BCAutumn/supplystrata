@@ -6,7 +6,7 @@ export {
   COMMUNITY_PACK_SCBOM_SCHEMA_VERSION,
   COMMUNITY_PACK_SHA256_ALGORITHM
 } from "./definitions/manifest.js";
-export type { CommunityPackBuildInput, CommunityPackBuildResult, CommunityPackEligibilitySummary } from "./definitions/exporter.js";
+export type { CommunityPackBuildInput, CommunityPackBuildResult, CommunityPackEligibilitySummary, LoadedCommunityPack } from "./definitions/exporter.js";
 export type {
   CommunityPackCanonicalFormat,
   CommunityPackDataFileContent,
@@ -26,6 +26,8 @@ export type {
 export {
   assertCommunityPackFileIntegrity,
   assertCommunityPackManifest,
+  findCommunityPackScbomDocument,
+  loadCommunityPackFromPath,
   manifestFileForScbomJsonl,
   manifestTotals,
   parseCommunityPackManifest,

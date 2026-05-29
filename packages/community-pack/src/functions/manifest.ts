@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { dirname, join } from "node:path";
+import { readFileSync, statSync } from "node:fs";
 import Ajv2020 from "ajv/dist/2020.js";
 import type { ScbomDocument, ScbomObject, ScbomObjectType } from "@scbom/spec";
 import commonSchema from "@scbom/spec/schemas/common" with { type: "json" };
@@ -22,6 +24,7 @@ import {
   type CommunityPackManifestFile,
   type CommunityPackObjectCounts
 } from "../definitions/manifest.js";
+import type { LoadedCommunityPack } from "../definitions/exporter.js";
 
 const PACK_VERSION_PATTERN = /^pack-[0-9]{4}\.Q[1-4]$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -65,6 +68,29 @@ export function parseCommunityPackManifest(text: string): CommunityPackManifest 
   const parsed: unknown = JSON.parse(text);
   assertCommunityPackManifest(parsed);
   return parsed;
+}
+
+export function loadCommunityPackFromPath(path: string): LoadedCommunityPack {
+  const manifestPath = statSync(path).isDirectory() ? join(path, "manifest.json") : path;
+  const baseDir = dirname(manifestPath);
+  const manifest = parseCommunityPackManifest(readFileSync(manifestPath, "utf8"));
+  const files = manifest.files.map((file) => ({
+    path: file.path,
+    content: readFileSync(join(baseDir, file.path))
+  }));
+  assertCommunityPackFileIntegrity(manifest, files);
+  return {
+    manifest,
+    documents: files.flatMap((file) =>
+      parseScbomJsonl(contentToText(file.content)).map((document) => markCommunityPackBaseline(document, manifest.pack_version))
+    )
+  };
+}
+
+export function findCommunityPackScbomDocument(pack: LoadedCommunityPack, companyId: string): ScbomDocument | undefined {
+  return pack.documents.find((document) =>
+    document.objects.some((object) => object.object_type === "entity" && object.id.toLowerCase() === companyId.toLowerCase())
+  );
 }
 
 export function assertCommunityPackManifest(value: unknown): asserts value is CommunityPackManifest {
@@ -153,6 +179,19 @@ function parseScbomJsonl(text: string): ScbomDocument[] {
     }
     return parsed;
   });
+}
+
+function markCommunityPackBaseline(document: ScbomDocument, packVersion: string): ScbomDocument {
+  return {
+    ...document,
+    objects: document.objects.map((object) => ({
+      ...object,
+      provenance: {
+        ...object.provenance,
+        method: `community-pack:${packVersion}`
+      }
+    }))
+  };
 }
 
 function assertCommunityPackScbomDocument(value: unknown): asserts value is ScbomDocument {
