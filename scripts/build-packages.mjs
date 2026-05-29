@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { chmodSync, cpSync, existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import { spawnSync } from "node:child_process";
+import { evaluateBundleSizeGate } from "./browser-bundle-policy.mjs";
 
 const rootDir = process.cwd();
 const tscBin = process.platform === "win32" ? "tsc.cmd" : "tsc";
@@ -111,6 +112,7 @@ function buildPackage(dir) {
   }
   copyExecutableModeIfNeeded(dir);
   copyPackageAssets(dir, outDir);
+  buildBrowserBundles(dir, readPackageJson(dir));
   console.log(`Built ${relative(rootDir, dir)}`);
 }
 
@@ -144,6 +146,84 @@ function copyPackageAssets(dir, outDir) {
   const patternsDir = join(dir, "patterns");
   const targetDir = join(outDir, "..", "patterns");
   if (existsSync(patternsDir) && patternsDir !== targetDir) cpSync(patternsDir, targetDir, { recursive: true });
+}
+
+function buildBrowserBundles(dir, pkg) {
+  const config = browserBundleConfig(pkg);
+  if (config.length === 0) return;
+  for (const bundle of config) {
+    const outfile = join(dir, bundle.outfile);
+    const result = spawnSync(
+      pnpmBin,
+      [
+        "--dir",
+        dir,
+        "exec",
+        "esbuild",
+        bundle.entry,
+        "--bundle",
+        "--minify",
+        "--platform=browser",
+        "--target=es2022",
+        `--format=${bundle.format}`,
+        `--global-name=${bundle.globalName}`,
+        `--outfile=${bundle.outfile}`
+      ],
+      { cwd: rootDir, encoding: "utf8", stdio: "pipe" }
+    );
+    if (result.status !== 0) {
+      throw new Error([`Browser bundle failed for ${relative(rootDir, dir)}`, result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n"));
+    }
+    const size = evaluateBundleSizeGate({
+      path: relative(rootDir, outfile),
+      content: readFileSync(outfile),
+      maxGzipBytes: bundle.maxGzipBytes
+    });
+    if (!size.ok) {
+      throw new Error(`Browser bundle ${size.path} is ${size.gzipBytes} gzip bytes, above limit ${size.maxGzipBytes}`);
+    }
+  }
+}
+
+function browserBundleConfig(pkg) {
+  const build = pkg.supplystrataBuild;
+  if (!isRecord(build)) return [];
+  const bundles = build.browserBundles;
+  if (!Array.isArray(bundles)) return [];
+  return bundles.map((bundle, index) => readBrowserBundleConfig(bundle, `${pkg.name}.supplystrataBuild.browserBundles[${index}]`));
+}
+
+function readBrowserBundleConfig(value, path) {
+  if (!isRecord(value)) throw new Error(`${path} must be an object`);
+  return {
+    entry: readString(value, "entry", path),
+    outfile: readString(value, "outfile", path),
+    format: readBrowserFormat(value, path),
+    globalName: readString(value, "globalName", path),
+    maxGzipBytes: readPositiveInteger(value, "maxGzipBytes", path)
+  };
+}
+
+function readBrowserFormat(value, path) {
+  const format = readString(value, "format", path);
+  if (format !== "iife") throw new Error(`${path}.format must be iife`);
+  return format;
+}
+
+function readString(value, key, path) {
+  const field = value[key];
+  if (typeof field !== "string" || field.length === 0) throw new Error(`${path}.${key} must be a non-empty string`);
+  return field;
+}
+
+function readPositiveInteger(value, key, path) {
+  const field = value[key];
+  if (!Number.isInteger(field) || field <= 0) throw new Error(`${path}.${key} must be a positive integer`);
+  return field;
+}
+
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function readPackageJson(dir) {

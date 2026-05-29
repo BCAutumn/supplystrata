@@ -1,0 +1,41 @@
+{
+  "name": "@supplystrata/web",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./components": {
+      "development": "./src/components.ts",
+      "types": "./dist/components.d.ts",
+      "import": "./dist/components.js",
+      "browser": "./dist/components.iife.js"
+    }
+  },
+  "dependencies": {
+    "@scbom/spec": "github:BCAutumn/scbom-spec#v0.0.1",
+    "lit": "^3.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "supplystrataBuild": {
+    "browserBundles": [
+      {
+        "entry": "src/components.ts",
+        "outfile": "dist/components.iife.js",
+        "format": "iife",
+        "globalName": "ScbomViewer",
+        "maxGzipBytes": 204800
+      }
+    ]
+  }
+}

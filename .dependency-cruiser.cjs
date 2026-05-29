@@ -114,6 +114,18 @@ module.exports = {
       to: { path: "^tests/fixtures/" }
     },
     {
+      name: "web-must-not-import-react-vue-or-svelte",
+      severity: "error",
+      from: { path: "^packages/web/src" },
+      to: { path: "^node_modules/(react|react-dom|vue|svelte|@sveltejs/kit)" }
+    },
+    {
+      name: "web-headless-entry-must-not-import-component-layer",
+      severity: "error",
+      from: { path: "^packages/web/src/(index|definitions|functions)/" },
+      to: { path: "^packages/web/src/components" }
+    },
+    {
       name: "graph-builder-must-use-graph-store-interface",
       severity: "error",
       from: { path: "^packages/graph-builder/src" },
