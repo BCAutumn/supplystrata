@@ -1,4 +1,6 @@
 import Graph from "graphology";
+import forceAtlas2 from "graphology-layout-forceatlas2";
+import noverlap from "graphology-layout-noverlap";
 import type {
   ScbomAssessment,
   ScbomChange,
@@ -26,14 +28,32 @@ import type {
 } from "../definitions/scbom-view.js";
 
 interface GraphNodeAttributes {
-  readonly label: string;
-  readonly kind: ScbomViewGraphNode["kind"];
+  label: string;
+  kind: ScbomViewGraphNode["kind"];
+  x: number;
+  y: number;
+  size: number;
 }
 
 interface GraphEdgeAttributes {
-  readonly label: string;
-  readonly kind: ScbomViewGraphEdge["kind"];
+  label: string;
+  kind: ScbomViewGraphEdge["kind"];
+  weight: number;
 }
+
+interface LabelBox {
+  readonly nodeId: string;
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+const LABEL_HEIGHT = 14;
+const LABEL_VERTICAL_GAP = 14;
+const LABEL_HORIZONTAL_GAP = 12;
+const MIN_NODE_GAP = 10;
+const GRAPH_PADDING = 28;
 
 export function createScbomView(document: ScbomDocument): ScbomView {
   const warnings: ScbomViewWarning[] = [];
@@ -180,7 +200,7 @@ function buildGraphView(
   warnings: ScbomViewWarning[]
 ): ScbomView["graph"] {
   const graph = new Graph<GraphNodeAttributes, GraphEdgeAttributes>({ type: "directed", multi: true });
-  for (const entity of entities) graph.addNode(entity.id, { label: entity.name, kind: "entity" });
+  for (const entity of entities) graph.addNode(entity.id, { label: entity.name, kind: "entity", x: 0, y: 0, size: 8 });
 
   for (const relationship of relationships) {
     if (!graph.hasNode(relationship.subject_ref) || !graph.hasNode(relationship.object_ref)) {
@@ -193,12 +213,14 @@ function buildGraphView(
     }
     graph.addDirectedEdgeWithKey(relationship.id, relationship.subject_ref, relationship.object_ref, {
       label: relationship.predicate,
-      kind: "relationship"
+      kind: "relationship",
+      weight: 1
     });
   }
 
+  const nodes = layoutGraphNodes(graph);
   return {
-    nodes: layoutGraphNodes(graph),
+    nodes,
     edges: graph
       .edges()
       .sort((left, right) => left.localeCompare(right))
@@ -208,7 +230,8 @@ function buildGraphView(
         target: graph.target(edge),
         kind: graph.getEdgeAttribute(edge, "kind"),
         label: graph.getEdgeAttribute(edge, "label")
-      }))
+      })),
+    bounds: graphBounds(nodes)
   };
 }
 
@@ -218,23 +241,266 @@ function layoutGraphNodes(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>
     return byLabel === 0 ? left.localeCompare(right) : byLabel;
   });
   if (nodes.length === 0) return [];
-  if (nodes.length === 1) return [viewNode(graph, nodes[0] ?? "", 0, 0)];
+  seedInitialGraphLayout(graph, nodes);
+  for (const node of nodes) graph.setNodeAttribute(node, "size", nodeSize(graph, node));
+  if (nodes.length > 1) {
+    forceAtlas2.assign<GraphNodeAttributes, GraphEdgeAttributes>(graph, {
+      iterations: layoutIterations(nodes.length),
+      getEdgeWeight: "weight",
+      settings: {
+        adjustSizes: true,
+        barnesHutOptimize: nodes.length > 80,
+        gravity: 1.2,
+        scalingRatio: 18,
+        slowDown: 4
+      }
+    });
+    noverlap.assign(graph, {
+      maxIterations: 120,
+      settings: {
+        margin: MIN_NODE_GAP,
+        ratio: 1.8,
+        speed: 3
+      }
+    });
+    normalizeGraphLayout(graph, nodes);
+    resolveNodeCollisions(graph, nodes);
+  }
 
-  const radius = 160;
-  return nodes.map((node, index) => {
+  const labels = placeGraphLabels(graph, nodes);
+  return nodes.map((node) => viewNode(graph, node, labels.get(node)));
+}
+
+function seedInitialGraphLayout(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodes: readonly string[]): void {
+  if (nodes.length === 1) {
+    graph.setNodeAttribute(nodes[0] ?? "", "x", 0);
+    graph.setNodeAttribute(nodes[0] ?? "", "y", 0);
+    return;
+  }
+
+  const radius = initialLayoutRadius(nodes.length);
+  nodes.forEach((node, index) => {
     const angle = (Math.PI * 2 * index) / nodes.length - Math.PI / 2;
-    return viewNode(graph, node, roundLayoutValue(Math.cos(angle) * radius), roundLayoutValue(Math.sin(angle) * radius));
+    graph.setNodeAttribute(node, "x", Math.cos(angle) * radius);
+    graph.setNodeAttribute(node, "y", Math.sin(angle) * radius);
   });
 }
 
-function viewNode(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodeId: string, x: number, y: number): ScbomViewGraphNode {
+function normalizeGraphLayout(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodes: readonly string[]): void {
+  const xValues = nodes.map((node) => graph.getNodeAttribute(node, "x"));
+  const yValues = nodes.map((node) => graph.getNodeAttribute(node, "y"));
+  const minX = Math.min(...xValues);
+  const maxX = Math.max(...xValues);
+  const minY = Math.min(...yValues);
+  const maxY = Math.max(...yValues);
+  const width = Math.max(maxX - minX, 1);
+  const height = Math.max(maxY - minY, 1);
+  const scale = Math.min(380 / width, 320 / height, 4);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  for (const node of nodes) {
+    graph.setNodeAttribute(node, "x", roundLayoutValue((graph.getNodeAttribute(node, "x") - centerX) * scale));
+    graph.setNodeAttribute(node, "y", roundLayoutValue((graph.getNodeAttribute(node, "y") - centerY) * scale));
+  }
+}
+
+function placeGraphLabels(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodes: readonly string[]): ReadonlyMap<string, LabelBox> {
+  const labels = new Map<string, LabelBox>();
+  const placed: LabelBox[] = [];
+  const byPosition = nodes.slice().sort((left, right) => {
+    const byY = graph.getNodeAttribute(left, "y") - graph.getNodeAttribute(right, "y");
+    if (byY !== 0) return byY;
+    const byX = graph.getNodeAttribute(left, "x") - graph.getNodeAttribute(right, "x");
+    return byX === 0 ? left.localeCompare(right) : byX;
+  });
+
+  for (const node of byPosition) {
+    const box = bestLabelBox(graph, node, placed);
+    labels.set(node, box);
+    placed.push(box);
+  }
+
+  return labels;
+}
+
+function bestLabelBox(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, node: string, placed: readonly LabelBox[]): LabelBox {
+  const x = graph.getNodeAttribute(node, "x");
+  const y = graph.getNodeAttribute(node, "y");
+  const size = graph.getNodeAttribute(node, "size");
+  const width = labelWidth(graph.getNodeAttribute(node, "label"));
+  const candidates = labelCandidates(node, x, y, size, width);
+  const clear = candidates.find((candidate) => labelCollisionScore(candidate, placed) === 0);
+  return (
+    clear ??
+    candidates.slice().sort((left, right) => labelCollisionScore(left, placed) - labelCollisionScore(right, placed))[0] ??
+    candidates[0] ?? {
+      nodeId: node,
+      centerX: x,
+      centerY: y + size + LABEL_VERTICAL_GAP,
+      width,
+      height: LABEL_HEIGHT
+    }
+  );
+}
+
+function labelCandidates(nodeId: string, x: number, y: number, size: number, width: number): LabelBox[] {
+  const baseVertical = size + LABEL_VERTICAL_GAP;
+  const baseHorizontal = size + LABEL_HORIZONTAL_GAP + width / 2;
+  const directions = [
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+    { x: 1, y: 0.2 },
+    { x: -1, y: 0.2 },
+    { x: 0.8, y: 1 },
+    { x: -0.8, y: 1 },
+    { x: 0.8, y: -1 },
+    { x: -0.8, y: -1 }
+  ];
+  const candidates: LabelBox[] = [];
+  for (let step = 1; step <= 10; step += 1) {
+    for (const direction of directions) {
+      candidates.push({
+        nodeId,
+        centerX: x + direction.x * baseHorizontal * step,
+        centerY: y + direction.y * baseVertical * step,
+        width,
+        height: LABEL_HEIGHT
+      });
+    }
+  }
+  return candidates.map((candidate) => ({
+    ...candidate,
+    centerX: roundLayoutValue(candidate.centerX),
+    centerY: roundLayoutValue(candidate.centerY)
+  }));
+}
+
+function labelCollisionScore(candidate: LabelBox, placed: readonly LabelBox[]): number {
+  return placed.reduce((score, box) => score + labelOverlapArea(candidate, box), 0);
+}
+
+function labelOverlapArea(left: LabelBox, right: LabelBox): number {
+  const overlapX = Math.max(0, Math.min(labelRight(left), labelRight(right)) - Math.max(labelLeft(left), labelLeft(right)));
+  const overlapY = Math.max(0, Math.min(labelBottom(left), labelBottom(right)) - Math.max(labelTop(left), labelTop(right)));
+  return overlapX * overlapY;
+}
+
+function graphBounds(nodes: readonly ScbomViewGraphNode[]): ScbomView["graph"]["bounds"] {
+  if (nodes.length === 0) return { min_x: -240, min_y: -220, width: 480, height: 440 };
+  const minX = Math.min(...nodes.map((node) => Math.min(node.x - node.size, node.label_x - node.label_width / 2))) - GRAPH_PADDING;
+  const maxX = Math.max(...nodes.map((node) => Math.max(node.x + node.size, node.label_x + node.label_width / 2))) + GRAPH_PADDING;
+  const minY = Math.min(...nodes.map((node) => Math.min(node.y - node.size, node.label_y - LABEL_HEIGHT))) - GRAPH_PADDING;
+  const maxY = Math.max(...nodes.map((node) => Math.max(node.y + node.size, node.label_y + 2))) + GRAPH_PADDING;
+  return {
+    min_x: roundLayoutValue(minX),
+    min_y: roundLayoutValue(minY),
+    width: roundLayoutValue(Math.max(maxX - minX, 120)),
+    height: roundLayoutValue(Math.max(maxY - minY, 120))
+  };
+}
+
+function resolveNodeCollisions(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodes: readonly string[]): void {
+  for (let iteration = 0; iteration < 120; iteration += 1) {
+    let moved = false;
+    for (let leftIndex = 0; leftIndex < nodes.length; leftIndex += 1) {
+      const left = nodes[leftIndex];
+      if (left === undefined) continue;
+      for (let rightIndex = leftIndex + 1; rightIndex < nodes.length; rightIndex += 1) {
+        const right = nodes[rightIndex];
+        if (right === undefined) continue;
+        const leftX = graph.getNodeAttribute(left, "x");
+        const leftY = graph.getNodeAttribute(left, "y");
+        const rightX = graph.getNodeAttribute(right, "x");
+        const rightY = graph.getNodeAttribute(right, "y");
+        const minDistance = graph.getNodeAttribute(left, "size") + graph.getNodeAttribute(right, "size") + MIN_NODE_GAP;
+        const deltaX = rightX - leftX;
+        const deltaY = rightY - leftY;
+        const distance = Math.max(Math.hypot(deltaX, deltaY), 0.001);
+        if (distance >= minDistance) continue;
+
+        const push = (minDistance - distance) / 2 + 0.2;
+        const direction = collisionDirection(left, right, deltaX, deltaY);
+        graph.setNodeAttribute(left, "x", roundLayoutValue(leftX - direction.x * push));
+        graph.setNodeAttribute(left, "y", roundLayoutValue(leftY - direction.y * push));
+        graph.setNodeAttribute(right, "x", roundLayoutValue(rightX + direction.x * push));
+        graph.setNodeAttribute(right, "y", roundLayoutValue(rightY + direction.y * push));
+        moved = true;
+      }
+    }
+    if (!moved) return;
+  }
+}
+
+function collisionDirection(left: string, right: string, deltaX: number, deltaY: number): { readonly x: number; readonly y: number } {
+  const distance = Math.hypot(deltaX, deltaY);
+  if (distance > 0.001) return { x: deltaX / distance, y: deltaY / distance };
+  const hash = stablePairHash(left, right);
+  const angle = (hash / 360) * Math.PI * 2;
+  return { x: Math.cos(angle), y: Math.sin(angle) };
+}
+
+function stablePairHash(left: string, right: string): number {
+  let hash = 0;
+  for (const char of `${left}:${right}`) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+  return hash;
+}
+
+function viewNode(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodeId: string, label: LabelBox | undefined): ScbomViewGraphNode {
+  const x = roundLayoutValue(graph.getNodeAttribute(nodeId, "x"));
+  const y = roundLayoutValue(graph.getNodeAttribute(nodeId, "y"));
+  const labelWidth = label?.width ?? labelWidthForNode(graph, nodeId);
   return {
     id: nodeId,
     label: graph.getNodeAttribute(nodeId, "label"),
     kind: graph.getNodeAttribute(nodeId, "kind"),
+    size: roundLayoutValue(graph.getNodeAttribute(nodeId, "size")),
     x,
-    y
+    y,
+    label_x: label?.centerX ?? x,
+    label_y: label?.centerY ?? y + graph.getNodeAttribute(nodeId, "size") + LABEL_VERTICAL_GAP,
+    label_width: labelWidth
   };
+}
+
+function initialLayoutRadius(nodeCount: number): number {
+  return Math.max(120, Math.min(320, nodeCount * 12));
+}
+
+function layoutIterations(nodeCount: number): number {
+  return Math.max(60, Math.min(180, nodeCount * 3));
+}
+
+function nodeSize(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodeId: string): number {
+  return 9 + Math.min(graph.degree(nodeId), 8) * 1.4;
+}
+
+function labelWidthForNode(graph: Graph<GraphNodeAttributes, GraphEdgeAttributes>, nodeId: string): number {
+  return labelWidth(graph.getNodeAttribute(nodeId, "label"));
+}
+
+function labelWidth(label: string): number {
+  return Math.min(shortGraphLabel(label).length * 6.6 + 8, 132);
+}
+
+function shortGraphLabel(label: string): string {
+  return label.length > 18 ? `${label.slice(0, 15)}...` : label;
+}
+
+function labelLeft(box: LabelBox): number {
+  return box.centerX - box.width / 2;
+}
+
+function labelRight(box: LabelBox): number {
+  return box.centerX + box.width / 2;
+}
+
+function labelTop(box: LabelBox): number {
+  return box.centerY - box.height;
+}
+
+function labelBottom(box: LabelBox): number {
+  return box.centerY + 2;
 }
 
 function roundLayoutValue(value: number): number {

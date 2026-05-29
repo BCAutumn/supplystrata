@@ -28,6 +28,7 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
     ScbomBaseElement.styles,
     css`
       [part="graph-canvas"] {
+        height: 460px;
         min-height: 460px;
         border: 1px solid var(--scbom-color-border);
         border-radius: var(--scbom-radius);
@@ -49,6 +50,7 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
       [part="graph-svg"] {
         box-sizing: border-box;
         width: 100%;
+        height: 420px;
         min-height: 420px;
         margin-top: 12px;
         border: 1px solid var(--scbom-color-border);
@@ -103,8 +105,8 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
         <p part="status">
           ${graph?.nodes.length ?? 0} entities / ${graph?.edges.length ?? 0} relationships. Evidence and unknowns remain in their dedicated views.
         </p>
-        <div part="graph-canvas" data-renderer=${this.rendererStatus}></div>
         ${this.renderSvgGraph(graph?.nodes ?? [], graph?.edges ?? [])}
+        <div part="graph-canvas" data-renderer=${this.rendererStatus}></div>
         <div part="graph-fallback">${this.renderFallbackNodes(graph?.nodes ?? [])}${this.renderFallbackEdges(graph?.edges ?? [])}</div>
       `
     );
@@ -112,8 +114,9 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
 
   private renderSvgGraph(nodes: readonly ScbomViewGraphNode[], edges: readonly ScbomViewGraphEdge[]): SVGTemplateResult {
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
+    const bounds = this.view?.graph.bounds ?? { min_x: -240, min_y: -220, width: 480, height: 440 };
     return svg`
-      <svg part="graph-svg" viewBox="-240 -220 480 440" role="img" aria-label="SCBOM relationship graph">
+      <svg part="graph-svg" viewBox="${bounds.min_x} ${bounds.min_y} ${bounds.width} ${bounds.height}" role="img" aria-label="SCBOM relationship graph">
         <defs>
           <marker id="scbom-arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
             <path d="M0,0 L0,6 L7,3 z" fill="#98a2b3"></path>
@@ -143,10 +146,8 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
 
   private renderSvgNode(node: ScbomViewGraphNode): SVGTemplateResult {
     return svg`
-      <g transform="translate(${node.x} ${node.y})">
-        <circle part="graph-svg-node" r="10"></circle>
-        <text part="graph-svg-label" text-anchor="middle" y="24">${shortLabel(node.label)}</text>
-      </g>
+      <circle part="graph-svg-node" cx=${node.x} cy=${node.y} r=${node.size}></circle>
+      <text part="graph-svg-label" text-anchor="middle" x=${node.label_x} y=${node.label_y}>${shortLabel(node.label)}</text>
     `;
   }
 
@@ -202,7 +203,7 @@ function buildSigmaGraph(nodes: readonly ScbomViewGraphNode[], edges: readonly S
       x: node.x,
       y: node.y,
       label: node.label,
-      size: 8,
+      size: node.size,
       color: "#2563eb"
     });
   }

@@ -23,6 +23,8 @@
   "dependencies": {
     "@scbom/spec": "git+https://github.com/BCAutumn/scbom-spec.git#v0.0.1",
     "graphology": "^0.26.0",
+    "graphology-layout-forceatlas2": "^0.10.1",
+    "graphology-layout-noverlap": "^0.4.2",
     "lit": "^3.3.1",
     "sigma": "^3.0.3"
   },

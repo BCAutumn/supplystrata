@@ -76,8 +76,12 @@ export interface ScbomViewGraphNode {
   readonly id: string;
   readonly label: string;
   readonly kind: "entity" | "evidence" | "observation" | "unknown" | "change";
+  readonly size: number;
   readonly x: number;
   readonly y: number;
+  readonly label_x: number;
+  readonly label_y: number;
+  readonly label_width: number;
 }
 
 export interface ScbomViewGraphEdge {
@@ -100,7 +104,15 @@ export interface ScbomView {
   readonly graph: {
     readonly nodes: readonly ScbomViewGraphNode[];
     readonly edges: readonly ScbomViewGraphEdge[];
+    readonly bounds: ScbomViewGraphBounds;
   };
+}
+
+export interface ScbomViewGraphBounds {
+  readonly min_x: number;
+  readonly min_y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface ScbomViewWarning {
