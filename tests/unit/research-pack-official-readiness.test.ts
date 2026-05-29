@@ -3,8 +3,8 @@ import type { WorkbenchModel } from "@supplystrata/workbench-export";
 import {
   buildInvestigationBacklog,
   buildOfficialDisclosureReadinessReport,
-  getBuiltInResearchTargetProfile,
-  listBuiltInResearchTargetProfiles,
+  getAnchorResearchTargetProfile,
+  listAnchorResearchTargetProfiles,
   renderOfficialDisclosureReadinessMarkdown
 } from "@supplystrata/research-pack";
 import {
@@ -421,10 +421,10 @@ describe("research-pack official disclosure readiness", () => {
     expect(renderOfficialDisclosureReadinessMarkdown(report)).toContain("[target] COMP-HBM");
   });
 
-  it("keeps built-in research target profiles deterministic and reviewable", () => {
-    const profiles = listBuiltInResearchTargetProfiles();
-    const profile = getBuiltInResearchTargetProfile("ai-compute-memory.v0");
-    const evProfile = getBuiltInResearchTargetProfile("ev-battery-energy.v0");
+  it("keeps anchor research target profiles deterministic and reviewable", () => {
+    const profiles = listAnchorResearchTargetProfiles();
+    const profile = getAnchorResearchTargetProfile("ai-compute-memory.v0");
+    const evProfile = getAnchorResearchTargetProfile("ev-battery-energy.v0");
 
     expect(profiles.map((item) => item.profile_id)).toEqual(["ai-compute-memory.v0", "ev-battery-energy.v0"]);
     expect(profile.target_nodes).toHaveLength(39);

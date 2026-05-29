@@ -4,9 +4,11 @@ export const RESEARCH_TARGET_PROFILE_IDS = ["ai-compute-memory.v0", "ev-battery-
 
 export type ResearchTargetProfileId = (typeof RESEARCH_TARGET_PROFILE_IDS)[number];
 export type ResearchTargetProfileVersion = "0.1.0";
+export type ResearchTargetProfileLayer = "anchor" | "derived";
 
-export interface ResearchTargetProfile {
-  profile_id: ResearchTargetProfileId;
+export interface ResearchTargetProfileBase {
+  layer: ResearchTargetProfileLayer;
+  profile_id: string;
   version: ResearchTargetProfileVersion;
   title: string;
   description: string;
@@ -15,8 +17,27 @@ export interface ResearchTargetProfile {
   target_nodes: OfficialDisclosureReadinessTargetNode[];
 }
 
+export interface AnchorResearchTargetProfile extends ResearchTargetProfileBase {
+  layer: "anchor";
+  profile_id: ResearchTargetProfileId;
+}
+
+export interface DerivedResearchTargetProfile extends ResearchTargetProfileBase {
+  layer: "derived";
+  profile_id: "derived.runtime.v0";
+  derivation: {
+    status: "placeholder";
+    company_id: string;
+    component_ids: string[];
+    reason: string;
+  };
+}
+
+export type ResearchTargetProfile = AnchorResearchTargetProfile | DerivedResearchTargetProfile;
+
 export interface ResearchTargetProfileSelection {
   profile: ResearchTargetProfile | null;
+  layer: ResearchTargetProfileLayer | "none";
   reason: string;
 }
 

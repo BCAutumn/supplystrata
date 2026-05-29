@@ -358,6 +358,7 @@ export interface WorkbenchSnapshotPackModel {
 }
 
 export interface ResearchPackTargetProfile {
+  layer: "anchor" | "derived";
   profile_id: string;
   title: string;
   version: string;

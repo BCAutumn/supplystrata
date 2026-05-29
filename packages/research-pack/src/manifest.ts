@@ -260,6 +260,7 @@ export function emptyStaticDataQualitySummary(generatedAt: string): DataQualityS
 function researchPackTargetProfile(selection: ResearchTargetProfileSelection): ResearchPackTargetProfile | null {
   if (selection.profile === null) return null;
   return {
+    layer: selection.profile.layer,
     profile_id: selection.profile.profile_id,
     title: selection.profile.title,
     version: selection.profile.version,

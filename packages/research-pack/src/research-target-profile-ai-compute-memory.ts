@@ -1,5 +1,5 @@
 import type { OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
-import type { ResearchTargetProfile } from "./research-target-profile-definitions.js";
+import type { AnchorResearchTargetProfile } from "./research-target-profile-definitions.js";
 import {
   appleSupplierListTargetComponent,
   dartKrTargetCompany,
@@ -52,7 +52,8 @@ const AI_COMPUTE_MEMORY_TARGET_NODES = [
   edinetDailyFilingsTargetComponent("COMP-ABF-SUBSTRATE", "ABF substrate", "P1", ["company-ir", "edinet"])
 ] as const satisfies readonly OfficialDisclosureReadinessTargetNode[];
 
-export const AI_COMPUTE_MEMORY_PROFILE: ResearchTargetProfile = {
+export const AI_COMPUTE_MEMORY_PROFILE: AnchorResearchTargetProfile = {
+  layer: "anchor",
   profile_id: "ai-compute-memory.v0",
   version: "0.1.0",
   title: "AI compute / memory baseline",

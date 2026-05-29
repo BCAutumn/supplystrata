@@ -1,5 +1,5 @@
 import type { OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
-import type { ResearchTargetProfile } from "./research-target-profile-definitions.js";
+import type { AnchorResearchTargetProfile } from "./research-target-profile-definitions.js";
 import { secTargetCompany, targetCompany, targetComponent } from "./research-target-profile-nodes.js";
 
 const EV_BATTERY_ENERGY_TARGET_NODES = [
@@ -29,7 +29,8 @@ const EV_BATTERY_ENERGY_TARGET_NODES = [
   targetComponent("COMP-BATTERY-MANUFACTURING-EQUIPMENT", "Battery manufacturing equipment", "P1", ["company-ir", "sec-edgar"])
 ] as const satisfies readonly OfficialDisclosureReadinessTargetNode[];
 
-export const EV_BATTERY_ENERGY_PROFILE: ResearchTargetProfile = {
+export const EV_BATTERY_ENERGY_PROFILE: AnchorResearchTargetProfile = {
+  layer: "anchor",
   profile_id: "ev-battery-energy.v0",
   version: "0.1.0",
   title: "EV battery / energy storage baseline",

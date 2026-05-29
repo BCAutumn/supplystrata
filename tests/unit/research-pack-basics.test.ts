@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collectResearchComponentIds,
-  listBuiltInResearchTargetProfiles,
+  listAnchorResearchTargetProfiles,
   researchPackUnknownMapTargets,
   resolveResearchPackWriteSteps,
   safeFileSegment,
@@ -85,17 +85,27 @@ describe("research-pack basics", () => {
     ).toEqual([]);
   });
 
-  it("keeps built-in target profiles as optional validation anchors, not a default product boundary", () => {
-    expect(selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: [] })).toEqual({
-      profile: null,
-      reason: "No built-in research target profile matched this company/component scope."
-    });
+  it("keeps anchor target profiles as optional validation anchors, not a default product boundary", () => {
+    const genericSelection = selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: [] });
+    expect(genericSelection.layer).toBe("derived");
+    expect(genericSelection.reason).toBe("No anchor research target profile matched this company/component scope; runtime derive is required.");
+    expect(genericSelection.profile).not.toBeNull();
+    if (genericSelection.profile === null) throw new Error("Expected generic listed company to use derived placeholder.");
+    expect(genericSelection.profile.layer).toBe("derived");
+    if (genericSelection.profile.layer !== "derived") throw new Error("Expected generic listed company profile to be a derived placeholder.");
+    expect(genericSelection.profile.profile_id).toBe("derived.runtime.v0");
+    expect(genericSelection.profile.target_nodes).toEqual([]);
+    expect(genericSelection.profile.derivation).toMatchObject({ status: "placeholder", company_id: "ENT-GENERIC-LISTED-COMPANY" });
 
     expect(selectResearchTargetProfile({ company_id: "ENT-NVIDIA", component_ids: [], profile_id: "none" })).toEqual({
       profile: null,
+      layer: "none",
       reason: "Research target profile disabled by caller."
     });
 
+    const nvidiaSelection = selectResearchTargetProfile({ company_id: "ENT-NVIDIA", component_ids: [] });
+    expect(nvidiaSelection.layer).toBe("anchor");
+    expect(nvidiaSelection.profile?.layer).toBe("anchor");
     expect(selectResearchTargetProfile({ company_id: "ENT-GENERIC-LISTED-COMPANY", component_ids: ["COMP-PCB"] }).profile?.profile_id).toBe(
       "ai-compute-memory.v0"
     );
@@ -105,12 +115,12 @@ describe("research-pack basics", () => {
     );
   });
 
-  it("returns cloned built-in target profiles so callers cannot mutate registry state", () => {
-    const firstRead = listBuiltInResearchTargetProfiles()[0];
+  it("returns cloned anchor target profiles so callers cannot mutate registry state", () => {
+    const firstRead = listAnchorResearchTargetProfiles()[0];
     expect(firstRead).toBeDefined();
     firstRead?.applies_to_company_ids.push("ENT-MUTATED");
 
-    const secondRead = listBuiltInResearchTargetProfiles()[0];
+    const secondRead = listAnchorResearchTargetProfiles()[0];
     expect(secondRead?.applies_to_company_ids).not.toContain("ENT-MUTATED");
   });
 
