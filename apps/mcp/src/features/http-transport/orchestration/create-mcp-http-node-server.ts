@@ -8,7 +8,7 @@ import { isInitializeRequest, type JSONRPCMessage, type MessageExtraInfo } from 
 import type { SupplyStrataMcpServer, SupplyStrataMcpServerOptions } from "../../../definitions/mcp-server.js";
 import { createSupplyStrataMcpServer } from "../../../orchestration/create-mcp-server.js";
 import { MCP_HTTP_ENDPOINT_PATH, type CreateMcpHttpNodeServerOptions, type McpHttpNodeServer } from "../definitions/mcp-http-transport.js";
-import { writeMcpHttpOptionsResponse, writePlainHttpResponse } from "../functions/http-response.js";
+import { applyMcpHttpCorsHeaders, writeMcpHttpOptionsResponse, writePlainHttpResponse } from "../functions/http-response.js";
 
 const MCP_HTTP_METHODS = new Set(["GET", "POST", "DELETE"]);
 
@@ -61,8 +61,10 @@ async function handleMcpHttpRequest(request: IncomingMessage, response: ServerRe
     return;
   }
 
+  applyMcpHttpCorsHeaders(response, readSingleHeader(request.headers.origin));
+
   if (request.method === "OPTIONS") {
-    writeMcpHttpOptionsResponse(response);
+    writeMcpHttpOptionsResponse(response, readSingleHeader(request.headers.origin));
     return;
   }
 

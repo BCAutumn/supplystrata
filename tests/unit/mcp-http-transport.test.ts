@@ -102,10 +102,18 @@ describe("mcp http transport", () => {
       expect(await response.text()).toBe("Not Found");
 
       const optionsResponse = await fetch(`http://127.0.0.1:${port}${MCP_HTTP_ENDPOINT_PATH}`, {
-        method: "OPTIONS"
+        method: "OPTIONS",
+        headers: {
+          "access-control-request-headers": "content-type, accept, mcp-session-id",
+          "access-control-request-method": "POST",
+          origin: "http://127.0.0.1:8787"
+        }
       });
       expect(optionsResponse.status).toBe(204);
       expect(optionsResponse.headers.get("allow")).toBe("GET, POST, DELETE, OPTIONS");
+      expect(optionsResponse.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:8787");
+      expect(optionsResponse.headers.get("access-control-allow-headers")).toContain("accept");
+      expect(optionsResponse.headers.get("access-control-expose-headers")).toBe("mcp-session-id");
     } finally {
       await close();
     }
