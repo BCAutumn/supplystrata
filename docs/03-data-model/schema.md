@@ -17,6 +17,13 @@
 
 参见 [decisions.md](../10-decisions/decisions.md) #2 和 #8。
 
+community-pack 与本地 cache 的关系：
+
+- pack 是外部 artifact，不是数据库表，也不是 truth store。
+- `apps/mcp --pack=<dir>` 会在 read path 上叠加 baseline；它不把 pack 回写进 pack 文件，也不把 pack 当成官方源。
+- 当本地 Postgres 能从官方源或本地已验证事实导出 relationship-backed SCBOM 时，本地结果覆盖 pack baseline。
+- pack 对象的 provenance method 必须带 `community-pack:<pack_version>`，方便 downstream 区分"热启动 baseline"和"本地/上游复核结果"。
+
 ## PostgreSQL 表分层
 
 ### Entity Layer
@@ -195,6 +202,8 @@ SCBOM（Supply Chain Bill of Materials）是独立维护的开放交换格式，
 | `change`       | `WorkbenchModel.changes` 的非 risk 事件      | 只导出中立 audit change；risk metric change 不进入 SCBOM                 |
 
 不进入 SCBOM：claim fusion 内部态、review queue、attention queue、risk metric、source*check job、运行态策略和任何 `supplystrata*\*` 私有字段。`evidence_level` 可作为 producer vocabulary assessment 输出，但 SCBOM schema 不把 SupplyStrata 的五级体系硬编码成唯一标准。
+
+community-pack 的 canonical 数据文件是一行一个完整 `ScbomDocument` 的 JSONL。manifest 记录 pack version、生成时间、license、source instance fingerprint、SCBOM schema version、object counts 和每个数据文件的 sha256；loader 必须先校验 manifest 与文件完整性，再把对象标记为 community-pack baseline。
 
 ## GraphStore / Neo4j
 

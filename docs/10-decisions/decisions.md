@@ -217,10 +217,11 @@
 
 决策：
 
-- 维护团队定期发布 `supplystrata-pack-YYYY.QN.parquet`（或 sqlite），覆盖已审 gold path 的实体、关系、证据。
-- pack 通过 GitHub Release 或公开对象存储分发；用户启动时可选拉取。
-- pack 是 **read-only baseline**：本地新写入会覆盖 pack 内容，但不污染 pack；pack 升级时本地新写入保留。
-- pack 第一份目标 Q3 2026，覆盖 AI compute + EV battery + 半导体头部。
+- canonical pack 是 SCBOM document JSONL + `manifest.json`，每个数据文件由 sha256 覆盖；Parquet / SQLite 只能作为可选派生分发格式。
+- pack 通过 GitHub Release 或公开对象存储分发；本仓库的发布管线产出 artifact + `SHA256SUMS`。
+- pack 是 **read-only baseline**：本地新写入或上游 re-fetch 会覆盖 pack read result，但不污染 pack；pack 升级时本地新写入保留。
+- pack 内容只允许 publish-eligible relationship 和其 evidence；低证据、人工编辑、`cannot_conclude`、unknown、review queue、risk metric 和私有运行态不进入 pack。
+- 用户启动 MCP runtime 时可选传 `--pack=<dir>` warm-start；加载对象 provenance method 必须带 `community-pack:<pack_version>`。
 - pack 不是 truth，是 warm cache；truth 仍在官方源（#2）。
 
 理由：

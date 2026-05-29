@@ -86,6 +86,17 @@ pnpm cli sources plan --component COMP-MANUFACTURING-SERVICES --entity ENT-APPLE
 
 这层设计是为了避免把免费宏观源直接污染事实图谱：Comtrade/AIS/EIA/USGS 这类数据可以支持研究判断，但默认只能进入 observation；ImportYeti/BOL 只能手工进入 lead。公司专属来源也不能被通用化，例如 `apple-suppliers` 只有在计划 Apple 链路（传入 `--entity ENT-APPLE`）时才会出现，避免二/三级链路被某个测试公司硬耦合。
 
+## Community-pack 不是 source adapter
+
+`community-pack` 是 SCBOM JSONL + `manifest.json` 的 warm-start baseline，不进入上表，也没有 `source_adapter_id`。原因是它不是事实来源：pack 只复用已经可导出的 SCBOM relationship / evidence，让新本地实例先有只读 baseline 可查。
+
+加载规则：
+
+- pack 中每个对象的 provenance method 统一标成 `community-pack:<pack_version>`。
+- pack 只通过 MCP runtime 的 `--pack=<dir>` 作为 read baseline 叠加；本地 Postgres / 官方源重新拿到 relationship 时，本地结果优先。
+- pack 不能提升 evidence level，不能绕过 source registry，也不能替代 SEC / DART / EDINET / GLEIF 等官方源。
+- pack 发布管线只允许导出 publish-eligible relationship 和其 evidence；低证据、人工编辑、`cannot_conclude`、unknown 和内部 review / risk 状态不进入 pack。
+
 ## 数据源细节归属
 
 `docs/` 不再为每个数据源 tier 保留长文档。当前规则：

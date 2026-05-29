@@ -137,7 +137,32 @@ supplystrata://scbom/company/ENT-NVIDIA
 pnpm vitest run tests/e2e/scbom-export.test.ts
 ```
 
-## 8. Reference agent（可选）
+## 8. Community-pack warm-start（可选）
+
+community-pack 是只读 warm baseline，适合新本地实例先加载一份已发布的 SCBOM pack，再按需向官方源复核。它不是真相来源；本地 / 上游重新拿到 relationship-backed SCBOM 时会覆盖 pack baseline。
+
+从当前本地 cache 构建 pack：
+
+```bash
+pnpm build
+pnpm pack:build --company nvidia --pack-version pack-2026.Q2 --generated-at 2026-05-29T00:00:00.000Z --out reports/community-pack
+pnpm pack:checksums
+```
+
+用 pack 启动 MCP HTTP runtime，再打开本地 viewer：
+
+```bash
+pnpm mcp --transport=http --runtime=fixture --pack=reports/community-pack --port=7474
+pnpm web --company ENT-NVIDIA --mcp-url http://127.0.0.1:7474/mcp --port 8787
+```
+
+端到端验证：
+
+```bash
+pnpm vitest run tests/e2e/community-pack-warm-start.test.ts
+```
+
+## 9. Reference agent（可选）
 
 `@supplystrata/agent` 和 `apps/agent-cli` 是独立 reference client，不被核心依赖。它只通过 MCP 调 SupplyStrata，报告阶段复用 `@supplystrata/llm-helpers` 的 provider 配置；没有 citation-backed evidence 时必须输出 `cannot_conclude`，不会补故事。
 
@@ -173,7 +198,7 @@ pnpm build
 pnpm agent --company NVIDIA --provider none --mcp-runtime fixture --html-artifact reports/nvidia-scbom.html
 ```
 
-## 9. SCBOM Web viewer（可选）
+## 10. SCBOM Web viewer（可选）
 
 本地 viewer 是薄壳，默认只连本机 MCP HTTP endpoint：
 
