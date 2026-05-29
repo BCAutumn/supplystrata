@@ -361,6 +361,15 @@ importers:
         specifier: ~8.13.1
         version: 8.13.3
 
+  packages/community-pack:
+    dependencies:
+      '@scbom/spec':
+        specifier: git+https://github.com/BCAutumn/scbom-spec.git#v0.0.1
+        version: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+
   packages/component-context:
     dependencies:
       '@supplystrata/core':

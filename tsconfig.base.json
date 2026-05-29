@@ -28,6 +28,7 @@
       "@supplystrata/claim-builder": ["packages/claim-builder/src/index.ts"],
       "@supplystrata/chain-view": ["packages/chain-view/src/index.ts"],
       "@supplystrata/chain-view-builder": ["packages/chain-view-builder/src/index.ts"],
+      "@supplystrata/community-pack": ["packages/community-pack/src/index.ts"],
       "@supplystrata/component-context": ["packages/component-context/src/index.ts"],
       "@supplystrata/data-quality": ["packages/data-quality/src/index.ts"],
       "@supplystrata/db": ["packages/db/src/index.ts"],
