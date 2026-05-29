@@ -32,7 +32,7 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
         min-height: 460px;
         border: 1px solid var(--scbom-color-border);
         border-radius: var(--scbom-radius);
-        background: #f8fafc;
+        background: var(--scbom-graph-background, #f8fafc);
       }
 
       [part="graph-fallback"] {
@@ -55,17 +55,17 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
         margin-top: 12px;
         border: 1px solid var(--scbom-color-border);
         border-radius: var(--scbom-radius);
-        background: #f8fafc;
+        background: var(--scbom-graph-background, #f8fafc);
       }
 
       [part="graph-svg-edge"] {
-        stroke: #98a2b3;
+        stroke: var(--scbom-graph-edge, #98a2b3);
         stroke-width: 1.8;
       }
 
       [part="graph-svg-node"] {
-        fill: #2563eb;
-        stroke: #ffffff;
+        fill: var(--scbom-graph-node, var(--scbom-color-accent));
+        stroke: var(--scbom-graph-node-stroke, #ffffff);
         stroke-width: 2;
       }
 
@@ -74,7 +74,7 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
         font-size: 11px;
         font-weight: 650;
         paint-order: stroke;
-        stroke: #ffffff;
+        stroke: var(--scbom-graph-label-stroke, #ffffff);
         stroke-width: 3;
       }
     `
@@ -119,7 +119,7 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
       <svg part="graph-svg" viewBox="${bounds.min_x} ${bounds.min_y} ${bounds.width} ${bounds.height}" role="img" aria-label="SCBOM relationship graph">
         <defs>
           <marker id="scbom-arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L7,3 z" fill="#98a2b3"></path>
+            <path d="M0,0 L0,6 L7,3 z" style="fill: var(--scbom-graph-edge, #98a2b3)"></path>
           </marker>
         </defs>
         ${edges.map((edge) => this.renderSvgEdge(edge, nodeLookup))}
