@@ -9,6 +9,7 @@
     "@supplystrata/ai-analysis": "workspace:*",
     "@supplystrata/card-builder": "workspace:*",
     "@supplystrata/claim-builder": "workspace:*",
+    "@supplystrata/community-pack": "workspace:*",
     "@supplystrata/config": "workspace:*",
     "@supplystrata/core": "workspace:*",
     "@supplystrata/data-quality": "workspace:*",

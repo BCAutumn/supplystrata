@@ -108,6 +108,9 @@ importers:
       '@supplystrata/claim-builder':
         specifier: workspace:*
         version: link:../../packages/claim-builder
+      '@supplystrata/community-pack':
+        specifier: workspace:*
+        version: link:../../packages/community-pack
       '@supplystrata/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -366,6 +369,9 @@ importers:
       '@scbom/spec':
         specifier: git+https://github.com/BCAutumn/scbom-spec.git#v0.0.1
         version: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d
+      '@supplystrata/workbench-export':
+        specifier: workspace:*
+        version: link:../workbench-export
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
