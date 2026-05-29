@@ -9,7 +9,7 @@ import { workbenchScbomFixture } from "./workbench-scbom-fixture.js";
 describe("SCBOM Web Component base", () => {
   it("registers a themed custom element with shadow parts and slots", async () => {
     const registry = registerScbomComponents();
-    expect(registry.registered).toEqual(["scbom-evidence-view", "scbom-ping", "scbom-unknown-map"]);
+    expect(registry.registered).toEqual(["scbom-evidence-view", "scbom-ping", "scbom-supply-chain-graph", "scbom-unknown-map"]);
 
     const element = document.createElement("scbom-ping");
     if (!(element instanceof ScbomPingElement)) throw new Error("Expected scbom-ping to be registered");

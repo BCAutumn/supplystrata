@@ -13,12 +13,18 @@
       "types": "./dist/components.d.ts",
       "import": "./dist/components.js",
       "browser": "./dist/components.iife.js"
+    },
+    "./mcp-http-client": {
+      "development": "./src/functions/mcp-http-client.ts",
+      "types": "./dist/functions/mcp-http-client.d.ts",
+      "import": "./dist/functions/mcp-http-client.js"
     }
   },
   "dependencies": {
     "@scbom/spec": "git+https://github.com/BCAutumn/scbom-spec.git#v0.0.1",
     "graphology": "^0.26.0",
-    "lit": "^3.3.1"
+    "lit": "^3.3.1",
+    "sigma": "^3.0.3"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

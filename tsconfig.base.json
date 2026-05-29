@@ -73,6 +73,7 @@
       "@supplystrata/workbench-export/schema": ["packages/workbench-export/src/schema.ts"],
       "@supplystrata/web": ["packages/web/src/index.ts"],
       "@supplystrata/web/components": ["packages/web/src/components.ts"],
+      "@supplystrata/web/mcp-http-client": ["packages/web/src/functions/mcp-http-client.ts"],
       "@supplystrata/sources-apple-suppliers": ["packages/sources/apple-suppliers/src/index.ts"],
       "@supplystrata/sources-census-trade": ["packages/sources/census-trade/src/index.ts"],
       "@supplystrata/sources-companies-house": ["packages/sources/companies-house/src/index.ts"],
