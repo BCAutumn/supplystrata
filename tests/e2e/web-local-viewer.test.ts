@@ -45,6 +45,8 @@ describe("local SCBOM viewer app", () => {
     const documentJson = html.match(/<script type="application\/json" id="scbom-document">(?<json>.*?)<\/script>/u)?.groups?.["json"];
     expect(documentJson).toBeDefined();
     expect(JSON.parse(documentJson ?? "{}")).toMatchObject({ schema_version: "0.0.1" });
+    expect(html).toContain("customElements.whenDefined");
+    expect(html).toContain("element.loadScbomDocument(documentModel)");
   });
 });
 

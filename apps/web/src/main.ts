@@ -94,12 +94,17 @@ function viewerHtml(options: WebCliOptions, scbomDocument: unknown): string {
     </main>
     <script type="application/json" id="viewer-config">${escapeScriptJson(configJson)}</script>
     <script type="application/json" id="scbom-document">${escapeScriptJson(documentJson)}</script>
-    <script>
+    <script type="module">
       const config = JSON.parse(document.getElementById("viewer-config").textContent);
       window.ScbomViewer.registerScbomComponents();
+      await Promise.all([
+        customElements.whenDefined("scbom-supply-chain-graph"),
+        customElements.whenDefined("scbom-evidence-view"),
+        customElements.whenDefined("scbom-unknown-map")
+      ]);
       const documentModel = JSON.parse(document.getElementById("scbom-document").textContent);
       for (const element of document.querySelectorAll("scbom-evidence-view, scbom-unknown-map, scbom-supply-chain-graph")) {
-        element.scbomDocument = documentModel;
+        element.loadScbomDocument(documentModel);
       }
     </script>
   </body>

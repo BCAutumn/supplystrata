@@ -64,6 +64,12 @@ export abstract class ScbomBaseElement extends LitElement {
   scbomDocument: ScbomDocument | undefined = undefined;
   protected view: ScbomView | undefined = undefined;
 
+  loadScbomDocument(document: ScbomDocument): void {
+    this.scbomDocument = document;
+    this.view = createScbomView(document);
+    this.requestUpdate();
+  }
+
   protected override willUpdate(changedProperties: PropertyValues<this>): void {
     if (changedProperties.has("scbomDocument")) {
       this.view = this.scbomDocument === undefined ? undefined : createScbomView(this.scbomDocument);

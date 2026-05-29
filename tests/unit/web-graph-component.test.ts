@@ -11,7 +11,7 @@ describe("scbom-supply-chain-graph", () => {
     registerScbomComponents();
     const element = document.createElement("scbom-supply-chain-graph");
     if (!(element instanceof ScbomSupplyChainGraphElement)) throw new Error("Expected scbom-supply-chain-graph to be registered");
-    element.scbomDocument = toScbomDocument(workbenchScbomFixture());
+    element.loadScbomDocument(toScbomDocument(workbenchScbomFixture()));
 
     document.body.append(element);
     await element.updateComplete;
