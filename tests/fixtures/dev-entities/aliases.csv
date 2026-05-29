@@ -90,6 +90,12 @@ ALIAS-ASEH-001,ENT-ASEH,ASE Technology,en,official,seed,active
 ALIAS-ASEH-002,ENT-ASEH,ASE Technology Holding,en,official,seed,active
 ALIAS-ASEH-003,ENT-ASEH,ASE Technology Holding Co. Ltd.,en,official,seed,active
 ALIAS-ASEH-004,ENT-ASEH,"Advanced Semiconductor Engineering Technology Holding Co., Ltd.",en,official,seed,active
+ALIAS-LVMH-001,ENT-LVMH,LVMH,en,abbreviation,seed,active
+ALIAS-LVMH-002,ENT-LVMH,LVMH Moët Hennessy Louis Vuitton SE,en,official,seed,active
+ALIAS-LVMH-003,ENT-LVMH,Louis Vuitton Moët Hennessy,en,official,seed,active
+ALIAS-ASTRAZENECA-001,ENT-ASTRAZENECA,AstraZeneca,en,official,seed,active
+ALIAS-ASTRAZENECA-002,ENT-ASTRAZENECA,AstraZeneca PLC,en,official,seed,active
+ALIAS-ASTRAZENECA-003,ENT-ASTRAZENECA,AZN,en,abbreviation,seed,active
 ALIAS-AMKOR-001,ENT-AMKOR,Amkor,en,official,seed,active
 ALIAS-AMKOR-002,ENT-AMKOR,Amkor Technology,en,official,seed,active
 ALIAS-AMKOR-003,ENT-AMKOR,Amkor Technology Inc.,en,official,seed,active

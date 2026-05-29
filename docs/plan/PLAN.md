@@ -1,7 +1,7 @@
 # Implementation Plan (Rolling)
 
-最后更新: 2026-05-28
-当前位置: **Phase B · in_progress**
+最后更新: 2026-05-29
+当前位置: **Phase D · in_progress**
 
 > 这是滚动工作笔记，不是规范。决策 / 边界 / 完成口径以 `docs/` 为准。
 > 每完成一 Phase: 压缩当前 → 细化下一。
@@ -12,15 +12,15 @@
 
 ## 路线图概览
 
-| Phase | 目标                                                             | 状态        |
-| ----- | ---------------------------------------------------------------- | ----------- |
-| A     | 锚定架构不变式 (llm-helpers / dep-check / agent 占位)            | **done**    |
-| B     | MCP 接入面 (`apps/mcp`; stdio + HTTP/SSE)                        | in_progress |
-| C     | 全球身份覆盖 (gleif / openfigi / wikidata + universal bootstrap) | not_started |
-| D     | 动态 profile + Agent 参考实现                                    | not_started |
-| E     | SCBOM v0.x 独立 repo + workbench-export 对齐                     | not_started |
-| F     | Web 嵌入式组件 (Sigma.js + Web Components)                       | not_started |
-| G     | Community-pack release pipeline                                  | not_started |
+| Phase | 目标                                                  | 状态        |
+| ----- | ----------------------------------------------------- | ----------- |
+| A     | 锚定架构不变式 (llm-helpers / dep-check / agent 占位) | **done**    |
+| B     | MCP 接入面 (`apps/mcp`; stdio + StreamableHTTP)       | **done**    |
+| C     | 全球身份覆盖 + MCP CLI 接 DB-backed runtime           | **done**    |
+| D     | 动态 profile + Agent 参考实现                         | in_progress |
+| E     | SCBOM v0.x 独立 repo + workbench-export 对齐          | not_started |
+| F     | Web 嵌入式组件 (Sigma.js + Web Components)            | not_started |
+| G     | Community-pack release pipeline                       | not_started |
 
 ---
 
@@ -35,105 +35,105 @@
 
 ---
 
-## Phase B · MCP 接入面 [当前]
+## Phase D · 动态 profile + Agent 参考实现 [当前]
 
-**目标**：从 `apps/api` 抽出可复用的 orchestration 层，把 `apps/mcp` 建成 SupplyStrata 唯一对外 surface 的雏形；用 MCP spec 标准 annotation（`readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`）+ server-side pending gate 双层保护写工具。`apps/api` REST 暂时保留作为过渡。
+**目标**：把研究 profile 从"内置 anchor"升级为"运行时按公司动态派生"，并交付第一个**完整可跑的 reference agent**——证明 SupplyStrata 作为"AI agent 的供应链数据源"这个产品定位真的成立。
 
-### 前置说明：为什么需要 B1 (orchestration 抽取)
+两件相关但可分离的事：
 
-`apps/api/src/features/http-adapter/orchestration/` 当前装着所有 HTTP handler 的 use-case 编排（`db-operation-handlers.ts`、`ai-analysis-artifact-files.ts`、`route-match.ts`、`http-response.ts` 等）。MCP server 要复用这些 use-case；走 cross-app 反向 import 会被 dep-check 拒，也是架构 smell。
+1. **Dynamic profile** — 当公司不命中内置 anchor（`ai-compute-memory.v0` / `ev-battery-energy.v0`）时，调 `llm-helpers.derive_dynamic_profile` 从公开简介 / SIC / Wikidata description 派生 plan-context profile；**session-scope，不持久化**。
+2. **Reference agent** — `@supplystrata/agent` 从占位包升级为可运行的三段式 agent（`plan → fetch_via_mcp → synthesize`，DQ7），用户自带 LLM provider，调本机 MCP，对任意全球上市公司输出可引用报告。
 
-**已决定**（DQ8）：抽到 `packages/api-orchestration`，apps/api 和 apps/mcp 都依赖它。下沉到 domain package 是更优的最终态，但属于单独的架构治理轮次，不耦合在 Phase B 主目标里。
+完成后能证明：删掉 `@supplystrata/agent` 整个包，核心仍完整可用（架构纯净）；同时装上它 + 配 LLM key，能端到端跑出一份带 citation 的供应链报告（产品形态成立）。
+
+### 前置说明：profile 两层模型与 session 边界
+
+`docs/03-data-model/intelligence-methodology.md` 已定义两层（与 Decision #12 一致）：
+
+- **Layer A（anchor）**：内置两个 profile，gold path 验证用，不是产品覆盖范围；命中条件是精确匹配 entity/component scope。
+- **Layer B（runtime derived）**：anchor 未命中时调 llm-helper 派生；**只活在单次 research session 内**，session 结束即销毁，不写 DB。
+
+Phase D 第一次把 Layer B 真正接进运行链。session 生命周期由 `packages/source-workflows/src/research-session.ts` 管理（DQ4），MCP 仅透传 session_id。
+
+`research-entity-bootstrap` 在 Phase C 已 universal 化；Phase D 在它之上加 profile derive，**不回退到 SEC-centric**。
 
 ### PR 切分
 
-| PR  | 标题                                              | 范围                                                                                                                                                                                                                                                                                                                                           | 验收                                                                                                                                                         | 清理判据                                                                                                                                     |
-| --- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Extract `@supplystrata/api-orchestration` package | 把 `apps/api/src/features/http-adapter/orchestration/` 整体移到新包；apps/api 改为 import 新包；纯结构 refactor，**零行为改动**                                                                                                                                                                                                                | `pnpm type-check` / `lint` / `test:unit` / `dep-check` / `build` 全绿；`tests/unit/api-http-adapter.test.ts` 通过无 diff；REST API contract test 通过无 diff | `apps/api/src/features/http-adapter/orchestration/` 目录消失；rg 不再命中 `apps/api/src/.*orchestration` 的反向引用；新包 README 写明定位    |
-| B2  | `apps/mcp` skeleton + stdio + ping tool           | 新建 `apps/mcp` app；引入官方 `@modelcontextprotocol/sdk@1.29.0`（锁版本）；stdio transport；一个 `ping` tool 验证连通；CLI 入口 `pnpm mcp --transport=stdio`；不暴露任何业务工具                                                                                                                                                              | `pnpm mcp --transport=stdio` 启动不报错；手动用 SDK client 调 `ping` 收到响应；新增 `tests/unit/apps-mcp-skeleton.test.ts` 验证服务器能初始化和注册 `ping`   | apps/mcp 不 import apps/api；apps/mcp README 写明定位与未来工具 surface 列表                                                                 |
-| B3  | Read resources + read tools                       | 6 个 resources（`entity/{id}`、`evidence/edge/{id}`、`unknowns/company/{id}`、`changes/entity/{id}`、`source-health`、`reasoning-walkthrough/{id}`）+ 6 个 read tools（`resolve_company`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets`、`poll_research_run`）；全部通过 `api-orchestration` 复用现有 DTO | 每个 resource / tool 有 contract test 与 schema validation；URI grammar 文档化；新增 `tests/unit/mcp-read-surface.test.ts`                                   | 没有 read-side resource / tool 直接读 DB；都经过 `api-orchestration`；read-side 不调用 llm-helpers（除非显式启用的 helper-backed read tool） |
-| B4  | Write tools + 双层确认机制                        | 5 个 write tools（`start_research_session`、`run_source_check`、`confirm_research_session`、`review.approve`、`review.reject`）；严格使用 MCP spec 标准 annotation 字段；所有执行型写工具先创建 pending state，显式 confirmation_token 才执行                                                                                                  | meta-test 枚举所有 write tools 断言 `readOnlyHint === false`；review.approve / review.reject 断言 `destructiveHint === true`；pending/token 行为测试通过     | 没有 write tool 跳过 server-side pending gate；没有 write tool 直接调 LLM helper；review 写入经 api-orchestration/review-store 边界并带来源  |
-| B5  | HTTP/SSE transport + multi-transport CLI          | 在 SDK 基础上接 HTTP/SSE transport；CLI 增加 `--transport=http --port=N`；CORS / 鉴权策略文档化（local-first 默认 localhost-only）                                                                                                                                                                                                             | `pnpm mcp --transport=http --port=7474` 启动；用 curl / SDK client 双协议都能调通 read surface；新增 `tests/unit/mcp-http-transport.test.ts`                 | HTTP 默认仅 localhost；远程访问需要显式 `--bind 0.0.0.0` 且 README 标红                                                                      |
-| B6  | E2E smoke + docs alignment                        | 新增 `pnpm smoke:mcp`：spawn stdio MCP server → 调用 `resolve_company("NVIDIA") → list_source_targets → run_source_check → traverse_chain` → 断言输出 shape；`docs/02-architecture/module-design.md` 去掉 mcp / api-orchestration 的【新增，目标】标签；`docs/06-development/quickstart.md` Phase B 占位段替换为真实示例                       | smoke 单独运行 < 30s；CI 包含                                                                                                                                | quickstart 中"MCP server（v0.x 目标）"段从占位变为可运行示例；Phase B 概览段（本文件）压缩为摘要                                             |
+| PR  | 标题                                              | 范围                                                                                                                                                                                                                                            | 验收                                                                                                                                  | 清理判据                                                                                                                |
+| --- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| D1  | Profile registry 两层化 (anchor vs derived)       | 重构 `packages/research-pack` profile system：把现有内置 profile 明确标为 Layer A anchor；新增 Layer B derived profile 的类型 + 接入点（先留 derive 接口，D2 接实现）；`profile=none` 可关闭两层                                                  | 单测覆盖 anchor 命中 / anchor 未命中走 derived 占位 / `profile=none` 全关；现有 anchor 行为零回归                                       | anchor 与 derived 在类型层清晰分离；现有 `ai-compute-memory.v0` / `ev-battery-energy.v0` fixture 测试不变                 |
+| D2  | Dynamic profile derive via llm-helper             | 接 `llm-helpers.derive_dynamic_profile`：输入公司公开简介 / SIC / NAICS / Wikidata description → 输出 expected upstream components + source targets（plan-context only）；候选经输入/输出 schema 校验                                              | 单测：命中 anchor 不调 llm-helper；未命中调 helper 且返回 candidate；helper disabled 时退回 generic（仅国家路由 + SIC），不阻断流程     | derived profile 走 candidate-only 路径；不写 fact / observation / unknown；helper 调用经过 Phase A 的校验链               |
+| D3  | Session-scope profile lifecycle                   | `packages/source-workflows/src/research-session.ts`：session_id 生命周期管理；derived profile 挂在 session 上，session 结束（成功/失败/超时）即销毁；MCP `start_research_session` / `poll_research_run` 透传 session_id + profile 摘要（不含原始 prompt） | 单测：profile 不写 DB（grep 验证无持久化路径）；session 结束后 profile 不可再取；并发 session 各自独立 profile                          | 无任何 `derived_profile` 表 / 字段；session store 只在内存或短 TTL；不跨 session 复用 profile（命中即找 commander）       |
+| D4  | `@supplystrata/agent` 三段式 core                 | 占位包升级为可运行 agent：`plan(company, mcp_client)` → `fetch_via_mcp(plan)` → `synthesize(evidence)`；单进程无状态机（DQ7）；用户带 LLM provider（复用 llm-helpers provider config）；调本机 MCP（stdio 或 http）                                  | 单测用 mock MCP client + mock provider 跑通三段式；agent 不直接 import 任何 Layer 1-3 写事实层 package（dep-check）                     | agent 只通过 MCP 与核心交互；不 import `pipeline` / `graph-builder` / `db` 等；dep-check 验证 `packages/*` 仍 ⇏ agent    |
+| D5  | `apps/agent-cli` 入口 + 可引用报告输出            | 薄 CLI：`supplystrata-agent --company <q> --provider <p> --model <m> [--mcp-transport stdio\|http]`；输出 markdown 报告（带 citation + cannot_conclude + source gap）；report 渲染复用 `render` / research-pack 约定                               | 端到端（mock provider）：对一家 fixture 公司产出结构化报告；citation 都能回链到 evidence ref；缺数据时显式 cannot_conclude 不杜撰       | CLI 是薄入口不含业务规则；报告不出现无 citation 的关系断言                                                                |
+| D6  | E2E: agent removable + agent runs + docs          | (a) dep-check meta-test 证明删除 `packages/agent` + `apps/agent-cli` 后核心 build/test 全绿；(b) 新增 `tests/e2e/agent-report.test.ts`（mock provider，对全球公司跑出报告）；(c) 更新 docs：module-design 去 agent/web【新增,目标】标签、methodology profile 两层、quickstart agent 示例段 | agent removable 测试通过；agent report e2e 通过；docs 与实现一致                                                                       | `docs/02-architecture/module-design.md` agent 行去标签；`docs/03-data-model/intelligence-methodology.md` profile 两层与代码一致；quickstart 有 agent 段 |
 
 ### 执行顺序
 
 ```
-B1 (orchestration 抽取) → B2 (mcp skeleton) → B3 (read surface) ┐
-                                                                ├→ B5 (HTTP/SSE) → B6 (smoke + docs) → Phase B DONE → Phase C
-                                              B4 (write surface) ┘
+D1 (profile 两层化) → D2 (derive via llm-helper) → D3 (session lifecycle) ┐
+                                                                          ├→ D6 (e2e + docs) → Phase D DONE
+D4 (agent core) → D5 (agent-cli) ────────────────────────────────────────┘
 ```
 
-B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skeleton 稳定（B2 之后）；B6 依赖前 5 个 PR。
+- D1 → D2 → D3 线性（profile 链）
+- D4 → D5 线性（agent 链），可与 D1-D3 并行启动（agent 通过 MCP 解耦，不依赖 profile 内部实现）
+- D6 最后（依赖 profile 链 + agent 链都稳定）
 
-### 清理 checklist（Phase B 合并前必须勾完）
+### 清理 checklist（Phase D 合并前必须勾完）
 
-- [ ] `apps/api/src/features/http-adapter/orchestration/` 目录已消失（B1）
-- [ ] `apps/api` 仍然能跑现有 contract test；REST e2e 无 diff
-- [ ] `apps/mcp` 不依赖 `apps/api`（dep-check 验证）
-- [ ] `apps/mcp` 依赖 `packages/api-orchestration`、`packages/llm-helpers`（当需要时）但不依赖任何写事实层的 package
-- [ ] 所有 write tools 标 MCP spec 标准 annotation；写事实层 tools 标 `destructiveHint: true`（meta-test 拦截）
-- [ ] 所有 write tools 都有 server-side pending state + `confirm_*` token 路径；不带 token 必须返回 `requires_confirmation`
-- [ ] MCP resources URI grammar 文档化在 `apps/mcp/README.md`
-- [ ] `pnpm mcp --transport=stdio` 和 `pnpm mcp --transport=http --port=N` 都能跑
-- [ ] `pnpm smoke:mcp` 通过；进入 CI（如有 `pnpm release:check` 列表）
+- [ ] profile registry 两层清晰分离；anchor 行为零回归
+- [ ] derived profile 走 `llm-helpers.derive_dynamic_profile` candidate-only 路径；不写 fact/observation/unknown
+- [ ] derived profile **不持久化**（无 DB 表/字段；grep 验证无持久化路径）
+- [ ] helper disabled 时退回 generic profile，不阻断研究流程
+- [ ] `@supplystrata/agent` 三段式可跑；只通过 MCP 与核心交互
+- [ ] dep-check 验证：`packages/*` 仍 ⇏ agent；agent ⇏ Layer 1-3 写事实层 package
+- [ ] 删除 `packages/agent` + `apps/agent-cli` 后核心 build/test 全绿（meta-test）
+- [ ] `apps/agent-cli` 产出报告所有关系断言都有 citation；缺数据显式 cannot_conclude
+- [ ] `tests/e2e/agent-report.test.ts` 用 mock provider 跑通全球公司
+- [ ] `docs/02-architecture/module-design.md` agent / web 去【新增，目标】标签
+- [ ] `docs/03-data-model/intelligence-methodology.md` profile 两层描述与代码一致
+- [ ] `docs/06-development/quickstart.md` 加 agent 运行示例段
 - [ ] 无 `// TODO` / `// FIXME` / shim 代码
-- [ ] `docs/02-architecture/module-design.md` 中 `apps/mcp/`、`packages/api-orchestration/` 的【新增，目标】标签去掉
-- [ ] `docs/06-development/quickstart.md` 的 MCP 段从占位扩展为可运行示例
-- [ ] `pnpm type-check` / `lint` / `test:unit` / `dep-check` / `build` / `format:check` 全绿
-- [ ] `pnpm smoke:local` / `smoke:research` / `smoke:mcp` 都通过
-- [ ] `tests/e2e/nvidia-fixture.test.ts` 通过
+- [ ] type-check / lint / unit / dep-check / build / format-check / smoke:local / smoke:research / smoke:mcp / e2e 全绿
 
 ### 风险点（命中即找 commander）
 
-- **B1 边界灰区**：抽 orchestration 时发现 handler 里混着 HTTP-specific 逻辑（如 `Express.Request`、`res.status()`）。这类必须留在 `apps/api` 的 transport 层，handler 必须返回纯 DTO + 显式 error。如果 mixing 严重，停下来一起设计 boundary。
-- **B2 SDK 版本与 annotation 字段集**：npm 包是 `@modelcontextprotocol/sdk`，已锁 `1.29.0`。MCP spec 2025-03-26 起的 `ToolAnnotations` 是 `title / readOnlyHint / destructiveHint / idempotentHint / openWorldHint`——SDK 类型已支持。**不要硬塞 spec 外字段**（曾被 PLAN 错误命名为 `requires_user_confirmation` 的概念是 server-side 行为，不是 annotation）。提议中的 `sensitiveHint` / `egressHint` / `reversibleHint` 仍在 discussion，不能依赖。
-- **B4 双层确认机制是不变式**：MCP spec 已要求 host 对每个 tool 调用做 user approval；但 host 实现可能放水或被绕过。**Server 端必须独立持有最终 gate**——`start_research_session` / `run_source_check` 即使被 agent 自动调，也只能创建 `pending_user_confirmation` 状态，需要显式 `confirm_*(id, confirmation_token)` 才真正启动；review.approve / review.reject 同理。contract test 必须拦截"不带 token 调 write tool 直接写库"的情况。
-- **B5 HTTP 默认绑定**：默认必须 `127.0.0.1`，不允许 0.0.0.0 是默认。`--bind 0.0.0.0` 必须显式且 README 警告。本机外网暴露的安全责任由用户承担。
-- **任何想跳过 evidence-gated promote 的 write tool**：违反 Fact 写入不变式 #1，禁止合入。
+1. **profile derive 想 cache 跨 session** — 头号风险。derived profile 是 session-scope 的，任何"为了省 LLM 调用把 profile 存下来下次复用"的想法都违反 Decision #12，必须停下来讨论。
+2. **agent loop 想直接写事实层** — agent 只能通过 MCP write tool（带 confirmation gate）影响核心；不能 import db / pipeline / graph-builder 走捷径。dep-check 拦截，但实现时也要警惕"为了方便"绕过 MCP。
+3. **agent 报告杜撰 citation** — synthesize 阶段 LLM 可能编造关系或引用不存在的 evidence。报告里每条关系断言必须能回链到真实 evidence ref；做不到就 cannot_conclude，不允许"看起来完整"。
+4. **profile derive 与 generic 退化边界** — helper disabled / provider 未配 / cost 超限时，必须干净退回 generic profile（国家路由 + SIC），不能半途 throw 阻断整个 research run。
+5. **agent provider 配置复用** — agent 用户带 LLM provider，应复用 llm-helpers 的 provider config（DQ1），不要在 agent 里重新发明一套 provider 抽象。
+6. **三段式不要演化成 framework** — DQ7 明确单进程三段式。出现"要不要加状态机 / 多轮 replan / 工具自动选择"的冲动时，停——那是用户自己拿 agent 当模板去改的事，不是 SupplyStrata 核心范围。
 
 ### 测试策略
 
-**保留 + 迁移**（B1 期间）：
+**保留 + 迁移**：
+- 现有 research-target-profile 单测 — 标注为 Layer A anchor 测试，行为不变
+- 现有 research-pack 测试 — profile 接入点变化处更新 import
 
-- `tests/unit/api-http-adapter.test.ts` — 保留，import 路径更新到 `@supplystrata/api-orchestration`
-- `tests/unit/api-supply-chain-report-summary.test.ts` — 同上
-- `tests/unit/api-contract.test.ts` — 保留
+**新增**：
+- `tests/unit/profile-registry-layers.test.ts` — anchor 命中 / 未命中 / `profile=none`
+- `tests/unit/dynamic-profile-derive.test.ts` — derive candidate + disabled 退化 + 不写库
+- `tests/unit/research-session-lifecycle.test.ts` — session 生命周期 + profile 不持久化 + 并发隔离
+- `tests/unit/agent-three-stage.test.ts` — mock MCP + mock provider 三段式
+- `tests/unit/dep-boundary-agent-removable.test.ts` — meta-test：agent 可整包删除
+- `tests/e2e/agent-report.test.ts` — mock provider 端到端报告
 
-**新增**（B2-B5）：
-
-- `tests/unit/apps-mcp-skeleton.test.ts` — server 启动 + register ping
-- `tests/unit/mcp-read-surface.test.ts` — 每个 resource / read tool 一个用例
-- `tests/unit/mcp-write-surface.test.ts` — 每个 write tool 一个用例 + 必须含 confirmation 流程
-- `tests/unit/mcp-confirmation-meta.test.ts` — meta-test 枚举所有 write tools 断言 annotation
-- `tests/unit/mcp-http-transport.test.ts` — HTTP/SSE 双协议
-- `scripts/smoke-mcp.mjs` — 端到端 spawn server 测试
-
-### Phase B 完成出口
+### Phase D 完成出口
 
 ```
 出口判据 (single sentence):
-  本机启动 apps/mcp stdio server 后，用 @modelcontextprotocol SDK client 能完成
-  resolve_company → list_source_targets → run_source_check → poll_research_run → traverse_chain
-  五步调用链，全部读 path 通过 api-orchestration 复用现有 DTO，
-  全部写 path 经过双层确认（MCP destructiveHint annotation 做 client UX hint + server-side pending state + 显式 confirmation_token 做真正 gate）。
+  装上 @supplystrata/agent + apps/agent-cli 并配置 LLM provider 后，
+  对一家不命中内置 anchor 的全球上市公司执行 supplystrata-agent --company <q>，
+  能：动态派生 session-scope profile → 通过本机 MCP 解析实体 + 跑 source check + 读 evidence/chain
+  → 输出带 citation 的可引用 markdown 报告（缺数据处显式 cannot_conclude）；
+  且删除 agent 包 + agent-cli 后核心 build/test 仍全绿（架构纯净不变）。
 ```
 
 ---
 
-## Phase C-G · 概览（启动时再细化）
-
-### Phase C · 全球身份覆盖
-
-- **出口**：`LVMH` / `MC.PA` / `969500FP1Q07I98R6P10` (LEI) / `路易威登` 任一形态解析到同一法人；非美国上市公司能进入对应官方目录监控
-- **不变式**：identity bootstrap 失败时显式 `unresolved` / `ambiguous`，不伪装"公司不存在"
-- **依赖**：Phase A（disambiguate 用 llm-helpers）
-
-### Phase D · 动态 profile + Agent 参考实现
-
-- **出口**：删除 `packages/agent` 后核心仍完整可用（dep-check 验证）；agent 包独立跑出可引用报告
-- **不变式**：profile 只在 session 内存在不持久化；agent loop 不能直接写事实层
-- **依赖**：Phase A（profile derive 用 llm-helpers）、Phase B（agent 调本机 MCP）
+## Phase E-G · 概览（启动时再细化）
 
 ### Phase E · SCBOM v0.x
 
@@ -145,7 +145,7 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 
 - **出口**：`<supplystrata-supply-chain-graph>` 在 demo / Notion / Substack 嵌入；IIFE bundle ≤ 200KB gzipped
 - **不变式**：不依赖任何 framework；调本机或远程 MCP HTTP
-- **依赖**：Phase B（HTTP/SSE）+ Phase E（SCBOM 作为渲染输入）
+- **依赖**：Phase B（StreamableHTTP）+ Phase E（SCBOM 作为渲染输入）
 
 ### Phase G · Community-pack
 
@@ -158,20 +158,25 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 ## 决策日志（day-to-day；与 `docs/10-decisions/decisions.md` 区分：那里是宪法）
 
 - 2026-05-28 — **DQ1**: llm-helpers 复用 ai-analysis 的 `provider-config` + `provider-openai-compatible`；加 `LlmProvider` interface 留 plugin 槽
-- 2026-05-28 — **DQ2**: MCP 用官方 `@modelcontextprotocol/sdk@1.29.0`；Phase B 先做 stdio，HTTP/SSE 放 Phase B 后段
+- 2026-05-28 — **DQ2**: MCP 用官方 `@modelcontextprotocol/sdk@1.29.0`；Phase B 先做 stdio，HTTP 用 `StreamableHTTPServerTransport`
 - 2026-05-28 — **DQ3**: `gleif` / `openfigi` / `wikidata` 各自独立 `packages/sources/` 包
 - 2026-05-28 — **DQ4**: `research_session` 由 `packages/source-workflows` 管理；MCP 仅透传 session_id
 - 2026-05-28 — **DQ5**: `scbom-spec` 独立 repo (`supplystrata/scbom-spec`)
 - 2026-05-28 — **DQ6**: Web 图渲染用 Sigma.js v3
 - 2026-05-28 — **DQ7**: Agent 参考实现采用三段式 `plan → fetch_via_mcp → synthesize`
-- 2026-05-28 — **Phase A done**：llm-helpers 4 helper 全部 candidate-only + 输入/输出/citation 校验 + disabled/deferred/invalid/provider_error 状态；dep-check 锁定 3 条边界（写事实层 ⇏ llm-helpers / packages ⇏ agent / llm-helpers ⇏ ai-analysis）
-- 2026-05-28 — **DQ8** (Phase B 启动)：orchestration 抽取到 `packages/api-orchestration`（apps/api 和 apps/mcp 共用），不走 cross-app dep，也不立即下沉到 domain package。理由：两个 surface 对等消费同一组 use-case；apps 反向依赖被 dep-check 禁；下沉到 domain package 方向对但属于单独的架构治理轮次，不应耦合在 Phase B 主目标里。**已采纳，B1 解锁**。
-- 2026-05-28 — **DQ9** (Phase B): write tool 的最终 gate 在 server 端（pending state + 显式 confirmation_token），不依赖 client honor annotation。Annotation 仍写，但只是给客户端的 hint，不是安全边界。
-- 2026-05-28 — **DQ10** (Phase B, B4 启动前): MCP annotation 严格使用 spec 标准字段集（`readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`）；不发明 spec 外字段（如曾被错命名为 `requires_user_confirmation` 的概念）。写事实层的 tool（review.approve / review.reject）标 `destructiveHint: true`；启动型 write tool（start_research_session / run_source_check）标 `destructiveHint: false` 但 `readOnlyHint: false`。"用户必须确认"语义由 DQ9 的 server-side pending gate 实现，不放 annotation 里。修正之前 PLAN 文字错误（commander 笔误，致歉）。
-- 2026-05-28 — **DQ11** (Phase B): MCP TypeScript SDK 采用 npm registry 可解析的官方 `@modelcontextprotocol/sdk@1.29.0`，不使用计划早稿中的 `@modelcontextprotocol/sdk-typescript` 包名。
-- 2026-05-28 — **DQ12** (Phase B): B3 read surface 先复用现有 `api-orchestration` DTO；`changes/entity/{id}` 暂时映射全局 `listChanges`，`list_source_targets` 暂时映射 `listSourceHealth`。真正 entity-scoped changes / source-target DTO 属于后续 API contract 扩展，不混入 B3。
-- 2026-05-28 — **DQ13** (Phase B): B5 HTTP/SSE 使用 SDK 当前 `StreamableHTTPServerTransport`，endpoint 固定 `/mcp`；该 transport 自带 SSE stream 支持，不接已废弃的 `SSEServerTransport`。默认绑定 `127.0.0.1`，远程访问必须显式 `--bind=0.0.0.0`。
-- 2026-05-28 — **DQ14** (Phase B): B6 smoke 采用 spawned stdio fixture server 验证 MCP protocol/tool shape，不把 DB runtime 或 source-workflow executor 偷塞进 B6。`run_source_check` smoke 验证 pending + confirmation token 语义；真实 DB-backed source execution 留给后续 source workflow 接入 PR。
+- 2026-05-28 — **Phase A done**：llm-helpers 4 helper 全部 candidate-only + 输入/输出/citation 校验 + disabled/deferred/invalid/provider_error 状态；dep-check 锁定 3 条边界
+- 2026-05-28 — **DQ8** (Phase B 启动)：orchestration 抽取到 `packages/api-orchestration`（apps/api 和 apps/mcp 共用），不走 cross-app dep，也不立即下沉到 domain package
+- 2026-05-28 — **DQ9** (Phase B): write tool 的最终 gate 在 server 端（pending state + 显式 confirmation_token），不依赖 client honor annotation
+- 2026-05-28 — **DQ10** (Phase B, B4 启动前): MCP annotation 严格使用 spec 标准字段集（`readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`）；不发明 spec 外字段
+- 2026-05-28 — **DQ11** (Phase B): MCP TypeScript SDK 采用 npm registry 可解析的官方 `@modelcontextprotocol/sdk@1.29.0`
+- 2026-05-28 — **DQ12** (Phase B): B3 read surface 先复用现有 `api-orchestration` DTO；`changes/entity/{id}` 暂映射全局 `listChanges`，`list_source_targets` 暂映射 `listSourceHealth`；真正 entity-scoped DTO 留后续扩展
+- 2026-05-28 — **DQ13** (Phase B): B5 HTTP transport 使用 SDK 当前 `StreamableHTTPServerTransport`，endpoint 固定 `/mcp`；不接已废弃的 `SSEServerTransport`；默认绑定 `127.0.0.1`，远程访问必须显式 `--bind=0.0.0.0`
+- 2026-05-28 — **DQ14** (Phase B): B6 smoke 采用 spawned stdio fixture server 验证 MCP protocol/tool shape，**不**把 DB runtime 或 source-workflow executor 偷塞进 MCP；真实 DB-backed execution 留给 Phase C
+- 2026-05-28 — **Phase B done**：5 个 write tools 双层确认上线；HTTP transport + 多 transport CLI；smoke:mcp 端到端；`api-orchestration` 抽出共享层
+- 2026-05-29 — **DQ15** (Phase C, C4): 英国 / 欧盟公司当前为 registry-only / unsupported official disclosure route，返回 `cannot_conclude` 而不是杜撰 source target；per-country OAM 滚动加入
+- 2026-05-29 — **DQ16** (Phase C, C6): `seed-entities` 不完全删命令，改为 dev fixture import 语义；entities/aliases 迁到 `tests/fixtures/dev-entities/`；dep-check + unit 约束生产代码不反向依赖 dev fixture（采纳 DQ15 推荐方向 (b) 的实质：dev-only 语义）
+- 2026-05-29 — **DQ17** (Phase C, C7): `traverse_chain` 接受 `company:ENT-...` scope；`smoke:mcp:db` 断言真实稳定 envelope 字段，不再断言旧 `operation_id` 调试形状
+- 2026-05-29 — **Phase C done**：GLEIF/OpenFIGI/Wikidata identity bootstrap 全球化；country directory routing（US/KR/JP/TW/HK + UK/EU registry-only）；MCP `--runtime=db` 接通真实 DB-backed execution；seed-entities 降级为 dev fixture；非美国公司端到端 e2e（Samsung/TSMC/LVMH/AstraZeneca）
 
 ---
 
@@ -180,9 +185,12 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 - dep-check 拦不住的边界灰区
 - MCP write tool 想跳过 server-side pending gate 或 confirmation_token 校验
 - 想用 spec 外的 annotation 字段（应回到 server-side 行为层解决，不污染 MCP 协议层）
-- orchestration 抽出时发现 HTTP-specific 逻辑混在 handler 里且 mixing 严重
-- identity bootstrap 信息不足但想"先写一个 placeholder entity"（Phase C）
-- profile derive 想 cache 跨 session（Phase D）
+- identity bootstrap 信息不足但想"先写一个 placeholder entity"
+- Wikidata 数据想直接 promote 到 fact edge
+- **profile derive 想 cache 跨 session（Phase D 头号风险）**
+- **agent loop 想绕过 MCP 直接 import db / pipeline / graph-builder**
+- **agent 报告出现无 citation 的关系断言**
+- 三段式 agent 想演化成状态机 / framework（超出 DQ7 范围）
 - SCBOM schema 想加 SupplyStrata 私有字段（Phase E）
 - 出现"为了赶进度先 hack 一下事实写入"的诱惑
 - artifact JSON 字节级 diff 不为空但想接受 diff
@@ -211,3 +219,24 @@ B3 和 B4 可以并行（不同文件、不同 tool 集合）；B5 依赖 skelet
 - **附加**: `packages/agent` optional 占位包；`research ai-analyze` CLI 经 llm-helpers → ai-analysis audit ledger 路径重连；修复过期 `smoke:research` 入口
 - **验证全绿**: type-check / lint / unit / dep-check / build / format:check / smoke:local / smoke:research / nvidia-fixture e2e
 - **偏离原计划**: 无；A1-A5 按原拆分完成
+
+### Phase B · MCP 接入面 (done · 2026-05-28)
+
+- **Commits**: `3e8f1f1`、`e989a5c`、`9f5e276`、`a35ecd7`（含 B1-B3）
+- **Net effect**: `apps/mcp` 落地为 SupplyStrata 唯一对外 surface 雏形；`packages/api-orchestration` 抽出共享 use-case 层（apps/api 与 apps/mcp 对等消费）；6 read tools + 5 write tools；HTTP transport 用现代 `StreamableHTTPServerTransport`；MCP CLI 支持 stdio + http 双 transport + bind/port flag
+- **Write 安全双层**: (1) MCP spec 标准 annotation，review.approve/reject 标 `destructiveHint: true`；(2) server-side pending state + 单次性 `confirmation_token`，不依赖 client honor annotation。两层都有 meta-test 拦截
+- **关键边界**: smoke 用 spawned fixture server，刻意不接 DB runtime 或 source-workflow executor（划线由 Phase C 接通）
+- **修正**: PLAN 早稿误把 server-side 行为字段（`requires_user_confirmation`）写成 MCP annotation；B4 启动前更正为标准 spec 字段集（DQ10）
+- **验证全绿**: release:check / smoke:mcp / smoke:local / smoke:research / unit / integration / e2e / type-check / lint / dep-check / build / format-check
+- **偏离原计划**: 增加第 5 个 write tool `confirm_research_session`；HTTP transport 选用 `StreamableHTTPServerTransport` 而非 deprecated SSE
+
+### Phase C · 全球身份覆盖 + MCP DB runtime (done · 2026-05-29)
+
+- **Commits**: `140e289`、`d629477`、`1a3d30a`、`dd5958f`、`161f87b`、`7865fc8`、`5d7d633`、`ee80152`
+- **Net effect**: 全球公司查询不再绑定美国上市公司或内置 profile。新增 `packages/sources/{gleif,openfigi,wikidata}` 三个 identity adapter；universal identity bootstrap 遵守"默认 ambiguous，不猜测"，Wikidata 仅协作型 hint（不升格 fact），`llm-helpers.disambiguate_entity` 仍 candidate-only；`country-router` 路由 US→SEC / KR→DART / JP→EDINET / TW→TWSE / HK→HKEX stub，UK/EU 为 registry-only 返回 `cannot_conclude`
+- **DB runtime 接通**: `apps/mcp --runtime=fixture|db`（默认 fixture，db 缺 POSTGRES_URL fail-fast）；Phase B 刻意未接的 DB-backed execution 在此正式接通；`pnpm smoke:mcp:db` 新增
+- **seed 清理**: `seeds/entities.csv` + `aliases.csv` → `tests/fixtures/dev-entities/`；CLI 改 dev fixture import 语义；dep-check/unit 约束生产代码不反向依赖 dev fixture；`seeds/` 只剩 components.csv + README
+- **E2E**: `tests/e2e/global-listed-company.test.ts` 用 Docker Postgres + MCP stdio + `--runtime=db` 跑通 Samsung / TSMC / LVMH / AstraZeneca 全链路
+- **修正**: `traverse_chain` 接受 `company:ENT-...` scope；`smoke:mcp:db` 断言真实稳定 envelope 字段
+- **验证全绿**: type-check / unit / e2e / smoke:mcp:db / build / dep-check / format:check
+- **偏离原计划**: C6 未完全删除 seed CLI（DQ15/DQ16），改 dev fixture import 语义；UK/EU 官方披露路由暂为 registry-only（DQ15），不是原计划的全 OAM 覆盖

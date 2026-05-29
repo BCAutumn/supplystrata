@@ -8,7 +8,7 @@ ENT-NVIDIA,company,NVIDIA Corporation,NVIDIA,en,US,NVDA:US,0001045810,chip-desig
 ENT-APPLE,company,Apple Inc.,Apple,en,US,AAPL:US,0000320193,consumer-electronics;buyer,active,{}
 ENT-AMD,company,Advanced Micro Devices Inc.,AMD,en,US,AMD:US,0000002488,chip-design;ai-accelerator,active,{}
 ENT-BROADCOM,company,Broadcom Inc.,Broadcom,en,US,AVGO:US,0001730168,chip-design;networking,active,{}
-ENT-TSMC,company,Taiwan Semiconductor Manufacturing Company Limited,TSMC,en,TW,TSM:US;2330:TW,,foundry;semiconductor,active,{}
+ENT-TSMC,company,Taiwan Semiconductor Manufacturing Company Limited,TSMC,en,TW,TSM:US;2330:TW,,foundry;semiconductor,active,"{""identifiers"":{""twse_stock_code"":""2330""}}"
 ENT-SAMSUNG-FOUNDRY,business_unit,Samsung Foundry,Samsung Foundry,en,KR,005930:KR,,foundry;semiconductor,active,"{""parent_entity_id"":""ENT-SAMSUNG-ELECTRONICS""}"
 ENT-INTEL,company,Intel Corporation,Intel,en,US,INTC:US,0000050863,foundry;semiconductor,active,{}
 ENT-SKHYNIX,company,SK hynix Inc.,SK Hynix,en,KR,000660:KR,,memory;hbm,active,{}
@@ -25,7 +25,7 @@ ENT-INVENTEC,company,Inventec Corporation,Inventec,en,TW,2356:TW,,odm;server,act
 ENT-SUPERMICRO,company,Super Micro Computer Inc.,Supermicro,en,US,SMCI:US,0001375365,server;oem,active,{}
 ENT-DELL,company,Dell Technologies Inc.,Dell Technologies,en,US,DELL:US,0001571996,server;oem,active,{}
 ENT-HPE,company,Hewlett Packard Enterprise Company,HPE,en,US,HPE:US,0001645590,server;oem,active,{}
-ENT-SAMSUNG-ELECTRONICS,company,Samsung Electronics Co. Ltd.,Samsung Electronics,en,KR,005930:KR,,electronics;semiconductor,active,{}
+ENT-SAMSUNG-ELECTRONICS,company,Samsung Electronics Co. Ltd.,Samsung Electronics,en,KR,005930:KR,,electronics;semiconductor,active,"{""identifiers"":{""opendart_corp_code"":""00126380""}}"
 ENT-FABRINET,company,Fabrinet,Fabrinet,en,TH,FN:US,0001408710,optical;manufacturing,active,{}
 ENT-3M,company,3M Co.,3M,en,US,MMM:US,0000066740,materials;electronics-supplier,active,{}
 ENT-FOXCONN-FII,company,Foxconn Industrial Internet Co. Ltd.,Foxconn Industrial Internet,en,CN,601138:CN,,odm;server,active,{}
@@ -58,6 +58,8 @@ ENT-WISTRON-NEWEB,company,Wistron NeWeb Corporation,Wistron NeWeb,en,TW,6285:TW,
 ENT-INVENTEC-APPLIANCES,company,Inventec Appliances Corp.,Inventec Appliances,en,TW,,,electronics-manufacturing,active,{}
 ENT-OPENAI,company,OpenAI LLC,OpenAI,en,US,,,ai-lab;cloud-demand,active,{}
 ENT-COREWEAVE,company,CoreWeave Inc.,CoreWeave,en,US,,,cloud;gpu-cloud,active,{}
+ENT-LVMH,company,LVMH Moët Hennessy Louis Vuitton SE,LVMH,en,FR,MC:FP,,luxury-goods;consumer,active,"{""identifiers"":{""lei"":""969500FP1Q07I98R6P10""}}"
+ENT-ASTRAZENECA,company,AstraZeneca PLC,AstraZeneca,en,GB,AZN:GB;AZN:US,,pharma;biotech,active,"{""identifiers"":{""companies_house_number"":""02723534""}}"
 ENT-ASEH,company,ASE Technology Holding Co. Ltd.,ASE Technology,en,TW,3711:TW;ASX:US,,advanced-packaging;osat,active,{}
 ENT-AMKOR,company,Amkor Technology Inc.,Amkor,en,US,AMKR:US,,advanced-packaging;osat,active,{}
 ENT-KIOXIA,company,Kioxia Holdings Corporation,Kioxia,en,JP,,,memory;nand,active,{}

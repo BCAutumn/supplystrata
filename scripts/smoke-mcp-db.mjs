@@ -72,14 +72,15 @@ async function runSmoke() {
     confirmation_token: sourceToken
   });
   assertPath(confirmedSourceCheck, ["status"], "executed");
+  assertPath(confirmedSourceCheck, ["data", "schema_version"], "1.0.0");
 
   const runStatus = await callStructuredTool("poll_research_run", { run_id: runId });
-  assertPath(runStatus, ["data", "operation_id"], "getResearchRunStatus");
+  assertPath(runStatus, ["schema_version"], "1.0.0");
   assertPath(runStatus, ["data", "run", "run_id"], runId);
 
   if (companyEntityId !== undefined) {
     const chain = await callStructuredTool("traverse_chain", { scope: `company:${companyEntityId}`, depth: 2 });
-    assertPath(chain, ["data", "operation_id"], "getChain");
+    assertPath(chain, ["schema_version"], "1.0.0");
   }
 
   await closeQuietly();

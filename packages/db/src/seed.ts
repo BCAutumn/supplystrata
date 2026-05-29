@@ -52,13 +52,9 @@ async function importDevFixturesFromCsvLocked(client: DbClient, rootDir: string)
   let autoAliases = 0;
 
   for (const row of entities) {
-    const identifiers: Record<string, unknown> = {};
-    if (row.cik.trim().length > 0) identifiers["cik"] = row.cik.trim();
-    if (row.tickers.trim().length > 0)
-      identifiers["ticker"] = row.tickers
-        .split(";")
-        .map((ticker) => ticker.trim())
-        .filter(Boolean);
+    const rawAttrs = parseJsonRecord(row.attrs_json);
+    const identifiers = seedIdentifiers(row, rawAttrs);
+    const attrs = seedAttrs(rawAttrs);
     await client.query(
       `INSERT INTO entity_master (entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -85,7 +81,7 @@ async function importDevFixturesFromCsvLocked(client: DbClient, rootDir: string)
           .map((item) => item.trim())
           .filter(Boolean),
         row.status,
-        parseJsonRecord(row.attrs_json)
+        attrs
       ]
     );
 
@@ -136,6 +132,32 @@ async function importDevFixturesFromCsvLocked(client: DbClient, rootDir: string)
   await backfillEdgeComponents(client);
   await ensureDefaultUnknownItems(client);
   return { entities: entities.length, aliases: aliases.length + autoAliases, components: components.length };
+}
+
+function seedIdentifiers(row: EntityCsvRow, attrs: Record<string, unknown>): Record<string, unknown> {
+  const identifiers: Record<string, unknown> = {};
+  if (row.cik.trim().length > 0) identifiers["cik"] = row.cik.trim();
+  if (row.tickers.trim().length > 0)
+    identifiers["ticker"] = row.tickers
+      .split(";")
+      .map((ticker) => ticker.trim())
+      .filter(Boolean);
+  const fixtureIdentifiers = attrs["identifiers"];
+  if (!isStringRecord(fixtureIdentifiers)) return identifiers;
+  for (const [key, value] of Object.entries(fixtureIdentifiers)) {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) identifiers[key] = trimmed;
+  }
+  return identifiers;
+}
+
+function seedAttrs(attrs: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === "identifiers") continue;
+    output[key] = value;
+  }
+  return output;
 }
 
 async function backfillEdgeComponents(client: DbClient): Promise<void> {
@@ -250,6 +272,10 @@ function parseJsonRecord(text: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(text);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
   return parsed as Record<string, unknown>;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && Object.values(value).every((item) => typeof item === "string");
 }
 
 async function ensureDefaultUnknownItems(client: DbClient): Promise<void> {
