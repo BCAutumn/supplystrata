@@ -17,6 +17,7 @@
     "@supplystrata/data-quality": "workspace:*",
     "@supplystrata/db": "workspace:*",
     "@supplystrata/evidence-maintenance": "workspace:*",
+    "@supplystrata/llm-helpers": "workspace:*",
     "@supplystrata/render": "workspace:*",
     "@supplystrata/review-store": "workspace:*",
     "@supplystrata/source-management": "workspace:*",

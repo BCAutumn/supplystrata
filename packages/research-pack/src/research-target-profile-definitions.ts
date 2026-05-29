@@ -1,3 +1,4 @@
+import type { DerivedProfileComponent, LlmCandidateCitation, LlmHelperCandidateStatus, SuggestedSourceTarget } from "@supplystrata/llm-helpers";
 import type { OfficialDisclosureReadinessTargetNode } from "./official-disclosure-readiness.js";
 
 export const RESEARCH_TARGET_PROFILE_IDS = ["ai-compute-memory.v0", "ev-battery-energy.v0"] as const;
@@ -25,15 +26,55 @@ export interface AnchorResearchTargetProfile extends ResearchTargetProfileBase {
 export interface DerivedResearchTargetProfile extends ResearchTargetProfileBase {
   layer: "derived";
   profile_id: "derived.runtime.v0";
-  derivation: {
-    status: "placeholder";
-    company_id: string;
-    component_ids: string[];
-    reason: string;
-  };
+  derivation: ResearchTargetProfileDerivation;
 }
 
 export type ResearchTargetProfile = AnchorResearchTargetProfile | DerivedResearchTargetProfile;
+
+export type ResearchTargetProfileDerivation =
+  | PlaceholderResearchTargetProfileDerivation
+  | CandidateResearchTargetProfileDerivation
+  | GenericResearchTargetProfileDerivation;
+
+export interface PlaceholderResearchTargetProfileDerivation {
+  status: "placeholder";
+  company_id: string;
+  component_ids: string[];
+  reason: string;
+}
+
+export interface CandidateResearchTargetProfileDerivation {
+  status: "candidate";
+  company_id: string;
+  component_ids: string[];
+  source_refs: string[];
+  helper_status: Extract<LlmHelperCandidateStatus, "candidate">;
+  confidence: number;
+  rationale: string;
+  citations: LlmCandidateCitation[];
+  expected_upstream_components: DerivedProfileComponent[];
+  source_targets: SuggestedSourceTarget[];
+  fact_write_allowed: false;
+  reason: string;
+}
+
+export interface GenericResearchTargetProfileDerivation {
+  status: "generic";
+  company_id: string;
+  component_ids: string[];
+  country_code?: string;
+  sic_code?: string;
+  naics_code?: string;
+  source_refs: string[];
+  helper_status: Exclude<LlmHelperCandidateStatus, "candidate">;
+  confidence: number;
+  rationale: string;
+  citations: LlmCandidateCitation[];
+  expected_upstream_components: [];
+  source_targets: [];
+  fact_write_allowed: false;
+  reason: string;
+}
 
 export interface ResearchTargetProfileSelection {
   profile: ResearchTargetProfile | null;

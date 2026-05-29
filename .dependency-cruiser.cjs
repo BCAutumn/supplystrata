@@ -64,6 +64,12 @@ module.exports = {
       to: { path: "^packages/llm-helpers/src" }
     },
     {
+      name: "dynamic-profile-derive-must-stay-plan-context-only",
+      severity: "error",
+      from: { path: "^packages/research-pack/src/research-target-profile-derive\\.ts$" },
+      to: { path: "^packages/(db|claim-builder|graph-builder|evidence-maintenance|observation-store|review-store|source-monitor)/src" }
+    },
+    {
       name: "llm-helpers-must-not-depend-on-ai-analysis-domain",
       severity: "error",
       from: { path: "^packages/llm-helpers/src" },

@@ -639,6 +639,9 @@ importers:
       '@supplystrata/evidence-maintenance':
         specifier: workspace:*
         version: link:../evidence-maintenance
+      '@supplystrata/llm-helpers':
+        specifier: workspace:*
+        version: link:../llm-helpers
       '@supplystrata/render':
         specifier: workspace:*
         version: link:../render
