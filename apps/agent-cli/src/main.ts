@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import type { ScbomDocument } from "@scbom/spec";
 import { runReferenceAgent } from "@supplystrata/agent";
 import type { AiAnalysisProvider } from "@supplystrata/llm-helpers";
 import { connectAgentMcpClient, type AgentCliMcpRuntime, type AgentCliMcpTransport } from "./mcp-client.js";
 import { agentLlmOptions } from "./provider.js";
+import { writeAgentHtmlArtifact } from "./html-artifact.js";
 
 interface AgentCliOptions {
   readonly company: string;
@@ -15,6 +17,7 @@ interface AgentCliOptions {
   readonly mcpRuntime: AgentCliMcpRuntime;
   readonly mcpUrl?: string;
   readonly depth: number;
+  readonly htmlArtifact?: string;
 }
 
 export async function runAgentCli(
@@ -34,6 +37,7 @@ export async function runAgentCli(
     .option("--mcp-runtime <runtime>", "MCP runtime used when spawning stdio MCP: db or fixture.", "db")
     .option("--mcp-url <url>", "MCP HTTP endpoint URL. Used only with --mcp-transport http.")
     .option("--depth <n>", "Traversal depth.", parsePositiveInteger, 2)
+    .option("--html-artifact <path>", "Write a self-contained SCBOM HTML artifact.")
     .showHelpAfterError();
 
   try {
@@ -57,6 +61,13 @@ export async function runAgentCli(
           ...(options.baseUrl === undefined ? {} : { baseUrl: options.baseUrl })
         })
       );
+      if (options.htmlArtifact !== undefined) {
+        await writeAgentHtmlArtifact(options.htmlArtifact, {
+          title: `SupplyStrata Agent Report: ${options.company}`,
+          markdown: report.markdown,
+          scbomDocument: await readScbomArtifactDocument(options.company, mcp)
+        });
+      }
       io.stdout.write(`${report.markdown}\n`);
       return report.status === "completed" ? 0 : 2;
     } finally {
@@ -78,8 +89,68 @@ function cliOptions(raw: Record<string, unknown>): AgentCliOptions {
     mcpTransport: parseMcpTransport(optionalString(raw["mcpTransport"]) ?? "stdio"),
     mcpRuntime: parseMcpRuntime(optionalString(raw["mcpRuntime"]) ?? "db"),
     ...(raw["mcpUrl"] === undefined ? {} : { mcpUrl: requiredString(raw["mcpUrl"], "mcp-url") }),
-    depth: typeof raw["depth"] === "number" ? raw["depth"] : 2
+    depth: typeof raw["depth"] === "number" ? raw["depth"] : 2,
+    ...(raw["htmlArtifact"] === undefined ? {} : { htmlArtifact: requiredString(raw["htmlArtifact"], "html-artifact") })
   };
+}
+
+async function readScbomArtifactDocument(company: string, mcp: Awaited<ReturnType<typeof connectAgentMcpClient>>): Promise<ScbomDocument> {
+  const resolved = await mcp.client.callTool("resolve_company", { query: company });
+  const data = readRecordPath(resolved, ["data"]);
+  const companyId = readOptionalStringPath(data, ["entity_id"]) ?? readOptionalStringPath(data, ["entity", "entity_id"]);
+  if (companyId === null) throw new Error("Cannot write SCBOM artifact because company identity could not be resolved.");
+  const resource = await mcp.readResource(`supplystrata://scbom/company/${companyId}`);
+  const document = scbomDocumentFromResource(resource);
+  if (document === null) throw new Error("MCP SCBOM resource did not return a valid document for HTML artifact.");
+  return document;
+}
+
+function readRecordPath(root: Record<string, unknown>, path: readonly string[]): Record<string, unknown> {
+  const value = readPath(root, path);
+  if (!isRecord(value)) throw new Error(`Expected ${path.join(".")} to be an object.`);
+  return value;
+}
+
+function readOptionalStringPath(root: Record<string, unknown>, path: readonly string[]): string | null {
+  const value = readOptionalPath(root, path);
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error(`Expected ${path.join(".")} to be a string.`);
+  return value;
+}
+
+function readPath(root: Record<string, unknown>, path: readonly string[]): unknown {
+  let current: unknown = root;
+  for (const segment of path) {
+    if (!isRecord(current) || !(segment in current)) throw new Error(`Missing ${path.join(".")}.`);
+    current = current[segment];
+  }
+  return current;
+}
+
+function readOptionalPath(root: Record<string, unknown>, path: readonly string[]): unknown | null {
+  let current: unknown = root;
+  for (const segment of path) {
+    if (!isRecord(current) || !(segment in current)) return null;
+    current = current[segment];
+  }
+  return current;
+}
+
+function scbomDocumentFromResource(resource: unknown): ScbomDocument | null {
+  if (!isRecord(resource)) return null;
+  const contents = resource["contents"];
+  if (!Array.isArray(contents)) return null;
+  for (const item of contents) {
+    if (isRecord(item) && typeof item["text"] === "string") {
+      const parsed: unknown = JSON.parse(item["text"]);
+      if (isScbomDocument(parsed)) return parsed;
+    }
+  }
+  return null;
+}
+
+function isScbomDocument(value: unknown): value is ScbomDocument {
+  return isRecord(value) && value["schema_version"] === "0.0.1" && typeof value["document_id"] === "string" && Array.isArray(value["objects"]);
 }
 
 function parseProvider(value: string): AiAnalysisProvider {
@@ -111,6 +182,10 @@ function requiredString(value: unknown, label: string): string {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function formatCliError(error: unknown): string {

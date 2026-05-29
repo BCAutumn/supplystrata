@@ -18,6 +18,7 @@ export interface AgentCliMcpClientOptions {
 
 export interface ConnectedAgentMcpClient {
   readonly client: SupplyStrataMcpClient;
+  readResource(uri: string): Promise<unknown>;
   close(): Promise<void>;
 }
 
@@ -33,6 +34,9 @@ export async function connectAgentMcpClient(options: AgentCliMcpClientOptions): 
         if (!isRecord(result.structuredContent)) throw new Error(`${name} did not return structuredContent.`);
         return result.structuredContent;
       }
+    },
+    async readResource(uri) {
+      return client.readResource({ uri });
     },
     async close() {
       await closeQuietly(client, transport);

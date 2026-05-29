@@ -208,6 +208,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/workbench-export
 
+  apps/web:
+    dependencies:
+      '@supplystrata/web':
+        specifier: workspace:*
+        version: link:../../packages/web
+
   apps/worker:
     dependencies:
       '@supplystrata/config':

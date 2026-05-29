@@ -1,0 +1,17 @@
+{
+  "name": "@supplystrata/web-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@supplystrata/web": "workspace:*"
+  },
+  "bin": {
+    "supplystrata-web": "./dist/main.js"
+  },
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "files": [
+    "dist"
+  ]
+}

@@ -166,6 +166,43 @@ pnpm mcp --transport=http --runtime=db --port=7474
 pnpm agent --company "TSMC" --provider openai --mcp-transport http --mcp-url http://127.0.0.1:7474/mcp
 ```
 
+也可以让 agent 产出离线 HTML artifact；该文件内联 SCBOM document 和 viewer IIFE，不需要联网才能打开：
+
+```bash
+pnpm build
+pnpm agent --company NVIDIA --provider none --mcp-runtime fixture --html-artifact reports/nvidia-scbom.html
+```
+
+## 9. SCBOM Web viewer（可选）
+
+本地 viewer 是薄壳，默认只连本机 MCP HTTP endpoint：
+
+```bash
+pnpm build
+pnpm mcp --transport=http --runtime=db --port=7474
+pnpm web --company ENT-NVIDIA --mcp-url http://127.0.0.1:7474/mcp --port 8787
+```
+
+第三方页面可直接嵌入 Web Components：
+
+```html
+<script src="./components.iife.js"></script>
+<scbom-evidence-view></scbom-evidence-view>
+<scbom-unknown-map></scbom-unknown-map>
+<script>
+  window.ScbomViewer.registerScbomComponents();
+  document.querySelector("scbom-evidence-view").scbomDocument = scbomDocument;
+</script>
+```
+
+React / Vue 等深度定制场景不需要 wrapper；直接消费 L0 headless core 自画 UI：
+
+```ts
+import { createScbomView } from "@supplystrata/web";
+
+const view = createScbomView(scbomDocument);
+```
+
 ## 发布前体检
 
 ```bash

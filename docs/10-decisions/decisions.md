@@ -229,24 +229,27 @@
 - 参照 OpenSanctions / OSV.dev / OpenAlex 模式：开放数据 dump 是开源数据基础设施的标准价值交付物。
 - 维护团队的工作量集中在 pack 生成，而不是托管 SaaS 运营。
 
-## 15. 前端：可嵌入可视化组件库，不内置 agent
+## 15. 前端：中立 SCBOM viewer，不内置 agent
 
 决策：
 
-- `@supplystrata/web` 是 framework-agnostic 的可嵌入可视化库，发布形态：
-  - **Web Components (Custom Elements)**：React / Vue / Svelte / vanilla HTML 都可直接 `<supplystrata-supply-chain-graph>`。
-  - 同时发布 IIFE bundle（`<script>` 即用）和 npm ESM（按需 import）。
-- 渲染：图谱主体用 **Canvas / WebGL**（节点数 ≥ 200 时 SVG 性能不足）；周边面板（证据 / unknown / timeline / source health）用 **SVG + DOM**。
-- 通过 MCP HTTP/SSE transport 直连本机或远程 MCP server，**无需 BFF**。
+- `@supplystrata/web` 是中立 SCBOM viewer，不消费 WorkbenchModel / DB / SupplyStrata 私有状态；任何符合 SCBOM v0.x 的 document 都能渲染。
+- 分两层发布：
+  - **L0 headless core**：纯 TypeScript、零 DOM、零网络、零框架，把 SCBOM 规范化成 `ScbomView`。React / Vue / 内部 design system 想深度定制时直接消费 L0 自画 UI。
+  - **L1 Web Components**：`<scbom-evidence-view>`、`<scbom-unknown-map>`、`<scbom-supply-chain-graph>`；用 Lit 编写标准 Custom Elements，Shadow DOM + CSS variables + `::part()` + slot 暴露换肤面。
+- `packages/web` 自身不引 React / Vue / Svelte 作为运行或构建依赖；Lit 是 Web Components authoring library，不是宿主框架绑定。
+- 同时发布 IIFE bundle（`<script>` 即用）和 npm ESM（按需 import）。IIFE gzip size 有 CI 门禁（≤ 200KB）。
+- 渲染 UX evidence-first：主视图是证据表 / 时间线和 unknown map；Sigma.js / WebGL 图只作概览入口。
+- 浏览器 MCP HTTP client 默认只连 `127.0.0.1`；远程 endpoint 必须显式 opt-in。viewer 只读，不暴露 source check / review / research session 写入口。
 - 不内置 agent。需要 agent 体验时，由调用方 agent（包括 `@supplystrata/agent` 或外部 Cursor / Claude Desktop）通过 MCP 驱动可视化。
-- `apps/web-demo` 是约 100 行的薄 demo，把这些组件拼起来供新用户首次体验和文档截图；不做用户管理、不做权限、不做主题。
+- `apps/web` 是薄本地 viewer shell，把组件拼起来连本机 MCP HTTP，供本地实例首次体验；不做用户管理、不做权限、不做主题。
 
 理由：
 
 - "供应链图"无法用文本表达——这是任何 agent 用 markdown 表格永远填不上的体验空缺，是前端唯一独占价值。
 - 可嵌入意味着 SupplyStrata 不需要"自己的网站"。任何想做供应链产品的人能把组件嵌进他的 Next.js / Nuxt / Astro / 内部 dashboard，传播路径远大于"我们跑一个网站"。参照 Mermaid / Excalidraw / Cytoscape 的生态扩张方式。
 - 不内置 agent 让前端与外部 agent 平级（都是 MCP client），不抢话语权。"AI 自动生成全球供应链地图"的工作流变成"外部 agent → MCP → 可视化组件渲染"，比内置 agent 更通用。
-- pure TS + canvas 不带 React / Vue 依赖，避免框架版本冲突，最大化嵌入兼容性。
+- L0 + Web Components 不带 React / Vue 依赖，避免框架版本冲突，最大化嵌入兼容性。
 
 不采纳的备选：
 

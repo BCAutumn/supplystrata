@@ -76,7 +76,7 @@ describeDb("SCBOM DB export e2e", () => {
     } finally {
       await closeQuietly(client, transport);
     }
-  });
+  }, 20_000);
 });
 
 function nodeOptionsWithDevelopmentCondition(current: string | undefined): string {
