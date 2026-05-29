@@ -1,7 +1,7 @@
 # Implementation Plan (Rolling)
 
 最后更新: 2026-05-29
-当前位置: **Phase F · in_progress**
+当前位置: **Phase H · in_progress**
 
 > 这是滚动工作笔记，不是规范。决策 / 边界 / 完成口径以 `docs/` 为准。
 > 每完成一 Phase: 压缩当前 → 细化下一。
@@ -19,8 +19,9 @@
 | C     | 全球身份覆盖 + MCP CLI 接 DB-backed runtime           | **done**    |
 | D     | 动态 profile + Agent 参考实现                         | **done**    |
 | E     | SCBOM v0.x 开放交换格式 + workbench-export 对齐       | **done**    |
-| F     | 中立 SCBOM 可视化 (headless core + Web Components)    | in_progress |
-| G     | Community-pack release pipeline                       | not_started |
+| F     | 中立 SCBOM 可视化 (headless core + Web Components)    | **done**    |
+| G     | Community-pack release pipeline                       | **done**    |
+| H     | Viewer 打磨（布局硬伤 + evidence-first 落地 + 默认主题 + theming surface） | in_progress |
 
 ---
 
@@ -35,133 +36,78 @@
 
 ---
 
-## Phase F · 中立 SCBOM 可视化（headless core + Web Components）[当前]
+## Phase H · Viewer 打磨 [当前]
 
-> 大白话：做一个能渲染**任何 SCBOM 文档**的中立可视化层——本地实例一跑就有 UI 看自己的数据，agent 能把图当报告产出，别人也能把它嵌进自己的 React/Vue app 并深度换肤定制。证据优先，不是先甩一张毛球图。
+> 大白话：把 Phase F 那个"环形堆叠、标签压字、graph 抢主屏"的默认观感修成"开箱得体 + 别人能优雅换肤"。**不是做产品级美观前端**（违背 #8/DQ21），而是默认做得体 + theming surface 补全（DQ26）。
 
-**目标**：交付 SupplyStrata 第一个**可视化对外脸面**。它是一个**中立的 SCBOM viewer**（消费任何符合 SCBOM 的文档，不绑定 SupplyStrata），分两层：**L0 headless core**（纯 TS、零 DOM、零框架，把 SCBOM 规范化成可渲染的 view model）+ **L1 themeable Web Components**（开箱即用、可换肤）。
+**目标**：解除两个 Phase F 遗留——(1) 默认布局/可读性硬伤（消费者用 CSS 改不了）；(2) DQ23 evidence-first 未落实（graph 抢了主屏、evidence/unknown 还是裸列表）；并把 theming surface 补全文档化，让消费者能把 viewer 融进自己设计系统。
 
-完成后能证明三件事：数据不仅机器能读（SCBOM/MCP），人也能直接看（本地 UI + agent 产出图）；可视化与核心彻底解耦（删 `packages/web` 核心照常工作）；第三方能**自由集成**——快速嵌的人用 L1，要把图融进自己 React/Vue 设计系统的人用 L0 自画。
+**边界**（DQ26）：布局/可读性我们负责到"得体"，**视觉品味交消费者**；不引入设计系统、不做有强设计观点的产品 UI、`packages/web` 仍零 framework 依赖、bundle 预算不变。
 
-### 产品形态：B + C 为主，A 为副产物（DQ20）
+### "丑"的两类拆分（决定归属）
 
-- **B 本地自带 UI**：实例 `--serve-web` 起 localhost 页面，跑实例的人立即能浏览自己的数据（datasette / Obsidian 借鉴）。
-- **C agent 可视化 artifact**：agent / CLI 产出**自包含 HTML**（内联 IIFE + 内联 SCBOM），离线可渲染，人看 agent 的产出。
-- **A 嵌入式组件**：`<script>` + 自定义标签嵌别人页面——是 L1 的自然副产物，不单列为目标。
-
-### 分层架构：headless core (L0) + themeable Web Components (L1)（DQ22）
-
-| 层                    | 内容                                                                                                              | 给谁                                                       | 边界                                                          |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
-| **L0 headless core**  | SCBOM document → 规范化 `ScbomView`（entities / relationships / evidence index / unknowns / changes）+ graph 布局 | 想用自己 React/Vue 组件 + 设计系统**完全自画 UI** 的开发者 | 纯 TS、**零 DOM、零网络、零框架**；本次真正的资产             |
-| **L1 Web Components** | `<scbom-evidence-view>`（主）/ `<scbom-unknown-map>` / `<scbom-supply-chain-graph>`（概览）                       | 想快速嵌、不想自己画、或非 React 场景                      | custom element + Shadow DOM；themeable                        |
-| **L2 框架 wrapper**   | `@supplystrata/web-react` / `-vue`                                                                                | 想要地道 React/Vue DX                                      | **本期不做**（DQ22）：WC 原生可在 React/Vue 用；深度定制走 L0 |
-
-**关键认知**：React/Vue 集成不靠我们包里塞 React/Vue（那会破 #15），而靠 (1) Web Components 本就能在 React/Vue 里用；(2) L0 headless core 把数据直接交给开发者自画。`packages/web` 自身**永远不把 React/Vue 作运行/构建依赖**。这是 #15 的细化，不是推翻。
-
-### 关键技术决策（已锁定）
-
-- **DQ6**：图渲染用 **Sigma.js v3 + graphology**（WebGL；实测约 240KB min ≈ 75KB gz，在预算内），不用 Cytoscape/自写 canvas。graph 仅概览入口（DQ23），故不追更轻方案。
-- **DQ24 L1 用 Lit**：Web Component 层用 **Lit**（~5.5KB gz，Google 维护）写,不手写 base class。Lit 产出标准 custom element，可在 React/Vue 直接用，**不破 #15/DQ22**（Lit 不是 React/Vue 那类框架，是 WC authoring lib）；Shadow DOM + `static styles` + CSS 变量换肤内置，正好承载 DQ23 换肤。dep-check 允许 Lit，仍禁 React/Vue/Svelte。
-- **DQ21 中立化**：viewer 渲染任何 SCBOM，组件用 `scbom-*` 前缀（非 `supplystrata-*`）信号中立；先放本 repo `packages/web`，接口按中立设计，将来抽独立 repo 零成本。
-- **DQ23 evidence-first UX**：主视图是 `<scbom-evidence-view>`（证据表/时间线：cite text + source URL + evidence_level + validity）；graph 是**概览入口**不是主屏；unknown 一等展示。
-- **DQ23 换肤**：Shadow DOM 封装 + CSS 变量（`--scbom-*`）+ `::part()` + slot 暴露换肤点（Lit 原生支持）。
-- **只读**：viewer **不暴露任何 write tool**；只渲染，不触发 source check / review / session（写仍只走 agent/CLI 经 MCP confirmation gate）。
-- **双形态产物**：IIFE bundle（`<script>` 直接用）+ npm ESM（headless core + 构建链引入）。
-- **预算口径**：size gate 判 **gzipped**（≤ 200KB），不拿 minified 数字判（两者差约 3 倍，易误判）。F1 实测 gz 值入门禁。
+| 类别          | 例子                                            | 消费者能改吗               | 归谁               |
+| ------------- | ----------------------------------------------- | -------------------------- | ------------------ |
+| A 布局/可读性 | 环形堆叠、标签压字、graph 抢主屏、evidence 裸列表 | 改不了（布局在 L0/组件内） | **我们修到"得体"** |
+| B 视觉风格    | 配色/圆角/字体/间距/暗色                        | 能改（前提暴露够 vars/parts） | **交消费者**       |
 
 ### PR 切分
 
-| PR  | 标题                                                                       | 范围                                                                                                                                                                                                                                                                          | 验收                                                                                                               | 清理判据                                                                                                                             |
-| --- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| F1  | `packages/web` skeleton + L0 类型 + dual-build + 尺寸门禁                  | 新建 `packages/web`；加 `lit` 依赖（DQ24）；定义 L0 `ScbomView` 类型；ESM（headless entry）+ IIFE（components entry）双产物；CI bundle size gate（实测 **gzipped** ≤ 200KB IIFE）；占位 no-op                                                                                 | `pnpm build` 产出双产物；size gate 超预算 fail（故意塞大依赖验证，判 gz 值）；headless entry 可被纯 TS import      | 不依赖 React/Vue/Svelte（dep-check + package.json；Lit 允许）；headless entry 零 DOM/网络 import                                     |
-| F2  | L0 headless core：SCBOM → ScbomView + 布局（纯函数）                       | `scbom-to-view.ts`：SCBOM document → `ScbomView`；relationship → 其 evidence trail 索引（evidence-first）；unknown 一等 list；change list；graphology 概览布局；evidence_level → 视觉权重 vocabulary（不硬编）                                                                | 单测：SCBOM fixture → ScbomView；observation/unknown 不变成 relationship；dangling ref 安全降级；布局确定性        | 纯函数、零 DOM、零网络；输入 SCBOM 不是 WorkbenchModel；无 SupplyStrata 私有概念；**这是 React/Vue 消费层**，导出稳定                |
-| F3  | L1 Web Component base（Lit）+ 换肤基础设施                                 | 用 Lit `LitElement` 写 base + Shadow DOM；换肤经 CSS 变量 + `::part()` + slot；`@property` attr → L0 → render 生命周期；`<scbom-ping>` 验证换肤钩子                                                                                                                           | base element 在纯 HTML 注册；CSS 变量覆盖生效；`::part()` 可定位；slot 内容渲染                                    | 换肤 surface 文档化；Lit 之外无框架；产出标准 custom element（React/Vue 可直接用）                                                   |
-| F4  | evidence-first 主组件 `<scbom-evidence-view>` + `<scbom-unknown-map>`      | `<scbom-evidence-view>`：**主视图**——relationship 证据表/时间线（cite + source URL + evidence_level + validity）；`<scbom-unknown-map>`：unknown 一等展示；两者消费 L0、只读                                                                                                  | 渲染单测（happy-dom）；unknown 一等语气（非"缺失/错误"）；evidence_level 配色合 evidence-model.md；deprecated 区分 | 只读、无写入入口；消费 L0 view model；无共享可变全局态                                                                               |
-| F5  | `<scbom-supply-chain-graph>` 概览图 + 浏览器 MCP HTTP client               | Sigma.js v3 概览图（入口，非主屏；点节点下钻到 evidence-view）；observation/unknown 不画成 relationship edge；`mcp-http-client.ts` 浏览器侧连 `StreamableHTTPServerTransport` 调 `supplystrata://scbom/company/{lei}` 取 SCBOM，默认 `127.0.0.1`                              | graph 渲染 NVIDIA SCBOM fixture；mock-transport 取数单测；取数失败显式错误态；远程/跨域需显式配置                  | client 只调 read resource，不调 write tool；graph 只读；默认 localhost                                                               |
-| F6  | 本地 viewer app (B) + agent artifact (C) + 尺寸 e2e + docs + #15 amendment | `apps/web` 薄本地 viewer（CLI 起 localhost 服 L1 bundle 指向本机 MCP，形态 B）；agent/CLI 产出自包含 HTML（内联 IIFE + 内联 SCBOM，离线渲染，形态 C）；size e2e；更新 docs（module-design 分层去标签、quickstart 嵌入 + headless React/Vue 片段）、decisions.md #15 amendment | 本地 viewer 连本机 MCP 渲染出图；agent HTML artifact 离线渲染；size e2e 绿；docs 一致                              | app 薄壳无业务规则；module-design web 行去标签；quickstart 有 embed + headless 片段；decisions #15 已 amend；removable；无 TODO/shim |
+| PR  | 标题                          | 范围                                                                                                                                       | 验收                                                              | 清理判据                                                       |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| H1  | 修 graph 布局硬伤             | 换掉 Sigma 默认环形布局 → `graphology-layout-forceatlas2`（+ `noverlap`）；标签碰撞规避；节点尺寸按 degree/类型分级；布局在 L0 产出（确定性、可测） | 同一 SCBOM fixture 渲染无节点重叠/标签压字；布局确定性单测；数百节点不卡死 | 布局逻辑在 L0 纯函数（零 DOM）；消费者无需碰 CSS 即得可读布局   |
+| H2  | 落实 DQ23 evidence-first 落地 | viewer 落地主视图改为 `<scbom-evidence-view>`（证据表/时间线）；graph 退回概览入口（次级区/tab）；unknown 经 `<scbom-unknown-map>` 一等展示，非裸列表 | 默认打开是 evidence-first；graph 不再独占首屏；unknown 一等语气     | 不改 L0 契约；只调组件编排/默认布局                            |
+| H3  | 克制中性默认主题              | unstyled-but-clean 默认（排版、间距、对比、evidence_level 配色合 evidence-model.md）；无强设计观点；可一键关闭交裸 DOM                       | 默认观感得体、专业但中性；可关闭                                   | 不引入设计系统/UI kit；默认主题与组件结构解耦                  |
+| H4  | theming surface 补全 + 文档化 | 盘点补全 `--scbom-*` CSS 变量 + `::part()` 清单 + slot；README 列出完整 theming 契约                                                        | 文档列全 vars/parts/slots；契约有 test 锁（删 part 会 fail）       | theming surface 是稳定契约；Shadow DOM 封装但可深度换肤        |
+| H5  | 换肤 demo + e2e               | demo：同一 SCBOM 默认主题 vs 自定义主题两种样子；e2e 验证仅用 CSS vars/parts 即可改观                                                        | demo 双主题渲染；e2e 断言自定义主题生效 + 布局无重叠              | demo 薄壳；无 TODO/shim                                        |
 
 ### 执行顺序
 
 ```
-F1 (skeleton + L0 类型 + dual-build + size gate) → F2 (L0 headless core) → F3 (WC base + 换肤) ┐
-                                                                                                ├→ F6 (本地 viewer + agent artifact + e2e + docs) → Phase F DONE
-                                       F4 (evidence-first 主组件) ‖ F5 (graph 概览 + MCP client) ┘
+H1 (布局硬伤) → H2 (evidence-first 落地) → H3 (中性默认主题) → H4 (theming surface) → H5 (demo + e2e) → Phase H DONE
 ```
 
-- F1 → F2（headless）→ F3（WC base）线性
-- F4、F5 依赖 F2（ScbomView）/ F3（base class），可在 F3 后并行
-- F6 最后（合流 B/C 形态 + docs + #15 amendment）
+- H1 是地基（布局对了其它才有意义）；H2 紧随（视图编排）；H3/H4 是观感与契约；H5 收尾佐证。
 
-### 清理 checklist（Phase F 合并前必须勾完）
+### 清理 checklist（Phase H 合并前必须勾完）
 
-- [ ] `packages/web` 自身不依赖 React/Vue/Svelte（dep-check + package.json 检查；Lit 作为 WC authoring lib 允许）
-- [ ] L0 headless entry 零 DOM / 零网络 import（meta-test：扫 L0 入口不引 DOM/fetch）
-- [ ] IIFE + ESM 双产物；IIFE ≤ 200KB gzipped（CI size gate，故意超标验证拦截）
-- [ ] L0 `scbom-to-view` 纯函数、零 DOM、零网络；输入 SCBOM 不是 WorkbenchModel；导出稳定（React/Vue 消费契约）
-- [ ] observation / unknown 不被画成 relationship（结构上而非样式上区分）
-- [ ] 主视图是 evidence-view（证据优先）；graph 是概览入口非主屏；unknown 一等
-- [ ] evidence_level 配色与 `docs/03-data-model/evidence-model.md` 约定一致
-- [ ] 换肤经 CSS 变量 + `::part()` + slot，已文档化
-- [ ] viewer **只读**：无任何 write tool 入口；MCP HTTP client 只调 read resource
-- [ ] 浏览器 MCP client 默认 `127.0.0.1`；远程/跨域需显式配置 + README 风险标注
-- [ ] 本地 viewer app (B) 连本机 MCP 渲染出图；agent HTML artifact (C) 离线可渲染
-- [ ] 删除 `packages/web` + `apps/web` 后核心 build/test 全绿（removable meta-test）
-- [ ] `docs/02-architecture/module-design.md` web 分层去【新增,目标】标签
-- [ ] `docs/06-development/quickstart.md` 加 embed 片段 + headless React/Vue 使用片段
-- [ ] `docs/10-decisions/decisions.md` #15 amend（补 headless 分层 + 中立 viewer 形态）
+- [ ] graph 默认布局无节点重叠/标签压字（forceatlas2/noverlap）；布局在 L0 纯函数、确定性、可测
+- [ ] 落地主视图是 evidence-first；graph 退回概览入口；unknown 一等展示（非裸列表）
+- [ ] 默认主题 unstyled-but-clean、可关闭；evidence_level 配色合 `evidence-model.md`
+- [ ] `--scbom-*` CSS 变量 + `::part()` + slot 清单补全并文档化；theming 契约有 test 锁
+- [ ] demo 展示默认 vs 自定义两主题；e2e 验证仅 CSS 即可换肤
+- [ ] `packages/web` 仍零 framework 依赖；bundle gzip 预算不变（≤ 200KB）
+- [ ] 不引入设计系统 / 产品级 UI / 强设计观点
+- [ ] L0 契约不被破坏（headless 仍零 DOM/网络）
 - [ ] 无 `// TODO` / `// FIXME` / shim 代码
 - [ ] type-check / lint / unit / dep-check / build / format-check / e2e / smoke 全绿
 
 ### 风险点（命中即找 commander）
 
-1. **`packages/web` 自身想引 React/Vue 作运行/构建依赖** — 头号风险。框架集成在**消费方**（用 WC 或 L0），不在我们包内。dep-check 拦截，也要警惕传递依赖。
-2. **L0 headless core 偷引 DOM / fetch** — L0 一旦碰 DOM 或网络就丧失"框架无关 + 可测 + React/Vue 可消费"。meta-test 扫 L0 入口。
-3. **bundle 体积失控** — Sigma + graphology 已占预算；任何顺手加的大依赖都可能爆 200KB。size gate 是硬门禁，超了砍功能/换依赖，不抬预算。
-4. **组件直接读 WorkbenchModel / DB** — 只吃 SCBOM。出现"SCBOM 没这字段所以直接连 DB"的冲动时停——要么字段进 SCBOM（回 Phase E 讨论），要么不展示。
-5. **viewer 出现写入入口** — 渲染层永远只读。"图上点一下触发 source check / approve"违反写入边界。
-6. **observation 被画成关系线** — Phase E 同源风险的可视化版：observation/unknown 在视觉和数据结构上都不等于 relationship。
-7. **graph 喧宾夺主** — UX 是 evidence-first；不要把毛球图做成主屏，证据/unknown 才是差异化。
-8. **跨域取数默认放开** — 默认 localhost-only；远程 MCP endpoint 需显式配置自担风险，不为 demo 方便默认开 CORS。
-9. **中立组件混入私有概念** — 组件名 `scbom-*`、只认 SCBOM；任何 SupplyStrata 私有字段/概念渗进渲染层都破坏中立化（DQ21）。
+1. **打磨滑向产品级 UI** — 头号风险。一旦开始加设计观点（品牌色、定制图标系统、动效堆砌）就越界。默认必须中性、可关、可换。
+2. **布局逻辑塞进组件 DOM 层** — 布局应在 L0 产出（确定性、可测、React/Vue 消费方也能用）；混进 Lit 渲染会破 L0 边界。
+3. **theming surface 暴露不全** — 只封装不暴露 = 消费者改不了。parts/vars 是稳定契约，要有 test 锁防回退。
+4. **bundle 因布局/主题膨胀** — forceatlas2/noverlap 体积要算进预算；超了砍功能不抬预算。
+5. **为美观牺牲 evidence-first** — graph 好看不能再次抢主屏；evidence/unknown 才是差异化。
 
 ### 测试策略
 
-**新增**：
+**新增/强化**：
 
-- `tests/unit/web-scbom-to-view.test.ts` — L0 映射 + observation/unknown 不混入 relationship
-- `tests/unit/web-headless-no-dom.test.ts` — meta-test：L0 入口零 DOM/网络 import
-- `tests/unit/web-component-theming.test.ts` — Shadow DOM + CSS 变量 + `::part()` + slot 换肤
-- `tests/unit/web-evidence-view.test.ts` — 主视图证据表/时间线渲染（happy-dom）
-- `tests/unit/web-unknown-map.test.ts` — unknown 一等展示
-- `tests/unit/web-graph-component.test.ts` — 概览图注册 + 渲染
-- `tests/unit/web-mcp-http-client.test.ts` — mock transport 取数 + 错误态
-- `tests/unit/web-readonly-boundary.test.ts` — meta-test：web 不引用任何 write tool
-- `tests/unit/dep-boundary-web-removable.test.ts` — meta-test：web + apps/web 可整包删除
-- `tests/e2e/web-local-viewer.test.ts` — 本地 viewer 连本机 MCP 渲染（B）
-- `tests/e2e/web-agent-artifact.test.ts` — agent 自包含 HTML 离线渲染（C）+ bundle size
+- `tests/unit/web-graph-layout.test.ts` — L0 布局确定性 + 无重叠度量
+- `tests/unit/web-evidence-first-landing.test.ts` — 落地主视图是 evidence-view，graph 非首屏
+- `tests/unit/web-theming-contract.test.ts` — `--scbom-*` / `::part()` / slot 契约锁
+- `tests/e2e/web-custom-theme.test.ts` — 仅 CSS 换肤生效 + 布局无重叠
 
-### Phase F 完成出口
+### Phase H 完成出口
 
 ```
 出口判据 (single sentence):
-  packages/web 以 L0 headless core（纯 TS 零 DOM，React/Vue 可直接消费自画 UI）+ L1 themeable
-  Web Components（scbom-* 前缀、Shadow DOM + CSS 变量/::part()/slot 换肤）两层交付一个中立 SCBOM viewer；
-  本地实例 --serve-web 起 localhost UI（B）、agent 能产出离线自包含 HTML 图（C）、第三方能 <script> 嵌入（A）；
-  主视图 evidence-first（证据表/时间线 + unknown 一等，graph 作概览入口），只读无写入入口、
-  IIFE ≤ 200KB gzipped、packages/web 自身零 framework 依赖；
-  删除 packages/web + apps/web 后核心 build/test 仍全绿。
+  同一份 SCBOM 在 viewer 默认即得体——graph 布局无重叠/压字、evidence-first 作落地主视图、
+  unknown 一等展示；消费者仅用文档化的 --scbom-* CSS 变量 / ::part() / slot 即可把 viewer
+  换成自己设计系统的样子（demo + e2e 佐证）；packages/web 仍零 framework 依赖、bundle 预算不变、
+  L0 headless 边界不破；全程不引入产品级 UI / 设计系统。
 ```
-
----
-
-## Phase G · 概览（启动时再细化）
-
-### Phase G · Community-pack
-
-- **出口**：`pack-2026.QN.parquet` 发布；MCP server `--pack=` 加载校验 sha256
-- **不变式**：community-pack 是 read-only baseline；任何写入只发生在本地 cache
-- **依赖**：Phase B（MCP 启动参数）+ Phase E（SCBOM 格式作为 pack 内容）
 
 ---
 
@@ -197,6 +143,14 @@ F1 (skeleton + L0 类型 + dual-build + size gate) → F2 (L0 headless core) →
 - 2026-05-29 — **DQ22** (Phase F, #15 amendment): 分层 L0 headless core（纯 TS 零 DOM 零框架，React/Vue 深度定制入口）+ L1 themeable Web Components；`packages/web` 自身永不引 React/Vue 作运行/构建依赖；L2 框架 wrapper 本期不做（WC 原生可在 React/Vue 用）
 - 2026-05-29 — **DQ23** (Phase F): UX evidence-first——主视图 `<scbom-evidence-view>`（证据表/时间线 + unknown 一等），graph 作概览入口非主屏；换肤经 Shadow DOM + CSS 变量 + `::part()` + slot
 - 2026-05-29 — **DQ24** (Phase F): L1 用 **Lit**（~5.5KB gz）写 Web Components，不手写 base class；Lit 产出标准 custom element，不破 #15/DQ22（非 React/Vue 框架）；dep-check 允许 Lit、仍禁 React/Vue/Svelte。图渲染保留 DQ6 Sigma.js v3+graphology（~75KB gz 在预算内）。size gate 判 gzipped 不判 minified
+- 2026-05-29 — **DQ25** (Phase F): 本地 viewer 首屏改 **server-side 预取**——Node server 先读 MCP SCBOM resource 再把 JSON 内联进 HTML，浏览器不做跨端口首屏 fetch（链路更稳）；MCP HTTP CORS 只允许本地 origin 并暴露 `mcp-session-id`，不为方便默认开放跨域
+- 2026-05-29 — **Phase F done**：`@supplystrata/web` 中立只读 SCBOM viewer（L0 headless `createScbomView` + Lit 组件 evidence-view/unknown-map/supply-chain-graph）；`pnpm web` 本地 viewer + `pnpm agent --html-artifact` 自包含报告；7 条边界机械化；修 CORS / 首屏空白 / Lit 属性派生三问题。**已知遗留**：(1) 完整 `test:e2e` 因本地 DB 既有 evidence ref 数据质量问题未全绿，转 Phase G G0 跟踪；(2) 默认观感（环形布局重叠/标签压字、graph 抢主屏、evidence/unknown 裸列表）+ theming surface 补全，转 Phase H（DQ26）
+- 2026-05-29 — **DQ26** (Phase F 复盘): 前端"丑"处理走中间路径——修布局硬伤（消费者改不了）+ 落实 evidence-first 主视图 + 克制中性默认主题 + theming surface 文档化；**不做产品级美观 UI**（与 #8/DQ21 中立定位冲突）；视觉品味交消费者。排到 **Phase H**（Phase G 之后）
+- 2026-05-29 — **DQG1** (Phase G): pack canonical 格式 = `scbom-jsonl`（manifest.json + 一/多个 SCBOM JSONL；每行一份 `@scbom/spec` 校验过的 SCBOM document）；Parquet/SQLite 等为非 canonical 派生，v0.x 不做
+- 2026-05-29 — **DQG2** (Phase G): exporter 只导 publish-eligible 事实；**dirty/dangling evidence ref 在导出层硬 gate**（commit `a18b900`），不进公开包；exporter 不读写 Postgres
+- 2026-05-29 — **DQG3** (Phase G): 完整性 = 每文件 sha256 + `SHA256SUMS`（manifest `integrity.algorithm=sha256` + 每文件 sha256/bytes/document 计数）；加密签名 v0.x 未做（延后）；`generated_at` 可手动输入以支持可复现重跑
+- 2026-05-29 — **DQG4** (Phase G): loader 把 pack 作 read-only baseline 加载进 MCP（commit `0547b18`）；**本地/上游 SCBOM 永远覆盖 pack baseline**（commit `c215bd5`）；pack 不回写
+- 2026-05-29 — **Phase G done**：`@supplystrata/community-pack` 落地——canonical `scbom-jsonl` + 自描述 manifest（DQG1）；exporter 硬 gate dirty evidence ref（DQG2，顺带修 Phase F G0 遗留，完整 e2e 恢复全绿）；MCP pack warm-start loader + upstream-wins 冲突策略（DQG3/DQG4）；GitHub Actions 定期/手动 publish 管线 + `pack:checksums`（SHA256SUMS）+ 可复现 `generated_at`；warm-start e2e（build → MCP HTTP warm-start → web viewer 预取渲染 → re-verify 覆盖 baseline）
 
 ---
 
@@ -273,11 +227,26 @@ F1 (skeleton + L0 类型 + dual-build + size gate) → F2 (L0 headless core) →
 
 ### Phase E · SCBOM v0.x 开放交换格式 (done · 2026-05-29)
 
-- **Commits**: `04c35fa`、`97db405`（PLAN/decision）+ SCBOM 实现改动（待你 commit；见下方"进入 F 前"）
+- **Commits**: `04c35fa`、`97db405`（PLAN/decision）+ `d0d096d Add SCBOM export surface`（实现，已提交）
 - **Net effect**: SCBOM 从独立 spec repo 接进本仓库且**未扩成新 REST surface**。接入 pinned git dep `@scbom/spec`（canonical `BCAutumn/scbom-spec#v0.0.1`，非 DQ5 原写的 `supplystrata/scbom-spec`）；`workbench-export` 新增 `scbom-mapper.ts`（WorkbenchModel → ScbomDocument）+ `scbom-validator.ts`（JSON Schema + conformance：重复 id / dangling ref / relationship subject·object 必须 entity / source_refs 必须 evidence）；MCP resource `supplystrata://scbom/company/{lei}` 经 `api-orchestration.getCompanyScbomDocument`，fixture + db 两 runtime 一致
 - **CI 边界**: 私有字段泄漏 meta-test（无 `supplystrata_*` 等）；`workbench-to-scbom` + resource contract + conformance e2e + db runtime resource e2e；`smoke:mcp` / `smoke:mcp:http` / `smoke:mcp:db` 全覆盖 SCBOM resource
 - **额外修复**: validator 从"仅查引用存在"升级为"按 conformance 校验引用对象类型"；SCBOM route 从 API route registry 迁到 `MCP_RESOURCE_ROUTES`（DQ19），堵住意外暴露旧 REST/OpenAPI 路径
 - **验证全绿**: type-check / unit / e2e / build / dep-check / lint / format:check / smoke:mcp / smoke:mcp:http / smoke:mcp:db / smoke:local
-- **偏离**: scbom-spec canonical remote 为 `BCAutumn/scbom-spec`（DQ5 原写 org 名待校正，已在决策日志注明）；Phase E 实现改动进入 F 前需单独 commit（见下）
+- **偏离**: scbom-spec canonical remote 为 `BCAutumn/scbom-spec`（DQ5 原写 org 名待校正，已在决策日志注明）
 
-> **进入 Phase F 前的硬前置**：Phase E 的实现改动（scbom-mapper / scbom-validator / MCP resource / 测试 / smoke / docs）当前仍在工作区**未提交**，只有 PLAN 与 decision 两个 commit 落地。按工作约定 #4（每 Phase 入口 git clean），请先把这批 SCBOM 改动作为 Phase E 的收尾 commit 提交，再开 F1。
+### Phase F · 中立 SCBOM 可视化（done · 2026-05-29）
+
+- **Commits**: `c2fec99`、`4aa5fba`、`b46d304`、`871224b`、`828347d`、`c65375e`、`ba41735`、`62665e5`、`595f348`、`ce5b963`
+- **Net effect**: `@supplystrata/web` 中立只读 SCBOM viewer 落地。F1 包骨架（ESM + browser IIFE，禁 React/Vue/Svelte，gzip size gate，headless no-DOM 边界测试）；F2 L0 headless `createScbomView()`（SCBOM → viewer DTO，保留 evidence trail / unknown / observation，只把 relationship 画进 graph）；F3-F4 Lit 组件 `scbom-evidence-view` / `scbom-unknown-map` / `scbom-supply-chain-graph`（CSS vars/parts 主题，证据优先，unknown 一等）；F5 浏览器 MCP HTTP read client（默认 `127.0.0.1`，只读 SCBOM resource，不调 write tool，远程 opt-in）；F6 `pnpm web` 本地 viewer + `pnpm agent --html-artifact` 自包含 HTML 报告
+- **CI 边界**: `packages/web` ⇏ React/Vue/Svelte；L0 headless ⇏ DOM/网络；web ⇏ 被核心生产代码反向依赖（可移除）；viewer ⇏ MCP write tools；graph 不把 unknown/observation 画成 relationship edge；browser MCP client 默认 localhost 只读；bundle gzip gate
+- **关键修复**: (1) MCP HTTP CORS 原未给本地 viewer 返回 `Access-Control-Allow-Origin`，改成只允许本地 origin 并暴露 `mcp-session-id`；(2) 首屏空白——viewer 改为 Node server 先读 MCP resource 再把 SCBOM JSON 内联进 HTML，浏览器不再做跨端口首屏 fetch；(3) Lit 属性赋值未稳定触发 view 派生（0 entities/relationships），加显式 `loadScbomDocument()`、等 custom element 定义完再加载
+- **验证全绿**: type-check / lint / format:check / build / unit / smoke:mcp:http；本机实跑 MCP HTTP `:7474/mcp` + viewer `:8787`
+- **偏离/已知遗留**: `pnpm test:e2e` 撞到**本地 DB 既有 evidence ref 数据质量问题**（非 web 代码问题）——前端相关 e2e 用例已单独通过，但完整 e2e 未全绿（已于 Phase G G0 修复）；默认观感打磨 + theming surface 补全转 Phase H（DQ26）
+
+### Phase G · Community-pack 发布管线（done · 2026-05-29）
+
+- **Commits**: `a18b900`（G0 gate dirty ref）、`667a19a`（G1 manifest 格式）、`c959721`（G2 exporter CLI）、`0547b18`（G3 loader）、`c215bd5`（G4 upstream-wins）、`456721d`（G5 publish workflow）、`41aff7b`（G6 warm-start e2e + docs）
+- **Net effect**: `@supplystrata/community-pack` 落地。canonical 格式 `scbom-jsonl`（manifest.json + 每行一份 `@scbom/spec` 校验过的 SCBOM document，DQG1）；exporter 选 publish-eligible 事实 → SCBOM documents，**硬 gate dirty/dangling evidence ref**（DQG2，顺带清掉 Phase F G0 遗留，完整 `test:e2e` 恢复全绿）；MCP `--pack=` warm-start loader 把 pack 作 read-only baseline 加载，**本地/上游永远覆盖 pack baseline**（DQG4）；GitHub Actions 定期/手动 publish 管线 + `pack:checksums`（`SHA256SUMS`）+ 手动 `generated_at` 可复现重跑（DQG3）
+- **CI 边界**: pack 建立在 SCBOM 上、零私有字段（manifest 不带 claim state/risk/cache）；exporter ⇏ 读写 Postgres；dirty ref 导出层硬 gate；loader baseline 非 truth、可被 upstream 覆盖、不回写 pack；publish workflow / checksum 脚本有单测
+- **验证全绿**: type-check / lint / dep-check / changed-file prettier / build / unit（116 files / 567 tests）/ e2e（7 files / 9 tests，Docker 路径全绿）
+- **偏离**: 加密签名（minisign/cosign）v0.x 未做，仅 sha256 + SHA256SUMS（DQG3 接受）；全量 `format:check` 未跑（避免误格式化未提交的 PLAN，本轮改动文件 prettier 已过）
