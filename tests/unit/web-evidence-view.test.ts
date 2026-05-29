@@ -23,6 +23,7 @@ describe("scbom-evidence-view", () => {
     expect(shadow.querySelector('[part="citation"]')?.textContent).toContain("NVIDIA uses TSMC for wafer fabrication.");
     expect(shadow.querySelector('[part="source-link"]')?.getAttribute("href")).toBe("https://www.sec.gov/fixture");
     expect(shadow.querySelector('[part="evidence-level"]')?.getAttribute("data-weight")).toBe("level_5");
+    expect(shadow.querySelector('[part="evidence-level"]')?.textContent).toBe("Filed Disclosure");
   });
 
   it("visually distinguishes deprecated relationship assertions", async () => {

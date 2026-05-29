@@ -6,6 +6,7 @@ import { createScbomView } from "../functions/scbom-to-view.js";
 export abstract class ScbomBaseElement extends LitElement {
   static override properties = {
     scbomDocument: { attribute: false },
+    unstyled: { type: Boolean, reflect: true },
     view: { state: true }
   };
 
@@ -23,6 +24,11 @@ export abstract class ScbomBaseElement extends LitElement {
       font-family: var(--scbom-font-family);
     }
 
+    :host([unstyled]) {
+      color: inherit;
+      font-family: inherit;
+    }
+
     [part="surface"] {
       box-sizing: border-box;
       width: 100%;
@@ -31,6 +37,14 @@ export abstract class ScbomBaseElement extends LitElement {
       background: var(--scbom-color-surface);
       color: var(--scbom-color-text);
       padding: 16px;
+    }
+
+    :host([unstyled]) [part="surface"] {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0;
     }
 
     [part="header"] {
@@ -62,6 +76,7 @@ export abstract class ScbomBaseElement extends LitElement {
   `;
 
   scbomDocument: ScbomDocument | undefined = undefined;
+  unstyled = false;
   protected view: ScbomView | undefined = undefined;
 
   loadScbomDocument(document: ScbomDocument): void {

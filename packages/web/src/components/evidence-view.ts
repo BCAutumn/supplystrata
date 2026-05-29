@@ -10,10 +10,10 @@ export class ScbomEvidenceViewElement extends ScbomBaseElement {
     css`
       :host {
         --scbom-evidence-level-5: #14532d;
-        --scbom-evidence-level-4: #166534;
-        --scbom-evidence-level-3: #854d0e;
-        --scbom-evidence-level-2: #9a3412;
-        --scbom-evidence-level-1: #991b1b;
+        --scbom-evidence-level-4: #1d4ed8;
+        --scbom-evidence-level-3: #b45309;
+        --scbom-evidence-level-2: #64748b;
+        --scbom-evidence-level-1: #94a3b8;
         --scbom-evidence-level-unknown: var(--scbom-color-muted);
       }
 
@@ -124,7 +124,20 @@ export function defineScbomEvidenceViewElement(registry: CustomElementRegistry =
 }
 
 function evidenceLevelLabel(level: number | undefined): string {
-  return level === undefined ? "evidence level unknown" : `evidence level ${level}`;
+  switch (level) {
+    case 5:
+      return "Filed Disclosure";
+    case 4:
+      return "Official Report";
+    case 3:
+      return "Inferred (Trade)";
+    case 2:
+      return "Macro / Trend";
+    case 1:
+      return "Lead";
+    default:
+      return "Evidence unknown";
+  }
 }
 
 function defaultRegistry(): CustomElementRegistry {

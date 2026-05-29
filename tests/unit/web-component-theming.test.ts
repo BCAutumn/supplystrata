@@ -29,4 +29,28 @@ describe("SCBOM Web Component base", () => {
     expect(shadow.querySelector('slot[name="label"]')).not.toBeNull();
     expect(shadow.querySelector('slot[name="toolbar"]')).not.toBeNull();
   });
+
+  it("can disable the neutral default surface chrome with one attribute", async () => {
+    registerScbomComponents();
+    const element = document.createElement("scbom-ping");
+    if (!(element instanceof ScbomPingElement)) throw new Error("Expected scbom-ping to be registered");
+    element.unstyled = true;
+    element.scbomDocument = toScbomDocument(workbenchScbomFixture());
+
+    document.body.append(element);
+    await element.updateComplete;
+
+    expect(element.hasAttribute("unstyled")).toBe(true);
+    expect(ScbomPingElement.elementStyles.map(styleText).join("\n")).toContain(':host([unstyled]) [part="surface"]');
+  });
 });
+
+function styleText(value: unknown): string {
+  if (!isRecord(value)) return "";
+  const cssText = value["cssText"];
+  return typeof cssText === "string" ? cssText : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
