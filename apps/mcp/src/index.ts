@@ -28,6 +28,7 @@ export { createMcpHttpNodeServer } from "./features/http-transport/orchestration
 export { runHttpMcpServer } from "./features/http-transport/orchestration/run-http-server.js";
 export { MCP_RUNTIME_DB, MCP_RUNTIME_FIXTURE, type McpRuntime, type McpRuntimeMode } from "./features/runtime/definitions/mcp-runtime.js";
 export { createFixtureApiOperationHandlers, createFixtureWriteExecutors, MCP_FIXTURE_NOW } from "./features/runtime/functions/fixture-mcp-runtime.js";
+export { withCommunityPackBaseline } from "./features/runtime/functions/community-pack-baseline.js";
 export { createMcpRuntime, requireMcpDbPostgresUrl } from "./features/runtime/orchestration/create-mcp-runtime.js";
 export { runStdioMcpServer } from "./features/stdio/orchestration/run-stdio-server.js";
 export {
