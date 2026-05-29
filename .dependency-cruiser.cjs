@@ -82,6 +82,12 @@ module.exports = {
       to: { path: "^packages/agent/src" }
     },
     {
+      name: "reference-agent-must-use-mcp-not-core-writers",
+      severity: "error",
+      from: { path: "^packages/agent/src" },
+      to: { path: "^packages/(api-orchestration|db|pipeline|graph-builder|claim-builder|review-store|source-workflows|source-monitor)/src" }
+    },
+    {
       name: "apps-mcp-must-not-depend-on-apps-api",
       severity: "error",
       from: { path: "^apps/mcp/src" },

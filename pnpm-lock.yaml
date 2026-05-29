@@ -205,7 +205,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/source-workflows
 
-  packages/agent: {}
+  packages/agent:
+    dependencies:
+      '@supplystrata/llm-helpers':
+        specifier: workspace:*
+        version: link:../llm-helpers
 
   packages/ai-analysis:
     dependencies:
