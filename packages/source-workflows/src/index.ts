@@ -38,6 +38,7 @@ export type {
   ResearchCompanyEntityBootstrapStatus
 } from "./research-entity-bootstrap.js";
 export { createResearchRun, ensureCompanyResearchRun, getResearchRunStatus, isResearchRunNotFoundError, ResearchRunNotFoundError } from "./research-runs.js";
+export { createResearchSessionStore, defaultResearchSessionStore, researchSessionProfileSummary } from "./research-session.js";
 export { deriveResearchRunLifecycle } from "./research-run-lifecycle.js";
 export type {
   CreateResearchRunInput,
@@ -49,6 +50,7 @@ export type {
   ResearchRunStatusItem,
   ResearchRunStatusReport
 } from "./research-runs.js";
+export type { ResearchSessionProfileSummary, ResearchSessionRecord, ResearchSessionStore } from "./research-session.js";
 export type { ResearchRunLifecycleInput, ResearchRunLifecycleSnapshot } from "./research-run-lifecycle.js";
 export {
   buildEntityResolutionLookupQueries,

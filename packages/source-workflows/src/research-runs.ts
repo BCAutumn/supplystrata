@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Env } from "@supplystrata/config";
 import type { DbClient, DatabaseStore } from "@supplystrata/db/write";
+import { selectOrDeriveResearchTargetProfile } from "@supplystrata/research-pack";
+import type { LlmHelperOptions } from "@supplystrata/llm-helpers";
 import {
   enqueueDueSourceCheckJobs,
   listSourceCheckRunStatus,
@@ -12,6 +14,12 @@ import {
 import { routeCountryOfficialDirectoryTargets } from "./country-router.js";
 import { ensureResearchCompanyEntity, type ResearchCompanyEntityBootstrapResult } from "./research-entity-bootstrap.js";
 import { deriveResearchRunLifecycle } from "./research-run-lifecycle.js";
+import {
+  defaultResearchSessionStore,
+  researchSessionProfileSummary,
+  type ResearchSessionProfileSummary,
+  type ResearchSessionStore
+} from "./research-session.js";
 
 export type ResearchRunStatus = "accepted" | "queued_source_checks" | "in_progress" | "succeeded" | "cannot_conclude" | "failed" | "blocked";
 
@@ -23,6 +31,8 @@ export interface CreateResearchRunInput {
   source_target_namespace?: string;
   enqueue_source_checks?: boolean;
   reviewer?: string;
+  llm?: LlmHelperOptions;
+  session_store?: ResearchSessionStore;
 }
 
 export type ResearchRunRefreshMode = "auto" | "force";
@@ -41,6 +51,7 @@ export interface EnsureCompanyResearchRunResult {
 
 export interface ResearchRunStatusItem {
   run_id: string;
+  session_id: string;
   company_query: string;
   company_entity_id: string | null;
   depth: number;
@@ -53,6 +64,7 @@ export interface ResearchRunStatusItem {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  profile: ResearchSessionProfileSummary | null;
   next_actions: string[];
   policy: {
     fact_mutation_allowed: false;
@@ -104,6 +116,7 @@ interface ResearchRunRow {
 
 export async function createResearchRun(store: DatabaseStore, input: CreateResearchRunInput): Promise<ResearchRunStatusReport> {
   const runId = `RR-${randomUUID()}`;
+  const sessionStore = input.session_store ?? defaultResearchSessionStore;
   const depth = normalizeDepth(input.depth);
   const bootstrap = await ensureResearchCompanyEntity(store, {
     query: input.company,
@@ -127,10 +140,30 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
         completedAt: input.requested_at
       });
     });
-    return getResearchRunStatus(store.read, { run_id: runId, generated_at: input.requested_at });
+    return getResearchRunStatus(store.read, { run_id: runId, generated_at: input.requested_at, session_store: sessionStore });
   }
 
   const identity = await loadEntityIdentity(store.read, bootstrap.entity_id);
+  const profileSelection = await selectOrDeriveResearchTargetProfile({
+    company_id: identity.entity_id,
+    company_name: identity.display_name,
+    component_ids: [],
+    ...(identity.primary_country === null ? {} : { country_code: identity.primary_country }),
+    ...sicCodeInput(identity.identifiers),
+    ...naicsCodeInput(identity.identifiers),
+    source_refs: bootstrapSourceRefs(bootstrap),
+    ...(input.llm === undefined ? {} : { llm: input.llm })
+  });
+  const profileSummary = researchSessionProfileSummary(profileSelection);
+  if (profileSummary !== null) {
+    sessionStore.register({
+      session_id: runId,
+      run_id: runId,
+      company_entity_id: identity.entity_id,
+      profile: profileSummary,
+      created_at: input.requested_at
+    });
+  }
   const routing = routeCountryOfficialDirectoryTargets({
     identity,
     namespace,
@@ -166,7 +199,7 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
     });
   });
 
-  return getResearchRunStatus(store.read, { run_id: runId, generated_at: input.requested_at });
+  return getResearchRunStatus(store.read, { run_id: runId, generated_at: input.requested_at, session_store: sessionStore });
 }
 
 export async function ensureCompanyResearchRun(store: DatabaseStore, input: EnsureCompanyResearchRunInput): Promise<EnsureCompanyResearchRunResult> {
@@ -183,7 +216,11 @@ export async function ensureCompanyResearchRun(store: DatabaseStore, input: Ensu
           maxAgeMinutes
         });
   if (reusableRun !== undefined) {
-    const statusReport = await getResearchRunStatus(store.read, { run_id: reusableRun.run_id, generated_at: input.requested_at });
+    const statusReport = await getResearchRunStatus(store.read, {
+      run_id: reusableRun.run_id,
+      generated_at: input.requested_at,
+      ...(input.session_store === undefined ? {} : { session_store: input.session_store })
+    });
     return {
       status_report: statusReport,
       refresh_triggered: false,
@@ -198,7 +235,11 @@ export async function ensureCompanyResearchRun(store: DatabaseStore, input: Ensu
   };
 }
 
-export async function getResearchRunStatus(client: DbClient, input: { run_id: string; generated_at: string }): Promise<ResearchRunStatusReport> {
+export async function getResearchRunStatus(
+  client: DbClient,
+  input: { run_id: string; generated_at: string; session_store?: ResearchSessionStore }
+): Promise<ResearchRunStatusReport> {
+  const sessionStore = input.session_store ?? defaultResearchSessionStore;
   const row = await loadResearchRun(client, input.run_id);
   const sourceCheckStatus =
     row.source_check_target_ids.length === 0
@@ -214,11 +255,14 @@ export async function getResearchRunStatus(client: DbClient, input: { run_id: st
     stored_completed_at: storedCompletedAt,
     source_check_status: sourceCheckStatus
   });
+  if (isTerminalResearchRunStatus(lifecycle.status)) sessionStore.complete(row.run_id);
+  const session = isTerminalResearchRunStatus(lifecycle.status) ? null : sessionStore.get(row.run_id);
   return {
     schema_version: "1.0.0",
     generated_at: input.generated_at,
     run: {
       run_id: row.run_id,
+      session_id: row.run_id,
       company_query: row.company_query,
       company_entity_id: row.company_entity_id,
       depth: row.depth,
@@ -231,6 +275,7 @@ export async function getResearchRunStatus(client: DbClient, input: { run_id: st
       created_at: toIso(row.created_at),
       updated_at: toIso(row.updated_at),
       completed_at: lifecycle.completed_at,
+      profile: session?.profile ?? null,
       next_actions: nextActions(row, sourceCheckStatus),
       policy: {
         fact_mutation_allowed: false,
@@ -349,6 +394,10 @@ function isActiveResearchRunStatus(status: ResearchRunStatus): boolean {
   return status === "accepted" || status === "queued_source_checks" || status === "in_progress";
 }
 
+function isTerminalResearchRunStatus(status: ResearchRunStatus): boolean {
+  return status === "succeeded" || status === "cannot_conclude" || status === "failed" || status === "blocked";
+}
+
 function nextActions(row: ResearchRunRow, sourceCheckStatus: SourceCheckRunStatusReport): string[] {
   if (row.status === "blocked") return ["Fix the bootstrap blocker, then create a new research run."];
   if (row.status === "cannot_conclude") return ["Add a market-specific official directory bootstrap or configure an explicit official source target."];
@@ -358,6 +407,21 @@ function nextActions(row: ResearchRunRow, sourceCheckStatus: SourceCheckRunStatu
   if (sourceCheckStatus.summary.failed > 0 || sourceCheckStatus.summary.dead > 0)
     return ["Inspect GET /runs/source-checks for source errors, credentials, or target config issues."];
   return ["Read company consumer model, reasoning walkthrough, unknowns, and latest AI analysis after artifacts are generated."];
+}
+
+function bootstrapSourceRefs(bootstrap: ResearchCompanyEntityBootstrapResult): string[] {
+  if (bootstrap.source_url === undefined) return [];
+  return [`identity:${bootstrap.source_adapter_id ?? "unknown"}:${bootstrap.source_url}`];
+}
+
+function sicCodeInput(identifiers: Record<string, unknown>): { sic_code?: string } {
+  const value = identifiers["sic"];
+  return typeof value === "string" && value.trim().length > 0 ? { sic_code: value.trim() } : {};
+}
+
+function naicsCodeInput(identifiers: Record<string, unknown>): { naics_code?: string } {
+  const value = identifiers["naics"];
+  return typeof value === "string" && value.trim().length > 0 ? { naics_code: value.trim() } : {};
 }
 
 function normalizeDepth(value: number | undefined): number {

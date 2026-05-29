@@ -113,6 +113,7 @@ function refreshFixture(
     source_check_execution: overrides.sourceCheckExecution ?? null,
     run: {
       run_id: "RR-test",
+      session_id: "RR-test",
       company_query: "Tesla",
       company_entity_id: "ENT-TESLA",
       depth: 3,
@@ -128,6 +129,7 @@ function refreshFixture(
       created_at: "2026-05-27T00:00:00.000Z",
       updated_at: "2026-05-27T00:00:00.000Z",
       completed_at: null,
+      profile: null,
       next_actions: [],
       policy: {
         fact_mutation_allowed: false,

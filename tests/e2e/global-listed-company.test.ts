@@ -15,9 +15,12 @@ interface GlobalCompanyCase {
 
 interface ResearchRunSnapshot {
   run_id: string;
+  session_id: string;
   company_entity_id: string | null;
   company_query: string;
   status: string;
+  profile_layer: string | null;
+  profile_derivation_status: string | null;
   source_check_target_ids: string[];
 }
 
@@ -86,12 +89,16 @@ describeDb("global listed company mcp db e2e", () => {
         assertPath(confirmResearch, ["status"], "executed");
 
         const createdRun = readResearchRunSnapshot(confirmResearch, "data");
+        expect(createdRun.session_id).toBe(createdRun.run_id);
         expect(createdRun.company_query).toBe(companyCase.query);
 
         if (companyCase.expectedDirectoryAdapter === undefined) {
           expect(createdRun.source_check_target_ids).toEqual([]);
           expect(createdRun.status).toBe("cannot_conclude");
+          expect(createdRun.profile_layer).toBeNull();
         } else {
+          expect(["anchor", "derived"]).toContain(createdRun.profile_layer);
+          if (createdRun.profile_layer === "derived") expect(createdRun.profile_derivation_status).toBe("generic");
           expect(createdRun.source_check_target_ids.some((targetId) => targetId.includes(`:${companyCase.expectedDirectoryAdapter}:`))).toBe(true);
           expect(["queued_source_checks", "in_progress", "failed", "succeeded"]).toContain(createdRun.status);
         }
@@ -115,6 +122,7 @@ describeDb("global listed company mcp db e2e", () => {
         assertPath(pollResult, ["schema_version"], "1.0.0");
         const polledRun = readResearchRunSnapshot(pollResult);
         expect(polledRun.run_id).toBe(createdRun.run_id);
+        expect(polledRun.session_id).toBe(createdRun.session_id);
         expect(polledRun.source_check_target_ids).toEqual(createdRun.source_check_target_ids);
 
         if (createdRun.company_entity_id !== null) {
@@ -143,10 +151,22 @@ function readResearchRunSnapshot(content: Record<string, unknown>, rootKey?: "da
   const run = readRecordPath(envelopeData, ["run"]);
   return {
     run_id: readStringPath(run, ["run_id"]),
+    session_id: readStringPath(run, ["session_id"]),
     company_entity_id: readNullableStringPath(run, ["company_entity_id"]),
     company_query: readStringPath(run, ["company_query"]),
     status: readStringPath(run, ["status"]),
+    ...readResearchProfileSnapshot(run),
     source_check_target_ids: readStringArrayPath(run, ["source_check_target_ids"])
+  };
+}
+
+function readResearchProfileSnapshot(run: Record<string, unknown>): Pick<ResearchRunSnapshot, "profile_layer" | "profile_derivation_status"> {
+  const value = readPath(run, ["profile"]);
+  if (value === null) return { profile_layer: null, profile_derivation_status: null };
+  if (!isRecord(value)) throw new Error("Expected run.profile to be object|null.");
+  return {
+    profile_layer: readStringPath(value, ["layer"]),
+    profile_derivation_status: readNullableStringPath(value, ["derivation_status"])
   };
 }
 

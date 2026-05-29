@@ -805,6 +805,9 @@ importers:
       '@supplystrata/relation-extractor-rule':
         specifier: workspace:*
         version: link:../relation-extractor/rule
+      '@supplystrata/research-pack':
+        specifier: workspace:*
+        version: link:../research-pack
       '@supplystrata/review-candidates':
         specifier: workspace:*
         version: link:../review-candidates
