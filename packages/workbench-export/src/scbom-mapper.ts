@@ -68,7 +68,8 @@ function createScbomContext(model: WorkbenchModel): ScbomContext {
   }
 
   const evidenceIds = new Set(model.evidences.map((evidence) => evidence.evidence_id));
-  const relationshipIds = new Set(model.edges.map((edge) => edge.edge_id));
+  // SCBOM relationship 必须可回链到已导出的 evidence；脏 edge 只能留在本地审计层，不能进入可发布包。
+  const relationshipIds = new Set(model.edges.filter((edge) => hasExistingEvidenceRef(edge.evidence_ids, evidenceIds)).map((edge) => edge.edge_id));
   return {
     generatedAt: model.generated_at,
     rootEntityId: model.selected_company_id,
@@ -126,22 +127,22 @@ function scbomEvidences(model: WorkbenchModel, context: ScbomContext): ScbomEvid
 }
 
 function scbomRelationships(model: WorkbenchModel, context: ScbomContext): ScbomRelationship[] {
-  return model.edges.map((edge) => {
+  return model.edges.flatMap((edge) => {
+    if (!context.relationshipIds.has(edge.edge_id)) return [];
     const evidenceRefs = existingEvidenceRefs(edge.evidence_ids, context);
-    if (evidenceRefs.length === 0) {
-      throw new Error(`Cannot export SCBOM relationship ${edge.edge_id}: at least one exported evidence ref is required`);
-    }
-    return {
-      object_type: "relationship",
-      id: scbomId(edge.edge_id),
-      subject_ref: scbomId(edge.from_id),
-      predicate: edge.relation,
-      object_ref: scbomId(edge.to_id),
-      evidence_refs: evidenceRefs,
-      validity: { status: "active" },
-      assessments: edgeAssessments(edge),
-      provenance: provenance(context, "workbench-export.toScbomDocument.relationship", evidenceRefs)
-    };
+    return [
+      {
+        object_type: "relationship",
+        id: scbomId(edge.edge_id),
+        subject_ref: scbomId(edge.from_id),
+        predicate: edge.relation,
+        object_ref: scbomId(edge.to_id),
+        evidence_refs: evidenceRefs,
+        validity: { status: "active" },
+        assessments: edgeAssessments(edge),
+        provenance: provenance(context, "workbench-export.toScbomDocument.relationship", evidenceRefs)
+      }
+    ];
   });
 }
 
@@ -340,6 +341,10 @@ function unknownStatus(unknown: WorkbenchUnknownItem): ScbomUnknown["status"] {
 
 function existingEvidenceRefs(evidenceIds: readonly string[], context: ScbomContext): string[] {
   return [...new Set(evidenceIds.filter((evidenceId) => context.evidenceIds.has(evidenceId)).map(scbomId))].sort();
+}
+
+function hasExistingEvidenceRef(evidenceIds: readonly string[], exportedEvidenceIds: ReadonlySet<string>): boolean {
+  return evidenceIds.some((evidenceId) => exportedEvidenceIds.has(evidenceId));
 }
 
 function scopeRef(scopeId: string, context: ScbomContext): string {

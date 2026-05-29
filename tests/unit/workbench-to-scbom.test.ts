@@ -52,7 +52,7 @@ describe("workbench-export SCBOM mapper", () => {
     expect(document.objects.some((object) => object.object_type === "change" && object.id === "CHG-RISK-1")).toBe(false);
   });
 
-  it("refuses to export relationships that have no exported evidence", () => {
+  it("keeps relationships without exported evidence out of the SCBOM document", () => {
     const model = workbenchScbomFixture();
     const edge = firstWorkbenchEdge(model);
     const broken: WorkbenchModel = {
@@ -61,7 +61,13 @@ describe("workbench-export SCBOM mapper", () => {
       edges: [{ ...edge, evidence_ids: ["EV-MISSING"] }]
     };
 
-    expect(() => toScbomDocument(broken)).toThrow("at least one exported evidence ref is required");
+    const document = toScbomDocument(broken);
+
+    assertScbomDocument(document);
+    expect(document.objects.some((object) => object.object_type === "relationship" && object.id === edge.edge_id)).toBe(false);
+    expect(document.objects.some((object) => object.id === "CHG-EDGE-1" && object.object_type === "change" && object.changed_object_ref === edge.edge_id)).toBe(
+      false
+    );
   });
 });
 
