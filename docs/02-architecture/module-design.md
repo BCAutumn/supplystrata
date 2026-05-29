@@ -2,7 +2,7 @@
 
 本文描述代码库真实模块边界与目标架构。它不是早期 MVP 包清单，也不是所有实现细节的流水账；审计时应以这里的边界判断"高内聚、低耦合、事实层和派生层是否分离"。
 
-本文反映 2026-05-28 产品定位重构后的目标架构（详见 [decisions.md](../10-decisions/decisions.md) #7–#15）。标记为**新增**的 package 在 v0.x 内陆续落地；旧 `apps/api` REST 路径和 `seed-entities` 路径在 MCP / registry bootstrap 落地后逐步迁出。
+本文反映 2026-05-28 产品定位重构后的目标架构（详见 [decisions.md](../10-decisions/decisions.md) #7–#15）。旧 `apps/api` REST 路径和 `seed-entities` 路径在 MCP / registry bootstrap 落地后逐步迁出；reference agent 已作为可移除客户端落地，web 组件仍按 Phase F 独立推进。
 
 核心原则：
 
@@ -21,9 +21,10 @@
 supplystrata/
 ├── apps/
 │   ├── cli/                 # 薄命令入口：参数解析、env/logger/db 装配、调用 use-case
+│   ├── agent-cli/           # reference agent CLI：连接 MCP，用户自带 LLM provider，输出 markdown 报告
 │   ├── mcp/                 # MCP server：tools / resources / prompts；唯一对外 surface
 │   ├── worker/              # source-check 常驻 worker；复用 source-workflows
-│   ├── web-demo/            # 【新增，目标】薄 demo（~100 行）拼接 @supplystrata/web 组件
+│   ├── web-demo/            # 薄 demo（Phase F）：拼接 @supplystrata/web 组件
 │   └── api/                 # 【迁移中】Gate 8 REST 契约 + DTO；逐步迁出到 mcp + scbom-spec；v1.x 前可保留
 ├── packages/
 │   ├── core/                # 纯领域类型、ID、证据等级、edge freshness 纯函数
@@ -65,10 +66,10 @@ supplystrata/
 │   ├── card-builder/        # DbClient -> Company/Component/Chain/Evidence/Unknown card DTO
 │   ├── workbench-export/    # 稳定 Workbench JSON DTO；逐步对齐 SCBOM v0.x
 │   ├── research-pack/       # 研究包、Gate 1 readiness/backlog/run ledger/report artifact
-│   ├── ai-analysis/         # 【拆分计划】provider config + audit run 留核心；agent 行为迁出到 @supplystrata/agent
+│   ├── ai-analysis/         # LLM audit / analysis plan；agent 行为已迁出到 @supplystrata/agent
 │   ├── api-orchestration/   # REST/MCP 共用 route contract、DTO、operation handlers；不持有 HTTP transport
-│   ├── agent/               # reference agent 占位；调本机 MCP；optional dep；核心不得依赖
-│   ├── web/                 # 【新增，目标】framework-agnostic 可嵌入可视化：Web Components + Canvas/SVG
+│   ├── agent/               # reference agent core：三段式 plan → fetch_via_mcp → synthesize；optional dep；核心不得依赖
+│   ├── web/                 # framework-agnostic 可嵌入可视化（Phase F）：Web Components + Canvas/SVG
 │   ├── data-quality/
 │   ├── render/
 │   ├── runtime-profile/
@@ -88,7 +89,7 @@ supplystrata/
 说明：
 
 - `packages/sources/asml-ir`、`samsung-ir`、`skhynix-ir`、`tsmc-ir` 已不再是 workspace package；如本地残留 `dist/` 文件，只是历史构建产物。
-- `ai-analysis` 当前只保留 artifact schema 校验、analysis plan 和 `ai_analysis_runs` audit；provider config / LLM provider adapter / cite-summarize helper 已迁入 `llm-helpers`；"作为 agent 跑分析"行为迁出到 `@supplystrata/agent`。
+- `ai-analysis` 当前只保留 artifact schema 校验、analysis plan 和 `ai_analysis_runs` audit；provider config / LLM provider adapter / cite-summarize helper 已迁入 `llm-helpers`；"作为 agent 跑分析"行为已迁出到 `@supplystrata/agent`。
 - `seed-entities` 在 [source-registry.md](../04-data-sources/source-registry.md) 已标 `removed`；公司 entity fixture 只允许在测试、本地开发导入和 preview 路径使用。
 - `reports/` 是本地输出目录，不属于代码模块；可清理、可重建。
 - `releases/` 是 community-pack 发布产物目录（按 `pack-YYYY.QN.parquet` 命名），分发通过 GitHub Release / 公开对象存储。
@@ -118,7 +119,7 @@ Layer 3: 编排 + 输出 + 接入面
   apps/mcp ← 唯一对外 surface
     ↑
 Layer 4: 参考客户端（独立 release cadence，optional）
-  apps/cli + apps/worker + apps/web-demo
+  apps/cli + apps/worker + apps/agent-cli + apps/web-demo
   agent (调本机 MCP, 用户自带 LLM provider)
   web (Web Components，调本机或远程 MCP HTTP)
 ```
@@ -139,7 +140,7 @@ Layer 4: 参考客户端（独立 release cadence，optional）
 - `api-orchestration` 是 REST/MCP 共享的 contract + handler 编排层；不得启动 server、绑定端口、读写 HTTP header，HTTP transport 留在 `apps/api`。
 - `apps/mcp` 是 v0.x 唯一对外 surface；暴露 tools / resources / prompts。write tools 只使用 MCP spec 标准 annotations；真正安全边界是 server-side pending state + 单次 `confirmation_token`。它只做 app-level 装配，不承载业务规则。
 - `apps/api`（旧 REST）在 v0.x 内逐步迁入 `apps/mcp`；contract test、DTO 来源、schema registry 复用。v1.x 评估是否补 REST shim。
-- `apps/cli` / `apps/worker` / `apps/web-demo` / `agent` / `web` 都是 Layer 4 客户端，可独立装/卸；删掉它们核心仍完整可用。
+- `apps/cli` / `apps/worker` / `apps/agent-cli` / `apps/web-demo` / `agent` / `web` 都是 Layer 4 客户端，可独立装/卸；删掉它们核心仍完整可用。
 - `agent` 永远不被任何核心 / Layer 1-3 package 依赖；核心不知道它存在。
 - `web` 以 Web Components 形式发布，IIFE bundle 和 npm ESM 双形态，不依赖 React / Vue / Svelte。
 - `apps/*` 不写业务规则；它们只装配环境、DB、logger、命令参数、契约和输出。
@@ -219,19 +220,19 @@ NormalizedDocument
 
 输出层分三类：
 
-| Package                                       | 输出                                                                            | 责任                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------- |
-| `chain-view`                                  | 纯 ChainView DTO                                                                | 不查库                                 |
-| `chain-view-builder`、`card-builder`          | card / chain DTO                                                                | 从 `DbClient` 组装稳定 DTO             |
-| `workbench-export`                            | Workbench JSON（v0.x 内对齐 SCBOM v0.x schema）                                 | 稳定 machine-readable contract         |
-| `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、read model / walkthrough           | 研究编排和审计账本                     |
-| `ai-analysis`                                 | provider config / `ai_analysis_runs` audit；agent 行为迁出后只留 audit + config | LLM 调用审计；行为收敛到 `llm-helpers` |
-| `api-orchestration`                           | REST/MCP 共用 API contract、DTO envelope、operation handler 装配                | 不含 HTTP server / response 写入       |
-| `apps/mcp`                                    | MCP tools / resources / prompts 契约、薄装配层                                  | 唯一对外 surface；版本化 MCP 契约      |
-| `apps/api`（迁移中）                          | 旧 REST contract；逐步迁入 `apps/mcp`，v1.x 再评估 REST shim                    | 过渡期保留                             |
-| `agent`                                       | 参考 agent 进程；用户带 LLM provider，调本机 MCP                                | optional；不被核心依赖                 |
-| `web`                                         | Web Components：`<supplystrata-supply-chain-graph>` 等；canvas/SVG 渲染         | 可嵌入；调本机或远程 MCP HTTP          |
-| `render` / `scripts/render-research-html.mjs` | Markdown / HTML / JSON 可读输出                                                 | 不查库、不写库                         |
+| Package                                       | 输出                                                                                  | 责任                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
+| `chain-view`                                  | 纯 ChainView DTO                                                                      | 不查库                                 |
+| `chain-view-builder`、`card-builder`          | card / chain DTO                                                                      | 从 `DbClient` 组装稳定 DTO             |
+| `workbench-export`                            | Workbench JSON（v0.x 内对齐 SCBOM v0.x schema）                                       | 稳定 machine-readable contract         |
+| `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、read model / walkthrough                 | 研究编排和审计账本                     |
+| `ai-analysis`                                 | provider config / `ai_analysis_runs` audit；agent 行为迁出后只留 audit + config       | LLM 调用审计；行为收敛到 `llm-helpers` |
+| `api-orchestration`                           | REST/MCP 共用 API contract、DTO envelope、operation handler 装配                      | 不含 HTTP server / response 写入       |
+| `apps/mcp`                                    | MCP tools / resources / prompts 契约、薄装配层                                        | 唯一对外 surface；版本化 MCP 契约      |
+| `apps/api`（迁移中）                          | 旧 REST contract；逐步迁入 `apps/mcp`，v1.x 再评估 REST shim                          | 过渡期保留                             |
+| `agent` / `apps/agent-cli`                    | 参考 agent core + CLI；用户带 LLM provider，调本机 MCP，输出 citation-backed markdown | optional；不被核心依赖                 |
+| `web`                                         | Web Components：`<supplystrata-supply-chain-graph>` 等；canvas/SVG 渲染               | 可嵌入；调本机或远程 MCP HTTP          |
+| `render` / `scripts/render-research-html.mjs` | Markdown / HTML / JSON 可读输出                                                       | 不查库、不写库                         |
 
 `research-pack` 是当前 Gate 1 主工作台。它应回答：
 

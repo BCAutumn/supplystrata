@@ -82,6 +82,12 @@ module.exports = {
       to: { path: "^packages/agent/src" }
     },
     {
+      name: "non-agent-apps-must-not-depend-on-reference-agent",
+      severity: "error",
+      from: { path: "^apps/(?!agent-cli/).*?/src" },
+      to: { path: "^packages/agent/src" }
+    },
+    {
       name: "reference-agent-must-use-mcp-not-core-writers",
       severity: "error",
       from: { path: "^packages/agent/src" },

@@ -444,7 +444,7 @@ Risk view 是派生层，回答：
 | ----------------------------------- | --------------------------------------------------------------------------------------- |
 | universal identity bootstrap        | `source-workflows`（GLEIF / OpenFIGI / Wikidata / 各国目录）                            |
 | dynamic profile derive              | `llm-helpers.derive_dynamic_profile` + `research-pack`                                  |
-| LLM helper (4 用法)                 | `@supplystrata/llm-helpers`（新；唯一 LLM 调用入口）                                    |
+| LLM helper (4 用法)                 | `@supplystrata/llm-helpers`（唯一 LLM 调用入口）                                        |
 | fact edge 写入                      | `graph-builder`、`pipeline`、`review-store`                                             |
 | evidence-gated auto-promote         | `pipeline`、`evidence-scorer`、`graph-builder`                                          |
 | claim fusion                        | `claim-builder`                                                                         |
@@ -454,9 +454,9 @@ Risk view 是派生层，回答：
 | workbench/research output           | `workbench-export`、`research-pack`                                                     |
 | SCBOM 开放交换格式                  | `scbom-spec`（独立 repo）+ `workbench-export` 参考实现                                  |
 | community-pack 分发                 | release pipeline + Layer 1 加载（详见 [data-flow.md](../02-architecture/data-flow.md)） |
-| MCP 接入面（唯一对外 surface）      | `@supplystrata/mcp`（新；替代旧 `apps/api` REST 路径）                                  |
-| 参考 agent（独立 optional 包）      | `@supplystrata/agent`（新；不被核心依赖）                                               |
-| 参考可视化（可嵌入）                | `@supplystrata/web`（新；Web Components + Canvas/SVG）                                  |
+| MCP 接入面（唯一对外 surface）      | `@supplystrata/mcp`（替代旧 `apps/api` REST 路径）                                      |
+| 参考 agent（独立 optional 包）      | `@supplystrata/agent` + `apps/agent-cli`（只通过 MCP；不被核心依赖）                    |
+| 参考可视化（可嵌入）                | `@supplystrata/web`（Phase F；Web Components + Canvas/SVG）                             |
 
 ## 完成口径
 
