@@ -46,6 +46,15 @@ async function handleViewerRequest(request: IncomingMessage, response: ServerRes
     }
     return;
   }
+  if (path === "/theme-demo") {
+    try {
+      const scbomDocument = options.scbomDocument ?? (await readViewerScbomDocument(options));
+      writeHtml(response, themeDemoHtml(options, scbomDocument));
+    } catch (error) {
+      writePlain(response, 502, error instanceof Error ? error.message : "SCBOM theme demo could not read MCP resource.");
+    }
+    return;
+  }
   if (path === "/components.iife.js") {
     writeFile(response, COMPONENT_BUNDLE_PATH, "application/javascript; charset=utf-8");
     return;
@@ -91,6 +100,87 @@ function viewerHtml(options: WebCliOptions, scbomDocument: unknown): string {
       <scbom-evidence-view></scbom-evidence-view>
       <scbom-unknown-map></scbom-unknown-map>
       <scbom-supply-chain-graph></scbom-supply-chain-graph>
+    </main>
+    <script type="application/json" id="viewer-config">${escapeScriptJson(configJson)}</script>
+    <script type="application/json" id="scbom-document">${escapeScriptJson(documentJson)}</script>
+    <script type="module">
+      const config = JSON.parse(document.getElementById("viewer-config").textContent);
+      window.ScbomViewer.registerScbomComponents();
+      await Promise.all([
+        customElements.whenDefined("scbom-supply-chain-graph"),
+        customElements.whenDefined("scbom-evidence-view"),
+        customElements.whenDefined("scbom-unknown-map")
+      ]);
+      const documentModel = JSON.parse(document.getElementById("scbom-document").textContent);
+      for (const element of document.querySelectorAll("scbom-evidence-view, scbom-unknown-map, scbom-supply-chain-graph")) {
+        element.loadScbomDocument(documentModel);
+      }
+    </script>
+  </body>
+</html>`;
+}
+
+function themeDemoHtml(options: WebCliOptions, scbomDocument: unknown): string {
+  const configJson = JSON.stringify({ mcpUrl: options.mcpUrl, companyId: options.companyId });
+  const documentJson = JSON.stringify(scbomDocument);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SCBOM Theme Demo</title>
+    <script src="/components.iife.js"></script>
+    <style>
+      body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #f8fafc; color: #18202a; }
+      main { max-width: 1440px; margin: 0 auto; padding: 24px; display: grid; gap: 16px; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+      code { color: #2563eb; }
+      .theme-demo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+      .theme-demo-panel { display: grid; gap: 12px; min-width: 0; }
+      .theme-demo-panel-title { margin: 0; font-size: 16px; line-height: 1.35; }
+      .theme-demo-custom {
+        --scbom-color-surface: #fbfcfd;
+        --scbom-color-text: #111827;
+        --scbom-color-muted: #475467;
+        --scbom-color-border: #b8c4d2;
+        --scbom-color-accent: #0f766e;
+        --scbom-radius: 4px;
+        --scbom-evidence-level-5: #166534;
+        --scbom-evidence-level-4: #075985;
+        --scbom-evidence-level-3: #92400e;
+        --scbom-graph-background: #ffffff;
+        --scbom-graph-edge: #64748b;
+        --scbom-graph-node: #0f766e;
+      }
+      .theme-demo-custom scbom-evidence-view::part(surface),
+      .theme-demo-custom scbom-unknown-map::part(surface),
+      .theme-demo-custom scbom-supply-chain-graph::part(surface) { border-width: 2px; box-shadow: none; }
+      .theme-demo-custom scbom-evidence-view::part(relationship-row),
+      .theme-demo-custom scbom-unknown-map::part(unknown-item) { border-top-style: dashed; }
+      .theme-demo-custom scbom-evidence-view::part(evidence-level) { font-weight: 700; }
+      @media (max-width: 900px) { .theme-demo-grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>SCBOM Theme Demo</h1>
+        <code>${escapeHtml(options.companyId)}</code>
+      </header>
+      <section class="theme-demo-grid" aria-label="Default and custom SCBOM themes">
+        <div class="theme-demo-panel" data-theme-demo="default">
+          <h2 class="theme-demo-panel-title">Default neutral theme</h2>
+          <scbom-evidence-view></scbom-evidence-view>
+          <scbom-unknown-map></scbom-unknown-map>
+          <scbom-supply-chain-graph></scbom-supply-chain-graph>
+        </div>
+        <div class="theme-demo-panel theme-demo-custom" data-theme-demo="custom">
+          <h2 class="theme-demo-panel-title">Custom host theme</h2>
+          <scbom-evidence-view></scbom-evidence-view>
+          <scbom-unknown-map></scbom-unknown-map>
+          <scbom-supply-chain-graph></scbom-supply-chain-graph>
+        </div>
+      </section>
     </main>
     <script type="application/json" id="viewer-config">${escapeScriptJson(configJson)}</script>
     <script type="application/json" id="scbom-document">${escapeScriptJson(documentJson)}</script>

@@ -58,3 +58,7 @@ Graph parts: `graph-canvas`, `graph-fallback`, `graph-list-title`, `graph-svg`, 
 ### Slots
 
 `toolbar` is available in every component header. `label` is available on `scbom-ping`.
+
+## Local demo
+
+Run `pnpm web` and open `/theme-demo` to compare the neutral default theme with a host-defined custom theme over the same SCBOM document. The custom side uses only CSS variables and `::part()` selectors from the contract above.

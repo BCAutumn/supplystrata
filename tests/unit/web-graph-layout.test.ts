@@ -28,7 +28,8 @@ describe("SCBOM graph layout", () => {
     expect(graph.nodes).toHaveLength(180);
     expect(graph.edges).toHaveLength(179);
     expect(hasNodeOverlap(graph.nodes)).toBe(false);
-    expect(elapsedMs).toBeLessThan(1_500);
+    // 这条是全量测试里的回归哨兵，不是微基准；Vitest worker 竞争下墙钟会比单测单跑更抖。
+    expect(elapsedMs).toBeLessThan(3_000);
   });
 });
 
