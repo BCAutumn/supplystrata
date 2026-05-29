@@ -1,0 +1,84 @@
+name: Community Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      company:
+        description: Company query to export into the pack
+        required: true
+        default: nvidia
+      pack_version:
+        description: Pack release label, for example pack-2026.Q2
+        required: true
+        default: pack-2026.Q2
+      generated_at:
+        description: Optional UTC timestamp for reproducible manual rebuilds
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 9 1 */3 *"
+
+jobs:
+  build-pack:
+    name: Build community-pack artifact
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: supplystrata
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: supplystrata
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U supplystrata -d supplystrata"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      POSTGRES_URL: postgres://supplystrata:dev@localhost:5432/supplystrata
+      OBJECT_STORE_FS_BASE: ./data/raw
+      SEC_USER_AGENT: SupplyStrata CI contact@example.com
+      LLM_PROVIDER: none
+      COMMUNITY_PACK_COMPANY: ${{ github.event.inputs.company || 'nvidia' }}
+      COMMUNITY_PACK_VERSION: ${{ github.event.inputs.pack_version || 'pack-2026.Q2' }}
+      COMMUNITY_PACK_GENERATED_AT: ${{ github.event.inputs.generated_at || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Prepare local cache
+        run: |
+          pnpm db:migrate
+          pnpm --silent cli admin import-dev-fixtures
+          pnpm --silent cli examples nvidia ingest --graph-sync defer
+
+      - name: Build community pack
+        run: |
+          GENERATED_AT="${COMMUNITY_PACK_GENERATED_AT:-$(date -u +%Y-%m-%dT%H:%M:%S.000Z)}"
+          pnpm --silent cli community-pack build \
+            --company "$COMMUNITY_PACK_COMPANY" \
+            --pack-version "$COMMUNITY_PACK_VERSION" \
+            --generated-at "$GENERATED_AT" \
+            --out reports/community-pack
+          pnpm pack:checksums
+
+      - name: Upload community pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: supplystrata-community-pack-${{ env.COMMUNITY_PACK_VERSION }}
+          path: reports/community-pack
+          if-no-files-found: error

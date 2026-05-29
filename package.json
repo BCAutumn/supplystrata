@@ -12,6 +12,7 @@
     "web": "NODE_OPTIONS=--conditions=development tsx apps/web/src/main.ts",
     "db:migrate": "NODE_OPTIONS=--conditions=development tsx apps/cli/src/main.ts db migrate",
     "worker": "NODE_OPTIONS=--conditions=development tsx apps/worker/src/main.ts",
+    "pack:checksums": "node scripts/write-community-pack-checksums.mjs reports/community-pack",
     "test": "pnpm test:unit",
     "test:all": "vitest run",
     "test:unit": "vitest run tests/unit",
