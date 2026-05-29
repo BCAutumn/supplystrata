@@ -5,10 +5,12 @@ export type {
   ScbomViewEntity,
   ScbomViewEvidence,
   ScbomViewEvidenceRef,
+  ScbomEvidenceVisualWeight,
   ScbomViewGraphEdge,
   ScbomViewGraphNode,
   ScbomViewMetadata,
   ScbomViewObservation,
   ScbomViewRelationship,
-  ScbomViewUnknown
+  ScbomViewUnknown,
+  ScbomViewWarning
 } from "./definitions/scbom-view.js";

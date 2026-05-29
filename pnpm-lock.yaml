@@ -31,7 +31,7 @@ importers:
         specifier: 1.29.0
         version: 1.29.0(zod@3.25.76)
       '@scbom/spec':
-        specifier: github:BCAutumn/scbom-spec#v0.0.1
+        specifier: git+https://github.com/BCAutumn/scbom-spec.git#v0.0.1
         version: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d
       '@types/node':
         specifier: ~22.10.2
@@ -1052,8 +1052,11 @@ importers:
   packages/web:
     dependencies:
       '@scbom/spec':
-        specifier: github:BCAutumn/scbom-spec#v0.0.1
+        specifier: git+https://github.com/BCAutumn/scbom-spec.git#v0.0.1
         version: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d
+      graphology:
+        specifier: ^0.26.0
+        version: 0.26.0(graphology-types@0.24.8)
       lit:
         specifier: ^3.3.1
         version: 3.3.3
@@ -1065,7 +1068,7 @@ importers:
   packages/workbench-export:
     dependencies:
       '@scbom/spec':
-        specifier: github:BCAutumn/scbom-spec#v0.0.1
+        specifier: git+https://github.com/BCAutumn/scbom-spec.git#v0.0.1
         version: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d
       '@supplystrata/chain-view':
         specifier: workspace:*
@@ -2046,6 +2049,10 @@ packages:
     resolution: {integrity: sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==}
     engines: {node: '>= 0.6'}
 
+  events@3.3.0:
+    resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
+    engines: {node: '>=0.8.x'}
+
   eventsource-parser@3.1.0:
     resolution: {integrity: sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==}
     engines: {node: '>=18.0.0'}
@@ -2170,6 +2177,14 @@ packages:
 
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
+
+  graphology-types@0.24.8:
+    resolution: {integrity: sha512-hDRKYXa8TsoZHjgEaysSRyPdT6uB78Ci8WnjgbStlQysz7xR52PInxNsmnB7IBOM1BhikxkNyCVEFgmPKnpx3Q==}
+
+  graphology@0.26.0:
+    resolution: {integrity: sha512-8SSImzgUUYC89Z042s+0r/vMibY7GX/Emz4LDO5e7jYXhuoWfHISPFJYjpRLUSJGq6UQ6xlenvX1p/hJdfXuXg==}
+    peerDependencies:
+      graphology-types: '>=0.24.0'
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -3860,6 +3875,8 @@ snapshots:
 
   etag@1.8.1: {}
 
+  events@3.3.0: {}
+
   eventsource-parser@3.1.0: {}
 
   eventsource@3.0.7:
@@ -4011,6 +4028,13 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   graphemer@1.4.0: {}
+
+  graphology-types@0.24.8: {}
+
+  graphology@0.26.0(graphology-types@0.24.8):
+    dependencies:
+      events: 3.3.0
+      graphology-types: 0.24.8
 
   has-flag@4.0.0: {}
 

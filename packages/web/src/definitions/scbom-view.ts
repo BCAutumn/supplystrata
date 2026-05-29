@@ -20,8 +20,12 @@ export interface ScbomViewEvidence {
   readonly source_url: string;
   readonly citation_text: string;
   readonly locator_label: string;
+  readonly evidence_level?: number;
+  readonly visual_weight: ScbomEvidenceVisualWeight;
   readonly assessment_labels: readonly string[];
 }
+
+export type ScbomEvidenceVisualWeight = "level_5" | "level_4" | "level_3" | "level_2" | "level_1" | "unknown";
 
 export interface ScbomViewEvidenceRef {
   readonly evidence_id: string;
@@ -31,9 +35,13 @@ export interface ScbomViewEvidenceRef {
 export interface ScbomViewRelationship {
   readonly id: string;
   readonly subject_ref: string;
+  readonly subject_name: string;
   readonly predicate: string;
   readonly object_ref: string;
+  readonly object_name: string;
   readonly validity_status: string;
+  readonly evidence_level?: number;
+  readonly visual_weight: ScbomEvidenceVisualWeight;
   readonly evidence_trail: readonly ScbomViewEvidenceRef[];
   readonly assessment_labels: readonly string[];
 }
@@ -82,6 +90,7 @@ export interface ScbomViewGraphEdge {
 
 export interface ScbomView {
   readonly metadata: ScbomViewMetadata;
+  readonly warnings: readonly ScbomViewWarning[];
   readonly entities: readonly ScbomViewEntity[];
   readonly evidences: readonly ScbomViewEvidence[];
   readonly relationships: readonly ScbomViewRelationship[];
@@ -92,4 +101,11 @@ export interface ScbomView {
     readonly nodes: readonly ScbomViewGraphNode[];
     readonly edges: readonly ScbomViewGraphEdge[];
   };
+}
+
+export interface ScbomViewWarning {
+  readonly code: "missing_ref" | "unsupported_object";
+  readonly message: string;
+  readonly object_id?: string;
+  readonly ref?: string;
 }
