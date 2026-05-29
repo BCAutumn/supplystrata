@@ -169,6 +169,7 @@
 | Contract                        | 来源 package       | 作用                          |
 | ------------------------------- | ------------------ | ----------------------------- |
 | `WorkbenchModel`                | `workbench-export` | 前端、host app、AI 的主读模型 |
+| `ScbomDocument`                 | `@scbom/spec`      | 厂商中立供应链交换格式        |
 | `CompanyCard` / `ComponentCard` | `card-builder`     | 公司/组件摘要 DTO             |
 | `CompanyChainViewModel`         | `chain-view`       | 链路图 read model             |
 | `research-pack` outputs         | `research-pack`    | 目录化研究报告和 JSON         |
@@ -179,6 +180,21 @@
 - read DTO 不能复用 DB Row。
 - Markdown 只是可读渲染，不是正式 machine contract。
 - research-pack backlog、execution queue、readiness answer、source target coverage 都是只读规划/状态输出，不是 evidence，也不授权写 fact edge。
+
+## SCBOM v0.0.1
+
+SCBOM（Supply Chain Bill of Materials）是独立维护的开放交换格式，canonical source 是 `BCAutumn/scbom-spec` 的 `v0.0.1` Git tag / GitHub Release；npm `@scbom/spec` 只是可选分发渠道。SupplyStrata 在本仓库中通过 pinned git dependency 消费它，并作为参考实现导出 `ScbomDocument`。
+
+| SCBOM 对象     | SupplyStrata 来源                            | 规则                                                                     |
+| -------------- | -------------------------------------------- | ------------------------------------------------------------------------ |
+| `entity`       | `WorkbenchModel.companies` + chain endpoint  | 没有全球标识时使用显式 producer namespace 的本地 id，不能伪装成 LEI/FIGI |
+| `evidence`     | `WorkbenchModel.evidences`                   | 必须带 source URL、cite text、locator、fingerprint、provenance           |
+| `relationship` | `WorkbenchModel.edges`                       | 必须有 evidence ref；没有可导出 evidence 时拒绝导出                      |
+| `observation`  | `chain_segments[semantic_layer=observation]` | 结构上带 `does_not_assert_relationship: true`，不能被当作 fact edge      |
+| `unknown`      | `WorkbenchModel.unknown_items`               | 一等对象；scope 指向可导出的对象，否则回到 root entity                   |
+| `change`       | `WorkbenchModel.changes` 的非 risk 事件      | 只导出中立 audit change；risk metric change 不进入 SCBOM                 |
+
+不进入 SCBOM：claim fusion 内部态、review queue、attention queue、risk metric、source*check job、运行态策略和任何 `supplystrata*\*` 私有字段。`evidence_level` 可作为 producer vocabulary assessment 输出，但 SCBOM schema 不把 SupplyStrata 的五级体系硬编码成唯一标准。
 
 ## GraphStore / Neo4j
 

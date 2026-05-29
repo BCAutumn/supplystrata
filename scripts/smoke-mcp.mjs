@@ -134,6 +134,7 @@ async function runSmoke() {
   await assertResourceOperation("supplystrata://changes/entity/ENT-NVIDIA", "listChanges");
   await assertResourceOperation("supplystrata://source-health", "listSourceHealth");
   await assertResourceOperation("supplystrata://reasoning-walkthrough/ENT-NVIDIA", "getCompanyReasoningWalkthrough");
+  await assertScbomResource("supplystrata://scbom/company/ENT-NVIDIA");
 
   await closeQuietly();
   process.stdout.write(
@@ -142,7 +143,7 @@ async function runSmoke() {
         ok: true,
         transport: "stdio",
         checked: tools.tools.map((tool) => tool.name).sort(),
-        resources_checked: 6,
+        resources_checked: 7,
         write_gate: "requires_confirmation_then_single_confirmation_token"
       },
       null,
@@ -164,6 +165,15 @@ async function assertResourceOperation(uri, operationId) {
   if (!isRecord(firstContent) || typeof firstContent.text !== "string") throw new Error(`Expected ${uri} to return JSON text content.`);
   const parsed = JSON.parse(firstContent.text);
   assertPath(parsed, ["data", "operation_id"], operationId);
+}
+
+async function assertScbomResource(uri) {
+  const result = await client.readResource({ uri });
+  const firstContent = result.contents[0];
+  if (!isRecord(firstContent) || typeof firstContent.text !== "string") throw new Error(`Expected ${uri} to return JSON text content.`);
+  const parsed = JSON.parse(firstContent.text);
+  assertPath(parsed, ["schema_version"], "0.0.1");
+  assertArrayPath(parsed, ["objects"]);
 }
 
 function assertToolNames(tools, expectedNames) {

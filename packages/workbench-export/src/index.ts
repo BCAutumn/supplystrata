@@ -21,6 +21,8 @@ export { buildWorkbenchAttentionQueue } from "./attention-queue.js";
 import { buildWorkbenchAttentionQueue } from "./attention-queue.js";
 import { claimToDto, mergeWorkbenchClaims } from "./claim-dto.js";
 export { claimToDto } from "./claim-dto.js";
+export { toScbomDocument } from "./scbom-mapper.js";
+export { assertScbomDocument } from "./scbom-validator.js";
 import type { ClaimDbRow, UnknownDbRow } from "./db-rows.js";
 import type { ChangeTimelineDtoSource } from "./dto-source-records.js";
 export type {

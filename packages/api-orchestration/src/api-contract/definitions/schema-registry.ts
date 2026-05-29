@@ -107,6 +107,7 @@ export const API_SCHEMA_REGISTRY = {
   UnknownMapApiResponse: readEnvelope("UnknownMapApiResponse", "Unknown map API read envelope."),
   ConsumerReadModelApiResponse: readEnvelope("ConsumerReadModelApiResponse", "Gate 8-lite consumer read model API read envelope."),
   ReasoningWalkthroughApiResponse: readEnvelope("ReasoningWalkthroughApiResponse", "Reasoning walkthrough API read envelope."),
+  ScbomDocumentApiResponse: readEnvelope("ScbomDocumentApiResponse", "SCBOM document API read envelope."),
   ReviewDecisionRequest: {
     $id: "ReviewDecisionRequest",
     type: "object",

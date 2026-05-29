@@ -69,13 +69,15 @@ async function runSmoke() {
 
     const sourceHealth = await client.readResource({ uri: "supplystrata://source-health" });
     if (sourceHealth.contents.length === 0) throw new Error("Expected source-health resource to return content.");
+    const scbom = await client.readResource({ uri: "supplystrata://scbom/company/ENT-NVIDIA" });
+    assertJsonResourcePath(scbom, ["schema_version"], "0.0.1");
 
     process.stdout.write(
       `${JSON.stringify(
         {
           ok: true,
           transport: "http",
-          checked: ["listTools", "resolve_company", "run_source_check", "source-health resource"]
+          checked: ["listTools", "resolve_company", "run_source_check", "source-health resource", "scbom resource"]
         },
         null,
         2
@@ -84,6 +86,13 @@ async function runSmoke() {
   } finally {
     await client.close();
   }
+}
+
+function assertJsonResourcePath(result, path, expected) {
+  const firstContent = result.contents[0];
+  if (!isRecord(firstContent) || typeof firstContent.text !== "string") throw new Error(`Expected resource to return JSON text content.`);
+  const parsed = JSON.parse(firstContent.text);
+  assertPath(parsed, path, expected);
 }
 
 async function waitForServerReady() {

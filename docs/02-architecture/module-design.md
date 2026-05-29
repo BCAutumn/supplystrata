@@ -64,7 +64,7 @@ supplystrata/
 │   ├── chain-view/          # 纯 ChainView DTO
 │   ├── chain-view-builder/  # DbClient -> ChainViewModel
 │   ├── card-builder/        # DbClient -> Company/Component/Chain/Evidence/Unknown card DTO
-│   ├── workbench-export/    # 稳定 Workbench JSON DTO；逐步对齐 SCBOM v0.x
+│   ├── workbench-export/    # 稳定 Workbench JSON DTO；SCBOM v0.0.1 参考 exporter
 │   ├── research-pack/       # 研究包、Gate 1 readiness/backlog/run ledger/report artifact
 │   ├── ai-analysis/         # LLM audit / analysis plan；agent 行为已迁出到 @supplystrata/agent
 │   ├── api-orchestration/   # REST/MCP 共用 route contract、DTO、operation handlers；不持有 HTTP transport
@@ -80,7 +80,7 @@ supplystrata/
 │   └── fixtures/
 │       └── dev-entities/    # 原 seeds/entities.csv + seeds/aliases.csv；仅 CI / 本地开发用
 ├── seeds/                   # 仅保留 components.csv；公司 entity 走 registry bootstrap (#11)
-├── scbom-spec/              # 【新增，独立 repo，目标】SCBOM 开放交换格式 JSON Schema + 规范文档
+├── scbom-spec/              # 独立 repo：SCBOM 开放交换格式 JSON Schema + 规范文档
 ├── data/                    # 本地原始/缓存数据，gitignored
 ├── reports/                 # 本地生成报告，gitignored
 └── releases/                # 【新增，目标】community-pack parquet/sqlite 发布产物
@@ -127,7 +127,7 @@ Layer 4: 参考客户端（独立 release cadence，optional）
 约束：
 
 - `core` 纯净：不得读 `.env`、不得实例化 logger、不得 fetch、不得访问文件系统。
-- `scbom-spec` 不依赖任何 SupplyStrata 包；它定义 schema，SupplyStrata 是它的参考实现之一（#10）。
+- `scbom-spec` 不依赖任何 SupplyStrata 包；它定义 schema，SupplyStrata 是它的参考实现之一（#10）。当前 v0.0.1 通过 `BCAutumn/scbom-spec#v0.0.1` pinned git dependency 消费。
 - `llm-helpers` 只对外暴露 4 个具名 helper；**任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import 它**（CI 通过 dep-check 拦截）。
 - `sources/*` 不直接写 Postgres / Neo4j；抓取、snapshot、normalize 后交由 workflow / pipeline / monitor 编排。
 - `source-plan` 只输出计划和 target suggestion；不抓源、不写库、不把弱源升级成事实。
@@ -224,7 +224,7 @@ NormalizedDocument
 | --------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
 | `chain-view`                                  | 纯 ChainView DTO                                                                      | 不查库                                 |
 | `chain-view-builder`、`card-builder`          | card / chain DTO                                                                      | 从 `DbClient` 组装稳定 DTO             |
-| `workbench-export`                            | Workbench JSON（v0.x 内对齐 SCBOM v0.x schema）                                       | 稳定 machine-readable contract         |
+| `workbench-export`                            | Workbench JSON + SCBOM v0.0.1 document exporter                                       | 稳定 machine-readable contract         |
 | `research-pack`                               | 研究目录、Gate readiness/backlog/run ledger、read model / walkthrough                 | 研究编排和审计账本                     |
 | `ai-analysis`                                 | provider config / `ai_analysis_runs` audit；agent 行为迁出后只留 audit + config       | LLM 调用审计；行为收敛到 `llm-helpers` |
 | `api-orchestration`                           | REST/MCP 共用 API contract、DTO envelope、operation handler 装配                      | 不含 HTTP server / response 写入       |

@@ -30,6 +30,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(zod@3.25.76)
+      '@scbom/spec':
+        specifier: github:BCAutumn/scbom-spec#v0.0.1
+        version: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d
       '@types/node':
         specifier: ~22.10.2
         version: 22.10.10
@@ -1048,6 +1051,9 @@ importers:
 
   packages/workbench-export:
     dependencies:
+      '@scbom/spec':
+        specifier: github:BCAutumn/scbom-spec#v0.0.1
+        version: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d
       '@supplystrata/chain-view':
         specifier: workspace:*
         version: link:../chain-view
@@ -1072,6 +1078,9 @@ importers:
       '@supplystrata/source-plan':
         specifier: workspace:*
         version: link:../source-plan
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
 
 packages:
 
@@ -1582,6 +1591,10 @@ packages:
     resolution: {integrity: sha512-QVTUovf40zgTqlFVrKA1uXMVvU2QWEFWfAH8Wdc48IxLvrJMQVMBRjuQyUpzZCDkakImib9eVazbWlC6ksWtJw==}
     cpu: [x64]
     os: [win32]
+
+  '@scbom/spec@https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d':
+    resolution: {tarball: https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d}
+    version: 0.0.1
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
@@ -3261,6 +3274,8 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.60.4':
     optional: true
+
+  '@scbom/spec@https://codeload.github.com/BCAutumn/scbom-spec/tar.gz/81958106e845bcb9d9456902fda2d8b7763ab30d': {}
 
   '@types/estree@1.0.8': {}
 

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { API_CONTRACT_VERSION, API_ROUTES, auditApiContract, buildApiOpenApiDocument, schemaIds, toOpenApiPath } from "@supplystrata/api-orchestration";
+import {
+  API_CONTRACT_VERSION,
+  API_ROUTES,
+  MCP_RESOURCE_ROUTES,
+  auditApiContract,
+  buildApiOpenApiDocument,
+  schemaIds,
+  toOpenApiPath
+} from "@supplystrata/api-orchestration";
 
 describe("api contract", () => {
   it("pins the Gate 8 contract version and required route surface", () => {
@@ -36,7 +44,7 @@ describe("api contract", () => {
 
     expect(audit).toMatchObject({
       route_count: 23,
-      schema_count: 25,
+      schema_count: 26,
       db_row_leak_count: 0,
       missing_schema_ids: []
     });
@@ -137,6 +145,14 @@ describe("api contract", () => {
     expect(schemaIds()).toContain("AiAnalysisRunsApiResponse");
     expect(schemaIds()).toContain("CompanyAiAnalysisPlanApiResponse");
     expect(schemaIds()).toContain("CompanyAiAnalysisLatestApiResponse");
+    expect(schemaIds()).toContain("ScbomDocumentApiResponse");
+  });
+
+  it("keeps SCBOM as an MCP resource operation without adding a REST/OpenAPI route", () => {
+    expect(MCP_RESOURCE_ROUTES.map((route) => `${route.method} ${route.path}`)).toEqual(["GET /companies/:id/scbom"]);
+    expect(MCP_RESOURCE_ROUTES[0]?.operation_id).toBe("getCompanyScbomDocument");
+    expect(routeKeys()).not.toContain("GET /companies/:id/scbom");
+    expect(Object.keys(buildApiOpenApiDocument().paths)).not.toContain("/companies/{id}/scbom");
   });
 
   it("converts colon parameters to OpenAPI path parameters", () => {

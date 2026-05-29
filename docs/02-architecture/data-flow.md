@@ -90,6 +90,8 @@
          list_unknowns / list_source_targets
 ```
 
+`supplystrata://scbom/company/{lei}` 返回原始 SCBOM v0.0.1 document，而不是 API envelope；MCP 层仍经 `api-orchestration` 调用 `getCompanyScbomDocument`，再由 `workbench-export.toScbomDocument()` 按 `@scbom/spec` schema 校验后输出。
+
 完整 MCP 契约见 `@supplystrata/mcp` package README（在该 package 落地时）。
 
 ## 关键不变式

@@ -1,5 +1,5 @@
 import {
-  API_ROUTES,
+  API_OPERATION_ROUTES,
   buildApiOperationEnvelope,
   type ApiOperationEnvelope,
   type ApiOperationHandlerInput,
@@ -30,7 +30,7 @@ export async function callMcpApiReadOperation(input: McpApiReadOperationInput): 
 }
 
 function findReadRoute(operationId: ApiOperationId): ApiRouteContract {
-  const route = API_ROUTES.find((candidate) => candidate.operation_id === operationId);
+  const route = API_OPERATION_ROUTES.find((candidate) => candidate.operation_id === operationId);
   if (route === undefined) throw new Error(`Unknown api-orchestration operation: ${operationId}`);
   if (route.access !== "read" && route.access !== "read_through_research")
     throw new Error(`MCP read surface cannot expose non-read api-orchestration operation: ${operationId}`);

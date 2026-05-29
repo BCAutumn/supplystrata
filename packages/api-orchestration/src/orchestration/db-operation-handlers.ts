@@ -23,7 +23,7 @@ import {
   type ResearchRunRefreshMode
 } from "@supplystrata/source-workflows";
 import type { ComponentObservation, CompanyObservation } from "@supplystrata/render";
-import { changeTimelineItemToDto, claimToDto, type WorkbenchSourceHealth } from "@supplystrata/workbench-export";
+import { buildWorkbenchModel, changeTimelineItemToDto, claimToDto, toScbomDocument, type WorkbenchSourceHealth } from "@supplystrata/workbench-export";
 import type { AiAnalysisArtifact } from "@supplystrata/ai-analysis";
 import type { CompanySupplyChainReport, ResearchRunRequest, ReviewDecisionResult } from "../api-contract/definitions/api-dtos.js";
 import { ApiHttpError, type ApiOperationHandlerInput, type ApiOperationHandlers } from "../definitions/api-operation.js";
@@ -68,6 +68,14 @@ export function createDbApiOperationHandlers(store: DatabaseStore, env?: Env): A
     getCompanySupplyChainReport: async (input) => buildReadThroughSupplyChainReport(store, input, requireRuntimeEnv(env)),
     getCompanyConsumerReadModel: async (input) => (await buildReadOnlyResearchPack(store, input)).consumer_read_model,
     getCompanyReasoningWalkthrough: async (input) => (await buildReadOnlyResearchPack(store, input)).reasoning_walkthrough,
+    getCompanyScbomDocument: async (input) =>
+      toScbomDocument(
+        await buildWorkbenchModel(store.read, {
+          company: pathParam(input, "id"),
+          generatedAt: input.now,
+          depth: positiveIntQuery(input.query, "depth", 3)
+        })
+      ),
     getCompanyAiAnalysisPlan: async (input) => {
       const pack = await buildReadOnlyResearchPack(store, input);
       return buildCompanyAiAnalysisPlan({

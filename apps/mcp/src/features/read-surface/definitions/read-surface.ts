@@ -2,7 +2,14 @@ import type { ApiOperationHandlers } from "@supplystrata/api-orchestration";
 
 export type McpReadToolName = "resolve_company" | "read_evidence_for_edge" | "traverse_chain" | "list_unknowns" | "list_source_targets" | "poll_research_run";
 
-export type McpReadResourceName = "entity" | "evidence-edge" | "unknowns-company" | "changes-entity" | "source-health" | "reasoning-walkthrough";
+export type McpReadResourceName =
+  | "entity"
+  | "evidence-edge"
+  | "unknowns-company"
+  | "changes-entity"
+  | "source-health"
+  | "reasoning-walkthrough"
+  | "scbom-company";
 
 export const MCP_READ_TOOL_NAMES: readonly McpReadToolName[] = [
   "resolve_company",
@@ -19,7 +26,8 @@ export const MCP_READ_RESOURCE_URIS = {
   unknownsCompany: "supplystrata://unknowns/company/{id}",
   changesEntity: "supplystrata://changes/entity/{id}",
   sourceHealth: "supplystrata://source-health",
-  reasoningWalkthrough: "supplystrata://reasoning-walkthrough/{id}"
+  reasoningWalkthrough: "supplystrata://reasoning-walkthrough/{id}",
+  scbomCompany: "supplystrata://scbom/company/{lei}"
 } as const;
 
 export interface McpReadSurfaceRuntime {

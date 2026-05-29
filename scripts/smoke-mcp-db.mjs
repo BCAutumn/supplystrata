@@ -81,6 +81,7 @@ async function runSmoke() {
   if (companyEntityId !== undefined) {
     const chain = await callStructuredTool("traverse_chain", { scope: `company:${companyEntityId}`, depth: 2 });
     assertPath(chain, ["schema_version"], "1.0.0");
+    await assertScbomResource(`supplystrata://scbom/company/${companyEntityId}`);
   }
 
   await closeQuietly();
@@ -92,7 +93,8 @@ async function runSmoke() {
         runtime: "db",
         company,
         run_id: runId,
-        source_check_targets: checkTargetIds.length
+        source_check_targets: checkTargetIds.length,
+        scbom_resource_checked: companyEntityId !== undefined
       },
       null,
       2
@@ -105,6 +107,16 @@ async function callStructuredTool(name, args) {
   if (result.isError === true) throw new Error(`${name} returned MCP error: ${toolErrorText(result)}`);
   if (!isRecord(result.structuredContent)) throw new Error(`${name} did not return structuredContent.`);
   return result.structuredContent;
+}
+
+async function assertScbomResource(uri) {
+  const result = await client.readResource({ uri });
+  const firstContent = result.contents[0];
+  if (!isRecord(firstContent) || typeof firstContent.text !== "string") throw new Error(`Expected ${uri} to return JSON text content.`);
+  const parsed = JSON.parse(firstContent.text);
+  assertPath(parsed, ["schema_version"], "0.0.1");
+  const objects = readPath(parsed, ["objects"]);
+  if (!Array.isArray(objects) || objects.length === 0) throw new Error(`Expected ${uri} to return a non-empty SCBOM objects array.`);
 }
 
 function toolErrorText(result) {

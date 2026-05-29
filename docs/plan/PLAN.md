@@ -1,7 +1,7 @@
 # Implementation Plan (Rolling)
 
 最后更新: 2026-05-29
-当前位置: **Phase E · in_progress**
+当前位置: **Phase F · in_progress**
 
 > 这是滚动工作笔记，不是规范。决策 / 边界 / 完成口径以 `docs/` 为准。
 > 每完成一 Phase: 压缩当前 → 细化下一。
@@ -18,8 +18,8 @@
 | B     | MCP 接入面 (`apps/mcp`; stdio + StreamableHTTP)       | **done**    |
 | C     | 全球身份覆盖 + MCP CLI 接 DB-backed runtime           | **done**    |
 | D     | 动态 profile + Agent 参考实现                         | **done**    |
-| E     | SCBOM v0.x 开放交换格式 + workbench-export 对齐        | in_progress |
-| F     | Web 嵌入式组件 (Sigma.js + Web Components)            | not_started |
+| E     | SCBOM v0.x 开放交换格式 + workbench-export 对齐       | **done**    |
+| F     | 中立 SCBOM 可视化 (headless core + Web Components)    | in_progress |
 | G     | Community-pack release pipeline                       | not_started |
 
 ---
@@ -35,119 +35,126 @@
 
 ---
 
-## Phase E · SCBOM v0.x 开放交换格式 [当前]
+## Phase F · 中立 SCBOM 可视化（headless core + Web Components）[当前]
 
-> 大白话：把供应链数据从"SupplyStrata 专用盒子"换成"谁都能读写的通用文件格式"（类比 PDF/SBOM），让"数据源"定位真正成立。
+> 大白话：做一个能渲染**任何 SCBOM 文档**的中立可视化层——本地实例一跑就有 UI 看自己的数据，agent 能把图当报告产出，别人也能把它嵌进自己的 React/Vue app 并深度换肤定制。证据优先，不是先甩一张毛球图。
 
-**目标**：把 SupplyStrata 的供应链数据从"`WorkbenchModel` 私有 DTO"升级为**独立维护、厂商中立的开放交换格式 SCBOM**（Supply Chain Bill of Materials）。这是 Decision #10 的兑现：SupplyStrata 是 SCBOM 的参考实现**之一**，不是它的拥有者。
+**目标**：交付 SupplyStrata 第一个**可视化对外脸面**。它是一个**中立的 SCBOM viewer**（消费任何符合 SCBOM 的文档，不绑定 SupplyStrata），分两层：**L0 headless core**（纯 TS、零 DOM、零框架，把 SCBOM 规范化成可渲染的 view model）+ **L1 themeable Web Components**（开箱即用、可换肤）。
 
-完成后，任何第三方（竞品、研究机构、其它 agent）都能用 SCBOM schema 校验、生产、消费供应链证据数据，而不需要依赖 SupplyStrata 的代码。SupplyStrata 通过 MCP resource `supplystrata://scbom/company/{lei}` 输出 SCBOM 文档。
+完成后能证明三件事：数据不仅机器能读（SCBOM/MCP），人也能直接看（本地 UI + agent 产出图）；可视化与核心彻底解耦（删 `packages/web` 核心照常工作）；第三方能**自由集成**——快速嵌的人用 L1，要把图融进自己 React/Vue 设计系统的人用 L0 自画。
 
-### 前置说明：独立 repo 与消费机制
+### 产品形态：B + C 为主，A 为副产物（DQ20）
 
-Decision #5 / DQ5 锁定：`scbom-spec` 是**独立 repo**（`supplystrata/scbom-spec`），从 v0.0.1 起独立版本号。这意味着 Phase E **跨两个 repo**：
+- **B 本地自带 UI**：实例 `--serve-web` 起 localhost 页面，跑实例的人立即能浏览自己的数据（datasette / Obsidian 借鉴）。
+- **C agent 可视化 artifact**：agent / CLI 产出**自包含 HTML**（内联 IIFE + 内联 SCBOM），离线可渲染，人看 agent 的产出。
+- **A 嵌入式组件**：`<script>` + 自定义标签嵌别人页面——是 L1 的自然副产物，不单列为目标。
 
-- **`supplystrata/scbom-spec`（新 repo）**：JSON Schema + 规范文档 + 语言无关 conformance examples + 校验工具。不依赖任何 SupplyStrata 包。
-- **本 monorepo**：消费已发布的 SCBOM schema，实现 exporter + MCP resource。
+### 分层架构：headless core (L0) + themeable Web Components (L1)（DQ22）
 
-**DQ18（消费机制）已确认**：`scbom-spec` v0.0.1 的 canonical source 是独立 Git tag / GitHub Release；npm `@scbom/spec` 是可选分发渠道，不是 Phase E blocker。本 repo 通过 pinned git dependency 消费。
+| 层 | 内容 | 给谁 | 边界 |
+| -- | ---- | ---- | ---- |
+| **L0 headless core** | SCBOM document → 规范化 `ScbomView`（entities / relationships / evidence index / unknowns / changes）+ graph 布局 | 想用自己 React/Vue 组件 + 设计系统**完全自画 UI** 的开发者 | 纯 TS、**零 DOM、零网络、零框架**；本次真正的资产 |
+| **L1 Web Components** | `<scbom-evidence-view>`（主）/ `<scbom-unknown-map>` / `<scbom-supply-chain-graph>`（概览） | 想快速嵌、不想自己画、或非 React 场景 | custom element + Shadow DOM；themeable |
+| **L2 框架 wrapper** | `@supplystrata/web-react` / `-vue` | 想要地道 React/Vue DX | **本期不做**（DQ22）：WC 原生可在 React/Vue 用；深度定制走 L0 |
 
-E1-E3（spec repo 内）不阻塞，可立即开始；E4 起需要消费机制定下来。
+**关键认知**：React/Vue 集成不靠我们包里塞 React/Vue（那会破 #15），而靠 (1) Web Components 本就能在 React/Vue 里用；(2) L0 headless core 把数据直接交给开发者自画。`packages/web` 自身**永远不把 React/Vue 作运行/构建依赖**。这是 #15 的细化，不是推翻。
 
-### SCBOM 核心对象（v0.0.1 范围）
+### 关键技术决策（已锁定）
 
-从 `WorkbenchModel`（已有 `schema_version: "1.0.0"`）抽取厂商中立子集：
-
-| SCBOM 对象        | 来源 WorkbenchModel 字段           | 关键规则                                                            |
-| ----------------- | ---------------------------------- | ------------------------------------------------------------------ |
-| `entity`          | `companies[]`                      | 必须带稳定 identifier（LEI 优先）+ provenance                       |
-| `relationship`    | `edges[]` / upstream / downstream  | 必须带 evidence ref + evidence_level + validity                    |
-| `evidence`        | `evidences[]`                      | 必须带 source URL + cite text + locator/fingerprint                |
-| `observation`     | （intelligence/observation 子集）  | 不可被消费方误读成 relationship                                     |
-| `unknown`         | `unknown_items[]`                  | 一等对象，不是错误日志                                              |
-| `change`          | `changes[]`                        | 审计变化；语义类型枚举                                              |
-
-**不进 SCBOM**：risk metric / claim fusion 内部态 / attention queue / review queue / source_check job —— 这些是 SupplyStrata 派生层或运行态，不是厂商中立的交换内容。SCBOM 只交换"可证事实 + 证据 + 未知 + 变化"。
+- **DQ6**：图渲染用 **Sigma.js v3 + graphology**（WebGL；实测约 240KB min ≈ 75KB gz，在预算内），不用 Cytoscape/自写 canvas。graph 仅概览入口（DQ23），故不追更轻方案。
+- **DQ24 L1 用 Lit**：Web Component 层用 **Lit**（~5.5KB gz，Google 维护）写,不手写 base class。Lit 产出标准 custom element，可在 React/Vue 直接用，**不破 #15/DQ22**（Lit 不是 React/Vue 那类框架，是 WC authoring lib）；Shadow DOM + `static styles` + CSS 变量换肤内置，正好承载 DQ23 换肤。dep-check 允许 Lit，仍禁 React/Vue/Svelte。
+- **DQ21 中立化**：viewer 渲染任何 SCBOM，组件用 `scbom-*` 前缀（非 `supplystrata-*`）信号中立；先放本 repo `packages/web`，接口按中立设计，将来抽独立 repo 零成本。
+- **DQ23 evidence-first UX**：主视图是 `<scbom-evidence-view>`（证据表/时间线：cite text + source URL + evidence_level + validity）；graph 是**概览入口**不是主屏；unknown 一等展示。
+- **DQ23 换肤**：Shadow DOM 封装 + CSS 变量（`--scbom-*`）+ `::part()` + slot 暴露换肤点（Lit 原生支持）。
+- **只读**：viewer **不暴露任何 write tool**；只渲染，不触发 source check / review / session（写仍只走 agent/CLI 经 MCP confirmation gate）。
+- **双形态产物**：IIFE bundle（`<script>` 直接用）+ npm ESM（headless core + 构建链引入）。
+- **预算口径**：size gate 判 **gzipped**（≤ 200KB），不拿 minified 数字判（两者差约 3 倍，易误判）。F1 实测 gz 值入门禁。
 
 ### PR 切分
 
-| PR  | 标题                                          | 范围                                                                                                                                                                                                                       | 验收                                                                                                                | 清理判据                                                                                                       |
-| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| E1  | scbom-spec repo bootstrap + entity/relationship/evidence schema | 新建 `supplystrata/scbom-spec` repo；JSON Schema (draft 2020-12) for `entity` / `relationship` / `evidence`；README 写明设计原则（厂商中立、provenance 必填、evidence-first）；MIT/Apache 双许可                          | 三个 schema 通过 JSON Schema meta-validation；repo 有 ≥ 3 个 valid example + ≥ 3 个 invalid example（缺 provenance 等） | scbom-spec **零依赖** SupplyStrata；schema 里无 `supplystrata_*` 私有字段；version `0.0.1` 标注                  |
-| E2  | scbom-spec observation/unknown/change schema  | 补 `observation` / `unknown` / `change` schema；定义对象间引用规则（relationship → evidence ref，change → 受影响对象 ref）；定义顶层 `scbom-document` envelope（version / generated_at / objects[]）                          | 6 类对象 schema 完整；envelope schema 校验通过；example 覆盖 cross-object 引用完整性                                  | observation schema 明确标注"不可作为 relationship"；unknown 是一等对象；无私有字段                              |
-| E3  | scbom-spec conformance suite + release v0.0.1 | 语言无关 conformance test runner（纯 JSON in/out，任何实现都能跑）；CI 在 scbom-spec repo 内跑；发布 Git tag / GitHub Release v0.0.1；npm `@scbom/spec` 作为可选分发渠道                                                       | conformance suite ≥ 20 cases；CI 绿；v0.0.1 可被外部 pinned git dependency 引用                                      | conformance runner 不依赖任何特定语言实现；spec repo 自洽可独立 release                                          |
-| E4  | `workbench-export` → SCBOM exporter           | 本 repo 引入 SCBOM 消费机制（DQ18）；`packages/workbench-export` 新增 `toScbomDocument(model)` ；映射 WorkbenchModel 子集 → SCBOM 6 对象；对每个导出文档跑 SCBOM schema 校验                                                  | 单测：NVIDIA fixture → SCBOM document 通过 schema 校验；映射不丢 evidence/provenance；risk/claim 内部态不泄漏到 SCBOM | exporter 输出 100% 通过 SCBOM schema；无私有字段泄漏（meta-test 拦截）；WorkbenchModel 原导出保留               |
-| E5  | MCP `scbom/company/{lei}` resource            | `apps/mcp` 新增 resource `supplystrata://scbom/company/{lei}`，经 `api-orchestration` → workbench-export SCBOM exporter；LEI 解析复用 Phase C identity bootstrap                                                              | contract test：resource 返回合法 SCBOM document；无 LEI / 未解析时返回明确 error；fixture + db 两 runtime 一致      | resource 输出经 SCBOM schema 校验；不绕过 api-orchestration                                                      |
-| E6  | Conformance e2e + docs alignment              | 本 repo e2e：导出 SCBOM → 用 `@scbom/spec` conformance 校验通过；更新 docs/03-data-model（SCBOM 章节）、module-design（scbom-spec 去【新增,目标】）、data-flow（scbom resource）、quickstart（SCBOM 导出示例）                | `tests/e2e/scbom-export.test.ts` 通过；docs 与实现一致                                                               | docs 引用 scbom-spec repo + 版本；module-design SCBOM 行去标签；无 TODO/shim                                     |
+| PR  | 标题                                            | 范围                                                                                                                                                                                                          | 验收                                                                                                       | 清理判据                                                                                            |
+| --- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| F1  | `packages/web` skeleton + L0 类型 + dual-build + 尺寸门禁 | 新建 `packages/web`；加 `lit` 依赖（DQ24）；定义 L0 `ScbomView` 类型；ESM（headless entry）+ IIFE（components entry）双产物；CI bundle size gate（实测 **gzipped** ≤ 200KB IIFE）；占位 no-op                     | `pnpm build` 产出双产物；size gate 超预算 fail（故意塞大依赖验证，判 gz 值）；headless entry 可被纯 TS import | 不依赖 React/Vue/Svelte（dep-check + package.json；Lit 允许）；headless entry 零 DOM/网络 import       |
+| F2  | L0 headless core：SCBOM → ScbomView + 布局（纯函数） | `scbom-to-view.ts`：SCBOM document → `ScbomView`；relationship → 其 evidence trail 索引（evidence-first）；unknown 一等 list；change list；graphology 概览布局；evidence_level → 视觉权重 vocabulary（不硬编） | 单测：SCBOM fixture → ScbomView；observation/unknown 不变成 relationship；dangling ref 安全降级；布局确定性 | 纯函数、零 DOM、零网络；输入 SCBOM 不是 WorkbenchModel；无 SupplyStrata 私有概念；**这是 React/Vue 消费层**，导出稳定 |
+| F3  | L1 Web Component base（Lit）+ 换肤基础设施       | 用 Lit `LitElement` 写 base + Shadow DOM；换肤经 CSS 变量 + `::part()` + slot；`@property` attr → L0 → render 生命周期；`<scbom-ping>` 验证换肤钩子                                                            | base element 在纯 HTML 注册；CSS 变量覆盖生效；`::part()` 可定位；slot 内容渲染                            | 换肤 surface 文档化；Lit 之外无框架；产出标准 custom element（React/Vue 可直接用）                  |
+| F4  | evidence-first 主组件 `<scbom-evidence-view>` + `<scbom-unknown-map>` | `<scbom-evidence-view>`：**主视图**——relationship 证据表/时间线（cite + source URL + evidence_level + validity）；`<scbom-unknown-map>`：unknown 一等展示；两者消费 L0、只读                                  | 渲染单测（happy-dom）；unknown 一等语气（非"缺失/错误"）；evidence_level 配色合 evidence-model.md；deprecated 区分 | 只读、无写入入口；消费 L0 view model；无共享可变全局态                                               |
+| F5  | `<scbom-supply-chain-graph>` 概览图 + 浏览器 MCP HTTP client | Sigma.js v3 概览图（入口，非主屏；点节点下钻到 evidence-view）；observation/unknown 不画成 relationship edge；`mcp-http-client.ts` 浏览器侧连 `StreamableHTTPServerTransport` 调 `supplystrata://scbom/company/{lei}` 取 SCBOM，默认 `127.0.0.1` | graph 渲染 NVIDIA SCBOM fixture；mock-transport 取数单测；取数失败显式错误态；远程/跨域需显式配置          | client 只调 read resource，不调 write tool；graph 只读；默认 localhost                              |
+| F6  | 本地 viewer app (B) + agent artifact (C) + 尺寸 e2e + docs + #15 amendment | `apps/web` 薄本地 viewer（CLI 起 localhost 服 L1 bundle 指向本机 MCP，形态 B）；agent/CLI 产出自包含 HTML（内联 IIFE + 内联 SCBOM，离线渲染，形态 C）；size e2e；更新 docs（module-design 分层去标签、quickstart 嵌入 + headless React/Vue 片段）、decisions.md #15 amendment | 本地 viewer 连本机 MCP 渲染出图；agent HTML artifact 离线渲染；size e2e 绿；docs 一致                       | app 薄壳无业务规则；module-design web 行去标签；quickstart 有 embed + headless 片段；decisions #15 已 amend；removable；无 TODO/shim |
 
 ### 执行顺序
 
 ```
-[scbom-spec repo]  E1 (entity/rel/evidence) → E2 (obs/unknown/change) → E3 (conformance + release v0.0.1)
-                                                                              │
-                                                                              ↓ (DQ18: pinned git dependency)
-[本 repo]                                          E4 (exporter) → E5 (mcp resource) → E6 (e2e + docs) → Phase E DONE
+F1 (skeleton + L0 类型 + dual-build + size gate) → F2 (L0 headless core) → F3 (WC base + 换肤) ┐
+                                                                                                ├→ F6 (本地 viewer + agent artifact + e2e + docs) → Phase F DONE
+                                       F4 (evidence-first 主组件) ‖ F5 (graph 概览 + MCP client) ┘
 ```
 
-E1-E3 在 scbom-spec repo 内自洽完成并发布；E4 起本 repo 消费已发布 spec。
+- F1 → F2（headless）→ F3（WC base）线性
+- F4、F5 依赖 F2（ScbomView）/ F3（base class），可在 F3 后并行
+- F6 最后（合流 B/C 形态 + docs + #15 amendment）
 
-### 清理 checklist（Phase E 合并前必须勾完）
+### 清理 checklist（Phase F 合并前必须勾完）
 
-- [ ] `scbom-spec` repo 独立、零依赖 SupplyStrata、双许可、v0.0.1 Git tag / GitHub Release 已发布
-- [ ] 6 类对象 schema + envelope schema 完整；JSON Schema meta-validation 通过
-- [ ] schema 无任何 `supplystrata_*` / 厂商私有字段（人工 + meta-test 双查）
-- [ ] conformance suite ≥ 20 cases，语言无关，scbom-spec CI 绿
-- [ ] `scbom-spec` pinned git dependency 可被本 repo 引用，版本锁定
-- [ ] `workbench-export.toScbomDocument()` 输出 100% 通过 SCBOM schema 校验
-- [ ] SCBOM exporter 不泄漏 risk/claim 内部态 / attention / review / job（meta-test 拦截私有字段）
-- [ ] MCP `supplystrata://scbom/company/{lei}` resource 落地；fixture + db 两 runtime 一致
-- [ ] `tests/e2e/scbom-export.test.ts` 用 conformance suite 校验通过
-- [ ] `docs/03-data-model/` 加 SCBOM 章节；`module-design.md` scbom-spec 去【新增,目标】标签
-- [ ] `docs/02-architecture/data-flow.md` scbom resource 与实现一致
-- [ ] `docs/06-development/quickstart.md` 加 SCBOM 导出示例
+- [ ] `packages/web` 自身不依赖 React/Vue/Svelte（dep-check + package.json 检查；Lit 作为 WC authoring lib 允许）
+- [ ] L0 headless entry 零 DOM / 零网络 import（meta-test：扫 L0 入口不引 DOM/fetch）
+- [ ] IIFE + ESM 双产物；IIFE ≤ 200KB gzipped（CI size gate，故意超标验证拦截）
+- [ ] L0 `scbom-to-view` 纯函数、零 DOM、零网络；输入 SCBOM 不是 WorkbenchModel；导出稳定（React/Vue 消费契约）
+- [ ] observation / unknown 不被画成 relationship（结构上而非样式上区分）
+- [ ] 主视图是 evidence-view（证据优先）；graph 是概览入口非主屏；unknown 一等
+- [ ] evidence_level 配色与 `docs/03-data-model/evidence-model.md` 约定一致
+- [ ] 换肤经 CSS 变量 + `::part()` + slot，已文档化
+- [ ] viewer **只读**：无任何 write tool 入口；MCP HTTP client 只调 read resource
+- [ ] 浏览器 MCP client 默认 `127.0.0.1`；远程/跨域需显式配置 + README 风险标注
+- [ ] 本地 viewer app (B) 连本机 MCP 渲染出图；agent HTML artifact (C) 离线可渲染
+- [ ] 删除 `packages/web` + `apps/web` 后核心 build/test 全绿（removable meta-test）
+- [ ] `docs/02-architecture/module-design.md` web 分层去【新增,目标】标签
+- [ ] `docs/06-development/quickstart.md` 加 embed 片段 + headless React/Vue 使用片段
+- [ ] `docs/10-decisions/decisions.md` #15 amend（补 headless 分层 + 中立 viewer 形态）
 - [ ] 无 `// TODO` / `// FIXME` / shim 代码
-- [ ] 本 repo: type-check / lint / unit / dep-check / build / format-check / e2e / smoke 全绿
+- [ ] type-check / lint / unit / dep-check / build / format-check / e2e / smoke 全绿
 
 ### 风险点（命中即找 commander）
 
-1. **私有字段泄漏进 SCBOM** — 头号风险。SCBOM 是厂商中立格式；任何 `supplystrata_*` 字段、risk metric、claim fusion 内部态、attention/review 运行态泄漏进 schema 都违反 Decision #10。meta-test 必须拦截。
-2. **SCBOM 想塞 SupplyStrata 才有的概念** — 例如把 SupplyStrata 的 `evidence_level` 五级体系硬编进 schema。evidence_level 可以作为 SCBOM `evidence.strength` 的一种 vocabulary，但 schema 应允许其它实现用自己的 strength 体系，不能锁死成 SupplyStrata 的 1-5。**遇到这类设计抉择停下来讨论**。
-3. **跨 repo 工作流摩擦** — scbom-spec 独立 repo + 本 repo 消费，版本同步是新成本。DQ18 选 pinned git dependency；E1-E3 完成且 v0.0.1 Git tag / GitHub Release 发布前，E4 不要开始（否则对着未冻结 schema 写 exporter 会反复返工）。
-4. **observation 被消费方误读成 relationship** — SCBOM observation schema 必须在结构上就让"这不是一条供应关系"无法被误解（独立 object type + 明确 `not_a_relationship` 语义），不能只靠文档说明。
-5. **LEI 缺失的 entity 如何进 SCBOM** — 不是所有 entity 都有 LEI（小公司/设施/组件）。SCBOM entity identifier 应支持多体系（LEI / FIGI / 国家注册号 / SupplyStrata internal id 作 fallback），但 fallback id 必须显式标 namespace，不能伪装成全球标识。
+1. **`packages/web` 自身想引 React/Vue 作运行/构建依赖** — 头号风险。框架集成在**消费方**（用 WC 或 L0），不在我们包内。dep-check 拦截，也要警惕传递依赖。
+2. **L0 headless core 偷引 DOM / fetch** — L0 一旦碰 DOM 或网络就丧失"框架无关 + 可测 + React/Vue 可消费"。meta-test 扫 L0 入口。
+3. **bundle 体积失控** — Sigma + graphology 已占预算；任何顺手加的大依赖都可能爆 200KB。size gate 是硬门禁，超了砍功能/换依赖，不抬预算。
+4. **组件直接读 WorkbenchModel / DB** — 只吃 SCBOM。出现"SCBOM 没这字段所以直接连 DB"的冲动时停——要么字段进 SCBOM（回 Phase E 讨论），要么不展示。
+5. **viewer 出现写入入口** — 渲染层永远只读。"图上点一下触发 source check / approve"违反写入边界。
+6. **observation 被画成关系线** — Phase E 同源风险的可视化版：observation/unknown 在视觉和数据结构上都不等于 relationship。
+7. **graph 喧宾夺主** — UX 是 evidence-first；不要把毛球图做成主屏，证据/unknown 才是差异化。
+8. **跨域取数默认放开** — 默认 localhost-only；远程 MCP endpoint 需显式配置自担风险，不为 demo 方便默认开 CORS。
+9. **中立组件混入私有概念** — 组件名 `scbom-*`、只认 SCBOM；任何 SupplyStrata 私有字段/概念渗进渲染层都破坏中立化（DQ21）。
 
 ### 测试策略
 
-**scbom-spec repo（新）**：
-- JSON Schema meta-validation（schema 本身合法）
-- valid/invalid example fixtures（每类对象 ≥ 3 valid + ≥ 3 invalid）
-- 语言无关 conformance runner（≥ 20 cases）
+**新增**：
+- `tests/unit/web-scbom-to-view.test.ts` — L0 映射 + observation/unknown 不混入 relationship
+- `tests/unit/web-headless-no-dom.test.ts` — meta-test：L0 入口零 DOM/网络 import
+- `tests/unit/web-component-theming.test.ts` — Shadow DOM + CSS 变量 + `::part()` + slot 换肤
+- `tests/unit/web-evidence-view.test.ts` — 主视图证据表/时间线渲染（happy-dom）
+- `tests/unit/web-unknown-map.test.ts` — unknown 一等展示
+- `tests/unit/web-graph-component.test.ts` — 概览图注册 + 渲染
+- `tests/unit/web-mcp-http-client.test.ts` — mock transport 取数 + 错误态
+- `tests/unit/web-readonly-boundary.test.ts` — meta-test：web 不引用任何 write tool
+- `tests/unit/dep-boundary-web-removable.test.ts` — meta-test：web + apps/web 可整包删除
+- `tests/e2e/web-local-viewer.test.ts` — 本地 viewer 连本机 MCP 渲染（B）
+- `tests/e2e/web-agent-artifact.test.ts` — agent 自包含 HTML 离线渲染（C）+ bundle size
 
-**本 repo 新增**：
-- `tests/unit/workbench-to-scbom.test.ts` — 映射正确性 + 无私有字段泄漏
-- `tests/unit/scbom-no-private-fields.test.ts` — meta-test 扫描导出无 `supplystrata_*` 等
-- `tests/unit/mcp-scbom-resource.test.ts` — resource contract
-- `tests/e2e/scbom-export.test.ts` — 导出 → conformance 校验端到端
-
-### Phase E 完成出口
+### Phase F 完成出口
 
 ```
 出口判据 (single sentence):
-  scbom-spec 作为零依赖独立 repo 发布 v0.0.1（6 类对象 + envelope + conformance suite）；
-  本 repo workbench-export 能把任一公司 WorkbenchModel 导出为 100% 通过 SCBOM schema 校验的文档，
-  且不泄漏任何 SupplyStrata 私有字段（meta-test 拦截）；
-  MCP resource supplystrata://scbom/company/{lei} 在 fixture + db 两 runtime 下都返回合法 SCBOM document。
+  packages/web 以 L0 headless core（纯 TS 零 DOM，React/Vue 可直接消费自画 UI）+ L1 themeable
+  Web Components（scbom-* 前缀、Shadow DOM + CSS 变量/::part()/slot 换肤）两层交付一个中立 SCBOM viewer；
+  本地实例 --serve-web 起 localhost UI（B）、agent 能产出离线自包含 HTML 图（C）、第三方能 <script> 嵌入（A）；
+  主视图 evidence-first（证据表/时间线 + unknown 一等，graph 作概览入口），只读无写入入口、
+  IIFE ≤ 200KB gzipped、packages/web 自身零 framework 依赖；
+  删除 packages/web + apps/web 后核心 build/test 仍全绿。
 ```
 
 ---
 
-## Phase F-G · 概览（启动时再细化）
-
-### Phase F · Web 嵌入式组件
-
-- **出口**：`<supplystrata-supply-chain-graph>` 在 demo / Notion / Substack 嵌入；IIFE bundle ≤ 200KB gzipped
-- **不变式**：不依赖任何 framework；调本机或远程 MCP HTTP；用 SCBOM document 作渲染输入
-- **依赖**：Phase B（StreamableHTTP）+ Phase E（SCBOM 作为渲染输入）
+## Phase G · 概览（启动时再细化）
 
 ### Phase G · Community-pack
 
@@ -181,6 +188,14 @@ E1-E3 在 scbom-spec repo 内自洽完成并发布；E4 起本 repo 消费已发
 - 2026-05-29 — **Phase C done**：GLEIF/OpenFIGI/Wikidata 全球身份；country routing；MCP `--runtime=db` 接通；seed 降级 dev fixture；非美国公司 e2e
 - 2026-05-29 — **Phase D done**：profile 两层（anchor + runtime derived）；dynamic profile via llm-helper candidate-only 不持久化；session-scope 生命周期；`@supplystrata/agent` 三段式 core + `apps/agent-cli`；agent removable meta-test；citation/cannot_conclude 边界机械化
 - 2026-05-29 — **DQ18** (Phase E): `scbom-spec` v0.0.1 的 canonical source 是独立 Git tag / GitHub Release；npm `@scbom/spec` 是可选分发渠道，不是 Phase E blocker。本 repo 通过 pinned git dependency 消费，版本锁定
+- 2026-05-29 — **DQ19** (Phase E): SCBOM resource 不进 REST/OpenAPI route registry，改走独立 `MCP_RESOURCE_ROUTES`，避免意外暴露旧 REST surface（坚持 MCP-first #7）
+- 2026-05-29 — **Phase E done**：`scbom-spec` 独立 repo (canonical `BCAutumn/scbom-spec`，非 DQ5 原写的 `supplystrata/scbom-spec`) 发布 v0.0.1；本 repo 经 pinned git dep `@scbom/spec` 消费；`workbench-export` 新增 scbom-mapper + scbom-validator（含引用对象类型 conformance 校验）；MCP resource `supplystrata://scbom/company/{lei}` 走 `MCP_RESOURCE_ROUTES` 不入 REST；私有字段泄漏 meta-test + conformance e2e + 三 smoke 覆盖
+- 2026-05-29 — **DQ6 重申** (Phase F 启动): Web 图渲染锁定 Sigma.js v3；组件只吃 SCBOM、只读、零 framework 依赖、IIFE ≤ 200KB gzipped
+- 2026-05-29 — **DQ20** (Phase F): 产品形态 B+C 为主——本地实例 `--serve-web` localhost UI（B）+ agent 产出自包含 HTML artifact（C）；嵌入式组件（A）作 L1 副产物，不单列目标
+- 2026-05-29 — **DQ21** (Phase F): viewer 中立化——渲染任何 SCBOM document，组件用 `scbom-*` 前缀（非 `supplystrata-*`），先放本 repo `packages/web`、接口中立、将来可零成本抽独立 repo
+- 2026-05-29 — **DQ22** (Phase F, #15 amendment): 分层 L0 headless core（纯 TS 零 DOM 零框架，React/Vue 深度定制入口）+ L1 themeable Web Components；`packages/web` 自身永不引 React/Vue 作运行/构建依赖；L2 框架 wrapper 本期不做（WC 原生可在 React/Vue 用）
+- 2026-05-29 — **DQ23** (Phase F): UX evidence-first——主视图 `<scbom-evidence-view>`（证据表/时间线 + unknown 一等），graph 作概览入口非主屏；换肤经 Shadow DOM + CSS 变量 + `::part()` + slot
+- 2026-05-29 — **DQ24** (Phase F): L1 用 **Lit**（~5.5KB gz）写 Web Components，不手写 base class；Lit 产出标准 custom element，不破 #15/DQ22（非 React/Vue 框架）；dep-check 允许 Lit、仍禁 React/Vue/Svelte。图渲染保留 DQ6 Sigma.js v3+graphology（~75KB gz 在预算内）。size gate 判 gzipped 不判 minified
 
 ---
 
@@ -194,9 +209,13 @@ E1-E3 在 scbom-spec repo 内自洽完成并发布；E4 起本 repo 消费已发
 - profile derive 想 cache 跨 session
 - agent loop 想绕过 MCP 直接 import db / pipeline / graph-builder
 - agent 报告出现无 citation 的关系断言
-- **SCBOM schema 想加 SupplyStrata 私有字段 / 把 evidence_level 1-5 锁死进 schema（Phase E 头号风险）**
-- **SCBOM observation 只靠文档而非结构防止被误读成 relationship**
-- **scbom-spec 还没冻结 v0.0.1 就想开始写 exporter（E4 前置）**
+- SCBOM schema 想加 SupplyStrata 私有字段 / 把 evidence_level 1-5 锁死进 schema
+- **`packages/web` 自身想引 React/Vue 等 framework 作运行/构建依赖（Phase F 头号风险；集成应在消费方用 WC 或 L0）**
+- **L0 headless core 想 import DOM / fetch（破坏框架无关与可测性）**
+- **viewer SCBOM 缺字段时想直接连 DB / 读 WorkbenchModel 取数**
+- **viewer 想加任何写入入口（点击触发 source check / approve 等）**
+- **graph 想做成主屏（UX 应 evidence-first，graph 仅概览入口）**
+- **bundle 体积想突破 200KB gzipped 预算上限（应砍功能/换依赖，不抬预算）**
 - 出现"为了赶进度先 hack 一下事实写入"的诱惑
 - artifact JSON 字节级 diff 不为空但想接受 diff
 - 任何 PR 想留 `// TODO` / `// FIXME` / shim 代码
@@ -250,3 +269,14 @@ E1-E3 在 scbom-spec repo 内自洽完成并发布；E4 起本 repo 消费已发
 - **CI 边界**: 核心 ⇏ agent；非 agent app ⇏ reference agent；agent ⇏ db/pipeline/graph-builder/review-store/source-workflows；dynamic profile 不持久化；citation 必来自 MCP evidence refs；agent removable meta-test（删 agent + agent-cli 后核心全绿）
 - **验证全绿**: type-check / lint / format:check / build / dep-check / unit / e2e / smoke:mcp / smoke:mcp:db / smoke:local / smoke:research；实跑 `pnpm agent --company NVIDIA --provider none --mcp-runtime fixture`
 - **偏离/额外修复**: CLI 对 `anthropic`（当前 bridge 是 OpenAI-compatible）fail-fast；fixture vs db runtime MCP envelope 形状差异在 agent core 做窄兼容（缺关键字段仍报错）；补 `pnpm agent` 本地入口（workspace bin 不能直接 `pnpm --filter exec`）
+
+### Phase E · SCBOM v0.x 开放交换格式 (done · 2026-05-29)
+
+- **Commits**: `04c35fa`、`97db405`（PLAN/decision）+ SCBOM 实现改动（待你 commit；见下方"进入 F 前"）
+- **Net effect**: SCBOM 从独立 spec repo 接进本仓库且**未扩成新 REST surface**。接入 pinned git dep `@scbom/spec`（canonical `BCAutumn/scbom-spec#v0.0.1`，非 DQ5 原写的 `supplystrata/scbom-spec`）；`workbench-export` 新增 `scbom-mapper.ts`（WorkbenchModel → ScbomDocument）+ `scbom-validator.ts`（JSON Schema + conformance：重复 id / dangling ref / relationship subject·object 必须 entity / source_refs 必须 evidence）；MCP resource `supplystrata://scbom/company/{lei}` 经 `api-orchestration.getCompanyScbomDocument`，fixture + db 两 runtime 一致
+- **CI 边界**: 私有字段泄漏 meta-test（无 `supplystrata_*` 等）；`workbench-to-scbom` + resource contract + conformance e2e + db runtime resource e2e；`smoke:mcp` / `smoke:mcp:http` / `smoke:mcp:db` 全覆盖 SCBOM resource
+- **额外修复**: validator 从"仅查引用存在"升级为"按 conformance 校验引用对象类型"；SCBOM route 从 API route registry 迁到 `MCP_RESOURCE_ROUTES`（DQ19），堵住意外暴露旧 REST/OpenAPI 路径
+- **验证全绿**: type-check / unit / e2e / build / dep-check / lint / format:check / smoke:mcp / smoke:mcp:http / smoke:mcp:db / smoke:local
+- **偏离**: scbom-spec canonical remote 为 `BCAutumn/scbom-spec`（DQ5 原写 org 名待校正，已在决策日志注明）；Phase E 实现改动进入 F 前需单独 commit（见下）
+
+> **进入 Phase F 前的硬前置**：Phase E 的实现改动（scbom-mapper / scbom-validator / MCP resource / 测试 / smoke / docs）当前仍在工作区**未提交**，只有 PLAN 与 decision 两个 commit 落地。按工作约定 #4（每 Phase 入口 git clean），请先把这批 SCBOM 改动作为 Phase E 的收尾 commit 提交，再开 F1。

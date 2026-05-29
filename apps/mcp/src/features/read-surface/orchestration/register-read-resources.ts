@@ -100,6 +100,22 @@ export function registerReadResources(server: McpServer, runtime: McpReadSurface
         now: runtime.now()
       })
   );
+
+  server.registerResource(
+    "scbom-company",
+    new ResourceTemplate(MCP_READ_RESOURCE_URIS.scbomCompany, { list: undefined }),
+    {
+      title: "SCBOM Company",
+      description: "Vendor-neutral SCBOM v0.0.1 document for a company LEI or resolver-backed company query.",
+      mimeType: "application/json"
+    },
+    async (uri, variables) =>
+      readRawResourceResult(uri.href, runtime, {
+        operation_id: "getCompanyScbomDocument",
+        path_params: { id: requiredVariable(variables, "lei") },
+        now: runtime.now()
+      })
+  );
 }
 
 async function readResourceResult(uri: string, runtime: McpReadSurfaceRuntime, input: McpApiReadOperationRequest) {
@@ -110,6 +126,19 @@ async function readResourceResult(uri: string, runtime: McpReadSurfaceRuntime, i
         uri,
         mimeType: "application/json",
         text: apiEnvelopeText(envelope)
+      }
+    ]
+  };
+}
+
+async function readRawResourceResult(uri: string, runtime: McpReadSurfaceRuntime, input: McpApiReadOperationRequest) {
+  const envelope = await callMcpApiReadOperation({ ...input, handlers: runtime.handlers });
+  return {
+    contents: [
+      {
+        uri,
+        mimeType: "application/json",
+        text: JSON.stringify(envelope.data, null, 2)
       }
     ]
   };

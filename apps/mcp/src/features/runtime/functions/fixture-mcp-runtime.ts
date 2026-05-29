@@ -75,7 +75,8 @@ export function createFixtureApiOperationHandlers(): ApiOperationHandlers {
             conclusion: "Fixture reasoning walkthrough is deterministic and read-only."
           }
         ]
-      })
+      }),
+    getCompanyScbomDocument: async (input) => fixtureScbomDocument(input.now, input.path_params["id"] ?? "ENT-NVIDIA")
   };
 }
 
@@ -122,4 +123,31 @@ function queryParamsRecord(query: URLSearchParams): Record<string, string> {
     output[key] = value;
   });
   return output;
+}
+
+function fixtureScbomDocument(now: string, companyId: string): Record<string, unknown> {
+  return {
+    schema_version: "0.0.1",
+    document_id: `document:${companyId}:${now}`,
+    generated_at: now,
+    producer: {
+      name: "SupplyStrata",
+      version: "0.1.0",
+      homepage: "https://github.com/BCAutumn/supplystrata"
+    },
+    objects: [
+      {
+        object_type: "entity",
+        id: companyId,
+        name: "NVIDIA Corporation",
+        entity_kind: "legal_entity",
+        identifiers: [{ namespace: "supplystrata.company_id", value: companyId, authority: "SupplyStrata local cache" }],
+        provenance: {
+          producer: { name: "SupplyStrata", version: "0.1.0", homepage: "https://github.com/BCAutumn/supplystrata" },
+          generated_at: now,
+          method: "fixture-mcp-runtime.scbom"
+        }
+      }
+    ]
+  };
 }

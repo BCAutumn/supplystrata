@@ -125,6 +125,18 @@ pnpm smoke:mcp:http
 
 `smoke:mcp` 会启动 stdio MCP fixture server，枚举全部 tools，调用 read/write tools、全部 read resources，并验证 write tool 必须先返回 `requires_confirmation`、再用单次 `confirmation_token` 执行；同时覆盖无效 token 与 token 重用。`smoke:mcp:http` 用 SDK Streamable HTTP client 连接 `/mcp`，验证 HTTP transport 的真实调用路径。DB-backed runtime 用 `pnpm smoke:mcp:db` 单独验证，需要可达 Postgres。REST API 只作为迁移期兼容路径保留。
 
+SCBOM v0.0.1 通过 MCP resource 输出，适合外部 agent / host app 直接消费：
+
+```text
+supplystrata://scbom/company/ENT-NVIDIA
+```
+
+该 resource 返回原始 `ScbomDocument`，不是 API envelope；本仓库用 pinned `@scbom/spec` git dependency 校验。端到端验证：
+
+```bash
+pnpm vitest run tests/e2e/scbom-export.test.ts
+```
+
 ## 8. Reference agent（可选）
 
 `@supplystrata/agent` 和 `apps/agent-cli` 是独立 reference client，不被核心依赖。它只通过 MCP 调 SupplyStrata，报告阶段复用 `@supplystrata/llm-helpers` 的 provider 配置；没有 citation-backed evidence 时必须输出 `cannot_conclude`，不会补故事。

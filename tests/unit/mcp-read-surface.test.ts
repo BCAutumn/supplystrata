@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ApiOperationHandlerInput, ApiOperationHandlers, ApiOperationId } from "@supplystrata/api-orchestration";
 import { createSupplyStrataMcpServer, MCP_READ_TOOL_NAMES } from "@supplystrata/mcp";
+import { assertScbomDocument } from "@supplystrata/workbench-export";
 
 const FIXED_NOW = "2026-05-28T00:00:00.000Z";
 
@@ -74,8 +75,17 @@ describe("mcp read surface", () => {
       await expectReadResource(client, "supplystrata://changes/entity/ENT-NVIDIA", "listChanges");
       await expectReadResource(client, "supplystrata://source-health", "listSourceHealth");
       await expectReadResource(client, "supplystrata://reasoning-walkthrough/ENT-NVIDIA", "getCompanyReasoningWalkthrough");
+      await expectScbomResource(client, "supplystrata://scbom/company/ENT-NVIDIA");
 
-      expect(calls).toEqual(["getCompanyCard", "getEvidence", "listUnknowns", "listChanges", "listSourceHealth", "getCompanyReasoningWalkthrough"]);
+      expect(calls).toEqual([
+        "getCompanyCard",
+        "getEvidence",
+        "listUnknowns",
+        "listChanges",
+        "listSourceHealth",
+        "getCompanyReasoningWalkthrough",
+        "getCompanyScbomDocument"
+      ]);
     } finally {
       await client.close();
       await server.close();
@@ -133,6 +143,19 @@ async function expectReadTool(client: Client, name: string, args: Record<string,
   });
 }
 
+async function expectScbomResource(client: Client, uri: string): Promise<void> {
+  const result = await client.readResource({ uri });
+  const firstContent = result.contents[0];
+  if (firstContent === undefined || !("text" in firstContent)) throw new Error(`Expected ${uri} to return JSON text content.`);
+
+  const parsed: unknown = JSON.parse(firstContent.text);
+  assertScbomDocument(parsed);
+  expect(parsed).toMatchObject({
+    schema_version: "0.0.1",
+    document_id: "document:ENT-NVIDIA:2026-05-28T00:00:00.000Z"
+  });
+}
+
 async function expectReadResource(client: Client, uri: string, operationId: ApiOperationId): Promise<void> {
   const result = await client.readResource({ uri });
   const firstContent = result.contents[0];
@@ -161,7 +184,35 @@ function fakeReadHandlers(calls: ApiOperationId[]): ApiOperationHandlers {
     listSourceHealth: async (input) => fakeReadData(input, calls),
     getResearchRunStatus: async (input) => fakeReadData(input, calls),
     listChanges: async (input) => fakeReadData(input, calls),
-    getCompanyReasoningWalkthrough: async (input) => fakeReadData(input, calls)
+    getCompanyReasoningWalkthrough: async (input) => fakeReadData(input, calls),
+    getCompanyScbomDocument: async (input) => {
+      calls.push(input.route.operation_id);
+      const companyId = input.path_params["id"] ?? "ENT-NVIDIA";
+      return {
+        schema_version: "0.0.1",
+        document_id: `document:${companyId}:${input.now}`,
+        generated_at: input.now,
+        producer: {
+          name: "SupplyStrata",
+          version: "0.1.0",
+          homepage: "https://github.com/BCAutumn/supplystrata"
+        },
+        objects: [
+          {
+            object_type: "entity",
+            id: companyId,
+            name: "NVIDIA Corporation",
+            entity_kind: "legal_entity",
+            identifiers: [{ namespace: "supplystrata.company_id", value: companyId, authority: "SupplyStrata local cache" }],
+            provenance: {
+              producer: { name: "SupplyStrata", version: "0.1.0", homepage: "https://github.com/BCAutumn/supplystrata" },
+              generated_at: input.now,
+              method: "mcp-read-surface.test"
+            }
+          }
+        ]
+      };
+    }
   };
 }
 

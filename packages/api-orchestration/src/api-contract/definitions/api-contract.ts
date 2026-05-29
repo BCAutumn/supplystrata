@@ -32,6 +32,7 @@ export interface ApiDtoContract {
 }
 
 export type ApiDtoSourcePackage =
+  | "@scbom/spec"
   | "@supplystrata/ai-analysis"
   | "@supplystrata/llm-helpers"
   | "@supplystrata/render"
@@ -66,6 +67,7 @@ export type ApiSchemaId =
   | "UnknownMapApiResponse"
   | "ConsumerReadModelApiResponse"
   | "ReasoningWalkthroughApiResponse"
+  | "ScbomDocumentApiResponse"
   | "ReviewDecisionRequest"
   | "ReviewDecisionApiResponse";
 
@@ -105,6 +107,7 @@ export type ApiRoutePath =
   | "/companies/:id/supply-chain-report"
   | "/companies/:id/consumer-read-model"
   | "/companies/:id/reasoning-walkthrough"
+  | "/companies/:id/scbom"
   | "/companies/:id/ai-analysis-plan"
   | "/companies/:id/ai-analysis/latest"
   | "/companies/:id/research-runs"
@@ -592,4 +595,25 @@ export const API_ROUTES = [
   })
 ] as const satisfies readonly ApiRouteContract[];
 
-export type ApiOperationId = (typeof API_ROUTES)[number]["operation_id"];
+export const MCP_RESOURCE_ROUTES = [
+  readRoute({
+    method: "GET",
+    path: "/companies/:id/scbom",
+    operation_id: "getCompanyScbomDocument",
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Company entity id, LEI, ticker, alias, or resolver-backed company query."), depthQueryParam(3)],
+    response_schema_id: "ScbomDocumentApiResponse",
+    dto_contract: {
+      schema_id: "ScbomDocumentApiResponse",
+      source_package: "@scbom/spec",
+      source_type: "ScbomDocument",
+      source_kind: "public_dto",
+      notes: "SCBOM document is validated against @scbom/spec v0.0.1 and excludes SupplyStrata review, risk, and runtime state."
+    },
+    description: "Return a vendor-neutral SCBOM document for a company research scope."
+  })
+] as const satisfies readonly ApiRouteContract[];
+
+export const API_OPERATION_ROUTES = [...API_ROUTES, ...MCP_RESOURCE_ROUTES] as const satisfies readonly ApiRouteContract[];
+
+export type ApiOperationId = (typeof API_OPERATION_ROUTES)[number]["operation_id"];

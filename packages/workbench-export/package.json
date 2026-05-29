@@ -15,6 +15,7 @@
     }
   },
   "dependencies": {
+    "@scbom/spec": "github:BCAutumn/scbom-spec#v0.0.1",
     "@supplystrata/chain-view": "workspace:*",
     "@supplystrata/chain-view-builder": "workspace:*",
     "@supplystrata/claim-builder": "workspace:*",
@@ -22,7 +23,8 @@
     "@supplystrata/db": "workspace:*",
     "@supplystrata/review-candidates": "workspace:*",
     "@supplystrata/source-monitor": "workspace:*",
-    "@supplystrata/source-plan": "workspace:*"
+    "@supplystrata/source-plan": "workspace:*",
+    "ajv": "^8.20.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
