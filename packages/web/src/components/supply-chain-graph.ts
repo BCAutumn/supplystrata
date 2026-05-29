@@ -1,5 +1,5 @@
 import Graph from "graphology";
-import { css, html, type CSSResultGroup, type PropertyValues, type TemplateResult } from "lit";
+import { css, html, svg, type CSSResultGroup, type PropertyValues, type SVGTemplateResult, type TemplateResult } from "lit";
 import type Sigma from "sigma";
 import type { ScbomViewGraphEdge, ScbomViewGraphNode } from "../definitions/scbom-view.js";
 import { ScbomBaseElement } from "./base.js";
@@ -28,9 +28,10 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
     ScbomBaseElement.styles,
     css`
       [part="graph-canvas"] {
-        min-height: 280px;
+        min-height: 460px;
         border: 1px solid var(--scbom-color-border);
         border-radius: var(--scbom-radius);
+        background: #f8fafc;
       }
 
       [part="graph-fallback"] {
@@ -43,6 +44,36 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
       [part="graph-list-title"] {
         margin: 0 0 6px;
         font-size: 13px;
+      }
+
+      [part="graph-svg"] {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 420px;
+        margin-top: 12px;
+        border: 1px solid var(--scbom-color-border);
+        border-radius: var(--scbom-radius);
+        background: #f8fafc;
+      }
+
+      [part="graph-svg-edge"] {
+        stroke: #98a2b3;
+        stroke-width: 1.8;
+      }
+
+      [part="graph-svg-node"] {
+        fill: #2563eb;
+        stroke: #ffffff;
+        stroke-width: 2;
+      }
+
+      [part="graph-svg-label"] {
+        fill: var(--scbom-color-text);
+        font-size: 11px;
+        font-weight: 650;
+        paint-order: stroke;
+        stroke: #ffffff;
+        stroke-width: 3;
       }
     `
   ];
@@ -69,11 +100,54 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
     return this.renderSurface(
       "Supply chain graph",
       html`
-        <p part="status">Relationship overview. Evidence and unknowns remain in their dedicated views.</p>
+        <p part="status">
+          ${graph?.nodes.length ?? 0} entities / ${graph?.edges.length ?? 0} relationships. Evidence and unknowns remain in their dedicated views.
+        </p>
         <div part="graph-canvas" data-renderer=${this.rendererStatus}></div>
+        ${this.renderSvgGraph(graph?.nodes ?? [], graph?.edges ?? [])}
         <div part="graph-fallback">${this.renderFallbackNodes(graph?.nodes ?? [])}${this.renderFallbackEdges(graph?.edges ?? [])}</div>
       `
     );
+  }
+
+  private renderSvgGraph(nodes: readonly ScbomViewGraphNode[], edges: readonly ScbomViewGraphEdge[]): SVGTemplateResult {
+    const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
+    return svg`
+      <svg part="graph-svg" viewBox="-240 -220 480 440" role="img" aria-label="SCBOM relationship graph">
+        <defs>
+          <marker id="scbom-arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L7,3 z" fill="#98a2b3"></path>
+          </marker>
+        </defs>
+        ${edges.map((edge) => this.renderSvgEdge(edge, nodeLookup))}
+        ${nodes.map((node) => this.renderSvgNode(node))}
+      </svg>
+    `;
+  }
+
+  private renderSvgEdge(edge: ScbomViewGraphEdge, nodeLookup: ReadonlyMap<string, ScbomViewGraphNode>): SVGTemplateResult {
+    const source = nodeLookup.get(edge.source);
+    const target = nodeLookup.get(edge.target);
+    if (source === undefined || target === undefined) return svg``;
+    return svg`
+      <line
+        part="graph-svg-edge"
+        x1=${source.x}
+        y1=${source.y}
+        x2=${target.x}
+        y2=${target.y}
+        marker-end="url(#scbom-arrowhead)"
+      ></line>
+    `;
+  }
+
+  private renderSvgNode(node: ScbomViewGraphNode): SVGTemplateResult {
+    return svg`
+      <g transform="translate(${node.x} ${node.y})">
+        <circle part="graph-svg-node" r="10"></circle>
+        <text part="graph-svg-label" text-anchor="middle" y="24">${shortLabel(node.label)}</text>
+      </g>
+    `;
   }
 
   private renderFallbackNodes(nodes: readonly ScbomViewGraphNode[]): TemplateResult {
@@ -148,6 +222,10 @@ function canUseWebGl(): boolean {
   if (typeof document === "undefined") return false;
   const canvas = document.createElement("canvas");
   return canvas.getContext("webgl2") !== null || canvas.getContext("webgl") !== null;
+}
+
+function shortLabel(label: string): string {
+  return label.length > 18 ? `${label.slice(0, 15)}...` : label;
 }
 
 function defaultRegistry(): CustomElementRegistry {

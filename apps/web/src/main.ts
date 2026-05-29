@@ -69,9 +69,9 @@ function viewerHtml(options: WebCliOptions): string {
         <h1>SCBOM Viewer</h1>
         <code>${escapeHtml(options.companyId)}</code>
       </header>
+      <scbom-supply-chain-graph></scbom-supply-chain-graph>
       <scbom-evidence-view></scbom-evidence-view>
       <scbom-unknown-map></scbom-unknown-map>
-      <scbom-supply-chain-graph></scbom-supply-chain-graph>
     </main>
     <script type="application/json" id="viewer-config">${escapeScriptJson(configJson)}</script>
     <script type="module">

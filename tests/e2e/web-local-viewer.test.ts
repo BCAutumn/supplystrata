@@ -34,6 +34,7 @@ describe("local SCBOM viewer app", () => {
     expect(html).toContain("<scbom-evidence-view>");
     expect(html).toContain("<scbom-unknown-map>");
     expect(html).toContain("<scbom-supply-chain-graph>");
+    expect(html.indexOf("<scbom-supply-chain-graph>")).toBeLessThan(html.indexOf("<scbom-evidence-view>"));
     expect(html).toContain("http://127.0.0.1:7474/mcp");
     const configJson = html.match(/<script type="application\/json" id="viewer-config">(?<json>.*?)<\/script>/u)?.groups?.["json"];
     expect(configJson).toBeDefined();
