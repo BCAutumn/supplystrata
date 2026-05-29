@@ -1,0 +1,20 @@
+{
+  "name": "@supplystrata/agent-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "supplystrata-agent": "./dist/main.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@supplystrata/agent": "workspace:*",
+    "@supplystrata/llm-helpers": "workspace:*",
+    "commander": "~12.1.0"
+  },
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "files": [
+    "dist"
+  ]
+}

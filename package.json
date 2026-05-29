@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "cli": "NODE_OPTIONS=--conditions=development tsx apps/cli/src/main.ts",
+    "agent": "NODE_OPTIONS=--conditions=development tsx apps/agent-cli/src/main.ts",
     "api": "NODE_OPTIONS=--conditions=development tsx apps/api/src/main.ts",
     "mcp": "NODE_OPTIONS=--conditions=development tsx apps/mcp/src/main.ts",
     "db:migrate": "NODE_OPTIONS=--conditions=development tsx apps/cli/src/main.ts db migrate",

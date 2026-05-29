@@ -61,6 +61,21 @@ importers:
         specifier: ~2.1.8
         version: 2.1.9(@types/node@22.10.10)
 
+  apps/agent-cli:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.29.0
+        version: 1.29.0(zod@3.25.76)
+      '@supplystrata/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@supplystrata/llm-helpers':
+        specifier: workspace:*
+        version: link:../../packages/llm-helpers
+      commander:
+        specifier: ~12.1.0
+        version: 12.1.0
+
   apps/api:
     dependencies:
       '@supplystrata/api-orchestration':

@@ -58,18 +58,21 @@ export function plan(input: AgentPlanInput, client: SupplyStrataMcpClient): Agen
 
 export async function fetch_via_mcp(agentPlan: AgentPlan): Promise<AgentFetchResult> {
   const resolved = await agentPlan.client.callTool("resolve_company", { query: agentPlan.company });
-  const companyId = readNullableStringPath(resolved, ["data", "entity_id"]);
+  const resolvedData = readRecordPath(resolved, ["data"]);
+  const companyId = readOptionalStringPath(resolvedData, ["entity_id"]) ?? readOptionalStringPath(resolvedData, ["entity", "entity_id"]);
   const pending = await agentPlan.client.callTool("start_research_session", { company: agentPlan.company, depth: agentPlan.depth });
   const confirmation = await agentPlan.client.callTool("confirm_research_session", {
     pending_id: readStringPath(pending, ["pending_id"]),
     confirmation_token: readStringPath(pending, ["confirmation_token"])
   });
-  const createdRun = readRecordPath(readRecordPath(confirmation, ["data"]), ["data", "run"]);
+  const confirmationData = readRecordPath(confirmation, ["data"]);
+  const createdRun = readOptionalRecordPath(confirmationData, ["data", "run"]) ?? confirmationData;
   const runId = readStringPath(createdRun, ["run_id"]);
   const polled = await agentPlan.client.callTool("poll_research_run", { run_id: runId });
-  const run = readRecordPath(readRecordPath(polled, ["data"]), ["run"]);
+  const polledData = readRecordPath(polled, ["data"]);
+  const run = readOptionalRecordPath(polledData, ["run"]) ?? polledData;
   const runStatus = readStringPath(run, ["status"]);
-  const effectiveCompanyId = readNullableStringPath(run, ["company_entity_id"]) ?? companyId;
+  const effectiveCompanyId = readOptionalNullableStringPath(run, ["company_entity_id"]) ?? companyId;
   if (effectiveCompanyId === null) {
     return cannotConcludeFetch(agentPlan.company, runId, ["Company identity could not be resolved by MCP."]);
   }
@@ -164,7 +167,7 @@ function citationList(evidence: readonly AgentEvidenceRef[], citedEvidenceIds: r
 
 function evidenceRefsFromTraverseResult(result: Record<string, unknown>): AgentEvidenceRef[] {
   const data = readRecordPath(result, ["data"]);
-  const segments = readArrayPath(data, ["segments"]);
+  const segments = readOptionalArrayPath(data, ["segments"]) ?? readOptionalArrayPath(data, ["edges"]) ?? [];
   return segments.flatMap((segment, index) => {
     if (!isRecord(segment)) return [];
     const evidenceIds = readOptionalStringArray(segment, "evidence_ids");
@@ -184,22 +187,9 @@ function readRecordPath(root: Record<string, unknown>, path: readonly string[]):
   return value;
 }
 
-function readArrayPath(root: Record<string, unknown>, path: readonly string[]): unknown[] {
-  const value = readPath(root, path);
-  if (!Array.isArray(value)) throw new Error(`Expected ${path.join(".")} to be an array.`);
-  return value;
-}
-
 function readStringPath(root: Record<string, unknown>, path: readonly string[]): string {
   const value = readPath(root, path);
   if (typeof value !== "string" || value.length === 0) throw new Error(`Expected ${path.join(".")} to be a non-empty string.`);
-  return value;
-}
-
-function readNullableStringPath(root: Record<string, unknown>, path: readonly string[]): string | null {
-  const value = readPath(root, path);
-  if (value === null) return null;
-  if (typeof value !== "string") throw new Error(`Expected ${path.join(".")} to be string|null.`);
   return value;
 }
 
@@ -207,6 +197,43 @@ function readPath(root: Record<string, unknown>, path: readonly string[]): unkno
   let current: unknown = root;
   for (const segment of path) {
     if (!isRecord(current) || !(segment in current)) throw new Error(`Missing ${path.join(".")}.`);
+    current = current[segment];
+  }
+  return current;
+}
+
+function readOptionalRecordPath(root: Record<string, unknown>, path: readonly string[]): Record<string, unknown> | null {
+  const value = readOptionalPath(root, path);
+  if (value === null) return null;
+  if (!isRecord(value)) throw new Error(`Expected ${path.join(".")} to be an object.`);
+  return value;
+}
+
+function readOptionalArrayPath(root: Record<string, unknown>, path: readonly string[]): unknown[] | null {
+  const value = readOptionalPath(root, path);
+  if (value === null) return null;
+  if (!Array.isArray(value)) throw new Error(`Expected ${path.join(".")} to be an array.`);
+  return value;
+}
+
+function readOptionalStringPath(root: Record<string, unknown>, path: readonly string[]): string | null {
+  const value = readOptionalPath(root, path);
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error(`Expected ${path.join(".")} to be a string.`);
+  return value.length === 0 ? null : value;
+}
+
+function readOptionalNullableStringPath(root: Record<string, unknown>, path: readonly string[]): string | null {
+  const value = readOptionalPath(root, path);
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error(`Expected ${path.join(".")} to be string|null.`);
+  return value.length === 0 ? null : value;
+}
+
+function readOptionalPath(root: Record<string, unknown>, path: readonly string[]): unknown | null {
+  let current: unknown = root;
+  for (const segment of path) {
+    if (!isRecord(current) || !(segment in current)) return null;
     current = current[segment];
   }
   return current;
