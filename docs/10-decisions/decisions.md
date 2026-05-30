@@ -88,6 +88,8 @@
 - REST / OpenAPI **推迟到 v1.x，不在 v0.x 实现**；MCP HTTP/SSE transport 已经覆盖绝大多数"非 agent HTTP 客户端"诉求。
 - API DTO（无论 MCP resource 还是未来 REST）不允许泄漏 DB Row。
 - 外部 agent / 外部 app 只能读 + 触发受控写（source-check 入队、研究 run 创建等），不允许提交 evidence / review / 爬虫结果回写。
+- **写工具双层确认**：write tool 只使用 MCP spec 标准 annotations（`destructiveHint` 等），但客户端 annotation 仅是 UX 提示，**不是安全边界**；真正的安全边界是 **server 端 pending gate**——首次调用只返回 `requires_confirmation` + `pending_id` + 单次性 `confirmation_token`，必须二次携带该 token 才执行。不发明 spec 外的 annotation 字段。
+- SCBOM 等 MCP resource 走独立 `MCP_RESOURCE_ROUTES`，不进入任何 REST/OpenAPI route registry，避免意外暴露旧 surface。
 
 理由：
 
@@ -144,7 +146,8 @@
 - 抽取当前 `workbench-export` 的稳定 JSON 契约升级为 **SCBOM (Supply Chain BOM) v0.x**，独立 GitHub repo 维护。
 - SCBOM 用 JSON Schema + Markdown spec 描述：实体、关系、证据、置信度、强度、新鲜度、unknown、observation、SCBOM 自身的版本/metadata。
 - SupplyStrata 是 SCBOM 的**参考实现**，不是格式拥有者；显式邀请其他工具实现 producer / consumer。
-- SCBOM 版本独立递进，与 SupplyStrata 仓库版本解耦。
+- SCBOM 版本独立递进，与 SupplyStrata 仓库版本解耦。canonical remote 当前为 `BCAutumn/scbom-spec`，已发布 v0.0.1；本仓库通过 pinned git dependency（`@scbom/spec`）消费，npm 是可选分发渠道。
+- exporter / MCP resource 输出 100% 通过 SCBOM schema 校验，且不泄漏任何 SupplyStrata 私有字段（meta-test 拦截）；`evidence_level` 不硬锁进 SCBOM schema，而是作为 `evidence.strength` 的一种 vocabulary。
 
 理由：
 
