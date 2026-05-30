@@ -12,7 +12,7 @@
   "dependencies": {
     "@supplystrata/core": "workspace:*",
     "@supplystrata/parsers-text": "workspace:*",
-    "cheerio": "~1.0.0"
+    "cheerio": "~1.2.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
