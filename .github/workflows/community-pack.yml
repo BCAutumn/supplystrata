@@ -45,7 +45,7 @@ jobs:
       COMMUNITY_PACK_VERSION: ${{ github.event.inputs.pack_version || 'pack-2026.Q2' }}
       COMMUNITY_PACK_GENERATED_AT: ${{ github.event.inputs.generated_at || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v4
         with:
