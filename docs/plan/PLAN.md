@@ -1,12 +1,12 @@
 # Implementation Plan (Rolling)
 
-最后更新: 2026-05-29
-当前位置: **Phase H · in_progress**
+最后更新: 2026-05-30
+当前位置: **A-H 全部完成 — 待并入 `docs/` 或删除**
 
 > 这是滚动工作笔记，不是规范。决策 / 边界 / 完成口径以 `docs/` 为准。
 > 每完成一 Phase: 压缩当前 → 细化下一。
 > 不在本文件写代码。
-> Phase G 全部完成后并入 `docs/` 或删除。
+> **A-H 全部完成**：本文件已无活跃 Phase，按约定应把决策日志收敛进 `docs/10-decisions/decisions.md` 后删除本文件（见末尾"收尾"）。
 
 ---
 
@@ -21,7 +21,7 @@
 | E     | SCBOM v0.x 开放交换格式 + workbench-export 对齐       | **done**    |
 | F     | 中立 SCBOM 可视化 (headless core + Web Components)    | **done**    |
 | G     | Community-pack release pipeline                       | **done**    |
-| H     | Viewer 打磨（布局硬伤 + evidence-first 落地 + 默认主题 + theming surface） | in_progress |
+| H     | Viewer 打磨（布局硬伤 + evidence-first 落地 + 默认主题 + theming surface） | **done**    |
 
 ---
 
@@ -33,81 +33,6 @@
 4. **每 Phase 入口工作区必须 git clean**。
 5. **指挥模式**：commander (Claude) 不修改代码；implementer (你) 不私自改架构边界。
 6. Phase 完成后由 commander 更新本文件。
-
----
-
-## Phase H · Viewer 打磨 [当前]
-
-> 大白话：把 Phase F 那个"环形堆叠、标签压字、graph 抢主屏"的默认观感修成"开箱得体 + 别人能优雅换肤"。**不是做产品级美观前端**（违背 #8/DQ21），而是默认做得体 + theming surface 补全（DQ26）。
-
-**目标**：解除两个 Phase F 遗留——(1) 默认布局/可读性硬伤（消费者用 CSS 改不了）；(2) DQ23 evidence-first 未落实（graph 抢了主屏、evidence/unknown 还是裸列表）；并把 theming surface 补全文档化，让消费者能把 viewer 融进自己设计系统。
-
-**边界**（DQ26）：布局/可读性我们负责到"得体"，**视觉品味交消费者**；不引入设计系统、不做有强设计观点的产品 UI、`packages/web` 仍零 framework 依赖、bundle 预算不变。
-
-### "丑"的两类拆分（决定归属）
-
-| 类别          | 例子                                            | 消费者能改吗               | 归谁               |
-| ------------- | ----------------------------------------------- | -------------------------- | ------------------ |
-| A 布局/可读性 | 环形堆叠、标签压字、graph 抢主屏、evidence 裸列表 | 改不了（布局在 L0/组件内） | **我们修到"得体"** |
-| B 视觉风格    | 配色/圆角/字体/间距/暗色                        | 能改（前提暴露够 vars/parts） | **交消费者**       |
-
-### PR 切分
-
-| PR  | 标题                          | 范围                                                                                                                                       | 验收                                                              | 清理判据                                                       |
-| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------- |
-| H1  | 修 graph 布局硬伤             | 换掉 Sigma 默认环形布局 → `graphology-layout-forceatlas2`（+ `noverlap`）；标签碰撞规避；节点尺寸按 degree/类型分级；布局在 L0 产出（确定性、可测） | 同一 SCBOM fixture 渲染无节点重叠/标签压字；布局确定性单测；数百节点不卡死 | 布局逻辑在 L0 纯函数（零 DOM）；消费者无需碰 CSS 即得可读布局   |
-| H2  | 落实 DQ23 evidence-first 落地 | viewer 落地主视图改为 `<scbom-evidence-view>`（证据表/时间线）；graph 退回概览入口（次级区/tab）；unknown 经 `<scbom-unknown-map>` 一等展示，非裸列表 | 默认打开是 evidence-first；graph 不再独占首屏；unknown 一等语气     | 不改 L0 契约；只调组件编排/默认布局                            |
-| H3  | 克制中性默认主题              | unstyled-but-clean 默认（排版、间距、对比、evidence_level 配色合 evidence-model.md）；无强设计观点；可一键关闭交裸 DOM                       | 默认观感得体、专业但中性；可关闭                                   | 不引入设计系统/UI kit；默认主题与组件结构解耦                  |
-| H4  | theming surface 补全 + 文档化 | 盘点补全 `--scbom-*` CSS 变量 + `::part()` 清单 + slot；README 列出完整 theming 契约                                                        | 文档列全 vars/parts/slots；契约有 test 锁（删 part 会 fail）       | theming surface 是稳定契约；Shadow DOM 封装但可深度换肤        |
-| H5  | 换肤 demo + e2e               | demo：同一 SCBOM 默认主题 vs 自定义主题两种样子；e2e 验证仅用 CSS vars/parts 即可改观                                                        | demo 双主题渲染；e2e 断言自定义主题生效 + 布局无重叠              | demo 薄壳；无 TODO/shim                                        |
-
-### 执行顺序
-
-```
-H1 (布局硬伤) → H2 (evidence-first 落地) → H3 (中性默认主题) → H4 (theming surface) → H5 (demo + e2e) → Phase H DONE
-```
-
-- H1 是地基（布局对了其它才有意义）；H2 紧随（视图编排）；H3/H4 是观感与契约；H5 收尾佐证。
-
-### 清理 checklist（Phase H 合并前必须勾完）
-
-- [ ] graph 默认布局无节点重叠/标签压字（forceatlas2/noverlap）；布局在 L0 纯函数、确定性、可测
-- [ ] 落地主视图是 evidence-first；graph 退回概览入口；unknown 一等展示（非裸列表）
-- [ ] 默认主题 unstyled-but-clean、可关闭；evidence_level 配色合 `evidence-model.md`
-- [ ] `--scbom-*` CSS 变量 + `::part()` + slot 清单补全并文档化；theming 契约有 test 锁
-- [ ] demo 展示默认 vs 自定义两主题；e2e 验证仅 CSS 即可换肤
-- [ ] `packages/web` 仍零 framework 依赖；bundle gzip 预算不变（≤ 200KB）
-- [ ] 不引入设计系统 / 产品级 UI / 强设计观点
-- [ ] L0 契约不被破坏（headless 仍零 DOM/网络）
-- [ ] 无 `// TODO` / `// FIXME` / shim 代码
-- [ ] type-check / lint / unit / dep-check / build / format-check / e2e / smoke 全绿
-
-### 风险点（命中即找 commander）
-
-1. **打磨滑向产品级 UI** — 头号风险。一旦开始加设计观点（品牌色、定制图标系统、动效堆砌）就越界。默认必须中性、可关、可换。
-2. **布局逻辑塞进组件 DOM 层** — 布局应在 L0 产出（确定性、可测、React/Vue 消费方也能用）；混进 Lit 渲染会破 L0 边界。
-3. **theming surface 暴露不全** — 只封装不暴露 = 消费者改不了。parts/vars 是稳定契约，要有 test 锁防回退。
-4. **bundle 因布局/主题膨胀** — forceatlas2/noverlap 体积要算进预算；超了砍功能不抬预算。
-5. **为美观牺牲 evidence-first** — graph 好看不能再次抢主屏；evidence/unknown 才是差异化。
-
-### 测试策略
-
-**新增/强化**：
-
-- `tests/unit/web-graph-layout.test.ts` — L0 布局确定性 + 无重叠度量
-- `tests/unit/web-evidence-first-landing.test.ts` — 落地主视图是 evidence-view，graph 非首屏
-- `tests/unit/web-theming-contract.test.ts` — `--scbom-*` / `::part()` / slot 契约锁
-- `tests/e2e/web-custom-theme.test.ts` — 仅 CSS 换肤生效 + 布局无重叠
-
-### Phase H 完成出口
-
-```
-出口判据 (single sentence):
-  同一份 SCBOM 在 viewer 默认即得体——graph 布局无重叠/压字、evidence-first 作落地主视图、
-  unknown 一等展示；消费者仅用文档化的 --scbom-* CSS 变量 / ::part() / slot 即可把 viewer
-  换成自己设计系统的样子（demo + e2e 佐证）；packages/web 仍零 framework 依赖、bundle 预算不变、
-  L0 headless 边界不破；全程不引入产品级 UI / 设计系统。
-```
 
 ---
 
@@ -151,6 +76,7 @@ H1 (布局硬伤) → H2 (evidence-first 落地) → H3 (中性默认主题) →
 - 2026-05-29 — **DQG3** (Phase G): 完整性 = 每文件 sha256 + `SHA256SUMS`（manifest `integrity.algorithm=sha256` + 每文件 sha256/bytes/document 计数）；加密签名 v0.x 未做（延后）；`generated_at` 可手动输入以支持可复现重跑
 - 2026-05-29 — **DQG4** (Phase G): loader 把 pack 作 read-only baseline 加载进 MCP（commit `0547b18`）；**本地/上游 SCBOM 永远覆盖 pack baseline**（commit `c215bd5`）；pack 不回写
 - 2026-05-29 — **Phase G done**：`@supplystrata/community-pack` 落地——canonical `scbom-jsonl` + 自描述 manifest（DQG1）；exporter 硬 gate dirty evidence ref（DQG2，顺带修 Phase F G0 遗留，完整 e2e 恢复全绿）；MCP pack warm-start loader + upstream-wins 冲突策略（DQG3/DQG4）；GitHub Actions 定期/手动 publish 管线 + `pack:checksums`（SHA256SUMS）+ 可复现 `generated_at`；warm-start e2e（build → MCP HTTP warm-start → web viewer 预取渲染 → re-verify 覆盖 baseline）
+- 2026-05-30 — **Phase H done**：viewer 打磨收口——graph 布局换 forceatlas2/noverlap（箭头在节点外）；evidence-first 作落地主视图、graph 退概览；中性可关默认主题 + 完整 theming surface（CSS vars / `::part()` / slots / `unstyled`，含 SVG 兜底层换肤变量）并文档化；`web-theming-contract` 契约锁 + `/theme-demo` 双主题 + `web-custom-theme` e2e；修正 landing-order 测试只锁正常 viewer、H1 墙钟阈值改全套稳定回归哨兵。**A-H 实现侧全部收口**
 
 ---
 
@@ -250,3 +176,23 @@ H1 (布局硬伤) → H2 (evidence-first 落地) → H3 (中性默认主题) →
 - **CI 边界**: pack 建立在 SCBOM 上、零私有字段（manifest 不带 claim state/risk/cache）；exporter ⇏ 读写 Postgres；dirty ref 导出层硬 gate；loader baseline 非 truth、可被 upstream 覆盖、不回写 pack；publish workflow / checksum 脚本有单测
 - **验证全绿**: type-check / lint / dep-check / changed-file prettier / build / unit（116 files / 567 tests）/ e2e（7 files / 9 tests，Docker 路径全绿）
 - **偏离**: 加密签名（minisign/cosign）v0.x 未做，仅 sha256 + SHA256SUMS（DQG3 接受）；全量 `format:check` 未跑（避免误格式化未提交的 PLAN，本轮改动文件 prettier 已过）
+
+### Phase H · Viewer 打磨（done · 2026-05-30）
+
+- **Commits**: `0f9e8be`（H1 graph 布局）、`9f97f64`（H2 evidence-first）、`469e3e0`（H3 中性主题控件）、`99d27aa`（H4 theming surface 文档）、`f3ab82f`（H5 theme demo + e2e）、`fd3181d`（箭头在节点外）
+- **Net effect**: Phase F 两个遗留解除。H1 graph 布局换 forceatlas2/noverlap + 箭头在节点外，告别环形堆叠/标签压字；H2 evidence-first 作落地主视图、graph 退回概览（DQ23 落实）；H3 中性可关默认主题（unstyled-but-clean）；H4 补全并文档化 theming surface（CSS vars / `::part()` / slots / `unstyled`，含 graph SVG 兜底层换肤变量）；H5 `/theme-demo` 同一 SCBOM 默认 vs custom host theme
+- **CI 边界**: `web-theming-contract` 契约锁（删 part/var 即 fail）；`web-custom-theme` e2e 验证仅 CSS vars 即可换肤；landing-order 测试只锁正常 viewer、不误扫 theme demo；`packages/web` 仍零 framework 依赖、bundle 预算不变、L0 headless 边界不破
+- **验证全绿**: build / type-check / lint / dep-check / changed-file prettier / unit（119 files / 575 tests）/ e2e（8 files / 10 tests）；浏览器实测 `/theme-demo` custom CSS vars 生效、evidence/unknown/graph 正常渲染
+- **偏离**: H1 墙钟性能阈值改为 full-suite 稳定回归哨兵（避免单测墙钟坏味道）；无其它
+
+---
+
+## 收尾（A-H 全部完成）
+
+路线图 A-H 已全部 done，实现侧收口。本文件是**滚动工作笔记**，按开头约定，活跃 Phase 清零后应处置如下（需 commander/用户拍板）：
+
+1. **决策日志归宪**：本文件"决策日志"是 day-to-day 记录；其中已沉淀为长期约束的项（如 #15 amendment 的 headless 分层、DQ21 中立化、DQ24 Lit、DQG1 pack 格式等）应反映进 `docs/10-decisions/decisions.md`（宪法）。归并后本文件的日志即可弃。
+2. **删除本文件**：归并完成后删除 `docs/plan/PLAN.md`，避免与 `docs/` 双源漂移。
+3. **docs 状态标签清理**：确认 `docs/02-architecture/module-design.md` 等处 `web` / `community-pack` / `agent` 已去【新增,目标】标签（各 Phase 清理 checklist 应已覆盖，收尾时复核一遍）。
+
+> 在用户确认前不删除本文件。
