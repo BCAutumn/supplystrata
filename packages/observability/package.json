@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@supplystrata/config": "workspace:*",
-    "pino": "~9.5.0"
+    "pino": "~10.3.1"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
