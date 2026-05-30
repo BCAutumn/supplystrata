@@ -45,7 +45,7 @@ jobs:
       SEC_USER_AGENT: SupplyStrata CI contact@example.com
       LLM_PROVIDER: none
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v4
         with:
