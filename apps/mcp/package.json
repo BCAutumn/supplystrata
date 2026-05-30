@@ -19,7 +19,7 @@
     "@supplystrata/config": "workspace:*",
     "@supplystrata/community-pack": "workspace:*",
     "@supplystrata/db": "workspace:*",
-    "zod": "3.25.76"
+    "zod": "4.4.3"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
