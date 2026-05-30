@@ -5,6 +5,15 @@ export const COMMUNITY_PACK_DATA_FILE_ROLE = "scbom_documents";
 export const COMMUNITY_PACK_DATA_MEDIA_TYPE = "application/x-ndjson";
 export const COMMUNITY_PACK_SHA256_ALGORITHM = "sha256";
 
+// 加载侧信任门控：pack 无签名/无可信根，loader 必须独立复检发布资格，
+// 不能仅凭 manifest hash 自洽就把 relationship 当 baseline 展示。
+// 这些常量刻意与导出侧的 publish-eligibility 口径保持一致（fact 边：rule 抽取 + evidence_level≥4）。
+export const COMMUNITY_PACK_MIN_PUBLISH_EVIDENCE_LEVEL = 4;
+export const COMMUNITY_PACK_EVIDENCE_LEVEL_SCHEME = "urn:supplystrata:vocab:evidence_level";
+export const COMMUNITY_PACK_EXTRACTION_METHOD_SCHEME = "urn:supplystrata:vocab:extraction_method";
+export const COMMUNITY_PACK_RULE_EXTRACTION_METHOD = "rule";
+export const COMMUNITY_PACK_BASELINE_RELATIONSHIP_STATUS = "active";
+
 export type CommunityPackManifestSchemaVersion = typeof COMMUNITY_PACK_MANIFEST_SCHEMA_VERSION;
 export type CommunityPackCanonicalFormat = typeof COMMUNITY_PACK_CANONICAL_FORMAT;
 export type CommunityPackScbomSchemaVersion = typeof COMMUNITY_PACK_SCBOM_SCHEMA_VERSION;

@@ -252,7 +252,7 @@ NormalizedDocument
 | 类别        | 例子                                                                                                                       | 写入约束                                                                                           |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Resources   | `supplystrata://entity/{id}`、`evidence/edge/{id}`、`unknowns/company/{id}`、`changes/entity/{id}`、`source-health`        | 只读；返回当前 cache + audit 状态                                                                  |
-| Read Tools  | `resolve_company`、`poll_research_run`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets` | 只读；可触发 LLM helper 但不入库                                                                   |
+| Read Tools  | `resolve_company`、`poll_research_run`、`read_evidence_for_edge`、`traverse_chain`、`list_unknowns`、`list_source_targets` | 只读；`resolve_company` 未命中 cache 返回显式 `unresolved` 状态；`start_research_session` 在 entity bootstrap 后可通过 official-directory-bridge 从官方目录把 name/ticker 桥接成 corp_code/stock_code 再交给 country-router |
 | Write Tools | `start_research_session`、`run_source_check`、`confirm_research_session`、`review.approve`、`review.reject`                | 标准 MCP risk annotations + server-side confirmation gate；任何事实写入仍走 evidence-gated promote |
 
 旧 `apps/api` 的 REST endpoint（`GET /companies/:id/supply-chain-report`、`POST /companies/:id/research-runs`、`GET /research-runs/:id` 等）逐步迁入对应 MCP tool / resource；DTO 复用，不重新设计。完整 MCP 契约见 `apps/mcp/README.md`。

@@ -11,7 +11,7 @@ import { lookupEntitySourceCandidates, type EntityLookupInput, type EntityLookup
 
 export type ResearchCompanyEntityBootstrapStatus = "resolved" | "unresolved" | "ambiguous" | "unreachable";
 
-type UniversalIdentitySource = Extract<EntitySourceAdapterId, "gleif" | "openfigi" | "wikidata">;
+type BootstrapIdentitySource = EntitySourceAdapterId;
 type ResearchBootstrapSourceAdapterId = EntitySourceAdapterId | "sec-edgar";
 
 export interface ResearchCompanyEntityBootstrapInput {
@@ -54,7 +54,13 @@ interface UniversalLookupSummary {
   results: EntitySourceLookupResult[];
 }
 
-const UNIVERSAL_IDENTITY_SOURCES: readonly UniversalIdentitySource[] = ["gleif", "openfigi", "wikidata"];
+const BOOTSTRAP_IDENTITY_SOURCES: readonly BootstrapIdentitySource[] = [
+  "gleif",
+  "openfigi",
+  "wikidata",
+  "opencorporates",
+  "companies-house"
+];
 
 export async function ensureResearchCompanyEntity(
   store: DatabaseStore,
@@ -66,7 +72,7 @@ export async function ensureResearchCompanyEntity(
   const existing = await resolveExistingEntity(store, query, normalizedQuery);
   if (existing !== undefined) return { status: "resolved", query, normalized_query: normalizedQuery, entity_id: existing };
 
-  const lookup = await lookupUniversalIdentityCandidates(input, normalizedQuery, runtime);
+  const lookup = await lookupBootstrapIdentityCandidates(input, normalizedQuery, runtime);
   const sourceAdapterIds = uniqueSourceAdapterIds(lookup.results);
   const sourceUrl = firstSourceUrl(lookup.results);
   const candidates = dedupeCandidateHits(lookup.hits);
@@ -92,7 +98,8 @@ export async function ensureResearchCompanyEntity(
       source_adapter_ids: sourceAdapterIds,
       ...(sourceUrl === undefined ? {} : { source_url: sourceUrl }),
       candidate_count: 0,
-      reason: "Universal identity bootstrap found no GLEIF/OpenFIGI/Wikidata candidates for the company query."
+      reason:
+        "Identity bootstrap found no GLEIF/OpenFIGI/Wikidata/Companies House/OpenCorporates candidates for the company query."
     };
   }
 
@@ -103,6 +110,20 @@ export async function ensureResearchCompanyEntity(
       if (secBranch !== undefined) return secBranch;
     }
     const disambiguation = await disambiguateCandidates(query, candidates, input.llm, runtime);
+    // 当存在【多个已经权威】的候选时，让消歧 ranking 真正参与收敛：若 LLM 高置信且与第二名拉开间隔、
+    // 明确选出其中唯一一个，就用它继续 bootstrap。绝不用 LLM 把非权威候选（仅 wikidata/openfigi 等）
+    // 提升成权威身份——authoritativeCandidates.length === 0 时永远保持 ambiguous。
+    const converged =
+      authoritativeCandidates.length > 1 ? selectAuthoritativeCandidateFromDisambiguation(authoritativeCandidates, disambiguation) : undefined;
+    if (converged !== undefined) {
+      return importAuthoritativeBootstrapCandidate(store, input, {
+        normalizedQuery,
+        sourceAdapterIds,
+        candidateCount: candidates.length,
+        selected: converged,
+        disambiguationStatus: disambiguation.status
+      });
+    }
     return {
       status: "ambiguous",
       query,
@@ -114,7 +135,7 @@ export async function ensureResearchCompanyEntity(
       reason:
         authoritativeCandidates.length === 0
           ? "Identity sources returned candidates, but none were authoritative enough for automatic entity bootstrap."
-          : "GLEIF returned multiple authoritative candidates; automatic bootstrap requires exactly one authoritative identity candidate."
+          : "Identity sources returned multiple authoritative candidates and disambiguation could not converge on exactly one with high confidence."
     };
   }
 
@@ -131,36 +152,81 @@ export async function ensureResearchCompanyEntity(
     };
   }
 
+  return importAuthoritativeBootstrapCandidate(store, input, {
+    normalizedQuery,
+    sourceAdapterIds,
+    candidateCount: candidates.length,
+    selected
+  });
+}
+
+// LLM 身份选择阈值刻意高于普通 candidate 阈值（0.5），避免在多个真实法人之间草率二选一。
+const DISAMBIGUATION_SELECT_MIN_CONFIDENCE = 0.7;
+const DISAMBIGUATION_SELECT_MIN_MARGIN = 0.15;
+
+interface ImportAuthoritativeBootstrapContext {
+  normalizedQuery: string;
+  sourceAdapterIds: ResearchBootstrapSourceAdapterId[];
+  candidateCount: number;
+  selected: CandidateHit;
+  disambiguationStatus?: DisambiguateEntityCandidate["status"];
+}
+
+async function importAuthoritativeBootstrapCandidate(
+  store: DatabaseStore,
+  input: ResearchCompanyEntityBootstrapInput,
+  context: ImportAuthoritativeBootstrapContext
+): Promise<ResearchCompanyEntityBootstrapResult> {
+  const query = input.query.trim();
   const imported = await store.transaction((client) =>
     ensureEntitySourceCandidateEntity(client, {
       surface: query,
-      candidate: selected.candidate,
+      candidate: context.selected.candidate,
       reviewer: input.reviewer ?? "research-entity-bootstrap"
     })
   );
+  const disambiguationStatusField =
+    context.disambiguationStatus === undefined ? {} : { disambiguation_status: context.disambiguationStatus };
   if (imported.status === "blocked") {
     return {
       status: "ambiguous",
       query,
-      normalized_query: normalizedQuery,
-      source_adapter_id: selected.candidate.source_adapter_id,
-      source_adapter_ids: sourceAdapterIds,
-      source_url: selected.candidate.source_url,
-      candidate_count: candidates.length,
+      normalized_query: context.normalizedQuery,
+      source_adapter_id: context.selected.candidate.source_adapter_id,
+      source_adapter_ids: context.sourceAdapterIds,
+      source_url: context.selected.candidate.source_url,
+      candidate_count: context.candidateCount,
+      ...disambiguationStatusField,
       reason: imported.reason
     };
   }
-
   return {
     status: "resolved",
     query,
-    normalized_query: normalizedQuery,
+    normalized_query: context.normalizedQuery,
     entity_id: imported.entity_id,
-    source_adapter_id: selected.candidate.source_adapter_id,
-    source_adapter_ids: sourceAdapterIds,
-    source_url: selected.candidate.source_url,
-    candidate_count: candidates.length
+    source_adapter_id: context.selected.candidate.source_adapter_id,
+    source_adapter_ids: context.sourceAdapterIds,
+    source_url: context.selected.candidate.source_url,
+    candidate_count: context.candidateCount,
+    ...disambiguationStatusField
   };
+}
+
+// 在多个权威候选之间用消歧结果收敛：要求 LLM 返回高置信 candidate、排名第一相对第二有明显间隔，
+// 且第一名能唯一映射回某个权威候选。任何一条不满足都返回 undefined，调用方据此保持 ambiguous。
+function selectAuthoritativeCandidateFromDisambiguation(
+  authoritativeCandidates: readonly CandidateHit[],
+  disambiguation: DisambiguateEntityCandidate
+): CandidateHit | undefined {
+  if (disambiguation.status !== "candidate") return undefined;
+  const ranked = disambiguation.ranked_candidates;
+  const top = ranked[0];
+  if (top === undefined || top.confidence < DISAMBIGUATION_SELECT_MIN_CONFIDENCE) return undefined;
+  const runnerUp = ranked[1];
+  if (runnerUp !== undefined && top.confidence - runnerUp.confidence < DISAMBIGUATION_SELECT_MIN_MARGIN) return undefined;
+  const matches = authoritativeCandidates.filter((hit) => candidateDisambiguationId(hit.candidate) === top.entity_id);
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 export function normalizeResearchEntityQuery(query: string): string {
@@ -254,7 +320,7 @@ async function resolveExistingEntity(store: DatabaseStore, query: string, normal
   return tryResolveEntityId(store.read, normalizedQuery);
 }
 
-async function lookupUniversalIdentityCandidates(
+async function lookupBootstrapIdentityCandidates(
   input: ResearchCompanyEntityBootstrapInput,
   normalizedQuery: string,
   runtime: ResearchCompanyEntityBootstrapRuntime
@@ -264,13 +330,14 @@ async function lookupUniversalIdentityCandidates(
   const queries = buildUniversalIdentityLookupQueries(normalizedQuery);
   const summaries = await Promise.all(
     queries.flatMap((lookupQuery) =>
-      UNIVERSAL_IDENTITY_SOURCES.map((source) =>
+      BOOTSTRAP_IDENTITY_SOURCES.map((source) =>
         lookup(
           {
             query: lookupQuery,
             source,
             limit: 5,
-            reviewSurface: input.query
+            reviewSurface: input.query,
+            ...(source === "opencorporates" && looksLikeUkCompanyQuery(lookupQuery) ? { jurisdictionCode: "gb" } : {})
           },
           { adapterContextInput }
         )
@@ -283,7 +350,22 @@ async function lookupUniversalIdentityCandidates(
 }
 
 function isAuthoritativeBootstrapCandidate(candidate: EntitySourceCandidate): boolean {
-  return candidate.source_adapter_id === "gleif" && typeof candidate.identifiers.lei === "string" && candidate.identifiers.lei.trim().length > 0;
+  if (candidate.source_adapter_id === "gleif") {
+    return typeof candidate.identifiers.lei === "string" && candidate.identifiers.lei.trim().length > 0;
+  }
+  if (candidate.source_adapter_id === "companies-house") {
+    return (
+      typeof candidate.identifiers.companies_house_number === "string" && candidate.identifiers.companies_house_number.trim().length > 0
+    );
+  }
+  if (candidate.source_adapter_id === "opencorporates") {
+    return typeof candidate.identifiers.open_corporates_id === "string" && candidate.identifiers.open_corporates_id.trim().length > 0;
+  }
+  return false;
+}
+
+function looksLikeUkCompanyQuery(query: string): boolean {
+  return /\b(plc|ltd|limited)\b/i.test(query) || /^0\d{7,8}$/.test(query.trim());
 }
 
 async function disambiguateCandidates(

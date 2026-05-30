@@ -19,6 +19,9 @@ export interface SourceCheckSummary {
   review_candidates?: number;
   semantic_changes: number;
   relation_changes: number;
+  // 后置事实提升的产出（仅当组合层注入了 factPromoter 时填充）：本文档跑出的候选数与实际写成 current 边的数量。
+  fact_candidates?: number;
+  applied_edges?: number;
 }
 
 export interface SourceCheckOptions {

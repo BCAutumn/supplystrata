@@ -476,6 +476,12 @@ export async function listEntityAffiliationDispositions(
   return result.rows.map(entityAffiliationDispositionRecordFromAfter);
 }
 
+// 在 apply 事务内对 review 行加 FOR UPDATE 行锁并重新读取最新状态，
+// 消除"事务外读状态 → 事务内写事实"之间的 TOCTOU 竞态（并发 apply / decide）。
+export async function lockReviewCandidateForApply(client: DbTxClient, reviewId: string): Promise<ReviewQueueItem | undefined> {
+  return getReviewCandidateForUpdate(client, reviewId);
+}
+
 async function getReviewCandidateForUpdate(client: DbTxClient, reviewId: string): Promise<ReviewQueueItem | undefined> {
   const result = await client.query<ReviewCandidateRow>(
     `SELECT review_id, candidate_key, kind, status, candidate, reviewer, reviewed_at, decision_reason, created_at

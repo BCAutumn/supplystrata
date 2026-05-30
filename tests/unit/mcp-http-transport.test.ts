@@ -77,7 +77,7 @@ describe("mcp http transport", () => {
       });
       expect(readResult.structuredContent).toMatchObject({
         data: {
-          operation_id: "getCompanyCard",
+          operation_id: "resolveCompanyIdentity",
           path_params: {
             id: "NVIDIA"
           }
@@ -137,7 +137,7 @@ function readPort(address: AddressInfo | string | null): number {
 
 function fakeReadHandlers(): ApiOperationHandlers {
   return {
-    getCompanyCard: async (input) => fakeReadData(input)
+    resolveCompanyIdentity: async (input) => fakeReadData(input)
   };
 }
 

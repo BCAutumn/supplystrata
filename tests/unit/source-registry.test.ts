@@ -33,9 +33,9 @@ describe("source registry", () => {
 
   it("summarizes implemented and preview source coverage", () => {
     expect(sourceStatusSummary()).toMatchObject({
-      total: 39,
+      total: 40,
       implemented: 1,
-      preview: 19,
+      preview: 20,
       planned: 1,
       scoped: 16,
       manualOnly: 1,

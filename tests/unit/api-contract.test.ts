@@ -21,6 +21,7 @@ describe("api contract", () => {
       "GET /companies/:id/ai-analysis/latest",
       "GET /companies/:id/card",
       "GET /companies/:id/consumer-read-model",
+      "GET /companies/:id/identity",
       "GET /companies/:id/reasoning-walkthrough",
       "GET /companies/:id/supply-chain-report",
       "GET /components/:id/card",
@@ -43,8 +44,8 @@ describe("api contract", () => {
     const audit = auditApiContract();
 
     expect(audit).toMatchObject({
-      route_count: 23,
-      schema_count: 26,
+      route_count: 24,
+      schema_count: 27,
       db_row_leak_count: 0,
       missing_schema_ids: []
     });
@@ -78,14 +79,35 @@ describe("api contract", () => {
       "listSourceHealth",
       "listUnknowns",
       "rejectReviewCandidate",
+      "resolveCompanyIdentity",
       "runSourceChecks"
     ]);
     expect(API_ROUTES.filter((route) => route.handler_status === "contract_only")).toHaveLength(0);
+    // reject 仍只动队列状态；approve 在确认边界内做 evidence-gated 应用，故携带独立的“应用受审事实边”策略。
+    expect(API_ROUTES.find((route) => route.operation_id === "rejectReviewCandidate")?.write_policy).toBe(
+      "review_queue_mutation_only_no_fact_edge_write"
+    );
+    expect(API_ROUTES.find((route) => route.operation_id === "approveReviewCandidate")?.write_policy).toBe(
+      "review_approval_applies_reviewed_fact_edges"
+    );
     expect(
-      API_ROUTES.filter((route) => route.access === "review_write").every((route) => route.write_policy === "review_queue_mutation_only_no_fact_edge_write")
+      API_ROUTES.filter((route) => route.access === "review_write").every(
+        (route) =>
+          route.write_policy === "review_queue_mutation_only_no_fact_edge_write" ||
+          route.write_policy === "review_approval_applies_reviewed_fact_edges"
+      )
     ).toBe(true);
+    // research-run 创建仍不写事实；source-check 执行会跑 evidence-gated promote，单列策略。
+    expect(API_ROUTES.find((route) => route.operation_id === "createCompanyResearchRun")?.write_policy).toBe("research_run_mutation_no_fact_edge_write");
+    expect(API_ROUTES.find((route) => route.operation_id === "runSourceChecks")?.write_policy).toBe(
+      "source_check_execution_runs_evidence_gated_promote"
+    );
     expect(
-      API_ROUTES.filter((route) => route.access === "workflow_write").every((route) => route.write_policy === "research_run_mutation_no_fact_edge_write")
+      API_ROUTES.filter((route) => route.access === "workflow_write").every(
+        (route) =>
+          route.write_policy === "research_run_mutation_no_fact_edge_write" ||
+          route.write_policy === "source_check_execution_runs_evidence_gated_promote"
+      )
     ).toBe(true);
     expect(
       API_ROUTES.filter((route) => route.access === "read_through_research").every(
@@ -108,6 +130,7 @@ describe("api contract", () => {
       "/companies/{id}/ai-analysis/latest",
       "/companies/{id}/card",
       "/companies/{id}/consumer-read-model",
+      "/companies/{id}/identity",
       "/companies/{id}/reasoning-walkthrough",
       "/companies/{id}/research-runs",
       "/companies/{id}/supply-chain-report",

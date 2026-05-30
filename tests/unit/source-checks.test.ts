@@ -179,7 +179,90 @@ describe("source check registry", () => {
       relation_changes: 5
     });
   });
+
+  it("promotes facts for new/changed documents through the injected fact promoter", async () => {
+    const store = new DueSourceCheckDatabaseStore();
+    const objectStoreBase = await mkdtemp(join(tmpdir(), "supplystrata-source-check-promote-"));
+    stubSecFetch();
+    const promotedDocIds: string[] = [];
+
+    const result = await runDueSourceChecks(store, {
+      env: envSchema.parse({ OBJECT_STORE_FS_BASE: objectStoreBase }),
+      limit: 1,
+      now: "2026-05-19T00:00:00.000Z",
+      documentObservationStore: { persistDocumentObservations: documentObservationStub("DOCUMENT_NEW") },
+      factPromoter: {
+        async promoteDocumentFacts(input) {
+          promotedDocIds.push(input.docId);
+          return { candidates: 7, applied_edges: 2, evidence_ids: ["EV-1", "EV-2"] };
+        }
+      }
+    });
+
+    expect(promotedDocIds).toEqual(["DOC-SAVED"]);
+    expect(result.items[0]?.summaries[0]).toMatchObject({ doc_id: "DOC-SAVED", fact_candidates: 7, applied_edges: 2 });
+  });
+
+  it("skips fact promotion for unchanged documents to avoid evidence churn", async () => {
+    const store = new DueSourceCheckDatabaseStore();
+    const objectStoreBase = await mkdtemp(join(tmpdir(), "supplystrata-source-check-unchanged-"));
+    stubSecFetch();
+    const promotedDocIds: string[] = [];
+
+    const result = await runDueSourceChecks(store, {
+      env: envSchema.parse({ OBJECT_STORE_FS_BASE: objectStoreBase }),
+      limit: 1,
+      now: "2026-05-19T00:00:00.000Z",
+      documentObservationStore: { persistDocumentObservations: documentObservationStub("DOCUMENT_UNCHANGED") },
+      factPromoter: {
+        async promoteDocumentFacts(input) {
+          promotedDocIds.push(input.docId);
+          return { candidates: 0, applied_edges: 0, evidence_ids: [] };
+        }
+      }
+    });
+
+    expect(promotedDocIds).toEqual([]);
+    expect(result.items[0]?.summaries[0]?.applied_edges).toBeUndefined();
+  });
 });
+
+function stubSecFetch(): void {
+  vi.stubGlobal("fetch", async (url: string | URL | Request) => {
+    const href = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+    if (href.includes("data.sec.gov/submissions")) {
+      return new Response(
+        JSON.stringify({
+          filings: {
+            recent: {
+              accessionNumber: ["0001318605-26-000001"],
+              primaryDocument: ["tsla-20251231.htm"],
+              form: ["10-K"],
+              filingDate: ["2026-02-01"]
+            }
+          }
+        }),
+        { status: 200 }
+      );
+    }
+    return new Response("<html><body>We purchase lithium-ion battery cells from Panasonic for use in our electric vehicles.</body></html>", {
+      status: 200,
+      headers: { "Content-Type": "text/html" }
+    });
+  });
+}
+
+function documentObservationStub(changeType: "DOCUMENT_NEW" | "DOCUMENT_UNCHANGED" | "DOCUMENT_CHANGED") {
+  return async () => ({
+    change_type: changeType,
+    source_item_id: "SRCITEM-PIPELINE",
+    event_id: "SEV-PIPELINE",
+    stored_observations: 2,
+    review_candidates: 3,
+    semantic_changes: 4,
+    relation_changes: 5
+  });
+}
 
 class NoopDatabaseStore implements DatabaseStore {
   readonly adapter_id = "noop";

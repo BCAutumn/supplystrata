@@ -12,6 +12,7 @@ import {
   type SourcePolicyInput
 } from "@supplystrata/source-monitor";
 import { routeCountryOfficialDirectoryTargets } from "./country-router.js";
+import { bridgeOfficialDirectoryIdentifiers, mergeOfficialDirectoryIdentifiers } from "./official-directory-bridge.js";
 import { ensureResearchCompanyEntity, type ResearchCompanyEntityBootstrapResult } from "./research-entity-bootstrap.js";
 import { deriveResearchRunLifecycle } from "./research-run-lifecycle.js";
 import {
@@ -122,7 +123,8 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
     query: input.company,
     env: input.env,
     now: input.requested_at,
-    reviewer: input.reviewer ?? "api.research-runs"
+    reviewer: input.reviewer ?? "api.research-runs",
+    ...(input.llm === undefined ? {} : { llm: input.llm })
   });
   const namespace = normalizeNamespace(input.source_target_namespace ?? `research-${runId.toLowerCase()}`);
   if (bootstrap.entity_id === undefined) {
@@ -144,13 +146,33 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
   }
 
   const identity = await loadEntityIdentity(store.read, bootstrap.entity_id);
+  const bridged = await bridgeOfficialDirectoryIdentifiers({
+    identity,
+    company_query: input.company,
+    env: input.env,
+    now: input.requested_at
+  });
+  if (bridged.status === "enriched") {
+    await store.transaction((client) =>
+      mergeOfficialDirectoryIdentifiers(client, {
+        entity_id: identity.entity_id,
+        identifiers: bridged.identifiers,
+        reviewer: input.reviewer ?? "api.research-runs",
+        source_adapter_id: bridged.source_adapter_id ?? "official-directory-bridge",
+        ...(bridged.source_url === undefined ? {} : { source_url: bridged.source_url }),
+        company_query: input.company
+      })
+    );
+  }
+  const routedIdentity =
+    bridged.status === "enriched" ? await loadEntityIdentity(store.read, bootstrap.entity_id) : identity;
   const profileSelection = await selectOrDeriveResearchTargetProfile({
-    company_id: identity.entity_id,
-    company_name: identity.display_name,
+    company_id: routedIdentity.entity_id,
+    company_name: routedIdentity.display_name,
     component_ids: [],
-    ...(identity.primary_country === null ? {} : { country_code: identity.primary_country }),
-    ...sicCodeInput(identity.identifiers),
-    ...naicsCodeInput(identity.identifiers),
+    ...(routedIdentity.primary_country === null ? {} : { country_code: routedIdentity.primary_country }),
+    ...sicCodeInput(routedIdentity.identifiers),
+    ...naicsCodeInput(routedIdentity.identifiers),
     source_refs: bootstrapSourceRefs(bootstrap),
     ...(input.llm === undefined ? {} : { llm: input.llm })
   });
@@ -159,13 +181,13 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
     sessionStore.register({
       session_id: runId,
       run_id: runId,
-      company_entity_id: identity.entity_id,
+      company_entity_id: routedIdentity.entity_id,
       profile: profileSummary,
       created_at: input.requested_at
     });
   }
   const routing = routeCountryOfficialDirectoryTargets({
-    identity,
+    identity: routedIdentity,
     namespace,
     now: input.requested_at
   });
@@ -188,7 +210,7 @@ export async function createResearchRun(store: DatabaseStore, input: CreateResea
     await insertResearchRun(client, {
       runId,
       company: input.company,
-      entityId: identity.entity_id,
+      entityId: routedIdentity.entity_id,
       depth,
       status: hasTargets ? "queued_source_checks" : "cannot_conclude",
       bootstrapStatus: bootstrap.status,

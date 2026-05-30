@@ -13,7 +13,24 @@ import type { CountRow, EntityIdRow } from "./db-rows.js";
 export { ensureSecListedCompanyEntity, type SecListedCompanyCandidate, type SecListedCompanyImportResult } from "./sec-listed-company.js";
 
 // 只有全局唯一标识符能参与冲突判断；jurisdiction_code / company_number 单独使用会把不同公司误判成同一实体。
-const GLOBALLY_UNIQUE_ENTITY_IDENTIFIER_KEYS = new Set(["lei", "gleif_lei", "bic", "spglobal_id", "open_corporates_id", "companies_house_number"]);
+const GLOBALLY_UNIQUE_ENTITY_IDENTIFIER_KEYS = new Set([
+  "lei",
+  "gleif_lei",
+  "bic",
+  "spglobal_id",
+  "open_corporates_id",
+  "companies_house_number",
+  "cik",
+  "figi",
+  "openfigi_figi",
+  "openfigi_composite_figi",
+  "wikidata_qid",
+  "opendart_corp_code",
+  "dart_corp_code",
+  "edinet_code",
+  "twse_stock_code",
+  "hkex_stock_code"
+]);
 
 export type EntityImportResult =
   | { status: "applied"; entity_id: string; aliases_inserted: number; aliases_skipped: number; pending_entities_resolved: number; change_id: string }

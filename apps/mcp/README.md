@@ -45,7 +45,7 @@ B 阶段的 resource URI 使用 `supplystrata://{resource}/{id}` 形式，`resou
 - `supplystrata://source-health`
 - `supplystrata://reasoning-walkthrough/{id}`
 
-当前 `api-orchestration` 只有全局 `ChangesApiResponse` 与 `SourcesHealthApiResponse`，还没有 entity-scoped changes 或 source-target DTO。因此 `changes/entity/{id}` 暂时返回现有 change timeline envelope，`list_source_targets` 暂时返回 source health envelope；真正的 entity filter / source target DTO 应单独扩展 API contract。
+`changes/entity/{id}` 通过 `GET /changes?scope=entity:{id}` 做实体范围过滤，只返回 scope/edge subject/object 命中该实体的变更（底层复用 `listChangeTimeline` 的 scope 过滤）。`list_source_targets` 仍暂时返回全局 source health envelope；专门的 source target DTO 应单独扩展 API contract。
 
 ## 本地启动
 

@@ -11,6 +11,16 @@ import {
   type ComponentPatternDefinition,
   type CounterpartyPatternDefinition
 } from "./patterns.js";
+import { EN_RELATION_CONTEXT_PROFILE, selectRelationContextProfile, type RelationContextProfile } from "./relation-contexts.js";
+
+export {
+  EN_RELATION_CONTEXT_PROFILE,
+  JA_RELATION_CONTEXT_PROFILE,
+  ZH_RELATION_CONTEXT_PROFILE,
+  KO_RELATION_CONTEXT_PROFILE,
+  selectRelationContextProfile
+} from "./relation-contexts.js";
+export type { RelationContextProfile } from "./relation-contexts.js";
 
 export interface RelationExtractor {
   readonly id: string;
@@ -26,6 +36,7 @@ interface ExtractSentenceOptions {
   readonly documentType?: NormalizedDocument["document_type"];
   readonly extractorId?: string;
   readonly sourceLocation?: CandidateRelation["source_location"];
+  readonly profile?: RelationContextProfile;
 }
 
 interface ComponentClassification {
@@ -39,14 +50,6 @@ interface FoundrySupplierRule {
   readonly requiresFoundryListContext: boolean;
   readonly skipWhenMemoryContext: boolean;
 }
-
-const MANUFACTURING_CONTEXT_PATTERNS: readonly RegExp[] = [/(foundr|wafer|fabricat|manufactur|supplier|subcontractor|assembly|test)/i];
-
-const FOUNDRY_LIST_CONTEXT_PATTERNS: readonly RegExp[] = [
-  /(foundries?.{0,280}(tsmc|taiwan semiconductor manufacturing|samsung)|produce.{0,120}semiconductor wafers)/i
-];
-
-const MANUFACTURING_SERVICE_CONTEXT_PATTERNS: readonly RegExp[] = [/(contract manufactur|manufactur|assembly|testing|packaging|subcontractor)/i];
 
 const FOUNDRY_SUPPLIER_RULES: readonly FoundrySupplierRule[] = [
   {
@@ -72,14 +75,16 @@ export const secOfficialSupplyChainExtractor: RelationExtractor = {
   priority: 100,
   relation_types: ["USES_FOUNDRY", "BUYS_FROM", "SUPPLIES_TO"],
   async *extract(doc) {
-    if (!isSecDisclosure(doc)) return;
+    if (!isOfficialDisclosureProse(doc)) return;
     if (doc.primary_entity_id === undefined) return;
+    const profile = selectRelationContextProfile(doc.language);
     for (const chunk of doc.chunks) {
       for (const window of sentenceWindowsWithOffsets(chunk.text)) {
         for (const candidate of extractFromSentence(window.sentence, chunk.locator, {
           subjectSurface: doc.primary_entity_id,
           documentType: doc.document_type,
           extractorId: SEC_OFFICIAL_SUPPLY_CHAIN_EXTRACTOR_ID,
+          profile,
           sourceLocation: {
             chunk_id: chunk.chunk_id,
             chunk_locator: chunk.locator,
@@ -98,8 +103,9 @@ export const ruleExtractors = [secOfficialSupplyChainExtractor] as const;
 
 export function extractFromSentence(sentence: string, locator: string, options: ExtractSentenceOptions): CandidateRelation[] {
   const candidates: CandidateRelation[] = [];
-  const manufacturingContext = matchesAnyPattern(sentence, MANUFACTURING_CONTEXT_PATTERNS);
-  const foundryListContext = matchesAnyPattern(sentence, FOUNDRY_LIST_CONTEXT_PATTERNS);
+  const profile = options.profile ?? EN_RELATION_CONTEXT_PROFILE;
+  const manufacturingContext = matchesAnyPattern(sentence, profile.manufacturingContext);
+  const foundryListContext = matchesAnyPattern(sentence, profile.foundryListContext);
   const memoryComponent = classifyMemoryComponent(sentence);
   const memoryContext = memoryComponent !== undefined;
   const subjectSurface = options.subjectSurface;
@@ -143,7 +149,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
     }
   }
   for (const supplier of MANUFACTURING_SERVICE_SUPPLIER_PATTERNS) {
-    if (matchesAnyCounterparty(sentence, supplier) && matchesAnyPattern(sentence, MANUFACTURING_SERVICE_CONTEXT_PATTERNS)) {
+    if (matchesAnyCounterparty(sentence, supplier) && matchesAnyPattern(sentence, profile.manufacturingServiceContext)) {
       candidates.push(
         buildCandidate({
           subjectSurface,
@@ -160,7 +166,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
     }
   }
   for (const counterparty of CUSTOMER_COUNTERPARTY_PATTERNS) {
-    if (matchesAnyCounterparty(sentence, counterparty) && isNamedCustomerDisclosure(sentence)) {
+    if (matchesAnyCounterparty(sentence, counterparty) && matchesAnyPattern(sentence, profile.namedCustomer)) {
       const component = classifyProductComponent(sentence);
       candidates.push(
         buildCandidate({
@@ -181,7 +187,8 @@ export function extractFromSentence(sentence: string, locator: string, options: 
   for (const counterparty of SUPPLIER_COUNTERPARTY_PATTERNS) {
     if (!matchesAnyCounterparty(sentence, counterparty)) continue;
     const commitmentComponent = classifySupplyCommitmentComponent(sentence);
-    if (isDirectSupplierPurchaseDisclosure(sentence) && commitmentComponent !== undefined) {
+    const directPurchase = matchesAnyPattern(sentence, profile.directPurchase);
+    if (directPurchase && (commitmentComponent !== undefined || profile.allowComponentlessDirectPurchase)) {
       candidates.push(
         buildCandidate({
           subjectSurface,
@@ -192,13 +199,13 @@ export function extractFromSentence(sentence: string, locator: string, options: 
           citeText: sentence,
           locator,
           ...sourceLocationInput,
-          component: commitmentComponent,
+          ...(commitmentComponent === undefined ? {} : { component: commitmentComponent }),
           confidenceHint: 0.87
         })
       );
       continue;
     }
-    if (isPurchaseObligationDisclosure(sentence)) {
+    if (matchesAnyPattern(sentence, profile.purchaseObligation)) {
       candidates.push(
         buildCandidate({
           subjectSurface,
@@ -215,7 +222,7 @@ export function extractFromSentence(sentence: string, locator: string, options: 
       );
       continue;
     }
-    if (isSingleSourceSupplierDisclosure(sentence)) {
+    if (matchesAnyPattern(sentence, profile.singleSource)) {
       candidates.push(
         buildCandidate({
           subjectSurface,
@@ -293,13 +300,6 @@ function matchesAnyPattern(sentence: string, patterns: readonly RegExp[]): boole
   return patterns.some((pattern) => pattern.test(sentence));
 }
 
-function isNamedCustomerDisclosure(sentence: string): boolean {
-  if (/\b(?:accounted for|represented|contributed|comprised).{0,120}\b(?:revenue|net sales|sales)\b/i.test(sentence)) {
-    return true;
-  }
-  return /\b(?:sales to|net sales to|revenue from|derive revenue from|derived revenue from)\b/i.test(sentence);
-}
-
 function uniqueCandidates(candidates: readonly CandidateRelation[]): CandidateRelation[] {
   const seen = new Set<string>();
   const unique: CandidateRelation[] = [];
@@ -316,20 +316,6 @@ function uniqueCandidates(candidates: readonly CandidateRelation[]): CandidateRe
     unique.push(candidate);
   }
   return unique;
-}
-
-function isPurchaseObligationDisclosure(sentence: string): boolean {
-  return /\b(?:purchase obligations?|purchase commitments?|long[-\s]?term supply agreements?|wafer supply agreements?|capacity reservations?|prepayments?|take[-\s]?or[-\s]?pay)\b/i.test(
-    sentence
-  );
-}
-
-function isDirectSupplierPurchaseDisclosure(sentence: string): boolean {
-  return /\b(?:purchase|purchases|purchased|procure|procures|procured|source|sources|sourced|obtain|obtains|obtained|buy|buys|bought)\b/i.test(sentence);
-}
-
-function isSingleSourceSupplierDisclosure(sentence: string): boolean {
-  return /\b(?:sole source|single source|single-source|sole supplier|limited number of suppliers|limited suppliers)\b/i.test(sentence);
 }
 
 interface CandidateBuildInput {
@@ -374,11 +360,14 @@ function buildCandidate(input: CandidateBuildInput): CandidateRelation {
   };
 }
 
-function isSecDisclosure(doc: NormalizedDocument): boolean {
-  return isSecSourceAdapter(doc.source_adapter_id) && ["10-K", "10-Q", "8-K"].includes(doc.document_type);
-}
+// 关系抽取的“资格门”：任何官方披露型正文文档都可参与抽取，不再绑定具体来源/国家。
+// - 美国 SEC：10-K / 10-Q / 8-K / 20-F / 40-F（20-F/40-F 是外国发行人年报，等价于本土 10-K）。
+// - 公司官方年报：annual_report —— 覆盖各国 IR（含 EDINET 英文披露、company-ir 用户自定 URL），
+//   让"用户想监控啥就监控啥"在 SEC 之外同样成立。
+// 关键：这里只决定"读哪些文档"。证据可信度由 evidence-scorer 按来源 authority 单独封顶
+//（未注册来源最高 L2、公司官方 L4、监管 L5），所以放宽资格门不会放大信任，只放大召回。
+const OFFICIAL_DISCLOSURE_PROSE_TYPES = ["10-K", "10-Q", "8-K", "20-F", "40-F", "annual_report"] as const;
 
-function isSecSourceAdapter(sourceAdapterId: string): boolean {
-  // sec-edgar-fixture 是离线测试镜像，业务规则仍按 sec-edgar 官方披露处理。
-  return sourceAdapterId === "sec-edgar" || sourceAdapterId === "sec-edgar-fixture";
+function isOfficialDisclosureProse(doc: NormalizedDocument): boolean {
+  return (OFFICIAL_DISCLOSURE_PROSE_TYPES as readonly string[]).includes(doc.document_type);
 }

@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { importDevFixturesFromCsv, migrate } from "@supplystrata/db/admin";
 import { backfillEvidenceTraceTransactionally, repairSupplierListEvidenceCitationsTransactionally } from "@supplystrata/evidence-maintenance";
+import { backfillDocumentFacts } from "@supplystrata/pipeline";
 import { parseLimit, withDatabase, writeJson } from "../cli-utils.js";
 
 export function registerDbAndAdminCommands(program: Command): void {
@@ -28,6 +29,23 @@ export function registerDbAndAdminCommands(program: Command): void {
     .action(async (options: { limit: string }) => {
       await withDatabase(async (pool) => {
         const summary = await repairSupplierListEvidenceCitationsTransactionally(pool, { limit: parseLimit(options.limit) });
+        writeJson({ ok: true, ...summary });
+      });
+    });
+  db.command("reextract-facts")
+    .description("re-run rule extraction + evidence-gated promotion over already-stored documents (backfill after extractor upgrades); idempotent")
+    .option("--entity <entityId>", "limit to documents whose primary entity is this entity id, e.g. ENT-ASML")
+    .option("--adapter <sourceAdapterId>", "limit to a source adapter, e.g. sec-edgar")
+    .option("--doc-type <type...>", "limit to one or more document types, e.g. 20-F 10-K")
+    .option("--limit <count>", "max documents to process", "200")
+    .action(async (options: { entity?: string; adapter?: string; docType?: string[]; limit: string }) => {
+      await withDatabase(async (store) => {
+        const summary = await backfillDocumentFacts(store, {
+          ...(options.entity === undefined ? {} : { entityId: options.entity }),
+          ...(options.adapter === undefined ? {} : { sourceAdapterId: options.adapter }),
+          ...(options.docType === undefined ? {} : { documentTypes: options.docType }),
+          limit: parseLimit(options.limit)
+        });
         writeJson({ ok: true, ...summary });
       });
     });

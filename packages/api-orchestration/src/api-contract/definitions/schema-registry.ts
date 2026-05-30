@@ -61,6 +61,10 @@ const readThroughEnvelope = (schemaId: ApiSchemaId, description: string): ApiJso
 
 export const API_SCHEMA_REGISTRY = {
   CompanyCardApiResponse: readEnvelope("CompanyCardApiResponse", "Company card API read envelope."),
+  CompanyIdentityApiResponse: readEnvelope(
+    "CompanyIdentityApiResponse",
+    "Company identity resolution API read envelope (resolved company card or explicit unresolved status)."
+  ),
   ComponentCardApiResponse: readEnvelope("ComponentCardApiResponse", "Component card API read envelope."),
   ChainApiResponse: readEnvelope("ChainApiResponse", "Chain view API read envelope."),
   ClaimApiResponse: readEnvelope("ClaimApiResponse", "Claim API read envelope."),

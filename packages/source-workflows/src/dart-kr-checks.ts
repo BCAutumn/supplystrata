@@ -38,12 +38,20 @@ import {
   type DartKrDisclosureType,
   type DartKrFinalReportsOnly
 } from "./dart-kr-disclosure-list.js";
+import {
+  fetchDartKrBody,
+  normalizeDartKrBodyDocument,
+  planDartKrBodyTasks,
+  validateDartKrCompanyBodyInput,
+  type DartKrCompanyBodyInput
+} from "./dart-kr-body.js";
 import { documentObservationStoreOption } from "./document-observation-context.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { OPENDART_CREDENTIALS } from "./source-check-credentials.js";
 
 export { buildDartKrDisclosureListUrl, extractDartKrDisclosureEntries };
 export type { DartKrCompanyFilingsInput, DartKrCorpClass, DartKrDisclosureEntry, DartKrDisclosureType, DartKrFinalReportsOnly };
+export type { DartKrCompanyBodyInput };
 
 const dartKrAdapterBase: SourceAdapter<DartKrCompanyFilingsInput, Uint8Array> = {
   id: "dart-kr",
@@ -123,6 +131,107 @@ export const dartKrCompanyFilingsSourceCheckConnector: SourceCheckConnector<Data
 
 export function createDartKrAdapterContext(input: CreateAdapterContextInput): AdapterContext {
   return createAdapterContext(input);
+}
+
+// OpenDART 韩文正文本体适配器：plan 用 list.json 发现 사업보고서，逐篇 yield document.xml ZIP 下载任务；
+// normalize 解压 → 韩文 annual_report 正文文档，进入与 SEC/EDINET/cninfo 同一套抽取（ko profile 产边）。
+// 与目录监控（company-filings → company_registry）并存：一个监控变化，一个抽正文。
+const dartKrBodyAdapterBase: SourceAdapter<DartKrCompanyBodyInput, Uint8Array> = {
+  id: "dart-kr",
+  tier: "P1",
+  description: "OpenDART Korean annual report (사업보고서) body fetcher",
+  tos_url: "https://opendart.fss.or.kr/",
+  rate_limit: { requests: 2, per_seconds: 1 },
+  plan(input: DartKrCompanyBodyInput, ctx: AdapterContext) {
+    return planDartKrBodyTasks(input, ctx);
+  },
+  fetch(task, ctx): Promise<RawDocument<Uint8Array>> {
+    return fetchDartKrBody(task, ctx);
+  },
+  async normalize(raw) {
+    return normalizeDartKrBodyDocument(raw);
+  }
+};
+
+export const dartKrBodyAdapter = createRateLimitedSourceAdapter(dartKrBodyAdapterBase);
+
+export const dartKrCompanyBodySourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
+  source_adapter_id: "dart-kr",
+  target_kind: "company-filings-body",
+  config_schema: dartKrBodyConfigSchema(),
+  credential_requirements: OPENDART_CREDENTIALS,
+  run(store, target, context) {
+    return runSourceAdapterCheck(store, {
+      adapter: dartKrBodyAdapter,
+      adapterInput: dartKrCompanyBodyInputFromConfig(target.target_config),
+      context: createDartKrAdapterContext(context.adapter_context_input),
+      options: {
+        checkTargetId: target.check_target_id,
+        failureCausedBy: "source-check.dart-kr-body",
+        checkedAt: context.checked_at,
+        ...documentObservationStoreOption(context),
+        ...(context.logger === undefined ? {} : { logger: context.logger })
+      }
+    });
+  }
+};
+
+export function dartKrCompanyBodyInputFromConfig(config: Record<string, unknown>): DartKrCompanyBodyInput {
+  const label = "OpenDART body source check target";
+  const year = optionalConfigPositiveInteger(config, "year", label);
+  if (year === undefined || year < 2000 || year > 2100) throw new Error(`${label} year must be a supported disclosure year`);
+  const finalReportsOnly = optionalDartFinalReportsOnly(config, label);
+  const limit = optionalConfigPositiveInteger(config, "limit", label);
+  const componentId = optionalDartConfigString(config, "component_id", label);
+  const scopeKind = optionalDartScopeKind(config, label);
+  const scopeId = optionalDartConfigString(config, "scope_id", label);
+  const input: DartKrCompanyBodyInput = {
+    entityId: requireConfigString(config, "entity_id", label),
+    corpCode: requireDartCorpCode(config, label),
+    year,
+    ...(finalReportsOnly === undefined ? {} : { finalReportsOnly }),
+    ...(limit === undefined ? {} : { limit }),
+    ...(componentId === undefined ? {} : { componentId }),
+    ...(scopeKind === undefined ? {} : { scopeKind }),
+    ...(scopeId === undefined ? {} : { scopeId })
+  };
+  validateDartKrCompanyBodyInput(input);
+  return input;
+}
+
+function dartKrBodyConfigSchema(): SourceCheckConfigSchema {
+  return {
+    fields: [
+      { key: "corp_code", type: "string", required: true, description: "OpenDART corporation code (8 digits)." },
+      { key: "entity_id", type: "string", required: true, description: "Primary SupplyStrata entity id for the filer." },
+      { key: "year", type: "positive_integer", required: true, description: "Disclosure year whose 사업보고서 body to fetch." },
+      {
+        key: "final_reports_only",
+        type: "string",
+        required: false,
+        description: "Whether to include only final reports (Y/N).",
+        allowed_values: DART_FINAL_REPORT_FLAGS
+      },
+      { key: "limit", type: "positive_integer", required: false, description: "Maximum annual-report bodies to fetch (1-100)." },
+      { key: "component_id", type: "string", required: false, description: "Component target id used by readiness and coverage." },
+      { key: "scope_kind", type: "string", required: false, description: "Research scope kind.", allowed_values: ["company", "component"] },
+      { key: "scope_id", type: "string", required: false, description: "Research scope id that requested this body target." }
+    ]
+  };
+}
+
+function optionalDartConfigString(config: Record<string, unknown>, key: string, label: string): string | undefined {
+  const value = config[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${label} ${key} must be a non-empty string`);
+  return value.trim();
+}
+
+function optionalDartScopeKind(config: Record<string, unknown>, label: string): "company" | "component" | undefined {
+  const value = config["scope_kind"];
+  if (value === undefined) return undefined;
+  if (value !== "company" && value !== "component") throw new Error(`${label} scope_kind must be company or component`);
+  return value;
 }
 
 export function dartKrCompanyFilingsInputFromConfig(config: Record<string, unknown>): DartKrCompanyFilingsInput {

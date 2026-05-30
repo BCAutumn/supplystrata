@@ -39,14 +39,14 @@ describe("mcp read surface", () => {
         });
       }
 
-      await expectReadTool(client, "resolve_company", { query: "NVIDIA" }, "getCompanyCard");
+      await expectReadTool(client, "resolve_company", { query: "NVIDIA" }, "resolveCompanyIdentity");
       await expectReadTool(client, "read_evidence_for_edge", { edge_id: "EV-EDGE-1" }, "getEvidence");
       await expectReadTool(client, "traverse_chain", { scope: "company:ENT-NVIDIA", depth: 2 }, "getChain");
       await expectReadTool(client, "list_unknowns", { scope: "company:ENT-NVIDIA" }, "listUnknowns");
       await expectReadTool(client, "list_source_targets", { scope: "company:ENT-NVIDIA" }, "listSourceHealth");
       await expectReadTool(client, "poll_research_run", { run_id: "RR-1" }, "getResearchRunStatus");
 
-      expect(calls).toEqual(["getCompanyCard", "getEvidence", "getChain", "listUnknowns", "listSourceHealth", "getResearchRunStatus"]);
+      expect(calls).toEqual(["resolveCompanyIdentity", "getEvidence", "getChain", "listUnknowns", "listSourceHealth", "getResearchRunStatus"]);
     } finally {
       await client.close();
       await server.close();
@@ -72,7 +72,9 @@ describe("mcp read surface", () => {
       await expectReadResource(client, "supplystrata://entity/ENT-NVIDIA", "getCompanyCard");
       await expectReadResource(client, "supplystrata://evidence/edge/EV-EDGE-1", "getEvidence");
       await expectReadResource(client, "supplystrata://unknowns/company/ENT-NVIDIA", "listUnknowns");
-      await expectReadResource(client, "supplystrata://changes/entity/ENT-NVIDIA", "listChanges");
+      await expectReadResource(client, "supplystrata://changes/entity/ENT-NVIDIA", "listChanges", {
+        scope: "entity:ENT-NVIDIA"
+      });
       await expectReadResource(client, "supplystrata://source-health", "listSourceHealth");
       await expectReadResource(client, "supplystrata://reasoning-walkthrough/ENT-NVIDIA", "getCompanyReasoningWalkthrough");
       await expectScbomResource(client, "supplystrata://scbom/company/ENT-NVIDIA");
@@ -156,7 +158,12 @@ async function expectScbomResource(client: Client, uri: string): Promise<void> {
   });
 }
 
-async function expectReadResource(client: Client, uri: string, operationId: ApiOperationId): Promise<void> {
+async function expectReadResource(
+  client: Client,
+  uri: string,
+  operationId: ApiOperationId,
+  expectedQuery?: Record<string, string>
+): Promise<void> {
   const result = await client.readResource({ uri });
   const firstContent = result.contents[0];
   if (firstContent === undefined || !("text" in firstContent)) throw new Error(`Expected ${uri} to return JSON text content.`);
@@ -166,7 +173,8 @@ async function expectReadResource(client: Client, uri: string, operationId: ApiO
     schema_version: "1.0.0",
     contract_version: "0.1.0",
     data: {
-      operation_id: operationId
+      operation_id: operationId,
+      ...(expectedQuery === undefined ? {} : { query: expectedQuery })
     },
     meta: {
       generated_at: FIXED_NOW,
@@ -178,6 +186,7 @@ async function expectReadResource(client: Client, uri: string, operationId: ApiO
 function fakeReadHandlers(calls: ApiOperationId[]): ApiOperationHandlers {
   return {
     getCompanyCard: async (input) => fakeReadData(input, calls),
+    resolveCompanyIdentity: async (input) => fakeReadData(input, calls),
     getEvidence: async (input) => fakeReadData(input, calls),
     getChain: async (input) => fakeReadData(input, calls),
     listUnknowns: async (input) => fakeReadData(input, calls),

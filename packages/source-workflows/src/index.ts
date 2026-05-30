@@ -5,10 +5,58 @@ export type {
   SourceDocumentObservationPersistResult,
   SourceDocumentObservationStore
 } from "./document-observation-port.js";
-export { buildDartKrDisclosureListUrl, createDartKrAdapterContext, dartKrAdapter, extractDartKrDisclosureEntries } from "./dart-kr-checks.js";
-export type { DartKrCompanyFilingsInput, DartKrCorpClass, DartKrDisclosureEntry, DartKrDisclosureType, DartKrFinalReportsOnly } from "./dart-kr-checks.js";
-export { buildEdinetDocumentsListUrl, createEdinetAdapterContext, edinetAdapter, extractEdinetDocumentEntries } from "./edinet-checks.js";
-export type { EdinetDailyFilingsInput, EdinetDocumentEntry, EdinetDocumentListType } from "./edinet-checks.js";
+export type { SourceCheckDocumentFactPromotion, SourceCheckFactPromoter } from "./fact-promoter-port.js";
+export {
+  buildDartKrDisclosureListUrl,
+  createDartKrAdapterContext,
+  dartKrAdapter,
+  dartKrBodyAdapter,
+  dartKrCompanyBodyInputFromConfig,
+  dartKrCompanyBodySourceCheckConnector,
+  extractDartKrDisclosureEntries
+} from "./dart-kr-checks.js";
+export type { DartKrCompanyBodyInput, DartKrCompanyFilingsInput, DartKrCorpClass, DartKrDisclosureEntry, DartKrDisclosureType, DartKrFinalReportsOnly } from "./dart-kr-checks.js";
+export {
+  buildDartKrBodyListUrl,
+  buildDartKrDocumentUrl,
+  isDartKrAnnualReportName,
+  normalizeDartKrBodyDocument,
+  selectDartKrAnnualReports
+} from "./dart-kr-body.js";
+export {
+  buildEdinetDocumentBodyUrl,
+  buildEdinetDocumentsListUrl,
+  createEdinetAdapterContext,
+  edinetAdapter,
+  edinetBodyAdapter,
+  edinetCompanyFilingsInputFromConfig,
+  edinetCompanyFilingsSourceCheckConnector,
+  extractEdinetDocumentEntries
+} from "./edinet-checks.js";
+export type { EdinetCompanyFilingsInput, EdinetDailyFilingsInput, EdinetDocumentEntry, EdinetDocumentListType } from "./edinet-checks.js";
+export { normalizeEdinetBodyDocument, selectEdinetBodyEntries, EDINET_DEFAULT_BODY_DOC_TYPE_CODES } from "./edinet-body.js";
+export {
+  cninfoAdapter,
+  cninfoCompanyFilingsInputFromConfig,
+  cninfoCompanyFilingsSourceCheckConnector,
+  createCninfoAdapterContext
+} from "./cninfo-checks.js";
+export type { CninfoCompanyFilingsInput, CninfoExchange } from "./cninfo-checks.js";
+export {
+  buildCninfoQueryBody,
+  buildCninfoQueryUrl,
+  buildCninfoStockListUrl,
+  cninfoExchangeFromStockCode,
+  cninfoOrgId,
+  cninfoPdfUrl,
+  findCninfoOrgId,
+  isChineseAnnualReportBody,
+  parseCninfoAnnouncementsPayload,
+  parseCninfoStockList,
+  selectCninfoAnnualReports,
+  CNINFO_ANNUAL_REPORT_CATEGORY
+} from "./cninfo-announcements.js";
+export type { CninfoAnnouncement } from "./cninfo-announcements.js";
 export {
   buildTwseMopsElectronicDocumentsUrl,
   createTwseMopsAdapterContext,
@@ -19,6 +67,44 @@ export type { TwseMopsDocumentKind, TwseMopsElectronicDocumentEntry, TwseMopsEle
 export { buildHkexNewsTitleSearchUrl, createHkexNewsAdapterContext, extractHkexNewsAnnouncementEntries, hkexNewsAdapter } from "./hkex-news-checks.js";
 export type { HkexNewsAnnouncementEntry, HkexNewsTitleSearchInput } from "./hkex-news-checks.js";
 export { routeCountryOfficialDirectoryTargets } from "./country-router.js";
+export {
+  bridgeOfficialDirectoryIdentifiers,
+  mergeOfficialDirectoryIdentifiers,
+  type OfficialDirectoryBridgeInput,
+  type OfficialDirectoryBridgeResult,
+  type OfficialDirectoryBridgeRuntime,
+  type OfficialDirectoryBridgeStatus
+} from "./official-directory-bridge.js";
+export {
+  findDartKrDirectoryCandidates,
+  parseOpenDartCorpCodeXml,
+  dartKrDirectoryIdentifiers,
+  type DartKrDirectoryRecord
+} from "./dart-kr-directory.js";
+export {
+  findTwseDirectoryCandidates,
+  parseTwseIsinListHtml,
+  twseDirectoryIdentifiers,
+  type TwseDirectoryRecord
+} from "./twse-directory.js";
+export {
+  findEdinetDirectoryCandidates,
+  parseEdinetCodeCsv,
+  edinetDirectoryIdentifiers,
+  type EdinetDirectoryRecord
+} from "./edinet-directory.js";
+export {
+  findHkexDirectoryCandidates,
+  parseHkexSecuritiesCsv,
+  hkexDirectoryIdentifiers,
+  type HkexDirectoryRecord
+} from "./hkex-directory.js";
+export {
+  loadOrFetchDirectorySnapshot,
+  readMostRecentDirectorySnapshot,
+  type DirectorySnapshotInput,
+  type MostRecentDirectorySnapshotInput
+} from "./directory-snapshot.js";
 export type {
   CompanyOfficialDirectoryIdentity,
   CountryOfficialDirectoryRoutingInput,

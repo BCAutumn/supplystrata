@@ -11,11 +11,11 @@ import {
   supplierListReviewToSupplierRelation,
   type SupplierListReviewCandidate
 } from "@supplystrata/review-candidates";
-import { markReviewCandidateApplied, type ReviewQueueItem } from "@supplystrata/review-store";
+import { lockReviewCandidateForApply, markReviewCandidateApplied, type ReviewQueueItem } from "@supplystrata/review-store";
 import { findSupplierListCitationWindow } from "@supplystrata/supplier-list";
 import { locateCandidateCitation, type CitationLocation, type SavedChunkRef } from "./citation-location.js";
 import { assertReviewItemKind, blockReviewCandidate } from "./review-apply-blocking.js";
-import type { AppliedReviewEdgeResult, ReviewApplyOptions, ReviewApplyResult, SupplierListReviewItem } from "./review-apply-definitions.js";
+import { isReviewItemApplicable, type AppliedReviewEdgeResult, type ReviewApplyOptions, type ReviewApplyResult, type SupplierListReviewItem } from "./review-apply-definitions.js";
 
 export async function applySupplierListReviewStrategy(
   store: DatabaseStore,
@@ -35,6 +35,13 @@ async function applySupplierListReviewCandidate(
 ): Promise<ReviewApplyResult> {
   return store.transaction(async (client) => {
     const reviewId = item.review_id;
+    // 事务内先对 review 行加锁并复检状态，避免与并发 apply/decide 之间的 TOCTOU：
+    // 只有锁定后仍处于可 apply 状态，才会继续写入 fact edge。
+    const locked = await lockReviewCandidateForApply(client, reviewId);
+    if (locked === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found at apply time" };
+    if (!isReviewItemApplicable(locked)) {
+      return { status: "blocked", review_id: reviewId, reason: `review candidate status changed to ${locked.status} before apply` };
+    }
     const supplierRelation = supplierListReviewToSupplierRelation(item.candidate);
     const resolver = new DbEntityResolver(client);
     const entityResolution = await resolveSupplierListEntities(client, item, resolver, supplierRelation);

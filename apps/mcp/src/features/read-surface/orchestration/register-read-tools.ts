@@ -13,7 +13,8 @@ export function registerReadTools(server: McpServer, runtime: McpReadSurfaceRunt
     "resolve_company",
     {
       title: "Resolve Company",
-      description: "Returns the evidence-backed company card for a company query or entity id.",
+      description:
+        "Resolves a company query against the local cache. Returns the evidence-backed company card when the identity is already known, or an explicit unresolved status (not 'company does not exist') that points to start_research_session for global identity bootstrap.",
       inputSchema: {
         query: stringInput("Company query, ticker, alias, or entity id.")
       },
@@ -22,7 +23,7 @@ export function registerReadTools(server: McpServer, runtime: McpReadSurfaceRunt
     },
     async ({ query }) =>
       readToolResult(runtime, {
-        operation_id: "getCompanyCard",
+        operation_id: "resolveCompanyIdentity",
         path_params: { id: query },
         now: runtime.now()
       })

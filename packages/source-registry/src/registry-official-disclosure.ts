@@ -127,7 +127,7 @@ export const OFFICIAL_DISCLOSURE_SOURCES = [
     requires_key: true,
     official_url: "https://opendart.fss.or.kr/",
     tos_url: "https://opendart.fss.or.kr/",
-    notes: "韩国监管披露；当前先接 OpenDART disclosure list monitor，提供官方 target / source-check / readiness 覆盖。正文下载与韩文/HWP 解析仍留在后续阶段。"
+    notes: "韩国监管披露；接 OpenDART：company-filings 监控披露目录 + company-filings-body 抓 사업보고서正文(document.xml ZIP)，解压 XML/HTML → 韩文 annual_report 正文文档进入抽取管线（ko profile 产边）。该年度无 사업보고서时正文计划为空属正常。"
   },
   {
     id: "edinet",
@@ -144,7 +144,24 @@ export const OFFICIAL_DISCLOSURE_SOURCES = [
     official_url: "https://disclosure2.edinet-fsa.go.jp/",
     tos_url: "https://disclosure2.edinet-fsa.go.jp/",
     notes:
-      "日本监管披露；当前先接 EDINET API v2 documents.json daily-filings monitor，提供官方 target / source-check / readiness 覆盖。正文 ZIP/PDF/XBRL 解析仍留后续。"
+      "日本监管披露；接 EDINET API v2：daily-filings 监控目录 + company-filings 抓有価証券報告書(type=1)正文 ZIP，解压 iXBRL → 日文 annual_report 正文文档进入抽取管线。日文关系 pattern 上线前，日文正文产 0 边但已可入库/观测/diff。"
+  },
+  {
+    id: "cninfo",
+    tier: "P1",
+    name: "China cninfo 巨潮资讯网",
+    category: "official_disclosure",
+    evidence_level_cap: 5,
+    publisher_type: "regulator",
+    relation_authority: "self_disclosure",
+    automation: "allowed",
+    status: "preview",
+    implemented_package: "@supplystrata/source-workflows",
+    requires_key: false,
+    official_url: "http://www.cninfo.com.cn/",
+    tos_url: "http://www.cninfo.com.cn/",
+    notes:
+      "中国证监会指定的沪深官方披露平台；接 cninfo hisAnnouncement/query：company-filings 发现年度报告公告并下载 PDF 正文，pdftotext → 中文 annual_report 文档进入抽取管线（zh profile 产边）。年报为 PDF（非 XBRL），orgId 缺省时按 gssh/gssz 约定构造、查询为空属正常。"
   },
   {
     id: "twse-mops",

@@ -1,6 +1,9 @@
 import { type DocumentType, type NormalizedDocument, type RawDocument } from "@supplystrata/core";
-import { parseHtml } from "@supplystrata/parsers-html";
+import { extractReadableHtmlText, parseHtml } from "@supplystrata/parsers-html";
 import { chunkText, normalizeText } from "@supplystrata/parsers-text";
+
+// 复用同一套 HTML/iXBRL 正文清洗（EDINET type=1 ZIP 里的 PublicDoc/*.htm 与 SEC HTML 同源）。
+export { extractReadableHtmlText } from "@supplystrata/parsers-html";
 
 export interface HtmlDocumentNormalizationInput {
   raw: RawDocument<Uint8Array>;

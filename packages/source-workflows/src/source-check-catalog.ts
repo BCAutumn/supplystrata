@@ -9,8 +9,25 @@ import { createAdapterContext as createSecAdapterContext, secCompanyFactsAdapter
 import { createWorldBankPinkAdapterContext, worldBankPinkAdapter } from "@supplystrata/sources-worldbank-pink";
 import { appleSupplierInputFromConfig, appleSupplierListReviewSourceCheckConnector } from "./apple-suppliers.js";
 import { censusTradeInputFromConfig, censusTradeSourceCheckConnector } from "./census-trade-checks.js";
-import { createDartKrAdapterContext, dartKrAdapter, dartKrCompanyFilingsInputFromConfig, dartKrCompanyFilingsSourceCheckConnector } from "./dart-kr-checks.js";
-import { createEdinetAdapterContext, edinetAdapter, edinetDailyFilingsInputFromConfig, edinetDailyFilingsSourceCheckConnector } from "./edinet-checks.js";
+import { cninfoAdapter, cninfoCompanyFilingsInputFromConfig, cninfoCompanyFilingsSourceCheckConnector, createCninfoAdapterContext } from "./cninfo-checks.js";
+import {
+  createDartKrAdapterContext,
+  dartKrAdapter,
+  dartKrBodyAdapter,
+  dartKrCompanyBodyInputFromConfig,
+  dartKrCompanyBodySourceCheckConnector,
+  dartKrCompanyFilingsInputFromConfig,
+  dartKrCompanyFilingsSourceCheckConnector
+} from "./dart-kr-checks.js";
+import {
+  createEdinetAdapterContext,
+  edinetAdapter,
+  edinetBodyAdapter,
+  edinetCompanyFilingsInputFromConfig,
+  edinetCompanyFilingsSourceCheckConnector,
+  edinetDailyFilingsInputFromConfig,
+  edinetDailyFilingsSourceCheckConnector
+} from "./edinet-checks.js";
 import {
   createHkexNewsAdapterContext,
   hkexNewsAdapter,
@@ -101,6 +118,24 @@ export const SOURCE_CHECK_CATALOG = [
     adapter: edinetAdapter,
     inputFromConfig: edinetDailyFilingsInputFromConfig,
     createContext: (runtime) => createEdinetAdapterContext(runtime.adapterContextInput)
+  }),
+  sourceCheckCatalogEntry({
+    connector: edinetCompanyFilingsSourceCheckConnector,
+    adapter: edinetBodyAdapter,
+    inputFromConfig: edinetCompanyFilingsInputFromConfig,
+    createContext: (runtime) => createEdinetAdapterContext(runtime.adapterContextInput)
+  }),
+  sourceCheckCatalogEntry({
+    connector: cninfoCompanyFilingsSourceCheckConnector,
+    adapter: cninfoAdapter,
+    inputFromConfig: cninfoCompanyFilingsInputFromConfig,
+    createContext: (runtime) => createCninfoAdapterContext(runtime.adapterContextInput)
+  }),
+  sourceCheckCatalogEntry({
+    connector: dartKrCompanyBodySourceCheckConnector,
+    adapter: dartKrBodyAdapter,
+    inputFromConfig: dartKrCompanyBodyInputFromConfig,
+    createContext: (runtime) => createDartKrAdapterContext(runtime.adapterContextInput)
   }),
   sourceCheckCatalogEntry({
     connector: twseMopsElectronicDocumentsSourceCheckConnector,

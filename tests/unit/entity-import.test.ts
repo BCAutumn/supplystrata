@@ -101,6 +101,20 @@ describe("entity import", () => {
     });
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO entity_master"))).toBe(false);
   });
+
+  it("blocks entity-source imports when a globally unique CIK already belongs to another entity", async () => {
+    const client = new MockDbClient({ identifierConflicts: new Map([["cik:0001045810", "ENT-OTHER-NVIDIA"]]) });
+    const result = await applyEntitySourceReviewCandidate(
+      client,
+      entitySourceReviewCandidate({ identifiers: { cik: "0001045810" } }),
+      "tester"
+    );
+
+    expect(result).toEqual({
+      status: "blocked",
+      reason: "identifier already belongs to ENT-OTHER-NVIDIA"
+    });
+  });
 });
 
 function supplierListReviewCandidate() {

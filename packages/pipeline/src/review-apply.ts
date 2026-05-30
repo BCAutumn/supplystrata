@@ -9,7 +9,7 @@ import {
   applySemanticChangeReviewStrategy
 } from "./review-apply-acknowledgements.js";
 import { blockReviewCandidate } from "./review-apply-blocking.js";
-import type { ReviewApplyBatchItem, ReviewApplyBatchSummary, ReviewApplyOptions, ReviewApplyResult } from "./review-apply-definitions.js";
+import { isReviewItemApplicable, type ReviewApplyBatchItem, type ReviewApplyBatchSummary, type ReviewApplyOptions, type ReviewApplyResult } from "./review-apply-definitions.js";
 import { applyEntityReviewStrategy } from "./review-apply-entity.js";
 import { applySupplierListReviewStrategy } from "./review-apply-supplier-list.js";
 
@@ -43,7 +43,7 @@ export async function applyApprovedReviewCandidate(
   const logger = options.logger ?? noopLogger;
   const item = await getReviewCandidate(store.read, reviewId);
   if (item === undefined) return { status: "blocked", review_id: reviewId, reason: "review candidate not found" };
-  if (!canApplyReviewItem(item))
+  if (!isReviewItemApplicable(item))
     return { status: "blocked", review_id: reviewId, reason: `review candidate status is ${item.status}, expected approved or blocked` };
   if (item.kind !== item.candidate.kind) {
     return store.transaction((client) =>
@@ -52,11 +52,6 @@ export async function applyApprovedReviewCandidate(
   }
 
   return reviewApplyStrategies[item.kind](store, item, reviewer, { logger });
-}
-
-function canApplyReviewItem(item: ReviewQueueItem): boolean {
-  // blocked 候选允许人工补 seed/entity 后重试；批处理领取 approved 后会转成带 reviewed_at 的 in_review。
-  return item.status === "approved" || item.status === "blocked" || (item.status === "in_review" && item.reviewed_at !== undefined);
 }
 
 export async function applyApprovedReviewCandidates(

@@ -44,3 +44,10 @@ export type ReviewItemByKind<K extends ReviewCandidateKind> = ReviewQueueItem & 
 export interface ReviewApplyOptions {
   logger?: SupplyStrataLogger;
 }
+
+// 候选可被 apply 的状态判定。放在 definitions 里让 review-apply 编排和各 strategy 共享，
+// 同时避免 strategy 反向 import review-apply.ts 造成循环依赖。
+// blocked 允许人工补 seed/entity 后重试；批处理领取 approved 后会转成带 reviewed_at 的 in_review。
+export function isReviewItemApplicable(item: ReviewQueueItem): boolean {
+  return item.status === "approved" || item.status === "blocked" || (item.status === "in_review" && item.reviewed_at !== undefined);
+}

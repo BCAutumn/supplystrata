@@ -64,6 +64,46 @@ function chunkIdForIndex(docId: string, index: number): string {
   return `${docId}-CHK-${String(index + 1).padStart(4, "0")}`;
 }
 
+export interface ExtractableDocumentFilter {
+  entityId?: string;
+  sourceAdapterId?: string;
+  documentTypes?: readonly string[];
+  limit?: number;
+}
+
+interface ExtractableDocumentIdRow extends pg.QueryResultRow {
+  doc_id: string;
+}
+
+// 选出"已落库、已解析、且绑定了主体实体"的文档，用于在抽取器升级后对存量文档重跑事实提升（backfill）。
+// 只看 primary_entity_id 非空：没有主体的文档无法构成边的一端，重抽也没有意义。
+export async function listExtractableDocumentIds(client: DbClient, filter: ExtractableDocumentFilter = {}): Promise<string[]> {
+  const clauses: string[] = ["primary_entity_id IS NOT NULL", "parse_status = 'parsed'"];
+  const params: unknown[] = [];
+  if (filter.entityId !== undefined) {
+    params.push(filter.entityId);
+    clauses.push(`primary_entity_id = $${params.length}`);
+  }
+  if (filter.sourceAdapterId !== undefined) {
+    params.push(filter.sourceAdapterId);
+    clauses.push(`source_adapter_id = $${params.length}`);
+  }
+  if (filter.documentTypes !== undefined && filter.documentTypes.length > 0) {
+    params.push([...filter.documentTypes]);
+    clauses.push(`document_type = ANY($${params.length})`);
+  }
+  params.push(filter.limit ?? 200);
+  const result = await client.query<ExtractableDocumentIdRow>(
+    `SELECT doc_id
+     FROM documents
+     WHERE ${clauses.join(" AND ")}
+     ORDER BY source_date DESC NULLS LAST, doc_id
+     LIMIT $${params.length}`,
+    params
+  );
+  return result.rows.map((row) => row.doc_id);
+}
+
 export interface DocumentWithChunks extends NormalizedDocument {
   document_type: NormalizedDocument["document_type"];
 }

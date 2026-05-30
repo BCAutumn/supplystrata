@@ -1,7 +1,7 @@
 import type { DatabaseStore } from "@supplystrata/db/write";
 import type { Env } from "@supplystrata/config";
 import type { SupplyStrataLogger } from "@supplystrata/observability";
-import { persistDocumentObservations } from "@supplystrata/pipeline";
+import { createDocumentFactPromoter, persistDocumentObservations } from "@supplystrata/pipeline";
 import { runDueSourceChecks, type DueSourceCheckRunResult } from "@supplystrata/source-workflows";
 import type { SourceCheckWorkerOptions } from "./options.js";
 
@@ -20,12 +20,20 @@ export async function runSourceCheckWorkerCycle(input: {
   logger: SupplyStrataLogger;
 }): Promise<DueSourceCheckRunResult> {
   const startedAt = currentIsoTimestamp();
-  const result = await runDueSourceChecks(input.store, {
-    env: input.env,
-    limit: input.limit,
-    now: startedAt,
-    documentObservationStore: { persistDocumentObservations }
-  });
+  // 提升器持有 graph-builder（local-first 默认 defer，无 Neo4j 连接），用完即关，保证 worker 周期无资源泄漏。
+  const factPromoter = createDocumentFactPromoter(input.store, { logger: input.logger });
+  let result: DueSourceCheckRunResult;
+  try {
+    result = await runDueSourceChecks(input.store, {
+      env: input.env,
+      limit: input.limit,
+      now: startedAt,
+      documentObservationStore: { persistDocumentObservations },
+      factPromoter
+    });
+  } finally {
+    await factPromoter.close();
+  }
   input.logger.info(
     {
       stage: "source-check-worker",

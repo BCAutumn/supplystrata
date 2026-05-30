@@ -40,7 +40,8 @@ export interface BuildCompanyChainViewInput {
 }
 
 export async function buildCompanyChainView(client: DbClient, input: BuildCompanyChainViewInput): Promise<ChainViewModel> {
-  const rootEntityId = await resolveEntityId(client, normalizeCompanyChainQuery(input.query));
+  // scope 前缀（company:）的剥离统一交给 resolveEntityId，这里不再重复处理。
+  const rootEntityId = await resolveEntityId(client, input.query);
   const root = await loadRoot(client, rootEntityId);
   const rootModel: ChainViewRoot = { kind: "company", id: root.entity_id, name: root.display_name };
   const maxDepth = clampDepth(input.depth ?? 2);
@@ -58,13 +59,6 @@ export async function buildCompanyChainView(client: DbClient, input: BuildCompan
     segments,
     stats: summarizeChainSegments(segments)
   };
-}
-
-function normalizeCompanyChainQuery(query: string): string {
-  const trimmed = query.trim();
-  // MCP 和 API 暴露的是 scope 语义；底层 resolver 仍只接受实体查询本体。
-  if (trimmed.toLowerCase().startsWith("company:")) return trimmed.slice("company:".length).trim();
-  return trimmed;
 }
 
 async function loadRoot(client: DbClient, entityId: string): Promise<EntityHeaderRow> {

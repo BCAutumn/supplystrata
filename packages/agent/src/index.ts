@@ -59,7 +59,7 @@ export function plan(input: AgentPlanInput, client: SupplyStrataMcpClient): Agen
 export async function fetch_via_mcp(agentPlan: AgentPlan): Promise<AgentFetchResult> {
   const resolved = await agentPlan.client.callTool("resolve_company", { query: agentPlan.company });
   const resolvedData = readRecordPath(resolved, ["data"]);
-  const companyId = readOptionalStringPath(resolvedData, ["entity_id"]) ?? readOptionalStringPath(resolvedData, ["entity", "entity_id"]);
+  const companyId = companyIdFromIdentityResolution(resolvedData);
   const pending = await agentPlan.client.callTool("start_research_session", { company: agentPlan.company, depth: agentPlan.depth });
   const confirmation = await agentPlan.client.callTool("confirm_research_session", {
     pending_id: readStringPath(pending, ["pending_id"]),
@@ -126,6 +126,11 @@ export async function synthesize(fetchResult: AgentFetchResult, options: LlmHelp
 export async function runReferenceAgent(input: AgentPlanInput, client: SupplyStrataMcpClient, options: LlmHelperOptions = {}): Promise<AgentReport> {
   const agentPlan = plan(input, client);
   return synthesize(await fetch_via_mcp(agentPlan), options);
+}
+
+function companyIdFromIdentityResolution(data: Record<string, unknown>): string | null {
+  if (data["status"] !== "resolved") return null;
+  return readOptionalStringPath(data, ["card", "entity", "entity_id"]);
 }
 
 function cannotConcludeFetch(company: string, runId: string | null, sourceGaps: readonly string[]): AgentFetchResult {

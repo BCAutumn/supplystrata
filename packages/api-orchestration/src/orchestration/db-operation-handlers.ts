@@ -7,10 +7,10 @@ import {
 } from "@supplystrata/ai-analysis";
 import { loadChainCard, loadCompanyCard, loadComponentCard, loadEvidenceCard, loadUnknownMap } from "@supplystrata/card-builder";
 import type { Env } from "@supplystrata/config";
-import { getClaim, isEntityResolutionError, listChangeTimeline } from "@supplystrata/db/read";
+import { getClaim, isEntityResolutionError, listChangeTimeline, type ChangeTimelineScope } from "@supplystrata/db/read";
 import type { DatabaseStore, DbClient } from "@supplystrata/db/write";
 import { buildAiProviderStatus } from "@supplystrata/llm-helpers";
-import { persistDocumentObservations } from "@supplystrata/pipeline";
+import { applyApprovedReviewCandidate, createDocumentFactPromoter, persistDocumentObservations, type ReviewApplyResult } from "@supplystrata/pipeline";
 import { buildResearchPack, type ConsumerReadModel, type ReasoningWalkthrough } from "@supplystrata/research-pack";
 import { decideReviewCandidateTransactionally } from "@supplystrata/review-store";
 import { listSourceCheckRunStatus, listSourceHealthRows, type SourceCheckJobStatus, type SourceHealthRow } from "@supplystrata/source-monitor";
@@ -25,7 +25,7 @@ import {
 import type { ComponentObservation, CompanyObservation } from "@supplystrata/render";
 import { buildWorkbenchModel, changeTimelineItemToDto, claimToDto, toScbomDocument, type WorkbenchSourceHealth } from "@supplystrata/workbench-export";
 import type { AiAnalysisArtifact } from "@supplystrata/ai-analysis";
-import type { CompanySupplyChainReport, ResearchRunRequest, ReviewDecisionResult } from "../api-contract/definitions/api-dtos.js";
+import type { CompanyIdentityResolution, CompanySupplyChainReport, ResearchRunRequest, ReviewDecisionResult } from "../api-contract/definitions/api-dtos.js";
 import { ApiHttpError, type ApiOperationHandlerInput, type ApiOperationHandlers } from "../definitions/api-operation.js";
 import { buildCompanySupplyChainResearchSummary } from "../functions/company-supply-chain-report-summary.js";
 import { loadLatestAiAnalysisArtifactFile } from "./ai-analysis-artifact-files.js";
@@ -45,6 +45,7 @@ const AI_ANALYSIS_SCOPE_KINDS: readonly AiAnalysisScopeKind[] = ["company", "com
 export function createDbApiOperationHandlers(store: DatabaseStore, env?: Env): ApiOperationHandlers {
   return {
     getCompanyCard: async (input) => loadCompanyCard(store.read, pathParam(input, "id"), { computedAt: input.now }),
+    resolveCompanyIdentity: async (input) => resolveCompanyIdentityForHttp(store, input),
     getComponentCard: async (input) => loadComponentCard(store.read, pathParam(input, "id"), { computedAt: input.now }),
     getChain: async (input) => loadChainCard(store.read, pathParam(input, "scope"), { depth: positiveIntQuery(input.query, "depth", 3) }),
     getClaim: async (input) => loadClaimForHttp(store.read, pathParam(input, "id")),
@@ -56,7 +57,8 @@ export function createDbApiOperationHandlers(store: DatabaseStore, env?: Env): A
       (
         await listChangeTimeline(store.read, {
           since: sinceQuery(input.query, input.now),
-          limit: positiveIntQuery(input.query, "limit", 100)
+          limit: positiveIntQuery(input.query, "limit", 100),
+          ...changeScopeQuery(input.query)
         })
       ).map(changeTimelineItemToDto),
     listSourceHealth: async () => (await listSourceHealthRows(store.read)).map(sourceHealthToDto),
@@ -95,11 +97,10 @@ export function createDbApiOperationHandlers(store: DatabaseStore, env?: Env): A
       return artifact;
     },
     runSourceChecks: async (input) =>
-      runDueSourceChecks(store, {
+      runSourceChecksWithFactPromotion(store, {
         env: requireRuntimeEnv(env),
         now: input.now,
-        ...sourceCheckRunRequest(input.body),
-        documentObservationStore: { persistDocumentObservations }
+        ...sourceCheckRunRequest(input.body)
       }),
     createCompanyResearchRun: async (input) => {
       const request = researchRunRequest(input.body);
@@ -130,6 +131,25 @@ function aiProviderConfigInput(
     ...(env?.ANTHROPIC_API_KEY === undefined ? {} : { ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
     ...(env?.DEEPSEEK_API_KEY === undefined ? {} : { DEEPSEEK_API_KEY: env.DEEPSEEK_API_KEY })
   };
+}
+
+async function resolveCompanyIdentityForHttp(store: DatabaseStore, input: ApiOperationHandlerInput): Promise<CompanyIdentityResolution> {
+  const query = pathParam(input, "id");
+  try {
+    const card = await loadCompanyCard(store.read, query, { computedAt: input.now });
+    return { status: "resolved", query, card };
+  } catch (error) {
+    if (!isEntityResolutionError(error)) throw error;
+    return {
+      status: "unresolved",
+      query,
+      reason:
+        `"${query}" is not in the local cache yet. This is not a claim that the company does not exist: ` +
+        "global identity bootstrap (GLEIF, OpenFIGI, Wikidata, Companies House, OpenCorporates, and national registries) runs inside start_research_session.",
+      resolution_policy: "cache_only_no_bootstrap",
+      next_actions: ["start_research_session"]
+    };
+  }
 }
 
 async function loadClaimForHttp(client: DbClient, claimId: string): ReturnType<typeof claimToDto> {
@@ -211,6 +231,8 @@ async function runInlineSourceChecksIfRequested(
   input: { env: Env; now: string; mode: "inline" | "queued"; checkTargetIds: readonly string[] }
 ): Promise<CompanySupplyChainReport["refresh"]["source_check_execution"]> {
   if (input.mode === "queued" || input.checkTargetIds.length === 0) return null;
+  // 读穿报告是 GET 研究面（read_through_research_may_network_no_fact_edge_write）：inline source check 只为
+  // 刷新观测/文档，绝不写事实边。要把规则事实物化成 current 边，须走显式确认门的 run_source_check 写工具。
   const result = await runDueSourceChecks(store, {
     env: input.env,
     now: input.now,
@@ -225,6 +247,24 @@ async function runInlineSourceChecksIfRequested(
     dead_jobs: result.dead_jobs,
     extraction_summary: summarizeInlineSourceCheckExtraction(result.items)
   };
+}
+
+// 显式 run_source_check 写工具的入口：注入观测 store 与事实提升器，让“观测→抽取→evidence-gated promote
+// 写边”这条主干通过 MCP 真正走通（#13）。读穿报告 GET 不走这里（它只刷观测）。提升器持有 graph-builder，用完必关。
+async function runSourceChecksWithFactPromotion(
+  store: DatabaseStore,
+  input: Omit<Parameters<typeof runDueSourceChecks>[1], "documentObservationStore" | "factPromoter">
+): Promise<Awaited<ReturnType<typeof runDueSourceChecks>>> {
+  const factPromoter = createDocumentFactPromoter(store);
+  try {
+    return await runDueSourceChecks(store, {
+      ...input,
+      documentObservationStore: { persistDocumentObservations },
+      factPromoter
+    });
+  } finally {
+    await factPromoter.close();
+  }
 }
 
 function summarizeInlineSourceCheckExtraction(
@@ -376,11 +416,25 @@ async function decideReview(store: DatabaseStore, input: ApiOperationHandlerInpu
     reviewer: request.reviewer,
     reason: request.reason
   });
+  if (decision === "rejected") {
+    return { review_id: item.review_id, decision, status: "rejected", fact_edge_write_allowed: false };
+  }
+  // 批准后立即在确认边界内做 evidence-gated 应用：把 approved 候选物化成 current 边/实体，或在无法解析时
+  // 显式 block（带 reason）。这样 MCP review.approve 真正接通事实主干，agent 拿到“写了几条边”的即时反馈，
+  // 而不是让批准的候选悬在 approved 态、只能靠 CLI 另行 apply。reviewer 即审批人，全程审计留痕。
+  const applyResult = await applyApprovedReviewCandidate(store, item.review_id, request.reviewer);
+  return reviewDecisionResultFromApply(item.review_id, applyResult);
+}
+
+function reviewDecisionResultFromApply(reviewId: string, applyResult: ReviewApplyResult): ReviewDecisionResult {
+  const appliedEdges = applyResult.status === "applied" ? applyResult.apply_results.length : 0;
   return {
-    review_id: item.review_id,
-    decision,
-    status: decision,
-    fact_edge_write_allowed: false
+    review_id: reviewId,
+    decision: "approved",
+    status: applyResult.status,
+    fact_edge_write_allowed: appliedEdges > 0,
+    applied_edges: appliedEdges,
+    ...("reason" in applyResult && applyResult.reason !== undefined ? { apply_reason: applyResult.reason } : {})
   };
 }
 
@@ -572,6 +626,35 @@ function optionalSingleQuery(query: URLSearchParams, name: string): string | und
   const value = query.get(name);
   if (value === null || value.trim().length === 0) return undefined;
   return value.trim();
+}
+
+const CHANGE_SCOPE_KINDS = [
+  "company",
+  "entity",
+  "edge",
+  "claim",
+  "observation",
+  "lead",
+  "unknown",
+  "alert",
+  "risk_view",
+  "risk_metric",
+  "review",
+  "source"
+] as const;
+
+// 解析 ?scope=<kind>:<id>（如 company:ENT-ASML / source:sec-edgar）成 ChangeTimelineScope。
+// 缺省（不传 scope）时返回空，保持原有“全局变更流”语义。
+function changeScopeQuery(query: URLSearchParams): { scope?: ChangeTimelineScope } {
+  const raw = optionalSingleQuery(query, "scope");
+  if (raw === undefined) return {};
+  const separator = raw.indexOf(":");
+  if (separator <= 0) throw new ApiHttpError(400, `Change scope must use <kind>:<id>, got: ${raw}`);
+  const kind = raw.slice(0, separator);
+  const id = raw.slice(separator + 1).trim();
+  if (id.length === 0) throw new ApiHttpError(400, `Change scope id must be a non-empty string: ${raw}`);
+  if (!(CHANGE_SCOPE_KINDS as readonly string[]).includes(kind)) throw new ApiHttpError(400, `Unsupported change scope kind: ${kind}`);
+  return { scope: { kind, id } as ChangeTimelineScope };
 }
 
 function sourceHealthToDto(row: SourceHealthRow): WorkbenchSourceHealth {

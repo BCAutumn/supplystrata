@@ -59,7 +59,20 @@ module.exports = {
       name: "fact-and-derived-writers-must-not-import-llm-helpers",
       severity: "error",
       from: {
-        path: "^packages/(pipeline|graph-builder|claim-builder|review-store|evidence-maintenance|observation-store)/src"
+        // db 是 edges/evidence/claims 的写入原语；它和上层 fact/派生 writer 一样永不允许 import llm-helpers，
+        // 这样任何写事实的代码路径在原语层就被机械隔离于 LLM 调用入口（方法学不变式 #1）。
+        path: "^packages/(db|pipeline|graph-builder|claim-builder|review-store|evidence-maintenance|observation-store)/src"
+      },
+      to: { path: "^packages/llm-helpers/src" }
+    },
+    {
+      name: "research-pack-fact-paths-must-not-import-llm-helpers",
+      severity: "error",
+      from: {
+        // research-pack 会触发 claim 写入（prepare-data → claim-builder）。只允许 plan-context profile derive
+        // 这一隔离子集 import llm-helpers；其余 research-pack 代码（含 claim-build 编排）禁止触碰 LLM 入口。
+        path: "^packages/research-pack/src",
+        pathNot: "^packages/research-pack/src/research-target-profile-(derive|definitions)\\.ts$"
       },
       to: { path: "^packages/llm-helpers/src" }
     },

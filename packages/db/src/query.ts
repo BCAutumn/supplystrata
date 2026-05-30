@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { normalizeAlias, type ComponentSpecificity, type EdgeValidity, type EvidenceLevel, type ExtractionMethod, type RelationType } from "@supplystrata/core";
+import { normalizeAlias, stripEntityScopePrefix, type ComponentSpecificity, type EdgeValidity, type EvidenceLevel, type ExtractionMethod, type RelationType } from "@supplystrata/core";
 import type { DbClient } from "./client.js";
 
 export interface EdgeRow extends pg.QueryResultRow {
@@ -152,7 +152,9 @@ export async function resolveEntityId(client: DbClient, input: string): Promise<
 }
 
 export async function tryResolveEntityId(client: DbClient, input: string): Promise<string | undefined> {
-  const normalized = normalizeAlias(input);
+  // 统一在解析入口剥离 company:/entity: scope 前缀，让所有读取面（traverse_chain、list_unknowns、card 等）行为一致。
+  const query = stripEntityScopePrefix(input);
+  const normalized = normalizeAlias(query);
   const entityResult = await client.query<{ entity_id: string } & pg.QueryResultRow>(
     `SELECT entity_id FROM entity_master
      WHERE lower(entity_id) = $1 OR lower(display_name) = $1 OR lower(canonical_name) = $1
@@ -160,7 +162,7 @@ export async function tryResolveEntityId(client: DbClient, input: string): Promi
     [normalized]
   );
   if (entityResult.rows[0] !== undefined) return entityResult.rows[0].entity_id;
-  const identifier = await tryResolveEntityIdByIdentifier(client, input);
+  const identifier = await tryResolveEntityIdByIdentifier(client, query);
   if (identifier !== undefined) return identifier;
   const aliasResult = await client.query<{ entity_id: string } & pg.QueryResultRow>("SELECT entity_id FROM entity_alias WHERE alias_norm = $1 LIMIT 1", [
     normalized

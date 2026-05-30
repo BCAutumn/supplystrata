@@ -11,9 +11,26 @@ import {
   RANKING_CALIBRATION_LABELS,
   SEMANTIC_LAYERS,
   calculateEdgeFreshness,
+  createDeterministicId,
   createId,
-  inferExtractionMethod
+  inferExtractionMethod,
+  stripEntityScopePrefix
 } from "@supplystrata/core";
+
+describe("core entity scope prefix", () => {
+  it("strips company:/entity: scope prefixes case-insensitively", () => {
+    expect(stripEntityScopePrefix("company:ENT-ASML")).toBe("ENT-ASML");
+    expect(stripEntityScopePrefix("Company: ENT-ASML")).toBe("ENT-ASML");
+    expect(stripEntityScopePrefix("entity:ENT-ASML")).toBe("ENT-ASML");
+  });
+
+  it("leaves bare queries and non-entity scope kinds untouched", () => {
+    expect(stripEntityScopePrefix("ENT-ASML")).toBe("ENT-ASML");
+    expect(stripEntityScopePrefix("ASML Holding N.V.")).toBe("ASML Holding N.V.");
+    expect(stripEntityScopePrefix("component:CMP-EUV")).toBe("component:CMP-EUV");
+    expect(stripEntityScopePrefix("edge:EDGE-1")).toBe("edge:EDGE-1");
+  });
+});
 
 describe("core extraction method inference", () => {
   it("maps every supported extractor_id prefix explicitly", () => {
@@ -68,6 +85,16 @@ describe("core intelligence-network contract constants", () => {
     expect(createId("CHAIN")).toMatch(/^CHAIN-/);
     expect(createId("SEG")).toMatch(/^SEG-/);
     expect(createId("STR")).toMatch(/^STR-/);
+  });
+
+  it("derives deterministic ids that are stable per key and distinct across keys", () => {
+    const first = createDeterministicId("UNK", ["ENT-ASML", "BUYS_FROM", "carl zeiss smt"]);
+    const same = createDeterministicId("UNK", ["ENT-ASML", "BUYS_FROM", "carl zeiss smt"]);
+    const different = createDeterministicId("UNK", ["ENT-ASML", "USES_FOUNDRY", "carl zeiss smt"]);
+
+    expect(first).toMatch(/^UNK-[0-9a-f]{32}$/);
+    expect(same).toBe(first);
+    expect(different).not.toBe(first);
   });
 
   it("keeps relation strength and freshness methodology explicit", () => {

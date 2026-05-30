@@ -16,6 +16,7 @@ import { sourceWorkflowAdapterContextInput } from "./adapter-context.js";
 import { inferUniqueTargetKind, runRegisteredSourceCheckConnector } from "./source-check-registry.js";
 import type { SourceCheckSummary } from "./source-check-runner.js";
 import type { SourceDocumentObservationStore } from "./document-observation-port.js";
+import type { SourceCheckFactPromoter } from "./fact-promoter-port.js";
 
 export { listRegisteredSourceCheckConnectorCapabilities, listSourceCheckConnectorIds } from "./source-check-registry.js";
 
@@ -56,6 +57,7 @@ export interface SourceCheckRunOptions {
   checkedAt: string;
   logger?: SourceCheckConnectorLogger;
   documentObservationStore?: SourceDocumentObservationStore;
+  factPromoter?: SourceCheckFactPromoter;
 }
 
 export type DueSourceCheckRunInput = { now: string; limit?: number } & SourceCheckTargetSelection & Omit<SourceCheckRunOptions, "checkedAt">;
@@ -79,7 +81,8 @@ export async function runDueSourceChecks(store: DatabaseStore, input: DueSourceC
         checkedAt: input.now,
         logger,
         adapterContextInput,
-        ...(input.documentObservationStore === undefined ? {} : { documentObservationStore: input.documentObservationStore })
+        ...(input.documentObservationStore === undefined ? {} : { documentObservationStore: input.documentObservationStore }),
+        ...(input.factPromoter === undefined ? {} : { factPromoter: input.factPromoter })
       })
     );
   }
@@ -106,6 +109,7 @@ async function runDueSourceCheckTarget(
     checked_at: options.checkedAt,
     ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })
   });
+  await promoteSourceCheckFacts(summaries, options.factPromoter, options.logger ?? noopLogger);
   return {
     check_target_id: target.check_target_id,
     source_adapter_id: target.source_adapter_id,
@@ -154,12 +158,38 @@ export async function runManualSourceCheck(store: DatabaseStore, input: ManualSo
       })
     );
   }
-  return runRegisteredSourceCheckConnector(store, target, {
+  const summaries = await runRegisteredSourceCheckConnector(store, target, {
     logger: options.logger ?? noopLogger,
     adapter_context_input: sourceWorkflowAdapterContextInput(options.env, { now: options.checkedAt }),
     checked_at: options.checkedAt,
     ...(options.documentObservationStore === undefined ? {} : { document_observation_store: options.documentObservationStore })
   });
+  await promoteSourceCheckFacts(summaries, options.factPromoter, options.logger ?? noopLogger);
+  return summaries;
+}
+
+// source check 落库观测后跑“后置事实提升”。提升只针对新增/变更文档（unchanged 文档的事实已写过，
+// 重复提升只会制造证据 churn）。每篇文档的提升失败被隔离并降级为告警：文档与观测已提交，缺失的只是
+// 本次自动写边，可由后续重跑或 review 流程补上，绝不因单篇抽取失败而让整个 source check 任务失败。
+async function promoteSourceCheckFacts(
+  summaries: SourceCheckSummary[],
+  factPromoter: SourceCheckFactPromoter | undefined,
+  logger: SourceCheckConnectorLogger
+): Promise<void> {
+  if (factPromoter === undefined) return;
+  for (const summary of summaries) {
+    if (summary.change_type === "DOCUMENT_UNCHANGED") continue;
+    try {
+      const promotion = await factPromoter.promoteDocumentFacts({ docId: summary.doc_id });
+      summary.fact_candidates = promotion.candidates;
+      summary.applied_edges = promotion.applied_edges;
+    } catch (error) {
+      logger.warn(
+        { stage: "fact-promote", doc_id: summary.doc_id, source_adapter_id: summary.source_adapter_id, err: messageFromUnknown(error) },
+        "fact promotion failed for checked document; observations were already committed"
+      );
+    }
+  }
 }
 
 function manualSourceCheckTarget(input: ManualSourceCheckInput): SourceCheckTargetRow {

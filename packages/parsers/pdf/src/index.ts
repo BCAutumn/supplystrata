@@ -15,6 +15,8 @@ export interface PdfParseInput {
   primaryEntityId?: string;
   sourceDate?: string;
   layout: boolean;
+  // 来源语言（如中国年报 PDF 为 "zh"，日本/英文为对应值）。默认 "en"，保持既有行为。
+  language?: string;
 }
 
 export async function extractPdfText(bytes: Uint8Array, layout = true): Promise<string> {
@@ -44,7 +46,7 @@ export async function parsePdf(input: PdfParseInput): Promise<NormalizedDocument
     doc_id: input.raw.doc_id,
     source_adapter_id: input.raw.source_adapter_id,
     document_type: input.documentType,
-    language: "en",
+    language: input.language ?? "en",
     fetched_at: input.raw.fetched_at,
     source_url: input.raw.url,
     storage_key: input.raw.storage_key,

@@ -1,5 +1,5 @@
 import { inferExtractionMethod, type CandidateRelation, type EvidenceLevel, type NormalizedDocument, type ScoringResult } from "@supplystrata/core";
-import { sourceAuthorityFor, type RelationAuthority, type SourceAuthority } from "@supplystrata/source-registry";
+import { sourceAuthorityFor, type PublisherType, type RelationAuthority, type SourceAuthority } from "@supplystrata/source-registry";
 
 export interface EvidenceScorer {
   score(candidate: CandidateRelation, doc: NormalizedDocument, options?: EvidenceScoringOptions): Promise<ScoringResult>;
@@ -33,7 +33,7 @@ export class DeterministicEvidenceScorer implements EvidenceScorer {
     const uncapped = base + factors.reduce((sum, item) => sum + item.value, 0);
     const cap = evidenceLevel === 5 ? 0.95 : 0.9;
     const confidence = Math.max(0, Math.min(cap, uncapped));
-    const baseNeedsReview = method === "llm" || evidenceLevel <= 3 || sourceRequiresReview(sourceAuthority);
+    const baseNeedsReview = method === "llm" || evidenceLevel <= 3 || sourceRequiresReview(sourceAuthority) || !isAutoPromotePublisher(sourceAuthority.publisher_type);
     return {
       evidence_level: evidenceLevel,
       confidence,
@@ -65,6 +65,13 @@ function authorityConfidenceFactor(authority: RelationAuthority): number {
 
 function sourceRequiresReview(authority: SourceAuthority): boolean {
   return authority.relation_authority === "lead_only" || authority.relation_authority === "macro_trend";
+}
+
+// 防御性兜底：auto-promote 要求"来源=官方"。evidence_level 上限虽已隐式编码在 source registry 里，
+// 但若某条 registry 记录被错配成高 cap + 非 lead/macro authority，仅靠等级仍可能让非官方来源自动写事实。
+// 这里显式只允许官方/受监管发布者类型走 auto-promote，其余一律退回 review，且永远不会放宽现有门槛。
+function isAutoPromotePublisher(publisher: PublisherType): boolean {
+  return publisher === "regulator" || publisher === "company_official" || publisher === "government_registry" || publisher === "official_supplier_list";
 }
 
 function baseConfidence(level: EvidenceLevel): number {

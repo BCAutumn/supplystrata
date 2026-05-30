@@ -12,13 +12,19 @@ export interface HtmlParseInput {
   sourceDate?: string;
 }
 
-export function parseHtml(input: HtmlParseInput): NormalizedDocument {
-  const html = new TextDecoder("utf-8").decode(input.raw.body);
+// 把 HTML/iXBRL 字节抽成可读正文（title + 块级换行规整）。SEC HTML 与 EDINET iXBRL（type=1 ZIP 里的
+// PublicDoc/*.htm）共用同一套清洗，避免每个来源各写一份 HTML 解析。返回纯文本，由调用方决定语言/切块/文档类型。
+export function extractReadableHtmlText(bytes: Uint8Array): string {
+  const html = new TextDecoder("utf-8").decode(bytes);
   const $ = cheerio.load(html);
   $("script, style, noscript, svg, nav, footer, header").remove();
   const title = normalizeText($("title").first().text());
   const bodyText = extractReadableBodyText($);
-  const text = title.length > 0 ? `${title}\n\n${bodyText}` : bodyText;
+  return title.length > 0 ? `${title}\n\n${bodyText}` : bodyText;
+}
+
+export function parseHtml(input: HtmlParseInput): NormalizedDocument {
+  const text = extractReadableHtmlText(input.raw.body);
   const chunks = chunkText(text, input.raw.doc_id, 7000);
 
   return {

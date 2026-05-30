@@ -56,6 +56,18 @@ export function extractEdinetDocumentEntries(raw: RawDocument<Uint8Array>): Edin
   return filterEdinetEntries(parseEdinetDocumentListPayload(raw.body).results, filters);
 }
 
+// 给正文 body 适配器复用：在 daily 列表里按 edinet_code / sec_code / doc_type_code 选出目标文档。
+export function filterEdinetDocumentEntries(
+  entries: readonly EdinetDocumentEntry[],
+  filters: { edinetCodes?: readonly string[]; secCodes?: readonly string[]; docTypeCodes?: readonly string[] }
+): EdinetDocumentEntry[] {
+  return filterEdinetEntries(entries, {
+    edinetCodes: filters.edinetCodes ?? [],
+    secCodes: filters.secCodes ?? [],
+    docTypeCodes: filters.docTypeCodes ?? []
+  });
+}
+
 export function normalizeEdinetDocumentList(raw: RawDocument<Uint8Array>): NormalizedDocument {
   const payload = parseEdinetDocumentListPayload(raw.body);
   const filters = filtersFromMetadata(raw.metadata);

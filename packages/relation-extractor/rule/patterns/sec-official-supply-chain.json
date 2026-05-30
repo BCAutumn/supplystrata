@@ -16,7 +16,7 @@
       "component": "memory",
       "componentId": "COMP-MEMORY",
       "specificity": "unspecified",
-      "patternSources": ["\\bmemor(?:y|ies)\\b"]
+      "patternSources": ["\\bmemor(?:y|ies)\\b", "メモリ(?:ー)?", "半導体メモリ", "存储(?:器|芯片)?", "存儲", "内存", "記憶體", "메모리(?:반도체)?"]
     }
   ],
   "productComponents": [
@@ -42,7 +42,19 @@
       "component": "wafer",
       "componentId": "COMP-WAFER",
       "specificity": "explicit",
-      "patternSources": ["\\b(?:wafer|foundry|foundries|fabrication)\\b"]
+      "patternSources": [
+        "\\b(?:wafer|foundry|foundries|fabrication)\\b",
+        "ウェ[ーハ]ー?",
+        "ウエハ(?:ー)?",
+        "ファウンドリ(?:ー)?",
+        "半導体(?:の)?製造",
+        "晶圆",
+        "晶圓",
+        "晶圆代工",
+        "半导体制造",
+        "웨이퍼",
+        "반도체\\s*제조"
+      ]
     },
     {
       "component": "battery cell",
@@ -55,6 +67,12 @@
       "componentId": "COMP-EV-COMPONENT",
       "specificity": "inferred",
       "patternSources": ["\\b(?:electric vehicles?|evs?|automotive components?|vehicle components?)\\b"]
+    },
+    {
+      "component": "optics",
+      "componentId": "COMP-OPTICS",
+      "specificity": "explicit",
+      "patternSources": ["\\b(?:optics|optical components?|lenses|mirrors|illuminators|collectors)\\b"]
     }
   ],
   "sharedComponents": {
@@ -72,34 +90,38 @@
     }
   },
   "customerCounterparties": [
-    { "surface": "Microsoft", "patternSources": ["\\b(?:microsoft|azure)\\b"] },
-    { "surface": "Amazon", "patternSources": ["\\b(?:amazon|amazon\\.com|aws|amazon web services)\\b"] },
-    { "surface": "Alphabet", "patternSources": ["\\b(?:alphabet|google|google cloud|gcp)\\b"] },
+    { "surface": "Microsoft", "patternSources": ["\\b(?:microsoft|azure)\\b", "マイクロソフト", "微软"] },
+    { "surface": "Amazon", "patternSources": ["\\b(?:amazon|amazon\\.com|aws|amazon web services)\\b", "アマゾン", "亚马逊"] },
+    { "surface": "Alphabet", "patternSources": ["\\b(?:alphabet|google|google cloud|gcp)\\b", "グーグル", "谷歌"] },
     { "surface": "Meta", "patternSources": ["\\b(?:meta|meta platforms|facebook)\\b"] },
-    { "surface": "Oracle", "patternSources": ["\\b(?:oracle|oci|oracle cloud)\\b"] },
+    { "surface": "Oracle", "patternSources": ["\\b(?:oracle|oci|oracle cloud)\\b", "オラクル", "甲骨文"] },
     { "surface": "CoreWeave", "patternSources": ["\\bcoreweave\\b"] },
     { "surface": "OpenAI", "patternSources": ["\\bopenai\\b"] },
-    { "surface": "Apple", "patternSources": ["\\bapple\\b"] },
-    { "surface": "Dell", "patternSources": ["\\b(?:dell|dell technologies)\\b"] },
+    { "surface": "Apple", "patternSources": ["\\bapple\\b", "アップル", "苹果", "애플"] },
+    { "surface": "Dell", "patternSources": ["\\b(?:dell|dell technologies)\\b", "デル", "戴尔"] },
     { "surface": "HPE", "patternSources": ["\\b(?:hpe|hewlett packard enterprise)\\b"] },
     { "surface": "Supermicro", "patternSources": ["\\b(?:supermicro|super micro computer)\\b"] }
   ],
   "supplierCounterparties": [
-    { "surface": "TSMC", "patternSources": ["\\b(?:tsmc|taiwan semiconductor manufacturing)\\b"] },
-    { "surface": "Samsung", "patternSources": ["\\bsamsung\\b"] },
-    { "surface": "SK hynix", "patternSources": ["\\bsk\\s*hynix\\b"] },
-    { "surface": "Micron", "patternSources": ["\\bmicron\\b"] },
-    { "surface": "Intel", "patternSources": ["\\bintel\\b"] },
-    { "surface": "ASML", "patternSources": ["\\basml\\b"] },
-    { "surface": "Hon Hai", "patternSources": ["\\b(?:hon hai|foxconn)\\b"] },
-    { "surface": "Wistron", "patternSources": ["\\bwistron\\b"] },
+    {
+      "surface": "TSMC",
+      "patternSources": ["\\b(?:tsmc|taiwan semiconductor manufacturing)\\b", "台湾積体電路", "台湾セミコンダクター", "台积电", "台積電"]
+    },
+    { "surface": "Samsung", "patternSources": ["\\bsamsung\\b", "サムスン(?:電子)?", "三星(?:电子)?", "삼성(?:전자)?"] },
+    { "surface": "SK hynix", "patternSources": ["\\bsk\\s*hynix\\b", "SK\\s*ハイニックス", "(?:SK)?海力士", "(?:SK)?하이닉스"] },
+    { "surface": "Micron", "patternSources": ["\\bmicron\\b", "マイクロン", "美光", "마이크론"] },
+    { "surface": "Intel", "patternSources": ["\\bintel\\b", "インテル", "英特尔", "인텔"] },
+    { "surface": "ASML", "patternSources": ["\\basml\\b", "阿斯麦"] },
+    { "surface": "Hon Hai", "patternSources": ["\\b(?:hon hai|foxconn)\\b", "鴻海", "フォックスコン", "鸿海", "富士康", "폭스콘"] },
+    { "surface": "Wistron", "patternSources": ["\\bwistron\\b", "纬创"] },
     { "surface": "Fabrinet", "patternSources": ["\\bfabrinet\\b"] },
-    { "surface": "Quanta", "patternSources": ["\\bquanta\\b"] },
-    { "surface": "Inventec", "patternSources": ["\\binventec\\b"] },
-    { "surface": "Panasonic", "patternSources": ["\\bpanasonic\\b"] },
-    { "surface": "CATL", "patternSources": ["\\b(?:catl|contemporary amperex technology)\\b"] },
-    { "surface": "LG Energy Solution", "patternSources": ["\\b(?:lg energy solution|lg chem)\\b"] },
-    { "surface": "BYD", "patternSources": ["\\bbyd\\b"] }
+    { "surface": "Quanta", "patternSources": ["\\bquanta\\b", "广达"] },
+    { "surface": "Inventec", "patternSources": ["\\binventec\\b", "英业达"] },
+    { "surface": "Panasonic", "patternSources": ["\\bpanasonic\\b", "パナソニック", "松下", "파나소닉"] },
+    { "surface": "CATL", "patternSources": ["\\b(?:catl|contemporary amperex technology)\\b", "寧徳時代", "CATL", "宁德时代"] },
+    { "surface": "LG Energy Solution", "patternSources": ["\\b(?:lg energy solution|lg chem)\\b", "LGエナジー", "LG新能源", "LG化学", "LG에너지솔루션", "엘지에너지"] },
+    { "surface": "BYD", "patternSources": ["\\bbyd\\b", "比亜迪", "比亚迪"] },
+    { "surface": "Carl Zeiss SMT", "patternSources": ["\\bcarl zeiss(?: smt)?\\b", "\\bzeiss smt\\b", "ツァイス", "蔡司"] }
   ],
   "manufacturingServiceSuppliers": [
     { "surface": "Hon Hai", "patternSources": ["\\b(?:hon hai|foxconn)\\b"], "serviceComponentKey": "manufacturingServices" },

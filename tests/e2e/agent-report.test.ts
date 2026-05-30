@@ -9,7 +9,7 @@ class GlobalCompanyMcpClient implements SupplyStrataMcpClient {
     this.calls.push({ name, input });
     switch (name) {
       case "resolve_company":
-        return { data: { entity: { entity_id: "ENT-SAMSUNG", legal_name: "Samsung Electronics Co., Ltd." } } };
+        return { data: { status: "resolved", card: { entity: { entity_id: "ENT-SAMSUNG", legal_name: "Samsung Electronics Co., Ltd." } } } };
       case "start_research_session":
         return { status: "requires_confirmation", pending_id: "PENDING-SAMSUNG-1", confirmation_token: "TOKEN-SAMSUNG-1" };
       case "confirm_research_session":

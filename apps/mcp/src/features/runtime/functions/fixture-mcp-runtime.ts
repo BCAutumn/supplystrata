@@ -14,6 +14,18 @@ export function createFixtureApiOperationHandlers(): ApiOperationHandlers {
           aliases: ["NVIDIA", "NVDA"]
         }
       }),
+    resolveCompanyIdentity: async (input) =>
+      fixtureReadData(input, {
+        status: "resolved",
+        query: input.path_params["id"] ?? "NVIDIA",
+        card: {
+          entity: {
+            entity_id: "ENT-NVIDIA",
+            legal_name: "NVIDIA Corporation",
+            aliases: ["NVIDIA", "NVDA"]
+          }
+        }
+      }),
     getEvidence: async (input) =>
       fixtureReadData(input, {
         evidence_id: input.path_params["id"],

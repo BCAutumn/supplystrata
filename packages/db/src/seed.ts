@@ -169,6 +169,7 @@ async function backfillEdgeComponents(client: DbClient): Promise<void> {
          updated_at = now()
      FROM evidence ev
      WHERE e.primary_evidence_id = ev.evidence_id
+       AND e.validity = 'current'
        AND lower(e.component) = 'hbm'
        AND ev.cite_text ~* '(^|[^[:alnum:]_])(memory|memories)([^[:alnum:]_]|$)'
        AND ev.cite_text !~* '(^|[^[:alnum:]_])(hbm(3e?|4)?|high[-[:space:]]?bandwidth[[:space:]]+memory)([^[:alnum:]_]|$)'
@@ -230,6 +231,7 @@ async function backfillEdgeComponents(client: DbClient): Promise<void> {
          OR EXISTS (SELECT 1 FROM unnest(c.aliases) AS alias WHERE lower(alias) = lower(e.component))
        WHERE e.component IS NOT NULL
          AND e.component_id IS NULL
+         AND e.validity = 'current'
      )
      UPDATE edges e
      SET component_id = component_matches.component_id,

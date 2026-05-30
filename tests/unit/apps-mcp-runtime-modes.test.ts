@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { buildCommunityPack } from "@supplystrata/community-pack";
-import { callMcpApiReadOperation, createMcpRuntime, MCP_RUNTIME_FIXTURE, parseMcpCliOptions, requireMcpDbPostgresUrl } from "@supplystrata/mcp";
+import {
+  callMcpApiReadOperation,
+  createMcpRuntime,
+  loadCommunityPackBaselineOrWarn,
+  MCP_RUNTIME_FIXTURE,
+  parseMcpCliOptions,
+  requireMcpDbPostgresUrl
+} from "@supplystrata/mcp";
 import { workbenchScbomFixture } from "./workbench-scbom-fixture.js";
 
 describe("apps/mcp runtime modes", () => {
@@ -47,6 +54,21 @@ describe("apps/mcp runtime modes", () => {
     } finally {
       await runtime.close();
     }
+  });
+
+  it("degrades to local cache with an explicit warning when the pack fails validation", () => {
+    const warnings: string[] = [];
+    const loaded = loadCommunityPackBaselineOrWarn("/packs/tampered", {
+      loadPack: () => {
+        throw new Error("Community-pack publish-eligibility re-check failed: DOC-1/REL-1 evidence below threshold");
+      },
+      warn: (message) => warnings.push(message)
+    });
+
+    expect(loaded).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("serving from local cache only");
+    expect(warnings[0]).toContain("publish-eligibility re-check failed");
   });
 });
 

@@ -9,6 +9,8 @@ export interface PipelineSummary {
   chunks: number;
   candidates: number;
   applied_edges: number;
+  unresolved_counterparties: number;
+  recorded_unknowns: number;
   observations: number;
   evidence_ids: string[];
   graph_sync: {

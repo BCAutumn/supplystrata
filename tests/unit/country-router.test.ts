@@ -65,6 +65,49 @@ describe("country official directory router", () => {
     expect(result.check_targets).toEqual([]);
   });
 
+  it("routes foreign private issuers with a CIK to SEC EDGAR regardless of home country (ASML/NL)", () => {
+    const result = routeCountryOfficialDirectoryTargets({
+      identity: identity("ENT-ASML", "ASML", "NL", { cik: "0000937966", ticker: ["ASML:US", "ASML:NA"] }),
+      namespace: "global-test",
+      now
+    });
+
+    // 母国 NL 无官方披露目录（gleif unsupported），但 CIK 在 → 追加 SEC EDGAR 路由把 run 救活。
+    expect(result.routes).toMatchObject([
+      { status: "unsupported_country", source_adapter_id: "gleif" },
+      { status: "routable", source_adapter_id: "sec-edgar" }
+    ]);
+    expect(result.check_targets.map((target) => `${target.source_adapter_id}/${target.target_kind}`)).toEqual([
+      "sec-edgar/sec-company-filings",
+      "sec-edgar/sec-company-facts"
+    ]);
+  });
+
+  it("keeps the home-country directory and appends SEC when a non-US filer is cross-listed with a CIK", () => {
+    const result = routeCountryOfficialDirectoryTargets({
+      identity: identity("ENT-TSMC", "TSMC", "TW", { twse_stock_code: "2330", cik: "0001046179" }),
+      namespace: "global-test",
+      now
+    });
+
+    expect(result.check_targets.map((target) => `${target.source_adapter_id}/${target.target_kind}`)).toEqual([
+      "twse-mops/electronic-documents",
+      "sec-edgar/sec-company-filings",
+      "sec-edgar/sec-company-facts"
+    ]);
+  });
+
+  it("does not invent a SEC route for a foreign issuer without a CIK", () => {
+    const result = routeCountryOfficialDirectoryTargets({
+      identity: identity("ENT-LVMH", "LVMH", "FR", { lei: "969500FP1Q07I98R6P10" }),
+      namespace: "global-test",
+      now
+    });
+
+    expect(result.routes).toMatchObject([{ status: "unsupported_country", source_adapter_id: "gleif" }]);
+    expect(result.check_targets).toEqual([]);
+  });
+
   it("marks UK and EU routes as registry-only until official disclosure connectors exist", () => {
     expect(
       routeCountryOfficialDirectoryTargets({

@@ -66,15 +66,24 @@
 [7] extract
        (a) 词表硬匹配 + EntityResolver → chunk_entities
        (b) rule extractors → 候选 fact edge / observation / semantic change
+           抽取资格按"官方披露正文类型"判定（10-K/10-Q/8-K/20-F/40-F + annual_report），
+           不绑定来源/国家/语言：SEC 10-K、各国 IR 年报（company-ir 等）、EDINET 日文有価証券報告書、
+           cninfo(巨潮) 中文年度报告、DART 韩文사업보고서 走同一套抽取；规则按文档 language 选择语种
+           profile（en/ja/zh/ko，CJK/谚文句切分 + 中日韩 counterparty/component 词表），可信度由 [8]
+           的 evidence-scorer 按来源 authority 单独封顶
        (c) （opt-in）LLM helper 抽取兜底 → 候选必须有 cite text
        ↓
 [8] evidence-gated promote
-       (a) extractor=rule AND source=官方 AND evidence_level≥4 → 自动写入
+       (a) evidence-scorer 按来源 authority 定级并封顶：监管自披露(SEC/EDINET…) L5，
+           公司官方(IR 年报 / supplier list) L4，未注册来源 L2；LLM 抽取最高 L4
+       (b) extractor=rule AND evidence_level≥4 AND 引用可唯一定位到持久化 chunk → 自动写入
            edges + evidence + change_records
-       (b) 双源 corroboration（独立官方源同关系）→ 自动写入
-       (c) LLM 单源 / 弱源 / 单一来源 / 有冲突 → 留作 review_candidates
-       (d) graph-builder 投影 Postgres → GraphStore（Neo4j）
-       (e) observation / lead / source health 永不写 fact edge
+       (c) 写库前解析关系两端实体：缺端点 → 记 unknown（可见、可 bootstrap）；
+           两端解析到同一实体（年报第三人称自指等自环）→ 直接丢弃，不写自环边
+       (d) 双源 corroboration（独立官方源同关系）→ 自动写入
+       (e) LLM 单源 / 弱源 / needs_review / 有冲突 → 留作 review_candidates
+       (f) graph-builder 投影 Postgres → GraphStore（Neo4j）
+       (g) observation / lead / source health 永不写 fact edge
        ↓
 [9] consume via MCP
        resources (按需读):
@@ -90,6 +99,10 @@
          list_unknowns / list_source_targets
 ```
 
+**事实主干通过 MCP 走通，没有 CLI 专属路径**：[5]→[8] 是同一进程内的连续流水线，由 MCP `run_source_check`、worker 周期、以及读穿报告的 inline source check 共同触发。source check 落库文档 + 写观测后，会按 `doc_id` 重新加载持久化文档并跑 [7] extract + [8] evidence-gated promote（实现见 `pipeline.createDocumentFactPromoter`，注入点在 `api-orchestration` 的 source-check handler 与 `worker`）。事实提升在独立事务里完成：单篇文档抽取失败只降级为告警，不回滚已提交的观测、也不让 source check 任务失败。因为抽取对象是“已持久化的文档”，证据引用的 chunk 天然可定位、可审计。
+
+**抽取器升级后的存量重抽**：source check 只在文档 NEW/CHANGED 时触发 [8]，所以"升级前抓回、判为 UNCHANGED、却从未被新规则抽过"的文档会留空白。`pipeline.backfillDocumentFacts`（CLI: `db reextract-facts`，可按 doc / 实体 / 适配器 / 文档类型筛选）按 `doc_id` 逐篇重跑 [7]+[8]。重跑是幂等的：边按 `(subject,object,relation,component)` upsert、证据按 `(edge,doc,extractor)` 自我 supersede，不会重复造边，只会把证据刷新到当前抽取器版本。
+
 `supplystrata://scbom/company/{lei}` 返回原始 SCBOM v0.0.1 document，而不是 API envelope；MCP 层仍经 `api-orchestration` 调用 `getCompanyScbomDocument`，再由 `workbench-export.toScbomDocument()` 按 `@scbom/spec` schema 校验后输出。
 
 完整 MCP 契约见 `@supplystrata/mcp` package README（在该 package 落地时）。
@@ -102,6 +115,8 @@
 | LLM 调用必须返回 candidate（不能返回 final fact）                                                 | [2][3][4][7] | 同上                          |
 | agent loop 不允许写库；MCP write tool 必须经过 server-side pending gate + 单次 confirmation token | [9]          | 外部 agent 可绕过方法学       |
 | observation / lead / source health 永不写 fact edge                                               | [8]          | 把变化信号误读成关系事实      |
+| 关系抽取资格由文档披露类型决定、不绑定来源；可信度由来源 authority 单独封顶                        | [7][8]       | 退化成 SEC-only / 信任错配    |
+| 关系两端必须解析到不同实体（自环边丢弃）                                                          | [8]          | 发行人第三人称自指被写成自环  |
 | community-pack 是 read-only baseline；本地写覆盖 pack 字段但不污染 pack                           | [warm-start] | pack 升级时本地工作丢失       |
 | terminal state (`deprecated` / `superseded` / `rejected` / `resolved`) 不能被普通 upsert 复活     | [8]          | 审计断裂                      |
 
@@ -158,7 +173,7 @@
 | EntityResolver `ambiguous`       | 抽取器跳过该 mention；mention 进 review queue                                              |
 | LLM helper 超时 / cost 超限      | 候选 status = `deferred`；下次跑                                                           |
 | MCP tool 调用被用户拒绝          | 不执行；返回 `user_denied`，agent 应明示用户决定                                           |
-| community-pack 校验失败 (sha256) | 拒绝加载；走纯本地 cache 模式；显式告警                                                    |
+| community-pack 校验失败 (sha256 / manifest / 发布资格复检) | 跳过该 pack；降级到纯本地 cache 模式继续服务；stderr 显式告警（不退出进程）                 |
 | Neo4j 写失败                     | Postgres 已写，Neo4j 重试；可通过 `rebuild()` 全量重建                                     |
 
 ## 不允许的反模式
@@ -254,6 +269,10 @@ extractor=rule AND source=sec-edgar AND evidence_level=5
   candidate.needs_review = true
   写 review_candidates 而不是 edges
   → 由调用 agent 通过 MCP review.approve / review.reject 决定
+  → review.approve 在确认边界内直接做 evidence-gated apply：
+      可落边的候选（supplier_list / entity）写出 current 边/实体，
+      只需登记处置的候选（semantic_change / official_signal 等）记 disposition；
+      响应回报 apply 状态与 applied_edges。reject 仍只翻转状态。
   → 默认配置下不阻塞 facts_ready 状态（review 是 opt-in，#13）
 ```
 

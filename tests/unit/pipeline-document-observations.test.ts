@@ -61,8 +61,12 @@ describe("pipeline document observations", () => {
 
     const result = await persistDocumentObservations(client, normalizedIrFixture(text), "DOC-SKHYNIX-1");
 
-    expect(result).toMatchObject({ review_candidates: 3, change_type: "DOCUMENT_NEW" });
+    // 关系抽取已不再 SEC-only：公司官方年报(annual_report)同样进入抽取，因此除 3 条官方披露信号外，
+    // 还会多一条关系发现进入 review 队列（discovery，非事实边）。注意 edges 仍为 0：是否落边由
+    // 自动提升阶段（带自环防护）单独裁决，review 的 semantic_change 也按设计只产 draft claim、绝不写边。
+    expect(result).toMatchObject({ review_candidates: 4, change_type: "DOCUMENT_NEW" });
     expect(client.calls.flatMap(reviewCandidateBatchKinds).filter((kind) => kind === "official_disclosure_signal")).toHaveLength(3);
+    expect(client.calls.flatMap(reviewCandidateBatchKinds).filter((kind) => kind === "semantic_change")).toHaveLength(1);
     expect(client.calls.some((call) => call.sql.includes("INSERT INTO edges"))).toBe(false);
   });
 

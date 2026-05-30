@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 export const ENTITY_KINDS = [
   "company",
@@ -316,8 +316,14 @@ export interface CandidateRelation {
   llm_meta?: { model: string; prompt_hash: string };
 }
 
+// 中日韩/谚文字符范围。CJK 句子无空格、信息密度高，一句完整的供应关系披露（如"公司向美光采购存储芯片。"）
+// 仅十余字却语义完整；沿用与 parsers-text 一致的密度感知下限（CJK 8 / 拉丁 30），否则 30 字英文下限会把
+// 所有短 CJK 引用在校验闸门静默丢弃，使中日韩正文永远产不出边。
+const CANDIDATE_CJK_CHAR = /[\u1100-\u11ff\u3040-\u30ff\u3130-\u318f\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff66-\uff9f]/;
+
 export function isValidCandidateRelation(candidate: CandidateRelation, documentText: string): boolean {
-  return candidate.cite_text.length >= 30 && documentText.includes(candidate.cite_text);
+  const minLength = CANDIDATE_CJK_CHAR.test(candidate.cite_text) ? 8 : 30;
+  return candidate.cite_text.length >= minLength && documentText.includes(candidate.cite_text);
 }
 
 export interface ScoringResult {
@@ -449,10 +455,34 @@ export interface ChainViewRecord {
   generated_at: string;
 }
 
-export function createId(
-  prefix: "DOC" | "CHK" | "EV" | "EDGE" | "CHG" | "REV" | "REJ" | "PND" | "UNK" | "ALIAS" | "CLM" | "OBS" | "LEAD" | "CHAIN" | "SEG" | "GPJ" | "STR"
-): string {
+export type IdPrefix =
+  | "DOC"
+  | "CHK"
+  | "EV"
+  | "EDGE"
+  | "CHG"
+  | "REV"
+  | "REJ"
+  | "PND"
+  | "UNK"
+  | "ALIAS"
+  | "CLM"
+  | "OBS"
+  | "LEAD"
+  | "CHAIN"
+  | "SEG"
+  | "GPJ"
+  | "STR";
+
+export function createId(prefix: IdPrefix): string {
   return `${prefix}-${randomUUID()}`;
+}
+
+// 确定性 id：同一组语义键永远得到同一个 id，用于需要“可重复 upsert、跨运行去重”的记录
+// （例如从官方披露反复发现同一个未登记交易对手时，只应产生一条 unknown，而不是每次抓取都新增）。
+export function createDeterministicId(prefix: IdPrefix, parts: readonly string[]): string {
+  const digest = createHash("sha256").update(parts.join("\u0000")).digest("hex");
+  return `${prefix}-${digest.slice(0, 32)}`;
 }
 
 export function calculateEdgeFreshness(input: { last_verified_at: string; computed_at: string; recent_corroboration_within_180d?: boolean }): {
@@ -478,6 +508,20 @@ export function calculateEdgeFreshness(input: { last_verified_at: string; comput
 
 export function normalizeAlias(input: string): string {
   return input.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+// MCP / API 把公司实体以 scope 语法（company:<id> / entity:<id>）暴露出来，但底层实体解析只认查询本体。
+// 历史上各读取面各自 strip，导致 traverse_chain 接受前缀、list_unknowns 却报 "Entity not found"。
+// 在这里做唯一的归一来源：只剥离指向公司/实体的 scope 前缀（component:/edge:/chain: 等不同语义不动）。
+const ENTITY_SCOPE_PREFIXES = ["company:", "entity:"] as const;
+
+export function stripEntityScopePrefix(input: string): string {
+  const trimmed = input.trim();
+  const lower = trimmed.toLowerCase();
+  for (const prefix of ENTITY_SCOPE_PREFIXES) {
+    if (lower.startsWith(prefix)) return trimmed.slice(prefix.length).trim();
+  }
+  return trimmed;
 }
 
 export function toIsoDateOnly(value: string): string | undefined {

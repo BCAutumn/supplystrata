@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { importDevFixturesFromCsv, migrate, type DatabaseStore } from "@supplystrata/db/admin";
+import { loadUnknownMap } from "@supplystrata/card-builder";
+import { resolveEntityId } from "@supplystrata/db/read";
 import { DbEntityResolver } from "@supplystrata/entity-resolver";
 import { canConnectToIntegrationDatabase, createIntegrationDatabaseStore } from "./helpers.js";
 
@@ -36,6 +38,20 @@ describe.skipIf(!hasDatabase)("DbEntityResolver", () => {
     expect(micron).toMatchObject({ status: "ambiguous", needs_human_review: true });
     expect(micron.candidates?.map((candidate) => candidate.entity_id)).toContain("ENT-MICRON");
     expect(short).toMatchObject({ status: "unknown", needs_human_review: true });
+  });
+
+  it("treats company:/entity: scope prefixes identically to bare entity ids", async () => {
+    const bare = await resolveEntityId(pool.read, "ENT-NVIDIA");
+    const companyScoped = await resolveEntityId(pool.read, "company:ENT-NVIDIA");
+    const entityScoped = await resolveEntityId(pool.read, "entity:ENT-NVIDIA");
+
+    expect(bare).toBe("ENT-NVIDIA");
+    expect(companyScoped).toBe("ENT-NVIDIA");
+    expect(entityScoped).toBe("ENT-NVIDIA");
+
+    // 这正是 dogfooding 暴露的 bug：list_unknowns 用 company: scope 时曾报 "Entity not found"。
+    const unknowns = await loadUnknownMap(pool.read, "company:ENT-NVIDIA");
+    expect(unknowns.scope).toBe("ENT-NVIDIA");
   });
 
   it("applies hard-coded family rules before generic alias matching", async () => {

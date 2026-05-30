@@ -31,11 +31,18 @@ import {
   type EdinetDocumentEntry,
   type EdinetDocumentListType
 } from "./edinet-document-list.js";
+import {
+  buildEdinetDocumentBodyUrl,
+  fetchEdinetBody,
+  normalizeEdinetBodyDocument,
+  planEdinetBodyTasks,
+  type EdinetCompanyFilingsInput
+} from "./edinet-body.js";
 import { runSourceAdapterCheck, type SourceCheckSummary } from "./source-check-runner.js";
 import { EDINET_CREDENTIALS } from "./source-check-credentials.js";
 
-export { buildEdinetDocumentsListUrl, extractEdinetDocumentEntries };
-export type { EdinetDailyFilingsInput, EdinetDocumentEntry, EdinetDocumentListType };
+export { buildEdinetDocumentsListUrl, buildEdinetDocumentBodyUrl, extractEdinetDocumentEntries };
+export type { EdinetCompanyFilingsInput, EdinetDailyFilingsInput, EdinetDocumentEntry, EdinetDocumentListType };
 
 const edinetAdapterBase: SourceAdapter<EdinetDailyFilingsInput, Uint8Array> = {
   id: "edinet",
@@ -94,6 +101,28 @@ const edinetAdapterBase: SourceAdapter<EdinetDailyFilingsInput, Uint8Array> = {
 
 export const edinetAdapter = createRateLimitedSourceAdapter(edinetAdapterBase);
 
+// EDINET 正文本体适配器：plan 先读 daily 列表选出目标定期报告，再逐篇 yield type=1 ZIP 下载任务；
+// fetch 下载并校验 ZIP（含 200-JSON-错误判别）；normalize 解压 iXBRL → 日文 annual_report 正文文档。
+// source_adapter_id 仍是 "edinet"（同一来源 authority），仅 target_kind 与 daily-filings 监控区分。
+const edinetBodyAdapterBase: SourceAdapter<EdinetCompanyFilingsInput, Uint8Array> = {
+  id: "edinet",
+  tier: "P1",
+  description: "Japan EDINET annual securities report (有価証券報告書) body fetcher",
+  tos_url: "https://disclosure2.edinet-fsa.go.jp/",
+  rate_limit: { requests: 2, per_seconds: 1 },
+  plan(input, ctx) {
+    return planEdinetBodyTasks(input, ctx);
+  },
+  fetch(task, ctx) {
+    return fetchEdinetBody(task, ctx);
+  },
+  async normalize(raw) {
+    return normalizeEdinetBodyDocument(raw);
+  }
+};
+
+export const edinetBodyAdapter = createRateLimitedSourceAdapter(edinetBodyAdapterBase);
+
 export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
   source_adapter_id: "edinet",
   target_kind: "daily-filings",
@@ -115,8 +144,38 @@ export const edinetDailyFilingsSourceCheckConnector: SourceCheckConnector<Databa
   }
 };
 
+export const edinetCompanyFilingsSourceCheckConnector: SourceCheckConnector<DatabaseStore, SourceCheckSummary> = {
+  source_adapter_id: "edinet",
+  target_kind: "company-filings",
+  config_schema: edinetConfigSchema(),
+  credential_requirements: EDINET_CREDENTIALS,
+  run(store, target, context) {
+    return runSourceAdapterCheck(store, {
+      adapter: edinetBodyAdapter,
+      adapterInput: edinetCompanyFilingsInputFromConfig(target.target_config),
+      context: createEdinetAdapterContext(context.adapter_context_input),
+      options: {
+        checkTargetId: target.check_target_id,
+        failureCausedBy: "source-check.edinet-body",
+        checkedAt: context.checked_at,
+        ...documentObservationStoreOption(context),
+        ...(context.logger === undefined ? {} : { logger: context.logger })
+      }
+    });
+  }
+};
+
 export function createEdinetAdapterContext(input: CreateAdapterContextInput): AdapterContext {
   return createAdapterContext(input);
+}
+
+export function edinetCompanyFilingsInputFromConfig(config: Record<string, unknown>): EdinetCompanyFilingsInput {
+  const base = edinetDailyFilingsInputFromConfig(config);
+  const limit = optionalConfigPositiveInteger(config, "limit", "EDINET company-filings target");
+  return {
+    ...base,
+    ...(limit === undefined ? {} : { limit })
+  };
 }
 
 export function edinetDailyFilingsInputFromConfig(config: Record<string, unknown>): EdinetDailyFilingsInput {
@@ -159,7 +218,8 @@ function edinetConfigSchema(): SourceCheckConfigSchema {
       { key: "scope_id", type: "string", required: false, description: "Research scope id that requested this EDINET list." },
       { key: "edinet_codes", type: "string_array", required: false, description: "Optional EDINET filer codes to keep from the daily list." },
       { key: "sec_codes", type: "string_array", required: false, description: "Optional Japanese securities codes to keep from the daily list." },
-      { key: "doc_type_codes", type: "string_array", required: false, description: "Optional EDINET document type codes to keep from the daily list." }
+      { key: "doc_type_codes", type: "string_array", required: false, description: "Optional EDINET document type codes to keep from the daily list." },
+      { key: "limit", type: "positive_integer", required: false, description: "Max number of filing bodies to fetch (company-filings target only)." }
     ]
   };
 }

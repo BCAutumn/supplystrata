@@ -64,7 +64,16 @@ agent 自己负责理解、搜索补充、综合、写报告；
 外部 agent 通过 MCP 接入；MCP 暴露两类工具：
 
 - **read tools / resources**：自由调用，返回当前 cache + audit 状态。
-- **write tools**（`run_source_check`、`start_research_session`、`review.approve`、`review.reject` 等）：使用标准 MCP annotations，并由 server-side pending state + 单次 `confirmation_token` 做真正确认边界；agent 不能自动批准；任何写入仍走 evidence-gated promote (#13)，agent 不能绕过事实写入不变式。
+- **write tools**（`run_source_check`、`start_research_session`、`review.approve`、`review.reject` 等）：使用标准 MCP annotations，并由 server-side pending state + 单次 `confirmation_token` 做真正确认边界；任何写入仍走 evidence-gated promote (#13)，agent 不能绕过事实写入不变式。
+  - `run_source_check` 在同一进程内跑完 source check → normalize → extract → evidence-gated promote：规则抽取的高可信关系会按 #13 自动写成 current 边，事实主干因此通过 MCP 走通，无需 CLI 专属步骤。
+  - `review.approve` 在确认边界内直接对候选做 evidence-gated apply：可落边的候选写出 current 边/实体，只需登记处置的候选记 disposition；而不是只翻转 review 状态。`review.reject` 仍只翻转状态、不动事实。
+
+确认门的口径必须精确，避免把它误读成系统内置的 human-in-the-loop：
+
+- SupplyStrata 强制的是 **两步显式确认 + 单次 token + server-side pending + 全程可审计**：第一次调用只返回 `requires_confirmation`，必须用同一 server 颁发的、未过期、未用过的 `confirmation_token` 二次调用才执行；伪造 / 过期 / 已用 token 一律拒绝。
+- 它**不**区分"人类宿主"和"自主 agent"。`confirmation_token` 通过 MCP 结果回给调用方，因此任何能读结果的 client（包括 `@supplystrata/agent` 参考实现）都可以在同一 loop 内自动回填 token 完成确认。这是预期行为：确认门防的是**误调用 / 意外写入 / 单步污染**，保证每次写入都有可追溯的 pending→confirm 记录，而不是替代人类审批。
+- **真正的 human-in-the-loop 是 host 的责任**：需要人工把关时，宿主（Cursor / Claude Desktop / 自建 orchestrator）应在 token 回填前插入人工确认，或采用 out-of-band 确认通道。SupplyStrata 不假设、也不强制宿主这样做。
+- 因此方法学层的不变式是"**写入必须经过受控两步确认门 + evidence-gated promote**"，而不是"agent 在技术上无法自动确认"。
 
 SupplyStrata 不提供任何 MCP write tool 让 agent 直接提交 evidence / fact / 爬虫结果；agent 探索结果只能作为 candidate 进入 review 路径。
 
@@ -141,14 +150,15 @@ SupplyStrata 不发现"真实世界发生了什么"。真实世界由官方源 +
 
 ## Fact 写入不变式
 
-下面 6 条是方法学的"宪法"，跨所有 package、跨所有 client、跨所有部署形态都成立。违反任何一条都属于系统性 bug。
+下面 7 条是方法学的"宪法"，跨所有 package、跨所有 client、跨所有部署形态都成立。违反任何一条都属于系统性 bug。
 
 1. **任何写 `edges` / `evidence` / `claims` 的代码路径不允许 import `@supplystrata/llm-helpers`**。LLM 永远不直接写事实。
 2. **LLM helper 必须返回 candidate**（不能返回 final fact）；任何 candidate 进入事实层都要经过 evidence-gated promote。
-3. **agent loop 不允许直接写库**；MCP write tools 必须经过 server-side pending state + 单次 `confirmation_token`，agent 不能自动批准。
+3. **agent loop 不允许直接写库**；MCP write tools 必须经过 server-side pending state + 单次 `confirmation_token`（两步确认、token 单次有效、全程可审计）。注意：该门保证"每次写入都有受控的 pending→confirm 审计记录"，**不**等于"agent 在技术上无法自动确认"——token 会回给调用方，自主 agent 可在同一 loop 内确认；真正的人工审批是 host 的职责（见"MCP 接入面边界")。
 4. **community-pack 是 read-only baseline**；本地写入覆盖 pack 字段但不污染 pack；pack 升级时本地新写入保留。
 5. **terminal state** (`deprecated` / `superseded` / `rejected` / `resolved` / `dead`) **不能被普通 upsert 复活**；必须走显式 lifecycle workflow 并写 change record。
 6. **observation / lead / source health / risk metric / AI 输出永不写 fact edge**。它们只能进入派生层或 review 队列。
+7. **fact edge 的两端必须解析到不同的已登记实体**。缺端点（交易对手未登记）→ 记 `unknown_item`，不写半截边；两端解析到同一实体（如年报第三人称自指"X 报告其……"被误读成 X→X）→ 直接丢弃，绝不写自环边。**关系抽取资格只由文档披露类型决定、不绑定来源/国家**（SEC、各国 IR 年报、EDINET/DART 英文披露同一套抽取）；信任不靠"是不是 SEC"，而由 evidence-scorer 按来源 authority 单独封顶（见 [evidence-model.md](evidence-model.md) source authority matrix）。
 
 详见 [decisions.md](../10-decisions/decisions.md) #3、#13。CI 应通过 dep-check / lint 规则机械化拦截违反 #1、#3 的 import 边界。
 

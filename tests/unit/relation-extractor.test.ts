@@ -150,6 +150,56 @@ describe("SEC official supply-chain rule extractor", () => {
     expect(anonymous).toHaveLength(0);
   });
 
+  it("extracts a named sole-source supplier from 20-F optics disclosure language", () => {
+    const candidates = extractFixtureSentence(
+      "The number of lithography systems we are able to produce is limited by the production capacity of one of our key suppliers, Carl Zeiss SMT, our sole supplier of lenses, mirrors, illuminators, collectors and other critical optical components.",
+      { subjectSurface: "ENT-ASML", documentType: "20-F" }
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      subject_resolve: { surface: "ENT-ASML" },
+      object_resolve: { surface: "Carl Zeiss SMT" },
+      relation: "BUYS_FROM",
+      component: "optics",
+      component_id: "COMP-OPTICS",
+      component_specificity: "explicit"
+    });
+  });
+
+  it("processes 20-F foreign private issuer annual reports the same as 10-K filings", async () => {
+    const doc: NormalizedDocument = {
+      doc_id: "DOC-ASML-20F-FIXTURE",
+      source_adapter_id: "sec-edgar",
+      document_type: "20-F",
+      primary_entity_id: "ENT-ASML",
+      language: "en",
+      fetched_at: "2026-02-24T00:00:00.000Z",
+      source_url: "https://www.sec.gov/Archives/edgar/data/937966/fixture/asml-20f.htm",
+      storage_key: "fixtures/sec/asml-20f.html",
+      bytes_sha256: "fixture",
+      text: "Carl Zeiss SMT is our sole supplier of optical components.",
+      chunks: [
+        {
+          chunk_id: "CHK-ASML-1",
+          text: "Carl Zeiss SMT is our sole supplier of optical components.",
+          locator: "fixture#asml"
+        }
+      ],
+      metadata: {}
+    };
+
+    const candidates = await collect(secOfficialSupplyChainExtractor.extract(doc));
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      subject_resolve: { surface: "ENT-ASML" },
+      object_resolve: { surface: "Carl Zeiss SMT" },
+      relation: "BUYS_FROM",
+      component_id: "COMP-OPTICS"
+    });
+  });
+
   it("runs against non-NVIDIA SEC disclosures using the document primary entity", async () => {
     const doc: NormalizedDocument = {
       doc_id: "DOC-AMD-FIXTURE",
@@ -189,7 +239,7 @@ describe("SEC official supply-chain rule extractor", () => {
     });
   });
 
-  it("does not run the SEC rule pack against non-SEC source documents", async () => {
+  it("extracts from official company annual reports regardless of source (not SEC-only)", async () => {
     const doc: NormalizedDocument = {
       doc_id: "DOC-IR-FIXTURE",
       source_adapter_id: "company-ir",
@@ -213,7 +263,38 @@ describe("SEC official supply-chain rule extractor", () => {
 
     const candidates = await collect(secOfficialSupplyChainExtractor.extract(doc));
 
-    expect(candidates).toHaveLength(0);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      subject_resolve: { surface: "ENT-AMD" },
+      object_resolve: { surface: "TSMC" },
+      relation: "USES_FOUNDRY"
+    });
+  });
+
+  it("does not run against non-disclosure document types such as registry or trade datasets", async () => {
+    const base = {
+      doc_id: "DOC-REGISTRY-FIXTURE",
+      source_adapter_id: "edinet",
+      primary_entity_id: "ENT-SHINETSU",
+      language: "en" as const,
+      fetched_at: "2026-01-01T00:00:00.000Z",
+      source_url: "https://example.com/registry",
+      storage_key: "fixtures/edinet/list.json",
+      bytes_sha256: "fixture",
+      text: "We utilize foundries such as Taiwan Semiconductor Manufacturing Company Limited to manufacture semiconductor wafers.",
+      chunks: [
+        {
+          chunk_id: "CHK-REG-1",
+          text: "We utilize foundries such as Taiwan Semiconductor Manufacturing Company Limited to manufacture semiconductor wafers.",
+          locator: "fixture#registry"
+        }
+      ],
+      metadata: {}
+    };
+    for (const documentType of ["company_registry", "trade_dataset", "company_facts"] as const) {
+      const candidates = await collect(secOfficialSupplyChainExtractor.extract({ ...base, document_type: documentType }));
+      expect(candidates).toHaveLength(0);
+    }
   });
 
   it("treats the offline SEC fixture adapter as the same rule domain", async () => {

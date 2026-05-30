@@ -25,6 +25,7 @@ import {
   type CommunityPackObjectCounts
 } from "../definitions/manifest.js";
 import type { LoadedCommunityPack } from "../definitions/exporter.js";
+import { assertCommunityPackPublishEligible } from "./publish-eligibility.js";
 
 const PACK_VERSION_PATTERN = /^pack-[0-9]{4}\.Q[1-4]$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -79,12 +80,11 @@ export function loadCommunityPackFromPath(path: string): LoadedCommunityPack {
     content: readFileSync(join(baseDir, file.path))
   }));
   assertCommunityPackFileIntegrity(manifest, files);
-  return {
-    manifest,
-    documents: files.flatMap((file) =>
-      parseScbomJsonl(contentToText(file.content)).map((document) => markCommunityPackBaseline(document, manifest.pack_version))
-    )
-  };
+  const documents = files.flatMap((file) =>
+    parseScbomJsonl(contentToText(file.content)).map((document) => markCommunityPackBaseline(document, manifest.pack_version))
+  );
+  assertCommunityPackPublishEligible(documents);
+  return { manifest, documents };
 }
 
 export function findCommunityPackScbomDocument(pack: LoadedCommunityPack, companyId: string): ScbomDocument | undefined {

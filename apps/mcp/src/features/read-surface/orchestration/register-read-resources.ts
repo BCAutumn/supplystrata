@@ -58,13 +58,14 @@ export function registerReadResources(server: McpServer, runtime: McpReadSurface
     new ResourceTemplate(MCP_READ_RESOURCE_URIS.changesEntity, { list: undefined }),
     {
       title: "Entity Changes",
-      description: "Current change timeline DTO. Entity-scoped filtering is not yet part of the API contract.",
+      description: "Change timeline filtered to events touching this entity (as scope, edge subject, or edge object).",
       mimeType: "application/json"
     },
-    async (uri) =>
+    async (uri, variables) =>
       readResourceResult(uri.href, runtime, {
         operation_id: "listChanges",
         path_params: {},
+        query: new URLSearchParams({ scope: `entity:${requiredVariable(variables, "id")}` }),
         now: runtime.now()
       })
   );

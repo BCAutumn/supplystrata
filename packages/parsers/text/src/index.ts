@@ -45,12 +45,27 @@ export function chunkText(text: string, docId: string, targetChars = 6000): Docu
   return chunks;
 }
 
+// 中日韩文字范围（含假名/汉字/全角半角片假名/谚文音节与字母）。CJK 信息密度高，分句与最短长度都要单独处理。
+const CJK_CHAR = /[\u1100-\u11ff\u3040-\u30ff\u3130-\u318f\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff66-\uff9f]/;
+
+// 句末终止符：中日句号 。 经 NFKC 仍保留（！？ 已被规整成 ASCII !?）。先按 。 切，再在每段里按英文/韩文规则切。
+// 韩文用 ASCII 句点（…습니다.），下一句以谚文开头，故 lookahead 含谚文音节区；英文行为与原实现完全一致
+// （英文文本里既无 。 也不会出现谚文）。
+function splitIntoSentences(text: string): string[] {
+  return text.split(/(?<=。)/).flatMap((part) => part.split(/(?<=[.!?])\s+(?=[A-Z0-9"“\uac00-\ud7af])/));
+}
+
+// CJK 句子用更低字符阈值：英文 30 字符的下限会把"主要な仕入先は信越化学である。"（约 16 字）整句滤掉。
+function isSentenceLongEnough(sentence: string, minLength: number, cjkMinLength: number): boolean {
+  return CJK_CHAR.test(sentence) ? sentence.length >= cjkMinLength : sentence.length >= minLength;
+}
+
 export function sentenceWindows(text: string): string[] {
   return normalizeText(text)
     .split(/\n{2,}/)
-    .flatMap((paragraph) => paragraph.split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/))
+    .flatMap((paragraph) => splitIntoSentences(paragraph))
     .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length >= 30);
+    .filter((sentence) => isSentenceLongEnough(sentence, 30, 8));
 }
 
 export interface SentenceWindow {
@@ -86,10 +101,10 @@ export function sentenceWindowsWithOffsets(text: string): SentenceWindow[] {
 export function candidateSentences(text: string, options: CandidateSentenceOptions = {}): string[] {
   const minLength = options.minLength ?? 40;
   const maxLength = options.maxLength ?? 1200;
-  return normalizeInlineText(text)
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“])/)
+  const cjkMinLength = Math.min(minLength, 8);
+  return splitIntoSentences(normalizeInlineText(text))
     .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length >= minLength && sentence.length <= maxLength);
+    .filter((sentence) => isSentenceLongEnough(sentence, minLength, cjkMinLength) && sentence.length <= maxLength);
 }
 
 export function findSentenceMatching(text: string, patterns: readonly RegExp[], options: CandidateSentenceOptions = {}): string | undefined {

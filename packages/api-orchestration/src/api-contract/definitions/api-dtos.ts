@@ -18,8 +18,14 @@ import type { WorkbenchChangeTimelineItem, WorkbenchClaim, WorkbenchEvidence, Wo
 export type ApiContractVersion = "0.1.0";
 export type ApiSchemaVersion = "1.0.0";
 export type ApiReadPolicy = "read_only_no_truth_store_mutation";
-export type ApiReviewWritePolicy = "review_queue_mutation_only_no_fact_edge_write";
-export type ApiWorkflowWritePolicy = "research_run_mutation_no_fact_edge_write";
+// reject 只翻转 review 队列状态，绝不动事实；approve 是确认边界内的“受审应用”，按候选类型可能写出
+// current 事实边/实体（supplier_list、entity 等），也可能只是登记处置（semantic_change、official_signal 等）。
+export type ApiReviewWritePolicy = "review_queue_mutation_only_no_fact_edge_write" | "review_approval_applies_reviewed_fact_edges";
+// research-run 创建只 bootstrap 实体 + 入队 source-check job，不动事实；source-check 执行（显式确认门触发）
+// 会跑完 extract + evidence-gated promote，按 #13 把规则抽取的高可信关系写成 current 边，故单列一条策略。
+export type ApiWorkflowWritePolicy =
+  | "research_run_mutation_no_fact_edge_write"
+  | "source_check_execution_runs_evidence_gated_promote";
 export type ApiReadThroughResearchPolicy = "read_through_research_may_network_no_fact_edge_write";
 export type ApiWritePolicy = ApiReviewWritePolicy | ApiWorkflowWritePolicy;
 
@@ -60,6 +66,24 @@ export interface ApiReadThroughResearchEnvelope<TData> {
 }
 
 export type CompanyCardApiResponse = ApiReadEnvelope<CompanyCardModel>;
+
+export interface CompanyIdentityResolved {
+  status: "resolved";
+  query: string;
+  card: CompanyCardModel;
+}
+
+export interface CompanyIdentityUnresolved {
+  status: "unresolved";
+  query: string;
+  reason: string;
+  resolution_policy: "cache_only_no_bootstrap";
+  next_actions: string[];
+}
+
+export type CompanyIdentityResolution = CompanyIdentityResolved | CompanyIdentityUnresolved;
+export type CompanyIdentityApiResponse = ApiReadEnvelope<CompanyIdentityResolution>;
+
 export type ComponentCardApiResponse = ApiReadEnvelope<ComponentCardModel>;
 export type ChainApiResponse = ApiReadEnvelope<ChainViewModel>;
 export type ClaimApiResponse = ApiReadEnvelope<WorkbenchClaim>;
@@ -165,8 +189,12 @@ export interface ResearchRunRequest {
 export interface ReviewDecisionResult {
   review_id: string;
   decision: "approved" | "rejected";
-  status: "approved" | "rejected";
-  fact_edge_write_allowed: false;
+  // 批准会在同一确认边界内立即做 evidence-gated 应用，故 status 反映应用结果而非仅“approved”。
+  status: "approved" | "rejected" | "applied" | "entity_applied" | "acknowledged" | "blocked";
+  // 本次决定是否真的写出了 current 事实边（仅 supplier_list/entity 等会落边的候选在成功应用后为 true）。
+  fact_edge_write_allowed: boolean;
+  applied_edges?: number;
+  apply_reason?: string;
 }
 
 export type ReviewDecisionApiResponse = ApiWriteEnvelope<ReviewDecisionResult>;

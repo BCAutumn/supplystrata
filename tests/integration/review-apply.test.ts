@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { normalizeAlias, type NormalizedDocument } from "@supplystrata/core";
+import { API_ROUTES, createDbApiOperationHandlers } from "@supplystrata/api-orchestration";
 import { migrate } from "@supplystrata/db/admin";
 import { saveNormalizedDocument, type DbClient } from "@supplystrata/db/write";
 import { applyApprovedReviewCandidate } from "@supplystrata/pipeline";
@@ -125,6 +126,160 @@ describe.skipIf(!hasDatabase)("review apply integration", () => {
     expect(Number.parseInt(changes.rows[0]?.count ?? "0", 10)).toBeGreaterThanOrEqual(3);
   });
 });
+
+// Part B 回归：MCP/HTTP 的 approveReviewCandidate handler 现在会在确认边界内直接物化事实边，
+// 而不是只翻转 review 状态。这里驱动真实 handler，证明 agent 通过 MCP 批准即可写出 current 边。
+describe.skipIf(!hasDatabase)("review approve handler applies fact edges", () => {
+  const pool = createIntegrationDatabaseStore();
+  const handlers = createDbApiOperationHandlers(pool);
+  const approveRoute = API_ROUTES.find((route) => route.operation_id === "approveReviewCandidate");
+
+  beforeAll(async () => {
+    await migrate(pool);
+    await pool.transaction(async (client) => {
+      await cleanupHandlerRows(client);
+      await seedHandlerEntities(client);
+    });
+    await saveNormalizedDocument(pool, handlerSupplierListDocument());
+  });
+
+  afterAll(async () => {
+    await pool.transaction(cleanupHandlerRows);
+    await pool.close();
+  });
+
+  it("writes supplier and facility edges when approving through the api handler", async () => {
+    if (approveRoute === undefined) throw new Error("approveReviewCandidate route is missing from the contract registry");
+    const candidate = buildSupplierListReviewCandidate({
+      candidate: handlerSupplierListCandidate(),
+      docId: "DOC-ITEST-HDLR-SUPPLIER",
+      sourceUrl: "fixture://apple-suppliers/handler-apply.pdf",
+      sourceDate: "2022-09-30"
+    });
+    await enqueueReviewCandidatesTransactionally(pool, [candidate]);
+
+    const approveHandler = handlers["approveReviewCandidate"];
+    if (approveHandler === undefined) throw new Error("approveReviewCandidate handler is missing from db operation handlers");
+    const result = await approveHandler({
+      route: approveRoute,
+      path_params: { id: candidate.review_id },
+      query: new URLSearchParams(),
+      body: { reviewer: "integration-handler", reason: "integration handler fixture" },
+      now: "2026-05-18T00:00:00.000Z"
+    });
+
+    expect(result).toMatchObject({
+      review_id: candidate.review_id,
+      decision: "approved",
+      status: "applied",
+      fact_edge_write_allowed: true,
+      applied_edges: 2
+    });
+
+    const applied = await getReviewCandidate(pool.read, candidate.review_id);
+    expect(applied).toMatchObject({ status: "applied" });
+
+    const facilityEntityId = supplierListFacilityEntityId(candidate);
+    const edges = await pool.read.query<EdgeRow>(
+      `SELECT edge_id, relation, subject_id, object_id, evidence_level
+       FROM edges
+       WHERE subject_id IN ('ENT-ITEST-HDLR-APPLE','ENT-ITEST-HDLR-SUPPLIER')
+          OR object_id IN ('ENT-ITEST-HDLR-SUPPLIER',$1)
+       ORDER BY relation`,
+      [facilityEntityId]
+    );
+    expect(edges.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ relation: "BUYS_FROM", subject_id: "ENT-ITEST-HDLR-APPLE", object_id: "ENT-ITEST-HDLR-SUPPLIER", evidence_level: 4 }),
+        expect.objectContaining({ relation: "MANUFACTURES_AT", subject_id: "ENT-ITEST-HDLR-SUPPLIER", object_id: facilityEntityId, evidence_level: 4 })
+      ])
+    );
+  });
+});
+
+async function seedHandlerEntities(client: DbClient): Promise<void> {
+  await client.query(
+    `INSERT INTO entity_master (entity_id, kind, canonical_name, display_name, language_of_canonical, identifiers, primary_country, industry, status, attrs)
+     VALUES
+       ('ENT-ITEST-HDLR-APPLE','company','Handler Apple','Handler Apple','en','{}','US','{}','active','{}'),
+       ('ENT-ITEST-HDLR-SUPPLIER','company','Handler Supplier','Handler Supplier','en','{}','MY','{}','active','{}')
+     ON CONFLICT (entity_id) DO UPDATE SET updated_at = now()`
+  );
+  await insertAlias(client, "ENT-ITEST-HDLR-APPLE", "Handler Apple");
+  await insertAlias(client, "ENT-ITEST-HDLR-SUPPLIER", "Handler Supplier");
+}
+
+function handlerSupplierListCandidate(): SupplierListCandidate {
+  return {
+    buyer_entity_id: "ENT-ITEST-HDLR-APPLE",
+    buyer_name: "Handler Apple",
+    supplier_name: "Handler Supplier",
+    location_text: "Penang",
+    country_or_region: "Malaysia",
+    source_row_text: "Handler Supplier                 Penang                                     Malaysia",
+    normalized_record_text: "Handler Apple | Handler Supplier | Penang | Malaysia",
+    source_adapter_id: "apple-suppliers",
+    source_fiscal_year: 2022,
+    source_locator: "Apple Supplier List FY2022 line HDLR",
+    confidence: 0.84,
+    needs_review: true,
+    review_reason: "表格候选需要人工复核。",
+    relation_hint: "BUYS_FROM",
+    facility_relation_hint: "MANUFACTURES_AT"
+  };
+}
+
+function handlerSupplierListDocument(): NormalizedDocument {
+  const text = "Header\nHandler Supplier Penang Malaysia\nFooter";
+  return {
+    doc_id: "DOC-ITEST-HDLR-SUPPLIER",
+    source_adapter_id: "apple-suppliers",
+    document_type: "supplier_list",
+    primary_entity_id: "ENT-ITEST-HDLR-APPLE",
+    source_url: "fixture://apple-suppliers/handler-apply.pdf",
+    source_date: "2022-09-30",
+    fetched_at: "2026-05-17T00:00:00.000Z",
+    storage_key: "fixtures/apple-suppliers/handler-apply.pdf",
+    bytes_sha256: createHash("sha256").update(text).digest("hex"),
+    language: "en",
+    text,
+    chunks: [
+      {
+        chunk_id: "DOC-ITEST-HDLR-SUPPLIER-CHK-0001",
+        text,
+        locator: "fixture row",
+        language: "en",
+        token_count: 8
+      }
+    ],
+    metadata: { parser_version: "integration-fixture" }
+  };
+}
+
+async function cleanupHandlerRows(client: DbClient): Promise<void> {
+  const reviewCandidate = buildSupplierListReviewCandidate({
+    candidate: handlerSupplierListCandidate(),
+    docId: "DOC-ITEST-HDLR-SUPPLIER",
+    sourceUrl: "fixture://apple-suppliers/handler-apply.pdf",
+    sourceDate: "2022-09-30"
+  });
+  const facilityEntityId = supplierListFacilityEntityId(reviewCandidate);
+
+  await client.query("DELETE FROM review_candidates WHERE review_id = $1", [reviewCandidate.review_id]);
+  await client.query(
+    "DELETE FROM change_records WHERE scope_id IN (SELECT edge_id FROM edges WHERE subject_id IN ('ENT-ITEST-HDLR-APPLE','ENT-ITEST-HDLR-SUPPLIER') OR object_id IN ('ENT-ITEST-HDLR-SUPPLIER',$1))",
+    [facilityEntityId]
+  );
+  await client.query("DELETE FROM change_records WHERE scope_kind = 'entity' AND scope_id = $1", [facilityEntityId]);
+  await client.query("DELETE FROM edges WHERE subject_id IN ('ENT-ITEST-HDLR-APPLE','ENT-ITEST-HDLR-SUPPLIER') OR object_id IN ('ENT-ITEST-HDLR-SUPPLIER',$1)", [
+    facilityEntityId
+  ]);
+  await client.query("DELETE FROM evidence WHERE doc_id = 'DOC-ITEST-HDLR-SUPPLIER'");
+  await client.query("DELETE FROM document_chunks WHERE doc_id = 'DOC-ITEST-HDLR-SUPPLIER'");
+  await client.query("DELETE FROM documents WHERE doc_id = 'DOC-ITEST-HDLR-SUPPLIER'");
+  await client.query("DELETE FROM entity_alias WHERE entity_id IN ('ENT-ITEST-HDLR-APPLE','ENT-ITEST-HDLR-SUPPLIER',$1)", [facilityEntityId]);
+  await client.query("DELETE FROM entity_master WHERE entity_id IN ('ENT-ITEST-HDLR-APPLE','ENT-ITEST-HDLR-SUPPLIER',$1)", [facilityEntityId]);
+}
 
 async function seedReviewApplyEntities(client: DbClient): Promise<void> {
   await client.query(

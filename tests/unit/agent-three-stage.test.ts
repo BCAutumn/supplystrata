@@ -9,7 +9,7 @@ class MockMcpClient implements SupplyStrataMcpClient {
     this.calls.push({ name, input });
     switch (name) {
       case "resolve_company":
-        return { data: { entity_id: "ENT-LVMH" } };
+        return { data: { status: "resolved", card: { entity: { entity_id: "ENT-LVMH" } } } };
       case "start_research_session":
         return { status: "requires_confirmation", pending_id: "PENDING-1", confirmation_token: "TOKEN-1" };
       case "confirm_research_session":

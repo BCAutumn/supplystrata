@@ -24,6 +24,7 @@ COMP-LAMINATE-RESIN,Laminate resin,materials>polymers>epoxy>laminate-resin,epoxy
 COMP-POWER-SUPPLY,Power supply,hardware>server>power,PSU;power module;power shelf
 COMP-COOLING,Cooling,hardware>server>thermal,liquid cooling;thermal module;heat sink
 COMP-OPTICAL-MODULE,Optical module,hardware>networking>optics,optical transceiver;silicon photonics module
+COMP-OPTICS,Optics,semiconductor>equipment>lithography>optics,optical components;lenses;mirrors;illuminators;collectors;lithography optics
 COMP-CLEANROOM,Cleanroom,semiconductor>facilities>cleanroom,clean room;semiconductor cleanroom;cleanroom construction
 COMP-BATTERY-CELL,Battery cell,ev>battery>cell,lithium-ion battery cell;cell;LFP cell;4680 cell
 COMP-BATTERY-PACK,Battery pack,ev>battery>pack,battery module;battery pack;traction battery pack

@@ -62,6 +62,40 @@ describe("universal identity bootstrap", () => {
     expect(buildUniversalIdentityLookupQueries("Skyworks Solutions Incorporated")).toEqual(["Skyworks Solutions Incorporated", "Skyworks Solutions Inc."]);
   });
 
+  it("bootstraps a unique Companies House identity candidate through the entity-import boundary", async () => {
+    const store = new MockStore();
+    const result = await ensureResearchCompanyEntity(
+      store,
+      { query: "AstraZeneca PLC", env, now, reviewer: "test" },
+      runtimeWithCandidates({ "companies-house": [companiesHouseCandidate("02723534", "ASTRAZENECA PLC")] })
+    );
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      source_adapter_id: "companies-house",
+      candidate_count: 1
+    });
+    expect(result.entity_id).toMatch(/^ENT-CH-/);
+    expect(store.transaction_count).toBe(1);
+  });
+
+  it("bootstraps a unique OpenCorporates identity candidate through the entity-import boundary", async () => {
+    const store = new MockStore();
+    const result = await ensureResearchCompanyEntity(
+      store,
+      { query: "Arm Holdings plc", env, now, reviewer: "test" },
+      runtimeWithCandidates({ opencorporates: [openCorporatesCandidate("gb/02557590", "ARM HOLDINGS PLC", "gb")] })
+    );
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      source_adapter_id: "opencorporates",
+      candidate_count: 1
+    });
+    expect(result.entity_id).toMatch(/^ENT-OC-/);
+    expect(store.transaction_count).toBe(1);
+  });
+
   it("bootstraps a unique GLEIF identity candidate through the entity-import boundary", async () => {
     const store = new MockStore();
     const result = await ensureResearchCompanyEntity(
@@ -162,7 +196,7 @@ describe("universal identity bootstrap", () => {
       status: "resolved",
       source_adapter_id: "sec-edgar",
       entity_id: "ENT-NVIDIA",
-      source_adapter_ids: ["gleif", "openfigi", "wikidata", "sec-edgar"]
+      source_adapter_ids: ["gleif", "openfigi", "wikidata", "opencorporates", "companies-house", "sec-edgar"]
     });
     expect(store.transaction_count).toBe(1);
     expect(store.client.calls.some((call) => call.sql.includes("sec_listed_company_bootstrap"))).toBe(true);
@@ -183,7 +217,7 @@ describe("universal identity bootstrap", () => {
         query: input.query,
         results: [
           {
-            source_adapter_id: universalSource(input.source),
+            source_adapter_id: bootstrapSource(input.source),
             candidates: [],
             error_message: `${input.source} unavailable`
           }
@@ -199,13 +233,15 @@ describe("universal identity bootstrap", () => {
     expect(result.reason).toContain("gleif unavailable");
     expect(result.reason).toContain("openfigi unavailable");
     expect(result.reason).toContain("wikidata unavailable");
+    expect(result.reason).toContain("opencorporates unavailable");
+    expect(result.reason).toContain("companies-house unavailable");
   });
 });
 
 function runtimeWithCandidates(input: Partial<Record<EntitySourceAdapterId, EntitySourceCandidate[]>>): ResearchCompanyEntityBootstrapRuntime {
   return {
     lookupEntityCandidates: async (lookupInput: EntityLookupInput): Promise<EntityLookupSummary> => {
-      const source = universalSource(lookupInput.source);
+      const source = bootstrapSource(lookupInput.source);
       return {
         query: lookupInput.query,
         results: [
@@ -220,9 +256,61 @@ function runtimeWithCandidates(input: Partial<Record<EntitySourceAdapterId, Enti
   };
 }
 
-function universalSource(source: EntityLookupInput["source"]): EntitySourceAdapterId {
-  if (source === "gleif" || source === "openfigi" || source === "wikidata") return source;
-  throw new Error(`Unexpected universal identity source in test: ${source}`);
+function bootstrapSource(source: EntityLookupInput["source"]): EntitySourceAdapterId {
+  if (
+    source === "gleif" ||
+    source === "openfigi" ||
+    source === "wikidata" ||
+    source === "opencorporates" ||
+    source === "companies-house"
+  ) {
+    return source;
+  }
+  throw new Error(`Unexpected bootstrap identity source in test: ${source}`);
+}
+
+function companiesHouseCandidate(number: string, name: string): EntitySourceCandidate {
+  return createEntitySourceCandidate({
+    source_adapter_id: "companies-house",
+    source_url: `https://api.company-information.service.gov.uk/company/${number}`,
+    external_id: number,
+    name,
+    jurisdiction_code: "gb",
+    company_number: number,
+    current_status: "active",
+    company_type: "plc",
+    previous_names: [],
+    alternative_names: [],
+    identifiers: {
+      companies_house_number: number,
+      company_number: number,
+      jurisdiction_code: "gb"
+    },
+    confidence: 0.82,
+    provenance_note: `Companies House company ${number}`
+  });
+}
+
+function openCorporatesCandidate(openCorporatesId: string, name: string, jurisdiction: string): EntitySourceCandidate {
+  const companyNumber = openCorporatesId.split("/")[1] ?? openCorporatesId;
+  return createEntitySourceCandidate({
+    source_adapter_id: "opencorporates",
+    source_url: `https://api.opencorporates.com/v0.4/companies/${openCorporatesId}`,
+    external_id: openCorporatesId,
+    name,
+    jurisdiction_code: jurisdiction,
+    company_number: companyNumber,
+    current_status: "Active",
+    previous_names: [],
+    alternative_names: [],
+    identifiers: {
+      open_corporates_id: openCorporatesId,
+      company_number: companyNumber,
+      jurisdiction_code: jurisdiction
+    },
+    confidence: 0.74,
+    provenance_note: `OpenCorporates company ${openCorporatesId}`
+  });
 }
 
 function gleifCandidate(lei: string, name: string, country: string): EntitySourceCandidate {

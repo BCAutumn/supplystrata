@@ -1,8 +1,13 @@
 export {
+  COMMUNITY_PACK_BASELINE_RELATIONSHIP_STATUS,
   COMMUNITY_PACK_CANONICAL_FORMAT,
   COMMUNITY_PACK_DATA_FILE_ROLE,
   COMMUNITY_PACK_DATA_MEDIA_TYPE,
+  COMMUNITY_PACK_EVIDENCE_LEVEL_SCHEME,
+  COMMUNITY_PACK_EXTRACTION_METHOD_SCHEME,
   COMMUNITY_PACK_MANIFEST_SCHEMA_VERSION,
+  COMMUNITY_PACK_MIN_PUBLISH_EVIDENCE_LEVEL,
+  COMMUNITY_PACK_RULE_EXTRACTION_METHOD,
   COMMUNITY_PACK_SCBOM_SCHEMA_VERSION,
   COMMUNITY_PACK_SHA256_ALGORITHM
 } from "./definitions/manifest.js";
@@ -36,3 +41,4 @@ export {
   validateCommunityPackManifest
 } from "./functions/manifest.js";
 export { buildCommunityPack, publishEligibleScbomDocument, summarizeCommunityPackEligibility } from "./functions/exporter.js";
+export { assertCommunityPackPublishEligible, communityPackPublishEligibilityErrors } from "./functions/publish-eligibility.js";

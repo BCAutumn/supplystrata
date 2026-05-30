@@ -1,15 +1,14 @@
 import { createDbApiOperationHandlers } from "@supplystrata/api-orchestration";
 import { loadEnv, requireEnvValue } from "@supplystrata/config";
-import { loadCommunityPackFromPath } from "@supplystrata/community-pack";
 import { createDatabaseStore } from "@supplystrata/db/write";
 
 import type { McpRuntime, McpRuntimeMode, McpRuntimeOptions } from "../definitions/mcp-runtime.js";
 import { MCP_RUNTIME_DB, MCP_RUNTIME_FIXTURE } from "../definitions/mcp-runtime.js";
-import { withCommunityPackBaseline } from "../functions/community-pack-baseline.js";
+import { loadCommunityPackBaselineOrWarn, withCommunityPackBaseline } from "../functions/community-pack-baseline.js";
 import { createFixtureApiOperationHandlers, createFixtureWriteExecutors, MCP_FIXTURE_NOW } from "../functions/fixture-mcp-runtime.js";
 
 export function createMcpRuntime(mode: McpRuntimeMode, options: McpRuntimeOptions = {}): McpRuntime {
-  const communityPack = options.packPath === undefined ? undefined : loadCommunityPackFromPath(options.packPath);
+  const communityPack = options.packPath === undefined ? undefined : loadCommunityPackBaselineOrWarn(options.packPath);
   if (mode === MCP_RUNTIME_FIXTURE) {
     return {
       mode,

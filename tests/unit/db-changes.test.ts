@@ -56,6 +56,20 @@ describe("db changes timeline", () => {
     expect(client.calls.some((call) => call.sql.includes("FROM change_records"))).toBe(true);
     expect(client.calls.some((call) => call.sql.includes("FROM source_change_events"))).toBe(true);
   });
+
+  it("filters the timeline to events touching one entity when an entity scope is given", async () => {
+    const client = new ChangeTimelineDbClient();
+
+    const items = await listChangeTimeline(client, {
+      since: "2026-05-01T00:00:00.000Z",
+      limit: 10,
+      scope: { kind: "entity", id: "ENT-NVIDIA" }
+    });
+
+    // 只保留 subject/object/scope 命中 ENT-NVIDIA 的事件（EVIDENCE_SUPERSEDED），过滤掉无实体关联的 source 事件。
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ event_type: "EVIDENCE_SUPERSEDED", subject_id: "ENT-NVIDIA" });
+  });
 });
 
 function rowsForChanges<T extends pg.QueryResultRow>(sql: string): T[] {

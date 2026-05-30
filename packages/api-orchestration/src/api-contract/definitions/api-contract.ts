@@ -45,6 +45,7 @@ export type ApiDtoSourcePackage =
 
 export type ApiSchemaId =
   | "CompanyCardApiResponse"
+  | "CompanyIdentityApiResponse"
   | "ComponentCardApiResponse"
   | "ChainApiResponse"
   | "ClaimApiResponse"
@@ -90,6 +91,7 @@ export interface ApiRouteContract {
 
 export type ApiRoutePath =
   | "/companies/:id/card"
+  | "/companies/:id/identity"
   | "/components/:id/card"
   | "/chains/:scope"
   | "/claims/:id"
@@ -149,13 +151,16 @@ const readRoute = (
 });
 
 const reviewRoute = (
-  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id"> & { handler_status?: ApiHandlerStatus }
+  input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id"> & {
+    handler_status?: ApiHandlerStatus;
+    write_policy?: ApiReviewWritePolicy;
+  }
 ): ApiRouteContract => ({
   ...input,
   access: "review_write",
   stability: "v0_contract",
   handler_status: input.handler_status ?? "contract_only",
-  write_policy: "review_queue_mutation_only_no_fact_edge_write",
+  write_policy: input.write_policy ?? "review_queue_mutation_only_no_fact_edge_write",
   request_schema_id: "ReviewDecisionRequest"
 });
 
@@ -163,13 +168,14 @@ const workflowRoute = (
   input: Omit<ApiRouteContract, "access" | "stability" | "handler_status" | "write_policy" | "request_schema_id"> & {
     handler_status?: ApiHandlerStatus;
     request_schema_id?: ApiSchemaId;
+    write_policy?: ApiWorkflowWritePolicy;
   }
 ): ApiRouteContract => ({
   ...input,
   access: "workflow_write",
   stability: "v0_contract",
   handler_status: input.handler_status ?? "contract_only",
-  write_policy: "research_run_mutation_no_fact_edge_write",
+  write_policy: input.write_policy ?? "research_run_mutation_no_fact_edge_write",
   request_schema_id: input.request_schema_id ?? "ResearchRunRequest"
 });
 
@@ -199,6 +205,23 @@ export const API_ROUTES = [
       notes: "CompanyCard is the stable public card DTO, not a persistence row."
     },
     description: "Return the evidence-backed company card for a resolved company."
+  }),
+  readRoute({
+    method: "GET",
+    path: "/companies/:id/identity",
+    operation_id: "resolveCompanyIdentity",
+    handler_status: "http_adapter_backed",
+    parameters: [idPathParam("id", "Company entity id, LEI, ticker, alias, or resolver-backed company query.")],
+    response_schema_id: "CompanyIdentityApiResponse",
+    dto_contract: {
+      schema_id: "CompanyIdentityApiResponse",
+      source_package: "@supplystrata/api",
+      source_type: "CompanyIdentityResolution",
+      source_kind: "api_envelope",
+      notes:
+        "Resolution returns an explicit resolved/unresolved status. Resolved payloads include the evidence-backed company card; unresolved payloads distinguish 'not in local cache yet' from 'company does not exist' and point to start_research_session for global identity bootstrap."
+    },
+    description: "Resolve a company query against the local cache and report an honest resolution status without performing identity bootstrap."
   }),
   readRoute({
     method: "GET",
@@ -303,7 +326,14 @@ export const API_ROUTES = [
     handler_status: "http_adapter_backed",
     parameters: [
       limitQueryParam(100),
-      { name: "since", in: "query", required: false, schema: { type: "string" }, description: "Optional ISO timestamp lower bound." }
+      { name: "since", in: "query", required: false, schema: { type: "string" }, description: "Optional ISO timestamp lower bound." },
+      {
+        name: "scope",
+        in: "query",
+        required: false,
+        schema: { type: "string" },
+        description: "Optional <kind>:<id> scope filter (e.g. company:ENT-ASML, entity:ENT-ASML, edge:<id>, source:sec-edgar)."
+      }
     ],
     response_schema_id: "ChangesApiResponse",
     dto_contract: {
@@ -311,9 +341,9 @@ export const API_ROUTES = [
       source_package: "@supplystrata/workbench-export",
       source_type: "WorkbenchChangeTimelineItem[]",
       source_kind: "public_dto",
-      notes: "Change timeline exposes graph/source/semantic/risk events through a stable DTO."
+      notes: "Change timeline exposes graph/source/semantic/risk events through a stable DTO; optional scope filters to events touching one entity/edge/source."
     },
-    description: "List source, graph, semantic, and risk changes for monitoring views."
+    description: "List source, graph, semantic, and risk changes for monitoring views; optionally scoped to a single entity, edge, or source."
   }),
   readRoute({
     method: "GET",
@@ -548,6 +578,7 @@ export const API_ROUTES = [
     path: "/source-checks/run",
     operation_id: "runSourceChecks",
     handler_status: "http_adapter_backed",
+    write_policy: "source_check_execution_runs_evidence_gated_promote",
     request_schema_id: "SourceCheckRunRequest",
     parameters: [],
     response_schema_id: "SourceCheckRunApiResponse",
@@ -557,15 +588,16 @@ export const API_ROUTES = [
       source_type: "DueSourceCheckRunResult",
       source_kind: "public_dto",
       notes:
-        "Source-check execution may write local raw-document cache, observation events, and audit ledger entries; it cannot write fact edges or call AI providers."
+        "Source-check execution writes local raw-document cache, observation events, and audit ledger entries, then runs evidence-gated promote (#13): rule-extracted high-confidence relations from official sources are written as current fact edges. It does not call AI providers."
     },
-    description: "Run due source checks after explicit confirmation."
+    description: "Run due source checks after explicit confirmation, including evidence-gated promotion of rule-extracted facts."
   }),
   reviewRoute({
     method: "POST",
     path: "/review/:id/approve",
     operation_id: "approveReviewCandidate",
     handler_status: "http_adapter_backed",
+    write_policy: "review_approval_applies_reviewed_fact_edges",
     parameters: [idPathParam("id", "Review candidate id.")],
     response_schema_id: "ReviewDecisionApiResponse",
     dto_contract: {
@@ -573,9 +605,10 @@ export const API_ROUTES = [
       source_package: "@supplystrata/api",
       source_type: "ReviewDecisionResult",
       source_kind: "api_envelope",
-      notes: "Approval endpoint mutates review state only; fact edge application remains a separate reviewed workflow."
+      notes:
+        "Approval applies the reviewed candidate within the same confirmation boundary: it runs evidence-gated promote, materializing current fact edges/entities for edge-bearing kinds (supplier_list, entity) or recording a disposition for acknowledgement-only kinds. The response reports the apply status and applied_edges."
     },
-    description: "Approve a review candidate without directly writing fact edges."
+    description: "Approve a review candidate and apply it through evidence-gated promote."
   }),
   reviewRoute({
     method: "POST",

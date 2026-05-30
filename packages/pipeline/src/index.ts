@@ -27,5 +27,17 @@ export type {
   Gate1SupplierListReviewBatchItem,
   Gate1SupplierListReviewBatchSummary
 } from "./gate1-supplier-list-review-batch.js";
+export { backfillDocumentFacts } from "./backfill-document-facts.js";
+export type { BackfillDocumentFactsInput, BackfillDocumentFactsResult } from "./backfill-document-facts.js";
 export { isValidCandidate, runSupplyChainPipelineFromNormalized } from "./run.js";
+export { createDocumentFactPromoter, decideAutoPromotableCandidates, recordUnresolvedCounterpartyUnknowns } from "./promote-document-facts.js";
+export type {
+  AutoPromotionDecision,
+  DecideAutoPromotableCandidatesInput,
+  DocumentFactPromoter,
+  DocumentFactPromoterOptions,
+  DocumentFactPromotionResult,
+  PromoteDocumentFactsInput,
+  UnresolvedCounterparty
+} from "./promote-document-facts.js";
 export type { NormalizedPipelineInput, PipelineSummary } from "./types.js";

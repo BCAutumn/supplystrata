@@ -97,7 +97,8 @@ function cliOptions(raw: Record<string, unknown>): AgentCliOptions {
 async function readScbomArtifactDocument(company: string, mcp: Awaited<ReturnType<typeof connectAgentMcpClient>>): Promise<ScbomDocument> {
   const resolved = await mcp.client.callTool("resolve_company", { query: company });
   const data = readRecordPath(resolved, ["data"]);
-  const companyId = readOptionalStringPath(data, ["entity_id"]) ?? readOptionalStringPath(data, ["entity", "entity_id"]);
+  if (data["status"] !== "resolved") throw new Error("Cannot write SCBOM artifact because company identity could not be resolved.");
+  const companyId = readOptionalStringPath(data, ["card", "entity", "entity_id"]);
   if (companyId === null) throw new Error("Cannot write SCBOM artifact because company identity could not be resolved.");
   const resource = await mcp.readResource(`supplystrata://scbom/company/${companyId}`);
   const document = scbomDocumentFromResource(resource);
