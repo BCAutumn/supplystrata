@@ -132,13 +132,14 @@ export class ScbomSupplyChainGraphElement extends ScbomBaseElement {
     const source = nodeLookup.get(edge.source);
     const target = nodeLookup.get(edge.target);
     if (source === undefined || target === undefined) return svg``;
+    const segment = visibleEdgeSegment(source, target);
     return svg`
       <line
         part="graph-svg-edge"
-        x1=${source.x}
-        y1=${source.y}
-        x2=${target.x}
-        y2=${target.y}
+        x1=${segment.x1}
+        y1=${segment.y1}
+        x2=${segment.x2}
+        y2=${segment.y2}
         marker-end="url(#scbom-arrowhead)"
       ></line>
     `;
@@ -223,6 +224,28 @@ function canUseWebGl(): boolean {
   if (typeof document === "undefined") return false;
   const canvas = document.createElement("canvas");
   return canvas.getContext("webgl2") !== null || canvas.getContext("webgl") !== null;
+}
+
+function visibleEdgeSegment(
+  source: ScbomViewGraphNode,
+  target: ScbomViewGraphNode
+): { readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number } {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance === 0) return { x1: source.x, y1: source.y, x2: target.x, y2: target.y };
+
+  const unitX = dx / distance;
+  const unitY = dy / distance;
+  const startOffset = source.size + 2;
+  // 箭头是关系方向的主要读法；终点必须停在节点外侧，避免被目标节点遮住。
+  const endOffset = target.size + 8;
+  return {
+    x1: source.x + unitX * startOffset,
+    y1: source.y + unitY * startOffset,
+    x2: target.x - unitX * endOffset,
+    y2: target.y - unitY * endOffset
+  };
 }
 
 function shortLabel(label: string): string {

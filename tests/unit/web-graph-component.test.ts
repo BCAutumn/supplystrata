@@ -22,6 +22,10 @@ describe("scbom-supply-chain-graph", () => {
     expect(shadow.querySelector('[part="graph-svg"]')).not.toBeNull();
     expect(shadow.querySelectorAll('[part="graph-svg-node"]').length).toBe(3);
     expect(shadow.querySelectorAll('[part="graph-svg-edge"]').length).toBe(1);
+    const svgEdge = shadow.querySelector('[part="graph-svg-edge"]');
+    const nodeCenters = [...shadow.querySelectorAll('[part="graph-svg-node"]')].map((node) => `${node.getAttribute("cx")},${node.getAttribute("cy")}`);
+    expect(nodeCenters).not.toContain(`${svgEdge?.getAttribute("x1")},${svgEdge?.getAttribute("y1")}`);
+    expect(nodeCenters).not.toContain(`${svgEdge?.getAttribute("x2")},${svgEdge?.getAttribute("y2")}`);
     expect([...shadow.querySelectorAll("[data-node-id]")].map((node) => node.textContent)).toEqual(["GPU", "NVIDIA", "TSMC"]);
     expect([...shadow.querySelectorAll("[data-edge-id]")].map((edge) => edge.getAttribute("data-edge-id"))).toEqual(["EDGE-NVIDIA-TSMC"]);
     expect(shadow.textContent).not.toContain("OBS-GPU-1");
